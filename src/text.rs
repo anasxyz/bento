@@ -11,6 +11,7 @@ pub struct TextRenderer {
     swash_cache: SwashCache,
     atlas: TextAtlas,
     renderer: GlyphonRenderer,
+    text_buffers: Vec<(Buffer, f32, f32, f32)>, // Buffer, x, y, scale_factor
 }
 
 impl TextRenderer {
@@ -26,7 +27,11 @@ impl TextRenderer {
         let renderer = GlyphonRenderer::new(
             &mut atlas,
             device,
-            wgpu::MultisampleState::default(),
+            wgpu::MultisampleState {
+                count: 4, // Enable 4x MSAA to match the app
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
             None,
         );
 
@@ -35,57 +40,83 @@ impl TextRenderer {
             swash_cache,
             atlas,
             renderer,
+            text_buffers: Vec::new(),
         }
     }
 
-    /// Draw text with multiple lines
-    pub fn draw_text<'pass>(
-        &'pass mut self,
+    /// Queue text to be drawn (doesn't render yet)
+    pub fn queue_text(
+        &mut self,
         text: &str,
         x: f32,
         y: f32,
         screen_width: f32,
         screen_height: f32,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        pass: &mut wgpu::RenderPass<'pass>,
+        scale_factor: f64,
     ) {
-        // Create a text buffer
+        let scale = scale_factor as f32;
+        
+        // Scale font metrics by DPI for consistent visual size
         let mut buffer = Buffer::new(
             &mut self.font_system,
-            Metrics::new(22.0, 35.0), // font_size, line_height
+            Metrics::new(12.0 * scale, 35.0 * scale),
         );
 
-        // Set buffer size to enable proper text layout
+        // Set buffer size in logical coordinates
         buffer.set_size(&mut self.font_system, screen_width - x * 2.0, screen_height - y * 2.0);
         
         // Set text with proper wrapping
         buffer.set_text(
             &mut self.font_system,
             text,
-            Attrs::new().family(Family::Name("JetBrainsMono Nerd Font")),
+            Attrs::new().family(Family::Name("ZedMono Nerd Font")),
             Shaping::Advanced,
         );
         
         // Important: shape the lines so glyphon knows where line breaks are
         buffer.shape_until_scroll(&mut self.font_system);
 
-        // Create text area
-        let text_area = TextArea {
-            buffer: &buffer,
-            left: x,
-            top: y,
-            scale: 1.0,
-            bounds: glyphon::TextBounds {
-                left: 0,
-                top: 0,
-                right: screen_width as i32,
-                bottom: screen_height as i32,
-            },
-            default_color: glyphon::Color::rgb(255, 255, 255),
-        };
+        // Store with scale factor for rendering
+        self.text_buffers.push((buffer, x, y, scale));
+    }
 
-        // Prepare for rendering
+    /// Render all queued text
+    pub fn render<'pass>(
+        &'pass mut self,
+        screen_width: f32,
+        screen_height: f32,
+        scale_factor: f64,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        pass: &mut wgpu::RenderPass<'pass>,
+    ) {
+        if self.text_buffers.is_empty() {
+            return;
+        }
+
+        // Calculate physical resolution for crisp rendering
+        let physical_width = (screen_width * scale_factor as f32) as u32;
+        let physical_height = (screen_height * scale_factor as f32) as u32;
+
+        // Convert logical coordinates to physical for positioning
+        let text_areas: Vec<TextArea> = self.text_buffers
+            .iter()
+            .map(|(buffer, x, y, stored_scale)| TextArea {
+                buffer,
+                left: x * stored_scale, // Convert to physical coordinates
+                top: y * stored_scale,  // Convert to physical coordinates
+                scale: 1.0,
+                bounds: glyphon::TextBounds {
+                    left: 0,
+                    top: 0,
+                    right: physical_width as i32,  // Physical bounds
+                    bottom: physical_height as i32, // Physical bounds
+                },
+                default_color: glyphon::Color::rgb(255, 255, 255),
+            })
+            .collect();
+
+        // Prepare for rendering with PHYSICAL resolution (for crisp text)
         self.renderer
             .prepare(
                 device,
@@ -93,15 +124,38 @@ impl TextRenderer {
                 &mut self.font_system,
                 &mut self.atlas,
                 Resolution {
-                    width: screen_width as u32,
-                    height: screen_height as u32,
+                    width: physical_width,
+                    height: physical_height,
                 },
-                [text_area],
+                text_areas,
                 &mut self.swash_cache,
             )
             .unwrap();
 
-        // Render
+        // Render all text
         self.renderer.render(&self.atlas, pass).unwrap();
+    }
+
+    /// Clear all queued text
+    pub fn clear(&mut self) {
+        self.text_buffers.clear();
+    }
+
+    /// Legacy method for compatibility - queues and renders immediately
+    pub fn draw_text<'pass>(
+        &'pass mut self,
+        text: &str,
+        x: f32,
+        y: f32,
+        screen_width: f32,
+        screen_height: f32,
+        scale_factor: f64,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        pass: &mut wgpu::RenderPass<'pass>,
+    ) {
+        self.clear();
+        self.queue_text(text, x, y, screen_width, screen_height, scale_factor);
+        self.render(screen_width, screen_height, scale_factor, device, queue, pass);
     }
 }

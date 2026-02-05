@@ -8,7 +8,7 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
-use crate::{ShapeRenderer, TextRenderer};
+use crate::{ShapeRenderer, TextRenderer, Scene};
 
 pub struct App {
     event_loop: Option<EventLoop<()>>,
@@ -24,8 +24,7 @@ pub struct App {
 }
 
 pub struct Canvas<'a> {
-    pub shapes: &'a mut ShapeRenderer,
-    pub text: &'a mut TextRenderer,
+    pub scene: &'a mut Scene,
     pub width: f32,
     pub height: f32,
     pub scale_factor: f64,
@@ -41,7 +40,7 @@ impl App {
         let window = Arc::new(
             WindowBuilder::new()
                 .with_title(title)
-                .with_inner_size(winit::dpi::LogicalSize::new(width, height)) // Use logical size
+                .with_inner_size(winit::dpi::LogicalSize::new(width, height))
                 .build(&event_loop)
                 .unwrap(),
         );
@@ -73,7 +72,6 @@ impl App {
         let surface_caps = surface.get_capabilities(&adapter);
         let surface_format = surface_caps.formats[0];
 
-        // Use physical size for rendering, but track scale factor
         let physical_size = window.inner_size();
         let scale_factor = window.scale_factor();
         
@@ -89,7 +87,6 @@ impl App {
         };
         surface.configure(&device, &config);
 
-        // Create MSAA texture
         let msaa_texture = Self::create_msaa_texture(&device, &config, surface_format);
         let msaa_view = msaa_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
@@ -128,7 +125,7 @@ impl App {
         })
     }
 
-    pub fn run<F>(mut self, mut render_fn: F)
+    pub fn run<F>(mut self, mut update_fn: F)
     where
         F: FnMut(&mut Canvas) + 'static,
     {
@@ -140,6 +137,7 @@ impl App {
         );
 
         let mut text_renderer = TextRenderer::new(&self.device, &self.queue, self.surface_format);
+        let mut scene = Scene::new();
 
         let event_loop = self.event_loop.take().unwrap();
 
@@ -158,7 +156,6 @@ impl App {
                         self.config.height = physical_size.height;
                         self.surface.configure(&self.device, &self.config);
 
-                        // Recreate MSAA texture
                         self.msaa_texture = Self::create_msaa_texture(
                             &self.device,
                             &self.config,
@@ -172,6 +169,7 @@ impl App {
                             (self.config.width as f64 / self.scale_factor) as f32,
                             (self.config.height as f64 / self.scale_factor) as f32,
                         );
+                        scene.mark_dirty();
                         self.window.request_redraw();
                     }
                     WindowEvent::Resized(new_size) => {
@@ -179,7 +177,6 @@ impl App {
                         self.config.height = new_size.height;
                         self.surface.configure(&self.device, &self.config);
 
-                        // Recreate MSAA texture
                         self.msaa_texture = Self::create_msaa_texture(
                             &self.device,
                             &self.config,
@@ -193,9 +190,23 @@ impl App {
                             (self.config.width as f64 / self.scale_factor) as f32,
                             (self.config.height as f64 / self.scale_factor) as f32,
                         );
+                        scene.mark_dirty();
                         self.window.request_redraw();
                     }
                     WindowEvent::RedrawRequested => {
+                        // Only call update_fn if scene is dirty
+                        if scene.is_dirty() {
+                            scene.clear(); // Always start fresh
+                            let mut canvas = Canvas {
+                                scene: &mut scene,
+                                width: (self.config.width as f64 / self.scale_factor) as f32,
+                                height: (self.config.height as f64 / self.scale_factor) as f32,
+                                scale_factor: self.scale_factor,
+                            };
+                            update_fn(&mut canvas);
+                        }
+
+                        // Render the scene
                         let frame = self.surface.get_current_texture().unwrap();
                         let view = frame.texture.create_view(&Default::default());
                         let mut encoder = self
@@ -221,28 +232,53 @@ impl App {
                                     occlusion_query_set: None,
                                 });
 
-                            // Clear shapes from previous frame
+                            // Clear and rebuild vertices from scene
                             shape_renderer.clear();
+                            text_renderer.clear();
+                            
+                            // Process all commands
+                            for cmd in scene.commands() {
+                                match cmd {
+                                    crate::DrawCommand::Rect { x, y, w, h, color } => {
+                                        shape_renderer.rect(*x, *y, *w, *h, *color);
+                                    }
+                                    crate::DrawCommand::Circle { cx, cy, radius, color } => {
+                                        shape_renderer.circle(*cx, *cy, *radius, *color);
+                                    }
+                                    crate::DrawCommand::RoundedRect { x, y, w, h, radius, color } => {
+                                        shape_renderer.rounded_rect(*x, *y, *w, *h, *radius, *color);
+                                    }
+                                    crate::DrawCommand::Text { text, x, y } => {
+                                        text_renderer.queue_text(
+                                            text,
+                                            *x,
+                                            *y,
+                                            (self.config.width as f64 / self.scale_factor) as f32,
+                                            (self.config.height as f64 / self.scale_factor) as f32,
+                                            self.scale_factor,
+                                        );
+                                    }
+                                }
+                            }
 
-                            // Call user's render function
-                            let mut canvas = Canvas {
-                                shapes: &mut shape_renderer,
-                                text: &mut text_renderer,
-                                width: (self.config.width as f64 / self.scale_factor) as f32,
-                                height: (self.config.height as f64 / self.scale_factor) as f32,
-                                scale_factor: self.scale_factor,
-                            };
-                            render_fn(&mut canvas);
-
-                            // Render shapes
+                            // Render all shapes
                             shape_renderer.render(&self.device, &self.queue, &mut pass);
 
-                            // Render text
-                            // text_renderer.render(&self.device, &self.queue, &mut pass);
+                            // Render all text
+                            text_renderer.render(
+                                (self.config.width as f64 / self.scale_factor) as f32,
+                                (self.config.height as f64 / self.scale_factor) as f32,
+                                self.scale_factor,
+                                &self.device,
+                                &self.queue,
+                                &mut pass,
+                            );
                         }
 
                         self.queue.submit([encoder.finish()]);
                         frame.present();
+                        
+                        scene.mark_clean();
                     }
                     WindowEvent::CloseRequested => {
                         target.exit();
