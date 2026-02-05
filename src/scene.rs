@@ -7,6 +7,7 @@ pub enum DrawCommand {
     Circle { cx: f32, cy: f32, radius: f32, color: [f32; 4] },
     RoundedRect { x: f32, y: f32, w: f32, h: f32, radius: f32, color: [f32; 4] },
     Text { text: String, x: f32, y: f32, font_size: f32 },
+    Button { x: f32, y: f32, w: f32, h: f32, text: String },
 }
 
 /// Simple scene graph - just a list of drawing commands
@@ -89,39 +90,15 @@ impl Scene {
         self.dirty = true;
     }
 
-    /// Draw a button with centered text
+    /// Add a button to the scene
     pub fn button(&mut self, x: f32, y: f32, w: f32, h: f32, text: &str) {
-        // Draw rounded rectangle background
-        self.rounded_rect(x, y, w, h, 8.0, [0.2, 0.4, 0.8, 1.0]);
-        
-        // Calculate font size that fits
-        let base_font_size = 22.0;
-        let estimated_text_width = text.len() as f32 * (base_font_size * 0.5); // Rough estimate
-        let available_width = w - 20.0; // Padding
-        let available_height = h - 10.0; // Padding
-        
-        // Scale down font if text is too wide or tall
-        let scale_for_width = if estimated_text_width > available_width {
-            available_width / estimated_text_width
-        } else {
-            1.0
-        };
-        
-        let scale_for_height = if base_font_size > available_height {
-            available_height / base_font_size
-        } else {
-            1.0
-        };
-        
-        let font_size = base_font_size * scale_for_width.min(scale_for_height);
-        
-        // Recalculate text width with scaled font
-        let text_width = text.len() as f32 * (font_size * 0.5);
-        
-        // Center text
-        let text_x = x + (w - text_width) / 2.0;
-        let text_y = y + h / 2.0 - font_size * 0.15;
-        
-        self.text_sized(text, text_x, text_y, font_size);
+        self.commands.push(DrawCommand::Button {
+            x,
+            y,
+            w,
+            h,
+            text: text.into(),
+        });
+        self.dirty = true;
     }
 }

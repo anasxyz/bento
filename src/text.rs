@@ -50,6 +50,46 @@ impl TextRenderer {
         }
     }
 
+    /// Measure text dimensions without rendering
+    pub fn measure_text(&mut self, text: &str, font_size: f32) -> (f32, f32) {
+        let scale = self.scale_factor as f32;
+        let scaled_font_size = font_size * scale;
+        let line_height = scaled_font_size * 1.6;
+        
+        let mut buffer = Buffer::new(
+            &mut self.font_system,
+            Metrics::new(scaled_font_size, line_height),
+        );
+        
+        buffer.set_size(&mut self.font_system, f32::MAX, f32::MAX);
+        
+        buffer.set_text(
+            &mut self.font_system,
+            text,
+            Attrs::new().family(Family::Name("ZedMono Nerd Font")),
+            Shaping::Advanced,
+        );
+        
+        buffer.shape_until_scroll(&mut self.font_system);
+        
+        // Measure the laid out text
+        let mut max_width = 0.0f32;
+        let mut max_y = 0.0f32;
+        
+        for run in buffer.layout_runs() {
+            // Calculate line width from glyphs
+            let mut line_width = 0.0f32;
+            for glyph in run.glyphs.iter() {
+                line_width = line_width.max(glyph.x + glyph.w);
+            }
+            max_width = max_width.max(line_width);
+            max_y = max_y.max(run.line_y);
+        }
+        
+        // Return in logical coordinates
+        (max_width / scale, (max_y + line_height) / scale)
+    }
+
     /// Update screen dimensions and scale factor
     pub fn resize(&mut self, width: f32, height: f32, scale_factor: f64) {
         self.screen_width = width;
@@ -98,7 +138,7 @@ impl TextRenderer {
         buffer.set_text(
             &mut self.font_system,
             text,
-            Attrs::new().family(Family::Name("JetBrainsMono Nerd Font")),
+            Attrs::new().family(Family::Name("ZedMono Nerd Font")),
             Shaping::Advanced,
         );
         

@@ -8,7 +8,7 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
-use crate::{ShapeRenderer, TextRenderer, Scene};
+use crate::{ShapeRenderer, TextRenderer, Scene, WidgetRenderer};
 
 pub struct App {
     event_loop: Option<EventLoop<()>>,
@@ -23,8 +23,11 @@ pub struct App {
     scale_factor: f64,
 }
 
-pub struct Canvas<'a> {
+pub struct Rntx<'a> {
     pub scene: &'a mut Scene,
+    pub shapes: &'a mut ShapeRenderer,
+    pub text: &'a mut TextRenderer,
+    pub widgets: &'a mut WidgetRenderer,
     pub width: f32,
     pub height: f32,
     pub scale_factor: f64,
@@ -127,7 +130,7 @@ impl App {
 
     pub fn run<F>(mut self, mut update_fn: F)
     where
-        F: FnMut(&mut Canvas) + 'static,
+        F: FnMut(&mut Rntx) + 'static,
     {
         let mut shape_renderer = ShapeRenderer::new(
             &self.device,
@@ -142,6 +145,9 @@ impl App {
             (self.config.height as f64 / self.scale_factor) as f32,
             self.scale_factor,
         );
+        
+        let mut widget_renderer = WidgetRenderer::new();
+
         let mut scene = Scene::new();
 
         let event_loop = self.event_loop.take().unwrap();
@@ -204,13 +210,16 @@ impl App {
                         // Only call update_fn if scene is dirty
                         if scene.is_dirty() {
                             scene.clear(); // Always start fresh
-                            let mut canvas = Canvas {
+                            let mut rntx = Rntx {
                                 scene: &mut scene,
+                                shapes: &mut shape_renderer,
+                                text: &mut text_renderer,
+                                widgets: &mut widget_renderer,
                                 width: (self.config.width as f64 / self.scale_factor) as f32,
                                 height: (self.config.height as f64 / self.scale_factor) as f32,
                                 scale_factor: self.scale_factor,
                             };
-                            update_fn(&mut canvas);
+                            update_fn(&mut rntx);
                         }
 
                         // Render the scene
@@ -247,13 +256,13 @@ impl App {
                             for cmd in scene.commands() {
                                 match cmd {
                                     crate::DrawCommand::Rect { x, y, w, h, color } => {
-                                        shape_renderer.draw_rect(*x, *y, *w, *h, *color);
+                                        shape_renderer.rect(*x, *y, *w, *h, *color);
                                     }
                                     crate::DrawCommand::Circle { cx, cy, radius, color } => {
-                                        shape_renderer.draw_circle(*cx, *cy, *radius, *color);
+                                        shape_renderer.circle(*cx, *cy, *radius, *color);
                                     }
                                     crate::DrawCommand::RoundedRect { x, y, w, h, radius, color } => {
-                                        shape_renderer.draw_rounded_rect(*x, *y, *w, *h, *radius, *color);
+                                        shape_renderer.rounded_rect(*x, *y, *w, *h, *radius, *color);
                                     }
                                     crate::DrawCommand::Text { text, x, y, font_size } => {
                                         text_renderer.queue_text(
@@ -265,6 +274,9 @@ impl App {
                                             self.scale_factor,
                                             *font_size,
                                         );
+                                    }
+                                    crate::DrawCommand::Button { x, y, w, h, text } => {
+                                        widget_renderer.button(*x, *y, *w, *h, text, &mut shape_renderer, &mut text_renderer);
                                     }
                                 }
                             }

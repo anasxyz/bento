@@ -104,7 +104,7 @@ impl ShapeRenderer {
     }
 
     /// Draw a filled rectangle
-    pub fn draw_rect(&mut self, x: f32, y: f32, w: f32, h: f32, color: [f32; 4]) {
+    pub fn rect(&mut self, x: f32, y: f32, w: f32, h: f32, color: [f32; 4]) {
         let p1 = self.to_ndc(x, y);
         let p2 = self.to_ndc(x + w, y);
         let p3 = self.to_ndc(x, y + h);
@@ -124,7 +124,7 @@ impl ShapeRenderer {
     }
 
     /// Draw a filled circle
-    pub fn draw_circle(&mut self, cx: f32, cy: f32, radius: f32, color: [f32; 4]) {
+    pub fn circle(&mut self, cx: f32, cy: f32, radius: f32, color: [f32; 4]) {
         let segments = 32;
         let pi = std::f32::consts::PI;
         
@@ -146,15 +146,15 @@ impl ShapeRenderer {
     }
 
     /// Draw a rounded rectangle
-    pub fn draw_rounded_rect(&mut self, x: f32, y: f32, w: f32, h: f32, radius: f32, color: [f32; 4]) {
+    pub fn rounded_rect(&mut self, x: f32, y: f32, w: f32, h: f32, radius: f32, color: [f32; 4]) {
         let radius = radius.min(w / 2.0).min(h / 2.0);
         
         // Center rectangle
-        self.draw_rect(x + radius, y, w - radius * 2.0, h, color);
+        self.rect(x + radius, y, w - radius * 2.0, h, color);
         // Left rectangle
-        self.draw_rect(x, y + radius, radius, h - radius * 2.0, color);
+        self.rect(x, y + radius, radius, h - radius * 2.0, color);
         // Right rectangle
-        self.draw_rect(x + w - radius, y + radius, radius, h - radius * 2.0, color);
+        self.rect(x + w - radius, y + radius, radius, h - radius * 2.0, color);
         
         // Four corner circles
         self.quarter_circle(x + radius, y + radius, radius, color, 2); // Top-left
