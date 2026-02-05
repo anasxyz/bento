@@ -59,7 +59,12 @@ impl TextRenderer {
 
     /// Simple API: just draw text at x, y
     pub fn draw(&mut self, text: &str, x: f32, y: f32) {
-        self.queue_text(text, x, y, self.screen_width, self.screen_height, self.scale_factor);
+        self.queue_text(text, x, y, self.screen_width, self.screen_height, self.scale_factor, 22.0);
+    }
+
+    /// Simple API with custom font size
+    pub fn draw_sized(&mut self, text: &str, x: f32, y: f32, font_size: f32) {
+        self.queue_text(text, x, y, self.screen_width, self.screen_height, self.scale_factor, font_size);
     }
 
     /// Queue text to be drawn (doesn't render yet)
@@ -71,17 +76,23 @@ impl TextRenderer {
         screen_width: f32,
         screen_height: f32,
         scale_factor: f64,
+        font_size: f32,
     ) {
         let scale = scale_factor as f32;
         
         // Scale font metrics by DPI for consistent visual size
+        let scaled_font_size = font_size * scale;
+        let line_height = scaled_font_size * 1.6; // 1.6x font size for line height
+        
         let mut buffer = Buffer::new(
             &mut self.font_system,
-            Metrics::new(22.0 * scale, 35.0 * scale),
+            Metrics::new(scaled_font_size, line_height),
         );
 
-        // Set buffer size in logical coordinates
-        buffer.set_size(&mut self.font_system, screen_width - x * 2.0, screen_height - y * 2.0);
+        // Set buffer size to remaining screen space from position
+        let available_width = (screen_width - x).max(100.0); // At least 100px
+        let available_height = (screen_height - y).max(50.0); // At least 50px
+        buffer.set_size(&mut self.font_system, available_width, available_height);
         
         // Set text with proper wrapping
         buffer.set_text(
@@ -168,12 +179,13 @@ impl TextRenderer {
         screen_width: f32,
         screen_height: f32,
         scale_factor: f64,
+        font_size: f32,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         pass: &mut wgpu::RenderPass<'pass>,
     ) {
         self.clear();
-        self.queue_text(text, x, y, screen_width, screen_height, scale_factor);
+        self.queue_text(text, x, y, screen_width, screen_height, scale_factor, font_size);
         self.render(screen_width, screen_height, scale_factor, device, queue, pass);
     }
 }

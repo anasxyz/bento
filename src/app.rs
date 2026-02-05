@@ -247,15 +247,15 @@ impl App {
                             for cmd in scene.commands() {
                                 match cmd {
                                     crate::DrawCommand::Rect { x, y, w, h, color } => {
-                                        shape_renderer.rect(*x, *y, *w, *h, *color);
+                                        shape_renderer.draw_rect(*x, *y, *w, *h, *color);
                                     }
                                     crate::DrawCommand::Circle { cx, cy, radius, color } => {
-                                        shape_renderer.circle(*cx, *cy, *radius, *color);
+                                        shape_renderer.draw_circle(*cx, *cy, *radius, *color);
                                     }
                                     crate::DrawCommand::RoundedRect { x, y, w, h, radius, color } => {
-                                        shape_renderer.rounded_rect(*x, *y, *w, *h, *radius, *color);
+                                        shape_renderer.draw_rounded_rect(*x, *y, *w, *h, *radius, *color);
                                     }
-                                    crate::DrawCommand::Text { text, x, y } => {
+                                    crate::DrawCommand::Text { text, x, y, font_size } => {
                                         text_renderer.queue_text(
                                             text,
                                             *x,
@@ -263,6 +263,7 @@ impl App {
                                             (self.config.width as f64 / self.scale_factor) as f32,
                                             (self.config.height as f64 / self.scale_factor) as f32,
                                             self.scale_factor,
+                                            *font_size,
                                         );
                                     }
                                 }
