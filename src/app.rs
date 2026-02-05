@@ -1,13 +1,13 @@
-// src/app.rs - Clean app logic, separated from GPU details
+// src/app.rs - Using Canvas from canvas module
 
 use std::sync::Arc;
 use winit::{
-    event::{Event, WindowEvent},
+    event::{Event, WindowEvent, ElementState, MouseButton},
     event_loop::{ControlFlow, EventLoop},
     window::{Window, WindowBuilder},
 };
 
-use crate::{GpuContext, ShapeRenderer, TextRenderer, Scene, DrawCommand};
+use crate::{GpuContext, ShapeRenderer, TextRenderer, Scene, DrawCommand, Canvas, MouseState};
 
 /// The main application
 pub struct App {
@@ -15,14 +15,6 @@ pub struct App {
     window: Arc<Window>,
     gpu: GpuContext,
     scale_factor: f64,
-}
-
-/// Drawing context passed to user code
-pub struct Canvas<'a> {
-    pub scene: &'a mut Scene,
-    pub width: f32,
-    pub height: f32,
-    pub scale_factor: f64,
 }
 
 impl App {
@@ -73,6 +65,7 @@ impl App {
         text_renderer.resize(width, height, self.scale_factor);
         
         let mut scene = Scene::new();
+        let mut mouse = MouseState::default();
         let event_loop = self.event_loop.take().unwrap();
 
         let _ = event_loop.run(move |event, target| {
@@ -81,6 +74,28 @@ impl App {
             match event {
                 Event::WindowEvent { event, window_id } if window_id == self.window.id() => {
                     match event {
+                        WindowEvent::CursorMoved { position, .. } => {
+                            mouse.x = (position.x / self.scale_factor) as f32;
+                            mouse.y = (position.y / self.scale_factor) as f32;
+                            scene.mark_dirty();
+                            self.window.request_redraw();
+                        }
+                        WindowEvent::MouseInput { state, button, .. } => {
+                            match button {
+                                MouseButton::Left => {
+                                    let pressed = state == ElementState::Pressed;
+                                    mouse.left_just_pressed = pressed && !mouse.left_pressed;
+                                    mouse.left_just_released = !pressed && mouse.left_pressed;
+                                    mouse.left_pressed = pressed;
+                                }
+                                MouseButton::Right => {
+                                    mouse.right_pressed = state == ElementState::Pressed;
+                                }
+                                _ => {}
+                            }
+                            scene.mark_dirty();
+                            self.window.request_redraw();
+                        }
                         WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                             self.on_scale_change(
                                 scale_factor,
@@ -102,6 +117,7 @@ impl App {
                                 &mut shape_renderer,
                                 &mut text_renderer,
                                 &mut scene,
+                                &mut mouse,
                                 &mut update_fn,
                             );
                         }
@@ -115,10 +131,6 @@ impl App {
             }
         });
     }
-
-    // ========================================================================
-    // Event Handlers
-    // ========================================================================
 
     fn on_scale_change(
         &mut self,
@@ -162,11 +174,11 @@ impl App {
         shape_renderer: &mut ShapeRenderer,
         text_renderer: &mut TextRenderer,
         scene: &mut Scene,
+        mouse: &mut MouseState,
         update_fn: &mut F,
     ) where
         F: FnMut(&mut Canvas),
     {
-        // Update scene if dirty
         if scene.is_dirty() {
             scene.clear();
             
@@ -176,18 +188,20 @@ impl App {
                 width,
                 height,
                 scale_factor: self.scale_factor,
+                mouse: *mouse,
             };
             
             update_fn(&mut canvas);
         }
 
-        // Render
+        mouse.left_just_pressed = false;
+        mouse.left_just_released = false;
+
         let frame = match self.gpu.begin_frame() {
             Ok(frame) => frame,
-            Err(_) => return, // Surface lost, skip frame
+            Err(_) => return,
         };
 
-        // Begin rendering - consumes frame and gives us everything we need
         let (mut encoder, finisher, view, msaa_view) = frame.begin();
 
         {
@@ -206,7 +220,6 @@ impl App {
                 occlusion_query_set: None,
             });
 
-            // Process scene commands
             shape_renderer.clear();
             text_renderer.clear();
             
@@ -229,7 +242,6 @@ impl App {
                 }
             }
 
-            // Render
             shape_renderer.render(&self.gpu.device, &self.gpu.queue, &mut pass);
             text_renderer.render(width, height, self.scale_factor, &self.gpu.device, &self.gpu.queue, &mut pass);
         }
