@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::marker::PhantomData;
 
 use crate::Ui;
 
@@ -23,4 +24,26 @@ pub trait Widget: Any {
     fn render(&self, ui: &mut Ui);
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
+}
+
+#[derive(Debug)]
+pub struct WidgetHandle<T: Widget> {
+    pub(crate) id: usize,
+    _marker: PhantomData<T>,
+}
+
+impl<T: Widget> Copy for WidgetHandle<T> {}
+impl<T: Widget> Clone for WidgetHandle<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T: Widget> WidgetHandle<T> {
+    pub(crate) fn new(id: usize) -> Self {
+        Self {
+            id,
+            _marker: PhantomData,
+        }
+    }
 }
