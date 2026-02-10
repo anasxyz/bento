@@ -45,7 +45,6 @@ impl Fonts {
             return cached;
         }
 
-        // copy values out before mutably borrowing font_system
         let family = self.entries[id.0].family.clone();
         let size = self.entries[id.0].size;
         let line_height = size * 1.4;
@@ -54,14 +53,14 @@ impl Fonts {
             &mut self.font_system,
             Metrics::new(size, line_height),
         );
-        buffer.set_size(&mut self.font_system, f32::MAX, f32::MAX);
+        buffer.set_size(&mut self.font_system, None, None);
         buffer.set_text(
             &mut self.font_system,
             text,
-            Attrs::new().family(Family::Name(family.as_str())),
+            &Attrs::new().family(Family::Name(family.as_str())),
             Shaping::Advanced,
         );
-        buffer.shape_until_scroll(&mut self.font_system);
+        buffer.shape_until_scroll(&mut self.font_system, false);
 
         let mut width: f32 = 0.0;
         let mut height: f32 = 0.0;
