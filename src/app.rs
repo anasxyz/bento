@@ -5,7 +5,8 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
-use crate::{GpuContext, MouseState, ShapeRenderer, TextRenderer, Ui};
+use crate::{GpuContext, MouseState, InputState, ShapeRenderer, TextRenderer, Ui};
+use crate::widgets::WidgetManager;
 
 /// main application
 pub struct App {
@@ -51,12 +52,11 @@ impl App {
         )
     }
 
-    /// run the application with a user update function
-    pub fn run<F>(mut self, mut update_fn: F)
+    /// run the application with a widget manager and user update function
+    pub fn run<F>(mut self, mut widgets: WidgetManager, mut update_fn: F)
     where
-        F: FnMut(&mut Ui) + 'static,
+        F: FnMut(&mut WidgetManager, &MouseState) + 'static,
     {
-        // create renderers
         let (width, height) = self.logical_size();
         let mut ui = Ui::new(
             TextRenderer::new(&self.gpu.device, &self.gpu.queue, self.gpu.format),
@@ -76,7 +76,6 @@ impl App {
                         WindowEvent::CursorMoved { position, .. } => {
                             mouse.x = (position.x / self.scale_factor) as f32;
                             mouse.y = (position.y / self.scale_factor) as f32;
-                            // self.window.request_redraw();
                         }
                         WindowEvent::MouseInput { state, button, .. } => {
                             match button {
@@ -100,7 +99,7 @@ impl App {
                             self.on_resize(&mut ui, new_size);
                         }
                         WindowEvent::RedrawRequested => {
-                            self.on_redraw(&mut ui, &mut mouse, &mut update_fn);
+                            self.on_redraw(&mut ui, &mut widgets, &mut mouse, &mut update_fn);
                         }
                         WindowEvent::CloseRequested => {
                             target.exit();
@@ -136,18 +135,23 @@ impl App {
         self.window.request_redraw();
     }
 
-    fn on_redraw<F>(&mut self, ui: &mut Ui, mouse: &mut MouseState, update_fn: &mut F)
+    fn on_redraw<F>(
+        &mut self,
+        ui: &mut Ui,
+        widgets: &mut WidgetManager,
+        mouse: &mut MouseState,
+        update_fn: &mut F,
+    )
     where
-        F: FnMut(&mut Ui),
+        F: FnMut(&mut WidgetManager, &MouseState),
     {
-        println!("redrawing");
-
         ui.shape_renderer.clear();
         ui.text_renderer.clear();
 
-        let (width, height) = self.logical_size();
+        println!("redrawing");
 
-        update_fn(ui);
+        update_fn(widgets, mouse);
+        widgets.render_all(ui);
 
         let frame = match self.gpu.begin_frame() {
             Ok(frame) => frame,

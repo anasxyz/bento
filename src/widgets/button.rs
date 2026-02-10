@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use crate::{
     Ui,
     widgets::{Rect, Widget},
@@ -49,6 +51,11 @@ impl ButtonWidget {
         self.color = color;
         self
     }
+
+    pub fn text(&mut self, text: &str) -> &mut Self {
+        self.text = text.to_string();
+        self
+    }
 }
 
 impl Widget for ButtonWidget {
@@ -71,5 +78,13 @@ impl Widget for ButtonWidget {
             bounds.x, bounds.y, bounds.w, bounds.h, self.color, [0.0; 4], 0.0,
         );
         ui.text(self.text.as_str(), self.font_size, bounds.x, bounds.y);
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }
