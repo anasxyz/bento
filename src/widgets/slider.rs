@@ -114,7 +114,16 @@ impl SliderWidget {
 impl Widget for SliderWidget {
     fn id(&self) -> usize { self.id }
     fn bounds(&self) -> Rect { self.bounds }
-    fn set_bounds(&mut self, bounds: Rect) { self.bounds = bounds; self.dirty = true; }
+    fn set_bounds(&mut self, bounds: Rect) {
+        if (bounds.x - self.bounds.x).abs() > 0.001
+            || (bounds.y - self.bounds.y).abs() > 0.001
+            || (bounds.w - self.bounds.w).abs() > 0.001
+            || (bounds.h - self.bounds.h).abs() > 0.001
+        {
+            self.bounds = bounds;
+            self.dirty = true;
+        }
+    }
 
     fn update(&mut self, mouse: &MouseState) {
         let prev_hovered  = self.hovered;

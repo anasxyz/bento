@@ -28,4 +28,5 @@ pub use drawer::Drawer;
 pub use fonts::{FontId, Fonts};
 pub use mouse::MouseState;
 pub use input::InputState;
-pub use layout::LayoutManager;
+pub use layout::{LayoutManager, ContainerRef};
+pub use widgets::TextInputWidget;

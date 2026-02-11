@@ -60,6 +60,7 @@ impl WindowState {
     }
 
     fn render(&mut self, ctx: &mut Ctx) {
+        println!("render");
         ctx.widgets.layout_all(&mut ctx.fonts);
         ctx.layout.compute_all(&mut ctx.widgets.widgets);
 
@@ -249,9 +250,19 @@ impl<T: RentexApp> ApplicationHandler for WinitHandler<T> {
                     if pressed {
                         ctx.input.keys_just_pressed.insert(key);
                         ctx.input.keys_pressed.insert(key);
+                        ctx.widgets.key_press(key);
                     } else {
                         ctx.input.keys_just_released.insert(key);
                         ctx.input.keys_pressed.remove(&key);
+                    }
+                }
+                if pressed {
+                    if let winit::keyboard::Key::Character(s) = &event.logical_key {
+                        for c in s.chars() {
+                            if !c.is_control() {
+                                ctx.widgets.type_char(c);
+                            }
+                        }
                     }
                 }
                 let mouse_snap = ctx.mouse;
@@ -263,6 +274,16 @@ impl<T: RentexApp> ApplicationHandler for WinitHandler<T> {
                 }
                 ctx.input.keys_just_pressed.clear();
                 ctx.input.keys_just_released.clear();
+            }
+            WindowEvent::Ime(winit::event::Ime::Commit(text)) => {
+                for c in text.chars() {
+                    ctx.widgets.type_char(c);
+                }
+                self.app.update(ctx);
+                if ctx.exit { self.window_state = None; event_loop.exit(); return; }
+                if ctx.widgets.take_dirty() {
+                    ws.window.request_redraw();
+                }
             }
             WindowEvent::ScaleFactorChanged { scale_factor, inner_size_writer: _ } => {
                 let new_inner = ws.window.inner_size();

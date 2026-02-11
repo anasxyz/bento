@@ -1,4 +1,4 @@
-use crate::{Drawer, Fonts, MouseState, widgets::{ButtonWidget, SliderWidget, Widget, WidgetHandle}};
+use crate::{Drawer, Fonts, MouseState, widgets::{ButtonWidget, SliderWidget, TextInputWidget, Widget, WidgetHandle}};
 
 pub struct WidgetManager {
     pub(crate) widgets: Vec<Box<dyn Widget>>,
@@ -31,6 +31,43 @@ impl WidgetManager {
         WidgetHandle::new(id)
     }
 
+    pub fn text_input(&mut self) -> WidgetHandle<TextInputWidget> {
+        let id = self.alloc_id();
+        self.widgets.push(Box::new(TextInputWidget::new(id)));
+        self.dirty = true;
+        WidgetHandle::new(id)
+    }
+
+    pub(crate) fn type_char(&mut self, c: char) {
+        for widget in self.widgets.iter_mut() {
+            if let Some(input) = widget.as_any_mut().downcast_mut::<TextInputWidget>() {
+                if input.focused {
+                    input.insert_char(c);
+                    self.dirty = true;
+                }
+            }
+        }
+    }
+
+    pub(crate) fn key_press(&mut self, key: winit::keyboard::KeyCode) {
+        use winit::keyboard::KeyCode;
+        for widget in self.widgets.iter_mut() {
+            if let Some(input) = widget.as_any_mut().downcast_mut::<TextInputWidget>() {
+                if input.focused {
+                    match key {
+                        KeyCode::Backspace => { input.backspace(); self.dirty = true; }
+                        KeyCode::Delete    => { input.delete_forward(); self.dirty = true; }
+                        KeyCode::ArrowLeft  => { input.move_cursor_left(); self.dirty = true; }
+                        KeyCode::ArrowRight => { input.move_cursor_right(); self.dirty = true; }
+                        KeyCode::Home      => { input.move_cursor_home(); self.dirty = true; }
+                        KeyCode::End       => { input.move_cursor_end(); self.dirty = true; }
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+
     pub fn get<T: Widget + 'static>(&self, handle: WidgetHandle<T>) -> &T {
         for widget in self.widgets.iter() {
             if widget.id() == handle.id {
@@ -42,7 +79,6 @@ impl WidgetManager {
     }
 
     pub fn get_mut<T: Widget + 'static>(&mut self, handle: WidgetHandle<T>) -> &mut T {
-        self.dirty = true;
         for widget in self.widgets.iter_mut() {
             if widget.id() == handle.id {
                 return widget.as_any_mut().downcast_mut::<T>()
@@ -59,15 +95,9 @@ impl WidgetManager {
     pub(crate) fn update_all(&mut self, mouse: &MouseState) -> bool {
         let mut changed = false;
         for widget in self.widgets.iter_mut() {
-            let was_hovered = widget.bounds().contains(
-                mouse.x - mouse.dx,
-                mouse.y - mouse.dy,
-            );
             widget.update(mouse);
-            let is_hovered = widget.bounds().contains(mouse.x, mouse.y);
 
-            if was_hovered != is_hovered
-                || mouse.left_just_pressed
+            if mouse.left_just_pressed
                 || mouse.left_just_released
                 || mouse.right_just_pressed
                 || mouse.right_just_released

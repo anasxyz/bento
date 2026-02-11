@@ -94,7 +94,16 @@ impl ButtonWidget {
 impl Widget for ButtonWidget {
     fn id(&self) -> usize { self.id }
     fn bounds(&self) -> Rect { self.bounds }
-    fn set_bounds(&mut self, bounds: Rect) { self.bounds = bounds; self.dirty = true; }
+    fn set_bounds(&mut self, bounds: Rect) {
+        if (bounds.x - self.bounds.x).abs() > 0.001
+            || (bounds.y - self.bounds.y).abs() > 0.001
+            || (bounds.w - self.bounds.w).abs() > 0.001
+            || (bounds.h - self.bounds.h).abs() > 0.001
+        {
+            self.bounds = bounds;
+            self.dirty = true;
+        }
+    }
 
     fn layout(&mut self, fonts: &mut crate::Fonts) {
         if self.auto_size {
@@ -113,6 +122,9 @@ impl Widget for ButtonWidget {
     }
 
     fn update(&mut self, mouse: &MouseState) {
+        let prev_hovered = self.hovered;
+        let prev_pressed = self.pressed;
+
         self.just_hovered   = false;
         self.just_unhovered = false;
         self.just_pressed   = false;
@@ -123,8 +135,6 @@ impl Widget for ButtonWidget {
 
         self.just_hovered   = over && !self.hovered;
         self.just_unhovered = !over && self.hovered;
-        let prev_hovered    = self.hovered;
-        let prev_pressed    = self.pressed;
         self.hovered        = over;
         self.just_pressed   = over && mouse.left_just_pressed;
         self.just_clicked   = over && mouse.left_just_released && self.pressed;

@@ -4,10 +4,12 @@ use crate::{Drawer, MouseState};
 
 mod button;
 mod slider;
+mod text_input;
 mod manager;
 
 pub use button::ButtonWidget;
 pub use slider::SliderWidget;
+pub use text_input::TextInputWidget;
 pub use manager::WidgetManager;
 
 #[derive(Debug, Clone, Copy)]
@@ -33,8 +35,10 @@ pub trait Widget: Any {
     fn bounds(&self) -> Rect;
     fn set_bounds(&mut self, bounds: Rect);
     fn update(&mut self, mouse: &MouseState);
+    /// Measure and compute bounds. Called once per frame before render, no draw calls.
     fn layout(&mut self, fonts: &mut crate::Fonts) {}
     fn render(&mut self, drawer: &mut Drawer);
+    /// Returns true if this widget's visual state changed since the last clear_dirty.
     fn is_dirty(&self) -> bool;
     fn clear_dirty(&mut self);
     fn as_any(&self) -> &dyn Any;
