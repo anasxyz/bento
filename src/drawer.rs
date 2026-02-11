@@ -3,7 +3,7 @@ use crate::{FontId, Fonts, ShapeRenderer, TextRenderer};
 pub struct Drawer<'a> {
     pub(crate) text_renderer: &'a mut TextRenderer,
     pub(crate) shape_renderer: &'a mut ShapeRenderer,
-    pub fonts: &'a mut Fonts,
+    fonts: &'a mut Fonts,
 }
 
 impl<'a> Drawer<'a> {

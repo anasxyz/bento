@@ -13,6 +13,7 @@ pub struct Fonts {
     pub(crate) font_system: FontSystem,
     entries: Vec<FontEntry>,
     measure_cache: HashMap<(usize, String), (f32, f32)>,
+    name_to_id: HashMap<String, FontId>,
     pub default_padding: f32,
 }
 
@@ -22,21 +23,31 @@ impl Fonts {
             font_system: FontSystem::new(),
             entries: Vec::new(),
             measure_cache: HashMap::new(),
+            name_to_id: HashMap::new(),
             default_padding: 8.0,
         }
     }
 
-    pub fn add(&mut self, family: &str, size: f32) -> FontId {
+    pub fn add(&mut self, name: &str, family: &str, size: f32) -> FontId {
+        if let Some(&id) = self.name_to_id.get(name) {
+            return id;
+        }
+        
         let id = FontId(self.entries.len());
         self.entries.push(FontEntry {
             family: family.to_string(),
             size,
         });
+        self.name_to_id.insert(name.to_string(), id);
         id
     }
 
     pub fn get(&self, id: FontId) -> &FontEntry {
         &self.entries[id.0]
+    }
+
+    pub fn get_by_name(&self, name: &str) -> Option<FontId> {
+        self.name_to_id.get(name).copied()
     }
 
     pub fn measure(&mut self, text: &str, id: FontId) -> (f32, f32) {
