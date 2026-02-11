@@ -1,4 +1,4 @@
-<h1 align="center">rentex</h1> 
+<h1 align="center">rentex / rntx</h1> 
 <p align="center"> light weight, cross platform, GUI library built on wgpu and winit. Early days, API will change. </p>
 
 <h2>Screenshots</h2>
