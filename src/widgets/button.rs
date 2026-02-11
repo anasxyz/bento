@@ -21,6 +21,7 @@ pub struct ButtonWidget {
     pub just_clicked: bool,
     pub just_pressed: bool,
     pub right_clicked: bool,
+    dirty: bool,
 }
 
 impl ButtonWidget {
@@ -41,6 +42,7 @@ impl ButtonWidget {
             just_clicked: false,
             just_pressed: false,
             right_clicked: false,
+            dirty: true,
         }
     }
 
@@ -84,6 +86,7 @@ impl ButtonWidget {
 
     pub fn text(&mut self, text: impl Into<String>) -> &mut Self {
         self.text = text.into();
+        self.dirty = true;
         self
     }
 }
@@ -91,7 +94,23 @@ impl ButtonWidget {
 impl Widget for ButtonWidget {
     fn id(&self) -> usize { self.id }
     fn bounds(&self) -> Rect { self.bounds }
-    fn set_bounds(&mut self, bounds: Rect) { self.bounds = bounds; }
+    fn set_bounds(&mut self, bounds: Rect) { self.bounds = bounds; self.dirty = true; }
+
+    fn layout(&mut self, fonts: &mut crate::Fonts) {
+        if self.auto_size {
+            if let Some(font_id) = self.font {
+                let padding = fonts.default_padding;
+                let (text_w, text_h) = fonts.measure(&self.text, font_id);
+                let new_w = text_w + padding * 2.0;
+                let new_h = text_h + padding * 2.0;
+                if (new_w - self.bounds.w).abs() > 0.5 || (new_h - self.bounds.h).abs() > 0.5 {
+                    self.bounds.w = new_w;
+                    self.bounds.h = new_h;
+                    self.dirty = true;
+                }
+            }
+        }
+    }
 
     fn update(&mut self, mouse: &MouseState) {
         self.just_hovered   = false;
@@ -104,6 +123,8 @@ impl Widget for ButtonWidget {
 
         self.just_hovered   = over && !self.hovered;
         self.just_unhovered = !over && self.hovered;
+        let prev_hovered    = self.hovered;
+        let prev_pressed    = self.pressed;
         self.hovered        = over;
         self.just_pressed   = over && mouse.left_just_pressed;
         self.just_clicked   = over && mouse.left_just_released && self.pressed;
@@ -114,7 +135,14 @@ impl Widget for ButtonWidget {
         } else if mouse.left_just_released {
             self.pressed = false;
         }
+
+        if self.hovered != prev_hovered || self.pressed != prev_pressed || self.just_clicked {
+            self.dirty = true;
+        }
     }
+
+    fn is_dirty(&self) -> bool { self.dirty }
+    fn clear_dirty(&mut self) { self.dirty = false; }
 
     fn render(&mut self, drawer: &mut Drawer) {
         let font_id = self.font.expect(
@@ -123,11 +151,6 @@ impl Widget for ButtonWidget {
 
         let padding = drawer.fonts.default_padding;
         let (text_w, text_h) = drawer.fonts.measure(&self.text, font_id);
-
-        if self.auto_size {
-            self.bounds.w = text_w + padding * 2.0;
-            self.bounds.h = text_h + padding * 2.0;
-        }
 
         let color = if self.pressed {
             self.press_color.unwrap_or_else(|| darken(self.color, 0.7))

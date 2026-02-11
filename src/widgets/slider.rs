@@ -18,7 +18,8 @@ pub struct SliderWidget {
     pub value: f32,
     pub hovered: bool,
     pub dragging: bool,
-    pub just_changed: bool, 
+    pub just_changed: bool,
+    dirty: bool,
 }
 
 impl SliderWidget {
@@ -37,6 +38,7 @@ impl SliderWidget {
             hovered: false,
             dragging: false,
             just_changed: false,
+            dirty: true,
         }
     }
 
@@ -112,9 +114,13 @@ impl SliderWidget {
 impl Widget for SliderWidget {
     fn id(&self) -> usize { self.id }
     fn bounds(&self) -> Rect { self.bounds }
-    fn set_bounds(&mut self, bounds: Rect) { self.bounds = bounds; }
+    fn set_bounds(&mut self, bounds: Rect) { self.bounds = bounds; self.dirty = true; }
 
     fn update(&mut self, mouse: &MouseState) {
+        let prev_hovered  = self.hovered;
+        let prev_dragging = self.dragging;
+        let prev_value    = self.value;
+
         let over = self.bounds.contains(mouse.x, mouse.y);
         self.hovered = over;
 
@@ -132,7 +138,17 @@ impl Widget for SliderWidget {
         } else {
             self.just_changed = false;
         }
+
+        if self.hovered != prev_hovered
+            || self.dragging != prev_dragging
+            || self.value != prev_value
+        {
+            self.dirty = true;
+        }
     }
+
+    fn is_dirty(&self) -> bool { self.dirty }
+    fn clear_dirty(&mut self) { self.dirty = false; }
 
     fn render(&mut self, drawer: &mut Drawer) {
         let x = self.bounds.x;

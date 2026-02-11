@@ -33,7 +33,10 @@ pub trait Widget: Any {
     fn bounds(&self) -> Rect;
     fn set_bounds(&mut self, bounds: Rect);
     fn update(&mut self, mouse: &MouseState);
+    fn layout(&mut self, fonts: &mut crate::Fonts) {}
     fn render(&mut self, drawer: &mut Drawer);
+    fn is_dirty(&self) -> bool;
+    fn clear_dirty(&mut self);
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }

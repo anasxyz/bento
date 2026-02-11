@@ -1,4 +1,4 @@
-use crate::{Drawer, MouseState, widgets::{ButtonWidget, SliderWidget, Widget, WidgetHandle}};
+use crate::{Drawer, Fonts, MouseState, widgets::{ButtonWidget, SliderWidget, Widget, WidgetHandle}};
 
 pub struct WidgetManager {
     pub(crate) widgets: Vec<Box<dyn Widget>>,
@@ -71,10 +71,11 @@ impl WidgetManager {
                 || mouse.left_just_released
                 || mouse.right_just_pressed
                 || mouse.right_just_released
-                || mouse.left_pressed // covers dragging
+                || widget.is_dirty()
             {
                 changed = true;
             }
+            widget.clear_dirty();
         }
         changed
     }
@@ -83,6 +84,12 @@ impl WidgetManager {
         let d = self.dirty;
         self.dirty = false;
         d
+    }
+
+    pub(crate) fn layout_all(&mut self, fonts: &mut Fonts) {
+        for widget in self.widgets.iter_mut() {
+            widget.layout(fonts);
+        }
     }
 
     pub(crate) fn render_all(&mut self, drawer: &mut Drawer) {

@@ -60,13 +60,7 @@ impl WindowState {
     }
 
     fn render(&mut self, ctx: &mut Ctx) {
-        println!("render");
-        self.shape_renderer.clear();
-        self.text_renderer.clear();
-
-        let mut drawer = Drawer::new(&mut self.text_renderer, &mut self.shape_renderer, &mut ctx.fonts);
-        ctx.widgets.render_all(&mut drawer);
-
+        ctx.widgets.layout_all(&mut ctx.fonts);
         ctx.layout.compute_all(&mut ctx.widgets.widgets);
 
         self.shape_renderer.clear();
