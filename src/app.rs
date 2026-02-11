@@ -7,7 +7,7 @@ use winit::{
     window::{Window, WindowId},
 };
 
-use crate::{Ctx, Fonts, GpuContext, ShapeRenderer, TextRenderer, Drawer};
+use crate::{Ctx, Drawer, Fonts, GpuContext, ShapeRenderer, TextRenderer};
 
 pub trait RentexApp: 'static {
     fn setup(&mut self, ctx: &mut Ctx);
@@ -15,8 +15,8 @@ pub trait RentexApp: 'static {
 }
 
 struct WindowState {
-    window: Arc<Window>,
     gpu: GpuContext,
+    window: Arc<Window>,
     text_renderer: TextRenderer,
     shape_renderer: ShapeRenderer,
     scale_factor: f64,
@@ -34,7 +34,13 @@ impl WindowState {
         let shape_renderer = ShapeRenderer::new(&gpu.device, gpu.format, width, height);
         text_renderer.resize(width, height, scale_factor);
 
-        Self { window, gpu, text_renderer, shape_renderer, scale_factor }
+        Self {
+            window,
+            gpu,
+            text_renderer,
+            shape_renderer,
+            scale_factor,
+        }
     }
 
     fn logical_size(&self) -> (f32, f32) {
@@ -51,7 +57,11 @@ impl WindowState {
         self.text_renderer.resize(w, h, self.scale_factor);
     }
 
-    fn on_scale_change(&mut self, scale_factor: f64, new_inner_size: winit::dpi::PhysicalSize<u32>) {
+    fn on_scale_change(
+        &mut self,
+        scale_factor: f64,
+        new_inner_size: winit::dpi::PhysicalSize<u32>,
+    ) {
         self.scale_factor = scale_factor;
         self.gpu.resize(new_inner_size.width, new_inner_size.height);
         let (w, h) = self.logical_size();
@@ -60,10 +70,29 @@ impl WindowState {
     }
 
     fn render(&mut self, ctx: &mut Ctx) {
+        println!("render");
         self.shape_renderer.clear();
         self.text_renderer.clear();
 
-        let mut drawer = Drawer::new(&mut self.text_renderer, &mut self.shape_renderer, &mut ctx.fonts);
+        // first pass: let auto_size widgets compute their bounds
+        let mut drawer = Drawer::new(
+            &mut self.text_renderer,
+            &mut self.shape_renderer,
+            &mut ctx.fonts,
+        );
+        ctx.widgets.render_all(&mut drawer);
+
+        // now layout has correct sizes to work with
+        ctx.layout.compute_all(&mut ctx.widgets.widgets);
+
+        // second pass: render at the correct laid-out positions
+        self.shape_renderer.clear();
+        self.text_renderer.clear();
+        let mut drawer = Drawer::new(
+            &mut self.text_renderer,
+            &mut self.shape_renderer,
+            &mut ctx.fonts,
+        );
         ctx.widgets.render_all(&mut drawer);
 
         let frame = match self.gpu.begin_frame() {
@@ -90,7 +119,8 @@ impl WindowState {
             });
 
             let (width, height) = self.logical_size();
-            self.shape_renderer.render(&self.gpu.device, &self.gpu.queue, &mut pass);
+            self.shape_renderer
+                .render(&self.gpu.device, &self.gpu.queue, &mut pass);
             self.text_renderer.render(
                 &mut ctx.fonts.font_system,
                 width,
@@ -158,7 +188,12 @@ impl<T: RentexApp> ApplicationHandler for WinitHandler<T> {
         self.window_state.as_ref().unwrap().window.request_redraw();
     }
 
-    fn window_event(&mut self, event_loop: &ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
+    fn window_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        _window_id: WindowId,
+        event: WindowEvent,
+    ) {
         let ws = match self.window_state.as_mut() {
             Some(ws) => ws,
             None => return,
@@ -261,7 +296,10 @@ impl<T: RentexApp> ApplicationHandler for WinitHandler<T> {
                 ctx.input.keys_just_pressed.clear();
                 ctx.input.keys_just_released.clear();
             }
-            WindowEvent::ScaleFactorChanged { scale_factor, inner_size_writer: _ } => {
+            WindowEvent::ScaleFactorChanged {
+                scale_factor,
+                inner_size_writer: _,
+            } => {
                 let new_inner = ws.window.inner_size();
                 ws.on_scale_change(scale_factor, new_inner);
                 ws.window.request_redraw();
@@ -274,6 +312,7 @@ impl<T: RentexApp> ApplicationHandler for WinitHandler<T> {
                 ws.render(ctx);
             }
             WindowEvent::CloseRequested => {
+                self.window_state = None; 
                 event_loop.exit();
             }
             _ => {}
@@ -289,7 +328,11 @@ pub struct App {
 
 impl App {
     pub fn new(title: &str, width: u32, height: u32) -> Self {
-        Self { title: title.to_string(), width, height }
+        Self {
+            title: title.to_string(),
+            width,
+            height,
+        }
     }
 
     pub fn run<T: RentexApp>(self, fonts: Fonts, app: T) {

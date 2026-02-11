@@ -1,7 +1,7 @@
 use crate::{Drawer, MouseState, widgets::{ButtonWidget, SliderWidget, Widget, WidgetHandle}};
 
 pub struct WidgetManager {
-    widgets: Vec<Box<dyn Widget>>,
+    pub(crate) widgets: Vec<Box<dyn Widget>>,
     next_id: usize,
     dirty: bool,
 }

@@ -10,7 +10,7 @@ pub use button::ButtonWidget;
 pub use slider::SliderWidget;
 pub use manager::WidgetManager;
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 pub struct Rect {
     pub x: f32,
     pub y: f32,
@@ -24,9 +24,14 @@ impl Rect {
     }
 }
 
+impl Default for Rect {
+    fn default() -> Self { Self { x: 0.0, y: 0.0, w: 100.0, h: 100.0 } }
+}
+
 pub trait Widget: Any {
     fn id(&self) -> usize;
     fn bounds(&self) -> Rect;
+    fn set_bounds(&mut self, bounds: Rect);
     fn update(&mut self, mouse: &MouseState);
     fn render(&mut self, drawer: &mut Drawer);
     fn as_any(&self) -> &dyn Any;

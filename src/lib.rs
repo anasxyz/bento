@@ -19,6 +19,7 @@ mod drawer;
 mod fonts;
 mod mouse;
 mod input;
+mod layout;
 pub mod widgets;
 
 pub use app::{App, RentexApp};
@@ -27,3 +28,4 @@ pub use drawer::Drawer;
 pub use fonts::{FontId, Fonts};
 pub use mouse::MouseState;
 pub use input::InputState;
+pub use layout::LayoutManager;

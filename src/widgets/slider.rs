@@ -112,6 +112,7 @@ impl SliderWidget {
 impl Widget for SliderWidget {
     fn id(&self) -> usize { self.id }
     fn bounds(&self) -> Rect { self.bounds }
+    fn set_bounds(&mut self, bounds: Rect) { self.bounds = bounds; }
 
     fn update(&mut self, mouse: &MouseState) {
         let over = self.bounds.contains(mouse.x, mouse.y);

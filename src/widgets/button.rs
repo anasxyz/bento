@@ -91,8 +91,15 @@ impl ButtonWidget {
 impl Widget for ButtonWidget {
     fn id(&self) -> usize { self.id }
     fn bounds(&self) -> Rect { self.bounds }
+    fn set_bounds(&mut self, bounds: Rect) { self.bounds = bounds; }
 
     fn update(&mut self, mouse: &MouseState) {
+        self.just_hovered   = false;
+        self.just_unhovered = false;
+        self.just_pressed   = false;
+        self.just_clicked   = false;
+        self.right_clicked  = false;
+
         let over = self.bounds.contains(mouse.x, mouse.y);
 
         self.just_hovered   = over && !self.hovered;
