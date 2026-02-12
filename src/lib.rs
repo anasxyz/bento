@@ -19,9 +19,10 @@ mod fonts;
 mod mouse;
 mod input;
 mod color;
+mod ui;
 
 pub use app::{App, BentoApp};
-pub use ctx::{Ctx, Rect, Text};
+pub use ctx::{Ctx};
 pub use fonts::{FontId, Fonts};
 pub use mouse::MouseState;
 pub use input::InputState;

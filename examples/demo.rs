@@ -1,7 +1,7 @@
 #![allow(dead_code, unused)]
 use winit::keyboard::KeyCode;
 
-use bento::{App, BentoApp, Color, Ctx, FontId, Fonts, Rect, Text};
+use bento::{App, BentoApp, Color, Ctx, FontId, Fonts};
 
 struct Demo {
     x: f32,
@@ -10,9 +10,9 @@ struct Demo {
 
 impl BentoApp for Demo {
     fn once(&mut self, ctx: &mut Ctx) {
-        let font = ctx.fonts.add("main_font", "JetBrainsMono Nerd Font", 14.0);
+        let font = ctx.ui.fonts.default();
 
-        ctx.rect(
+        ctx.ui.rect(
             "rect1",
             10.0,
             10.0,
@@ -23,9 +23,9 @@ impl BentoApp for Demo {
             0.0,
         );
 
-        ctx.text("text1", "Hello World", font, 100.0, 10.0, Color::WHITE);
+        ctx.ui.text("text1", "Hello World", font, 100.0, 10.0, Color::WHITE);
 
-        ctx.button("button1", "Click Me", 10.0, 200.0);
+        ctx.ui.button("button1", "Click Me", 10.0, 200.0);
     }
 
     fn update(&mut self, ctx: &mut Ctx) {
@@ -34,25 +34,25 @@ impl BentoApp for Demo {
         }
 
         if ctx.input.keys_just_pressed.contains(&KeyCode::KeyW) {
-            ctx.rects[0].y -= 30.0;
+            ctx.ui.rects[0].y -= 30.0;
             ctx.mark_dirty();
         }
         if ctx.input.keys_just_pressed.contains(&KeyCode::KeyS) {
-            ctx.rects[0].y += 30.0;
+            ctx.ui.rects[0].y += 30.0;
             ctx.mark_dirty();
         }
         if ctx.input.keys_just_pressed.contains(&KeyCode::KeyA) {
-            ctx.rects[0].x -= 30.0;
+            ctx.ui.rects[0].x -= 30.0;
             ctx.mark_dirty();
         }
         if ctx.input.keys_just_pressed.contains(&KeyCode::KeyD) {
-            ctx.rects[0].x += 30.0;
+            ctx.ui.rects[0].x += 30.0;
             ctx.mark_dirty();
         }
 
         if ctx.input.keys_just_pressed.contains(&KeyCode::KeyL) {
             self.menu_open = !self.menu_open;
-            ctx.toggle("rect1");
+            ctx.ui.toggle("rect1");
             ctx.mark_dirty();
         }
     }

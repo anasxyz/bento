@@ -42,8 +42,8 @@ impl WindowState {
     fn on_resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>, ctx: &mut Ctx) {
         self.gpu.resize(new_size.width, new_size.height);
         let (w, h) = self.logical_size();
-        ctx.shape_renderer.resize(w, h);
-        ctx.text_renderer.resize(w, h, self.scale_factor);
+        ctx.ui.shape_renderer.resize(w, h);
+        ctx.ui.text_renderer.resize(w, h, self.scale_factor);
     }
 
     fn on_scale_change(
@@ -55,14 +55,14 @@ impl WindowState {
         self.scale_factor = scale_factor;
         self.gpu.resize(new_inner_size.width, new_inner_size.height);
         let (w, h) = self.logical_size();
-        ctx.shape_renderer.resize(w, h);
-        ctx.text_renderer.resize(w, h, self.scale_factor);
+        ctx.ui.shape_renderer.resize(w, h);
+        ctx.ui.text_renderer.resize(w, h, self.scale_factor);
     }
 
     fn render<T: BentoApp>(&mut self, ctx: &mut Ctx, app: &mut T) {
         println!("render");
-        ctx.shape_renderer.clear();
-        ctx.text_renderer.clear();
+        ctx.ui.shape_renderer.clear();
+        ctx.ui.text_renderer.clear();
 
         ctx.render_all();
 
@@ -92,10 +92,10 @@ impl WindowState {
             });
 
             let (width, height) = self.logical_size();
-            ctx.shape_renderer
+            ctx.ui.shape_renderer
                 .render(&self.gpu.device, &self.gpu.queue, &mut pass);
-            ctx.text_renderer.render(
-                &mut ctx.fonts.font_system,
+            ctx.ui.text_renderer.render(
+                &mut ctx.ui.fonts.font_system,
                 width,
                 height,
                 self.scale_factor,
@@ -105,7 +105,7 @@ impl WindowState {
             );
         }
 
-        ctx.text_renderer.trim_atlas();
+        ctx.ui.text_renderer.trim_atlas();
         finisher.present(encoder, &self.gpu.queue);
     }
 }

@@ -50,6 +50,10 @@ impl Fonts {
         self.name_to_id.get(name).copied()
     }
 
+    pub fn default(&self) -> FontId {
+        self.get_by_name("default").unwrap()
+    }
+
     pub fn measure(&mut self, text: &str, id: FontId) -> (f32, f32) {
         let key = (id.0, text.to_string());
         if let Some(&cached) = self.measure_cache.get(&key) {
