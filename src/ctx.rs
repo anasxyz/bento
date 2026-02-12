@@ -9,6 +9,7 @@ pub struct Rect {
     pub color: Color,
     pub outline_color: Color,
     pub outline_thickness: f32,
+    pub visible: bool,
 }
 
 pub struct Text {
@@ -20,6 +21,7 @@ pub struct Text {
     pub color: Color,
     pub font_size: f32,
     pub font_family: String,
+    pub visible: bool,
 }
 
 pub struct Button {
@@ -38,6 +40,7 @@ pub struct Button {
     pub outline_color_hover: Color,
     pub outline_thickness: f32,
     pub padding: f32,
+    pub visible: bool,
 }
 
 /// everything the user needs during setup and update
@@ -97,16 +100,107 @@ impl Ctx {
             || self.buttons.iter().any(|b| b.id == id)
     }
 
+    pub fn show(&mut self, id: &str) {
+        for rect in &mut self.rects {
+            if rect.id == id {
+                rect.visible = true;
+                self.mark_dirty();
+                return;
+            }
+        }
+        for text in &mut self.texts {
+            if text.id == id {
+                text.visible = true;
+                self.mark_dirty();
+                return;
+            }
+        }
+        for button in &mut self.buttons {
+            if button.id == id {
+                button.visible = true;
+                self.mark_dirty();
+                return;
+            }
+        }
+    }
+
+    pub fn hide(&mut self, id: &str) {
+        for rect in &mut self.rects {
+            if rect.id == id {
+                rect.visible = false;
+                self.mark_dirty();
+                return;
+            }
+        }
+        for text in &mut self.texts {
+            if text.id == id {
+                text.visible = false;
+                self.mark_dirty();
+                return;
+            }
+        }
+        for button in &mut self.buttons {
+            if button.id == id {
+                button.visible = false;
+                self.mark_dirty();
+                return;
+            }
+        }
+    }
+
+    pub fn toggle(&mut self, id: &str) {
+        for rect in &mut self.rects {
+            if rect.id == id {
+                rect.visible = !rect.visible;
+                self.mark_dirty();
+                return;
+            }
+        }
+        for text in &mut self.texts {
+            if text.id == id {
+                text.visible = !text.visible;
+                self.mark_dirty();
+                return;
+            }
+        }
+        for button in &mut self.buttons {
+            if button.id == id {
+                button.visible = !button.visible;
+                self.mark_dirty();
+                return;
+            }
+        }
+    }
+
+    pub fn is_visible(&self, id: &str) -> bool {
+        for rect in &self.rects {
+            if rect.id == id {
+                return rect.visible;
+            }
+        }
+        for text in &self.texts {
+            if text.id == id {
+                return text.visible;
+            }
+        }
+        for button in &self.buttons {
+            if button.id == id {
+                return button.visible;
+            }
+        }
+        false
+    }
+
     pub fn is_hovered(&self, id: &str) -> bool {
         for rect in &self.rects {
             if rect.id == id {
-                return self.mouse.is_over(rect.x, rect.y, rect.w, rect.h);
+                return rect.visible && self.mouse.is_over(rect.x, rect.y, rect.w, rect.h);
             }
         }
 
         for button in &self.buttons {
             if button.id == id {
-                return self.mouse.is_over(button.x, button.y, button.w, button.h);
+                return button.visible && self.mouse.is_over(button.x, button.y, button.w, button.h);
             }
         }
 
@@ -128,8 +222,10 @@ impl Ctx {
     }
 
     pub fn render_rects(&mut self) {
-        // draw all stored rects
         for rect in &self.rects {
+            if !rect.visible {
+                continue;
+            }
             self.shape_renderer.rect(
                 rect.x,
                 rect.y,
@@ -144,6 +240,9 @@ impl Ctx {
 
     pub fn render_texts(&mut self) {
         for text in &self.texts {
+            if !text.visible {
+                continue;
+            }
             self.text_renderer.draw(
                 &mut self.fonts.font_system,
                 text.font_family.clone(),
@@ -160,6 +259,7 @@ impl Ctx {
         let button_data: Vec<_> = self
             .buttons
             .iter()
+            .filter(|button| button.visible)
             .map(|button| {
                 let entry = self.fonts.get(button.font_id);
                 let hovered = self.is_hovered(&button.id);
@@ -255,6 +355,7 @@ impl Ctx {
             color,
             outline_color,
             outline_thickness,
+            visible: true,
         };
         self.rects.push(new_rect);
         self.mark_dirty();
@@ -278,6 +379,7 @@ impl Ctx {
             color,
             font_size: size,
             font_family: family,
+            visible: true,
         };
         self.texts.push(new_text);
         self.mark_dirty();
@@ -321,6 +423,7 @@ impl Ctx {
             outline_color_hover,
             outline_thickness,
             padding,
+            visible: true,
         };
 
         self.buttons.push(new_button);

@@ -5,6 +5,7 @@ use bento::{App, BentoApp, Color, Ctx, FontId, Fonts, Rect, Text};
 
 struct Demo {
     x: f32,
+    menu_open: bool,
 }
 
 impl BentoApp for Demo {
@@ -48,9 +49,15 @@ impl BentoApp for Demo {
             ctx.rects[0].x += 30.0;
             ctx.mark_dirty();
         }
+
+        if ctx.input.keys_just_pressed.contains(&KeyCode::KeyL) {
+            self.menu_open = !self.menu_open;
+            ctx.toggle("rect1");
+            ctx.mark_dirty();
+        }
     }
 }
 
 fn main() {
-    App::new("bento", 440, 260).run(Demo { x: 0.0 });
+    App::new("bento", 440, 260).run(Demo { x: 0.0, menu_open: false });
 }
