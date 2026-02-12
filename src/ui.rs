@@ -349,6 +349,13 @@ impl Ui {
         false
     }
 
+    pub fn remove(&mut self, id: &str) {
+        self.rects.retain(|r| r.id != id);
+        self.texts.retain(|t| t.id != id);
+        self.buttons.retain(|b| b.id != id);
+        self.mark_dirty();
+    }
+
     pub fn get<T: 'static>(&self, id: &str) -> Option<&T> {
         let _ = std::any::TypeId::of::<T>();
         
