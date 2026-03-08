@@ -18,6 +18,7 @@ mod color;
 mod element;
 mod layout;
 mod draw;
+mod fonts;
 
 pub use crate::{
     app::App,
