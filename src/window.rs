@@ -18,6 +18,7 @@ impl WindowState {
         let scale = window.scale_factor();
         let draw = DrawContext::new(
             &gpu.device,
+            &gpu.queue,
             gpu.format,
             size.width as f32 / scale as f32,  // logical
             size.height as f32 / scale as f32, // logical
