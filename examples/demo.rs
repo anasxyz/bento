@@ -13,7 +13,7 @@ impl App for MyApp {
             rect()
                 .w(pct(100.0))
                 .h(pct(100.0))
-                .bg(Color::rgb(30, 30, 30)),
+                .bg(rgb(30, 30, 30)),
             // modal overlay
             modal("Hello world!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!111111111111111111111111111"),
         ])
@@ -28,9 +28,9 @@ fn modal(title: &str) -> Element {
             rect()
                 .w(pct(100.0))
                 .h(pct(100.0))
-                .bg(Color::rgba(40, 40, 40, 255))
-                .border(3.0)
-                .border_color(Color::rgb(80, 80, 80))
+                .bg(rgba(40, 40, 40, 255))
+                .border(2.0)
+                .border_color(rgb(20, 20, 20))
                 .border_radius(8.0)
                 .absolute(),
             text(title).bold().font_size(12.0).text_color(Color::WHITE).w(pct(100.0)).align_self(AlignSelf::Start).bottom(pct(30.0)),
