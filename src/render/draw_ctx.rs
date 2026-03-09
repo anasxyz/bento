@@ -77,5 +77,6 @@ impl DrawContext {
     pub fn clear(&mut self) {
         self.shapes.clear();
         self.text.clear();
+        self.text.trim_atlas();
     }
 }
