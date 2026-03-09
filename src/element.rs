@@ -367,6 +367,7 @@ pub fn col(children: Vec<Element>) -> Element {
 pub fn text(content: &str) -> Element {
     let mut el = Element { _type: ElementType::Text, ..Default::default() };
     el.style.text_content = content.to_string();
+    el.style.align_self = AlignSelf::Start;
     el
 }
 

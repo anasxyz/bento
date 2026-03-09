@@ -90,7 +90,7 @@ impl<A: App> ApplicationHandler for Runner<A> {
                 let scale = win.window.scale_factor() as f32;
                 let logical_w = size.width as f32 / scale;
                 let logical_h = size.height as f32 / scale;
-                layout_tree(&mut element, logical_w, logical_h);
+                layout_tree(&mut element, logical_w, logical_h, &mut win.fonts);
                 draw_tree(&element, &mut win.draw);
 
                 print_root(&element);

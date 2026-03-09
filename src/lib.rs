@@ -4,25 +4,25 @@
 #![allow(unused_mut)]
 
 mod render {
+    pub mod draw_ctx;
     pub mod gpu;
     pub mod shadow_renderer;
     pub mod shape_renderer;
     pub mod text_renderer;
-    pub mod draw_ctx;
 }
 
-mod window;
-mod settings;
 mod app;
 mod color;
-mod element;
-mod layout;
 mod draw;
+mod element;
 mod fonts;
+mod layout;
+mod settings;
+mod window;
 
 pub use crate::{
     app::App,
-    color::{Color, rgb, rgba, hsl, hsla, hwb, hwba, hex},
-    settings::WindowSettings,
+    color::{Color, hex, hsl, hsla, hwb, hwba, rgb, rgba},
     element::*,
+    settings::WindowSettings,
 };

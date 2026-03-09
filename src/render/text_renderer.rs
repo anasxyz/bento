@@ -155,12 +155,8 @@ impl TextRenderer {
                     .set_metrics(font_system, Metrics::new(size, line_height));
                 entry.buffer.set_size(
                     font_system,
-                    Some(if width == f32::MAX {
-                        self.screen_width - x
-                    } else {
-                        width
-                    }),
-                    Some(self.screen_height - y),
+                    if width == f32::MAX { None } else { Some(width) },
+                    None,
                 );
                 entry
                     .buffer
@@ -171,12 +167,8 @@ impl TextRenderer {
             let mut buffer = Buffer::new(font_system, Metrics::new(size, line_height));
             buffer.set_size(
                 font_system,
-                Some(if width == f32::MAX {
-                    self.screen_width - x
-                } else {
-                    width
-                }),
-                Some(self.screen_height - y),
+                if width == f32::MAX { None } else { Some(width) },
+                None,
             );
             buffer.set_text(font_system, text, &attrs, Shaping::Advanced);
             buffer.shape_until_scroll(font_system, false);

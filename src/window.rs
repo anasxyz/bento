@@ -1,4 +1,5 @@
 use crate::color::Color;
+use crate::fonts::Fonts;
 use crate::render::draw_ctx::DrawContext;
 use crate::render::gpu::GpuContext;
 use std::sync::Arc;
@@ -9,6 +10,7 @@ pub struct WindowState {
     pub gpu: GpuContext,
     pub clear_color: Color,
     pub draw: DrawContext,
+    pub fonts: Fonts,
 }
 
 impl WindowState {
@@ -28,6 +30,7 @@ impl WindowState {
             gpu,
             clear_color,
             draw,
+            fonts: Fonts::new(),
         }
     }
 

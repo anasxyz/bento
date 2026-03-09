@@ -2,6 +2,7 @@ use crate::element::{
     AlignItems, AlignSelf, Element, ElementType, FlexDirection, FlexWrap, JustifyContent, Overflow,
     Position, Size,
 };
+use crate::fonts::Fonts;
 use taffy::prelude::*;
 
 fn to_dimension(size: &Size) -> Dimension {
@@ -120,6 +121,7 @@ fn map_flex_direction(el_type: &ElementType, style_dir: &FlexDirection) -> taffy
             FlexDirection::RowReverse => taffy::FlexDirection::RowReverse,
             FlexDirection::ColReverse => taffy::FlexDirection::ColumnReverse,
         },
+        ElementType::Text => taffy::FlexDirection::Row,
     }
 }
 
@@ -170,10 +172,24 @@ fn build_style(el: &Element) -> Style {
     }
 }
 
-fn add_node(el: &Element, taffy: &mut TaffyTree<()>) -> NodeId {
-    let style = build_style(el);
+fn add_node(el: &Element, taffy: &mut TaffyTree<()>, fonts: &mut Fonts) -> NodeId {
+    let mut style = build_style(el);
+
+    if el._type == ElementType::Text {
+        let s = &el.style;
+        let (w, h) = fonts.measure_sized(
+            &s.text_content,
+            &s.font_family,
+            s.font_size,
+            s.font_weight,
+            s.font_italic,
+        );
+        style.size.width = Dimension::from_length(w);
+        style.size.height = Dimension::from_length(h);
+    }
+
     if let Some(children) = &el.children {
-        let ids: Vec<NodeId> = children.iter().map(|c| add_node(c, taffy)).collect();
+        let ids: Vec<NodeId> = children.iter().map(|c| add_node(c, taffy, fonts)).collect();
         taffy.new_with_children(style, &ids).unwrap()
     } else {
         taffy.new_leaf(style).unwrap()
@@ -195,9 +211,9 @@ fn write_back(el: &mut Element, taffy: &TaffyTree<()>, node: NodeId, parent_x: f
     }
 }
 
-pub fn layout_tree(el: &mut Element, window_w: f32, window_h: f32) {
+pub fn layout_tree(el: &mut Element, window_w: f32, window_h: f32, fonts: &mut Fonts) {
     let mut taffy = TaffyTree::new();
-    let root = add_node(el, &mut taffy);
+    let root = add_node(el, &mut taffy, fonts);
     taffy
         .compute_layout(
             root,
