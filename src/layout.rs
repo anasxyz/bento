@@ -176,15 +176,22 @@ fn add_node(el: &Element, taffy: &mut TaffyTree<()>, fonts: &mut Fonts) -> NodeI
 
     if el._type == ElementType::Text {
         let s = &el.style;
+        let max_width = match &s.width {
+            Size::Fixed(w) => Some(*w),
+            _ => None,
+        };
         let (w, h) = fonts.measure_sized(
             &s.text_content,
             &s.font_family,
             s.font_size,
             s.font_weight,
             s.font_italic,
+            max_width,
         );
-        // i added at least 1px padding to avoid text wrapping from how exact the bounding box was
-        style.size.width = Dimension::from_length(w + 1.0);
+        // only override width if not explicitly set by the user
+        if max_width.is_none() {
+            style.size.width = Dimension::from_length(w + 1.0);
+        }
         style.size.height = Dimension::from_length(h);
     }
 

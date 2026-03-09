@@ -88,7 +88,7 @@ impl Fonts {
         let entry = &self.entries[id.0];
         let family = entry.family.clone();
         let size = entry.size;
-        self.measure_sized(text, &family, size, 400, false)
+        self.measure_sized(text, &family, size, 400, false, None)
     }
 
     // measure at an explicit size, weight, and italic
@@ -100,9 +100,16 @@ impl Fonts {
         size: f32,
         weight: u16,
         italic: bool,
+        max_width: Option<f32>,
     ) -> (f32, f32) {
         let key = (
-            format!("{}:{}:{}", family, weight, italic as u8),
+            format!(
+                "{}:{}:{}:{}",
+                family,
+                weight,
+                italic as u8,
+                max_width.map(|w| w as u32).unwrap_or(0)
+            ),
             text.to_string(),
             (size * 10.0) as u32,
         );
@@ -111,7 +118,7 @@ impl Fonts {
         }
         let line_height = size * 1.4;
         let mut buffer = Buffer::new(&mut self.font_system, Metrics::new(size, line_height));
-        buffer.set_size(&mut self.font_system, None, None);
+        buffer.set_size(&mut self.font_system, max_width, None);
         buffer.set_text(
             &mut self.font_system,
             text,
