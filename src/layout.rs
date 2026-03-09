@@ -5,6 +5,15 @@ use crate::element::{
 use crate::fonts::Fonts;
 use taffy::prelude::*;
 
+// context stored per text node in the taffy tree
+struct TextContext {
+    content: String,
+    family: String,
+    size: f32,
+    weight: u16,
+    italic: bool,
+}
+
 fn to_dimension(size: &Size) -> Dimension {
     match size {
         Size::Fixed(v) => Dimension::from_length(*v),
@@ -15,10 +24,6 @@ fn to_dimension(size: &Size) -> Dimension {
 
 fn to_lp(v: f32) -> LengthPercentage {
     LengthPercentage::length(v)
-}
-
-fn to_lpa(v: f32) -> LengthPercentageAuto {
-    LengthPercentageAuto::length(v)
 }
 
 fn to_lpa_auto(v: f32) -> LengthPercentageAuto {
@@ -171,39 +176,34 @@ fn build_style(el: &Element) -> Style {
     }
 }
 
-fn add_node(el: &Element, taffy: &mut TaffyTree<()>, fonts: &mut Fonts) -> NodeId {
-    let mut style = build_style(el);
+fn add_node(el: &Element, taffy: &mut TaffyTree<TextContext>) -> NodeId {
+    let style = build_style(el);
 
     if el._type == ElementType::Text {
         let s = &el.style;
-        let max_width = match &s.width {
-            Size::Fixed(w) => Some(*w),
-            _ => None,
+        let ctx = TextContext {
+            content: s.text_content.clone(),
+            family: s.font_family.clone(),
+            size: s.font_size,
+            weight: s.font_weight,
+            italic: s.font_italic,
         };
-        let (w, h) = fonts.measure_sized(
-            &s.text_content,
-            &s.font_family,
-            s.font_size,
-            s.font_weight,
-            s.font_italic,
-            max_width,
-        );
-        // only override width if not explicitly set by the user
-        if max_width.is_none() {
-            style.size.width = Dimension::from_length(w + 1.0);
-        }
-        style.size.height = Dimension::from_length(h);
-    }
-
-    if let Some(children) = &el.children {
-        let ids: Vec<NodeId> = children.iter().map(|c| add_node(c, taffy, fonts)).collect();
+        taffy.new_leaf_with_context(style, ctx).unwrap()
+    } else if let Some(children) = &el.children {
+        let ids: Vec<NodeId> = children.iter().map(|c| add_node(c, taffy)).collect();
         taffy.new_with_children(style, &ids).unwrap()
     } else {
         taffy.new_leaf(style).unwrap()
     }
 }
 
-fn write_back(el: &mut Element, taffy: &TaffyTree<()>, node: NodeId, parent_x: f32, parent_y: f32) {
+fn write_back(
+    el: &mut Element,
+    taffy: &TaffyTree<TextContext>,
+    node: NodeId,
+    parent_x: f32,
+    parent_y: f32,
+) {
     let layout = taffy.layout(node).unwrap();
     el.style.x = parent_x + layout.location.x;
     el.style.y = parent_y + layout.location.y;
@@ -219,14 +219,38 @@ fn write_back(el: &mut Element, taffy: &TaffyTree<()>, node: NodeId, parent_x: f
 }
 
 pub fn layout_tree(el: &mut Element, window_w: f32, window_h: f32, fonts: &mut Fonts) {
-    let mut taffy = TaffyTree::new();
-    let root = add_node(el, &mut taffy, fonts);
+    let mut taffy: TaffyTree<TextContext> = TaffyTree::new();
+    let root = add_node(el, &mut taffy);
     taffy
-        .compute_layout(
+        .compute_layout_with_measure(
             root,
             taffy::geometry::Size {
                 width: AvailableSpace::Definite(window_w),
                 height: AvailableSpace::Definite(window_h),
+            },
+            |known_dimensions, available_space, _node_id, ctx, _style| {
+                let Some(ctx) = ctx else {
+                    return taffy::geometry::Size::ZERO;
+                };
+                // use known width if taffy has already resolved it, otherwise use available space
+                let max_width = known_dimensions
+                    .width
+                    .or_else(|| match available_space.width {
+                        AvailableSpace::Definite(w) => Some(w),
+                        _ => None,
+                    });
+                let (w, h) = fonts.measure_sized(
+                    &ctx.content,
+                    &ctx.family,
+                    ctx.size,
+                    ctx.weight,
+                    ctx.italic,
+                    max_width,
+                );
+                taffy::geometry::Size {
+                    width: known_dimensions.width.unwrap_or(w + 1.0),
+                    height: known_dimensions.height.unwrap_or(h),
+                }
             },
         )
         .unwrap();
