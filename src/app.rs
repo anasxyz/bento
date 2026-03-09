@@ -10,13 +10,13 @@ use winit::{
     window::{Window, WindowId},
 };
 
+use crate::draw::draw_tree;
 use crate::element::{ElementType, Position, print_root};
 use crate::layout::layout_tree;
-use crate::render::{gpu::GpuContext, shape_renderer::RectParams};
+use crate::render::{gpu::GpuContext, shape_renderer::ShapeDrawParams};
 use crate::settings::WindowSettings;
 use crate::window::WindowState;
 use crate::{color::Color, element::Element};
-use crate::draw::draw_tree;
 
 pub trait App: 'static + Sized {
     fn new() -> Self;

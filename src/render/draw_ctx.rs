@@ -1,5 +1,5 @@
-use crate::render::shape_renderer::{RectParams, ShapeRenderer};
-use crate::render::text_renderer::{TextParams, TextRenderer};
+use crate::render::shape_renderer::{ShapeDrawParams, ShapeRenderer};
+use crate::render::text_renderer::{TextDrawParams, TextRenderer};
 use glyphon::FontSystem;
 use wgpu;
 
@@ -48,12 +48,11 @@ impl DrawContext {
     }
 
     // all inputs in logical pixels
-    pub fn draw_rect(&mut self, x: f32, y: f32, w: f32, h: f32, p: RectParams) {
+    pub fn draw_rect(&mut self, x: f32, y: f32, w: f32, h: f32, p: ShapeDrawParams) {
         self.shapes.draw_rect(x, y, w, h, p);
     }
 
-    // all inputs in logical pixels
-    pub fn draw_text(&mut self, x: f32, y: f32, content: &str, p: TextParams) {
+    pub fn draw_text(&mut self, x: f32, y: f32, content: &str, p: TextDrawParams) {
         self.text.draw(&mut self.font_system, content, x, y, p);
     }
 

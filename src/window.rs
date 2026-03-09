@@ -1,7 +1,6 @@
 use crate::color::Color;
 use crate::render::draw_ctx::DrawContext;
 use crate::render::gpu::GpuContext;
-use crate::render::shape_renderer::RectParams;
 use std::sync::Arc;
 use winit::window::Window;
 

@@ -1,15 +1,34 @@
 use crate::Color;
 use crate::element::{Element, ElementType, Position};
-use crate::render::shape_renderer::RectParams;
+use crate::render::draw_ctx::DrawContext;
+use crate::render::shape_renderer::ShapeDrawParams;
+use crate::render::text_renderer::TextDrawParams;
 
-pub struct DrawCall {
-    x: f32,
-    y: f32,
-    w: f32,
-    h: f32,
-    params: RectParams,
-    z_index: i32,
-    opacity: f32,
+enum DrawCall {
+    Rect {
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+        params: ShapeDrawParams,
+        z_index: i32,
+    },
+    Text {
+        x: f32,
+        y: f32,
+        content: String,
+        params: TextDrawParams,
+        z_index: i32,
+    },
+}
+
+impl DrawCall {
+    fn z_index(&self) -> i32 {
+        match self {
+            DrawCall::Rect { z_index, .. } => *z_index,
+            DrawCall::Text { z_index, .. } => *z_index,
+        }
+    }
 }
 
 pub fn clip_intersect(a: Option<[f32; 4]>, b: Option<[f32; 4]>) -> Option<[f32; 4]> {
@@ -46,12 +65,12 @@ pub fn collect_draws(
             let mut border_color = el.style.border_color.unwrap_or(Color::BLACK).to_array();
             border_color[3] *= opacity;
 
-            calls.push(DrawCall {
+            calls.push(DrawCall::Rect {
                 x: el.style.x,
                 y: el.style.y,
                 w: el.style.w,
                 h: el.style.h,
-                params: RectParams {
+                params: ShapeDrawParams {
                     color,
                     radius: el.style.border_radius.unwrap_or(0.0),
                     border_color,
@@ -59,7 +78,30 @@ pub fn collect_draws(
                     clip,
                 },
                 z_index: z,
-                opacity,
+            });
+        }
+        ElementType::Text => {
+            let mut text_color = el.style.text_color;
+            text_color.a *= opacity;
+
+            calls.push(DrawCall::Text {
+                x: el.style.x,
+                y: el.style.y,
+                content: el.style.text_content.clone(),
+                params: TextDrawParams {
+                    family: el.style.font_family.clone(),
+                    size: el.style.font_size,
+                    weight: el.style.font_weight,
+                    italic: el.style.font_italic,
+                    color: text_color,
+                    width: if el.style.w > 0.0 {
+                        el.style.w
+                    } else {
+                        f32::MAX
+                    },
+                    clip,
+                },
+                z_index: z,
             });
         }
         ElementType::Row | ElementType::Col => {
@@ -85,15 +127,29 @@ pub fn collect_draws(
     }
 }
 
-pub fn draw_tree(el: &Element, draw: &mut crate::render::draw_ctx::DrawContext) {
+pub fn draw_tree(el: &Element, draw: &mut DrawContext) {
     let mut calls: Vec<DrawCall> = Vec::new();
     collect_draws(el, None, 0, 1.0, &mut calls);
 
-    // sort by z_index
-    // stable so tree order is preserved within same z
-    calls.sort_by_key(|c| c.z_index);
+    // stable sort so tree order is preserved within same z
+    calls.sort_by_key(|c| c.z_index());
 
     for call in calls {
-        draw.draw_rect(call.x, call.y, call.w, call.h, call.params);
+        match call {
+            DrawCall::Rect {
+                x, y, w, h, params, ..
+            } => {
+                draw.draw_rect(x, y, w, h, params);
+            }
+            DrawCall::Text {
+                x,
+                y,
+                content,
+                params,
+                ..
+            } => {
+                draw.draw_text(x, y, &content, params);
+            }
+        }
     }
 }

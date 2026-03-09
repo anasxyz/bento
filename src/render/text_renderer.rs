@@ -6,8 +6,8 @@ use glyphon::{
 };
 use wgpu;
 
-pub struct TextParams<'a> {
-    pub family: &'a str,
+pub struct TextDrawParams {
+    pub family: String,
     pub size: f32,
     pub weight: u16,
     pub italic: bool,
@@ -16,10 +16,10 @@ pub struct TextParams<'a> {
     pub clip: Option<[f32; 4]>,
 }
 
-impl<'a> Default for TextParams<'a> {
+impl Default for TextDrawParams {
     fn default() -> Self {
         Self {
-            family: "sans-serif",
+            family: "sans-serif".to_string(),
             size: 16.0,
             weight: 400,
             italic: false,
@@ -101,9 +101,9 @@ impl TextRenderer {
         text: &str,
         x: f32,
         y: f32,
-        p: TextParams,
+        p: TextDrawParams,
     ) {
-        let family = p.family.to_string();
+        let family = p.family.clone();
         let size = p.size;
         let weight = p.weight;
         let italic = p.italic;

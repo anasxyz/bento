@@ -45,7 +45,7 @@ const INSTANCE_ATTRS: &[wgpu::VertexAttribute] = &[
     },
 ];
 
-pub struct RectParams {
+pub struct ShapeDrawParams {
     pub color: [f32; 4],
     pub radius: f32,
     pub border_color: [f32; 4],
@@ -53,7 +53,7 @@ pub struct RectParams {
     pub clip: Option<[f32; 4]>,
 }
 
-impl Default for RectParams {
+impl Default for ShapeDrawParams {
     fn default() -> Self {
         Self {
             color: [1.0; 4],
@@ -85,9 +85,7 @@ impl ShapeRenderer {
     ) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("SDF Shape Shader"),
-            source: wgpu::ShaderSource::Wgsl(
-                include_str!("../../shaders/rect.wgsl").into(),
-            ),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/rect.wgsl").into()),
         });
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -162,7 +160,7 @@ impl ShapeRenderer {
     }
 
     // all inputs in logical pixels
-    pub fn draw_rect(&mut self, x: f32, y: f32, w: f32, h: f32, p: RectParams) {
+    pub fn draw_rect(&mut self, x: f32, y: f32, w: f32, h: f32, p: ShapeDrawParams) {
         let s = self.scale;
         let px = x * s;
         let py = y * s;
