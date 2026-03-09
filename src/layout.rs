@@ -115,13 +115,12 @@ fn map_flex_direction(el_type: &ElementType, style_dir: &FlexDirection) -> taffy
     match el_type {
         ElementType::Row => taffy::FlexDirection::Row,
         ElementType::Col => taffy::FlexDirection::Column,
-        ElementType::Rect => match style_dir {
+        ElementType::Rect | ElementType::Text => match style_dir {
             FlexDirection::Row => taffy::FlexDirection::Row,
             FlexDirection::Col => taffy::FlexDirection::Column,
             FlexDirection::RowReverse => taffy::FlexDirection::RowReverse,
             FlexDirection::ColReverse => taffy::FlexDirection::ColumnReverse,
         },
-        ElementType::Text => taffy::FlexDirection::Row,
     }
 }
 
@@ -184,7 +183,8 @@ fn add_node(el: &Element, taffy: &mut TaffyTree<()>, fonts: &mut Fonts) -> NodeI
             s.font_weight,
             s.font_italic,
         );
-        style.size.width = Dimension::from_length(w);
+        // i added at least 1px padding to avoid text wrapping from how exact the bounding box was
+        style.size.width = Dimension::from_length(w + 1.0);
         style.size.height = Dimension::from_length(h);
     }
 

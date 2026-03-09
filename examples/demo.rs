@@ -8,8 +8,9 @@ impl App for MyApp {
     }
 
     fn view(&mut self) -> Element {
-        col(vec![
-            text("Hello world!"),
+        row(vec![
+            text("Hello world!").bold().font_size(32.0),
+            text("Hello world!").bold().font_size(32.0),
         ])
         .w(Size::Percent(100.0))
         .h(Size::Percent(100.0))
