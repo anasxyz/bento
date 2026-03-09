@@ -4,7 +4,7 @@ use crate::render::draw_ctx::DrawContext;
 use crate::render::shape_renderer::ShapeDrawParams;
 use crate::render::text_renderer::TextDrawParams;
 
-enum DrawCall {
+pub enum DrawCall {
     Rect {
         x: f32,
         y: f32,
