@@ -371,6 +371,10 @@ pub fn text(content: &str) -> Element {
     el
 }
 
+// size shorthands
+pub fn px(v: f32) -> Size { Size::Fixed(v) }
+pub fn pct(v: f32) -> Size { Size::Percent(v) }
+
 // debug
 
 pub fn print_tree(el: &Element, prefix: &str, last: bool) {
