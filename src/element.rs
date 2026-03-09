@@ -33,6 +33,7 @@ pub enum ElementType {
     Row,
     Col,
     Rect,
+    Text,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -189,6 +190,14 @@ pub struct ElementStyle {
     pub opacity: f32,
     pub z_index: i32,
     pub visible: bool,
+
+    // text
+    pub text_content: String,
+    pub font_size: f32,
+    pub font_weight: u16,
+    pub font_italic: bool,
+    pub text_color: Color,
+    pub font_family: String,
 }
 
 impl Default for ElementStyle {
@@ -228,6 +237,12 @@ impl Default for ElementStyle {
             opacity: 1.0,
             z_index: 0,
             visible: true,
+            text_content: String::new(),
+            font_size: 16.0,
+            font_weight: 400,
+            font_italic: false,
+            text_color: Color::WHITE,
+            font_family: "sans-serif".to_string(),
         }
     }
 }
@@ -325,6 +340,14 @@ impl Element {
     pub fn z_index(mut self, v: i32) -> Self { self.style.z_index = v; self }
     pub fn hide(mut self) -> Self { self.style.visible = false; self }
     pub fn show(mut self) -> Self { self.style.visible = true; self }
+
+    // text
+    pub fn font_size(mut self, v: f32) -> Self { self.style.font_size = v; self }
+    pub fn font_weight(mut self, v: u16) -> Self { self.style.font_weight = v; self }
+    pub fn bold(mut self) -> Self { self.style.font_weight = 700; self }
+    pub fn italic(mut self) -> Self { self.style.font_italic = true; self }
+    pub fn text_color(mut self, v: Color) -> Self { self.style.text_color = v; self }
+    pub fn font_family(mut self, v: &str) -> Self { self.style.font_family = v.to_string(); self }
 }
 
 // constructors
@@ -339,6 +362,12 @@ pub fn row(children: Vec<Element>) -> Element {
 
 pub fn col(children: Vec<Element>) -> Element {
     Element { _type: ElementType::Col, children: Some(children), ..Default::default() }
+}
+
+pub fn text(content: &str) -> Element {
+    let mut el = Element { _type: ElementType::Text, ..Default::default() };
+    el.style.text_content = content.to_string();
+    el
 }
 
 // debug
