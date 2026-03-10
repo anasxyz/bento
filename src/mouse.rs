@@ -107,12 +107,16 @@ impl MouseState {
 }
 
 pub fn event_tree(element: &mut Element, mouse: &mut MouseState) {
+    let x = element.style.x;
+    let y = element.style.y;
+    let w = element.style.w;
+    let h = element.style.h;
+
+    let hovered = mouse.x >= x && mouse.x <= x + w && mouse.y >= y && mouse.y <= y + h;
+
     if let Some(children) = &mut element.children {
-        if let Some(first) = children.first_mut() {
-            if mouse.is_dragging {
-                first.style.x = mouse.x;
-                first.style.y = mouse.y;
-            }
+        for child in children.iter_mut() {
+            event_tree(child, mouse);
         }
     }
 }
