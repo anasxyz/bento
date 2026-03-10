@@ -1,5 +1,6 @@
 use crate::color::Color;
 use crate::fonts::Fonts;
+use crate::mouse::MouseState;
 use crate::render::draw_ctx::DrawContext;
 use crate::render::gpu::GpuContext;
 use std::sync::Arc;
@@ -11,6 +12,7 @@ pub struct WindowState {
     pub clear_color: Color,
     pub draw: DrawContext,
     pub fonts: Fonts,
+    pub mouse: MouseState,
 }
 
 impl WindowState {
@@ -31,6 +33,7 @@ impl WindowState {
             clear_color,
             draw,
             fonts: Fonts::new(),
+            mouse: MouseState::default(),
         }
     }
 

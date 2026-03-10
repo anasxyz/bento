@@ -19,6 +19,7 @@ mod fonts;
 mod layout;
 mod settings;
 mod window;
+mod mouse;
 
 pub use crate::{
     app::App,
