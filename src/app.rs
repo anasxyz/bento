@@ -82,6 +82,8 @@ impl<A: App> ApplicationHandler for Runner<A> {
 
         match event {
             WindowEvent::RedrawRequested => {
+                use std::time::Instant;
+
                 let mut element = self.app.view();
 
                 win.begin();
@@ -91,13 +93,27 @@ impl<A: App> ApplicationHandler for Runner<A> {
                 let logical_w = size.width as f32 / scale;
                 let logical_h = size.height as f32 / scale;
 
+                // Layout timing
+                let layout_start = Instant::now();
                 layout_tree(&mut element, logical_w, logical_h, &mut win.fonts);
-                event_tree(&mut element, &mut win.mouse);
-                draw_tree(&element, &mut win.draw);
+                let layout_time = layout_start.elapsed();
 
-                // print_root(&element);
+                // Event timing
+                let event_start = Instant::now();
+                event_tree(&mut element, &mut win.mouse);
+                let event_time = event_start.elapsed();
+
+                // Draw timing
+                let draw_start = Instant::now();
+                draw_tree(&element, &mut win.draw);
+                let draw_time = draw_start.elapsed();
 
                 win.render();
+
+                println!(
+                    "layout: {:?}, event: {:?}, draw: {:?}",
+                    layout_time, event_time, draw_time
+                );
 
                 win.mouse.reset();
             }
