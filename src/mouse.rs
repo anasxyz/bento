@@ -1,7 +1,6 @@
 use crate::element::Element;
 
-
-// all mouse state in one place
+#[derive(Debug)]
 pub struct MouseState {
     // mouse position
     pub x: f32,
@@ -17,21 +16,21 @@ pub struct MouseState {
     pub middle_just_pressed: bool,
 
     // left click count
-    pub left_click_count: u32, 
+    pub left_click_count: u32,
     pub left_click_x: f32,
     pub left_click_y: f32,
 
     // right click count
-    pub right_click_count: u32, 
+    pub right_click_count: u32,
     pub right_click_x: f32,
     pub right_click_y: f32,
 
     // middle click count
-    pub middle_click_count: u32, 
+    pub middle_click_count: u32,
     pub middle_click_x: f32,
     pub middle_click_y: f32,
 
-    // click timing 
+    // click timing
     pub right_click_timer: std::time::Instant,
     pub last_right_click_time: f64,
     pub left_click_timer: std::time::Instant,
@@ -67,6 +66,19 @@ impl Default for MouseState {
     }
 }
 
+impl MouseState {
+    pub fn reset(&mut self) {
+        self.left_just_pressed = false;
+        self.left_just_released = false;
+        self.right_just_pressed = false;
+        self.middle_just_pressed = false;
+    }
+}
+
 pub fn event_tree(element: &Element, mouse: &mut MouseState) {
-    
+    // print current mouse position
+    println!("mouse position: {},{}", mouse.x, mouse.y);
+    if mouse.left_just_pressed {
+        println!("left just pressed");
+    }
 }

@@ -10,13 +10,13 @@ use winit::{
     window::{Window, WindowId},
 };
 
-use crate::{draw::draw_tree, mouse::event_tree};
 use crate::element::{ElementType, Position, print_root};
 use crate::layout::layout_tree;
 use crate::render::{gpu::GpuContext, shape_renderer::ShapeDrawParams};
 use crate::settings::WindowSettings;
 use crate::window::WindowState;
 use crate::{color::Color, element::Element};
+use crate::{draw::draw_tree, mouse::event_tree};
 
 pub trait App: 'static + Sized {
     fn new() -> Self;
@@ -94,10 +94,56 @@ impl<A: App> ApplicationHandler for Runner<A> {
                 layout_tree(&mut element, logical_w, logical_h, &mut win.fonts);
                 event_tree(&element, &mut win.mouse);
                 draw_tree(&element, &mut win.draw);
-                
-                print_root(&element);
+
+                // print_root(&element);
 
                 win.render();
+
+                win.mouse.reset();
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                win.mouse.x = position.x as f32;
+                win.mouse.y = position.y as f32;
+            }
+            WindowEvent::MouseInput { button, state, .. } => {
+                match button {
+                    winit::event::MouseButton::Left => match state {
+                        ElementState::Pressed => {
+                            win.mouse.left_pressed = true;
+                            win.mouse.left_just_pressed = true;
+                            win.mouse.left_click_x = win.mouse.x;
+                            win.mouse.left_click_y = win.mouse.y;
+                        }
+                        ElementState::Released => {
+                            win.mouse.left_pressed = false;
+                            win.mouse.left_just_released = true;
+                        }
+                    },
+                    winit::event::MouseButton::Right => match state {
+                        ElementState::Pressed => {
+                            win.mouse.right_pressed = true;
+                            win.mouse.right_just_pressed = true;
+                            win.mouse.right_click_x = win.mouse.x;
+                            win.mouse.right_click_y = win.mouse.y;
+                        }
+                        ElementState::Released => {
+                            win.mouse.right_pressed = false;
+                        }
+                    },
+                    winit::event::MouseButton::Middle => match state {
+                        ElementState::Pressed => {
+                            win.mouse.middle_pressed = true;
+                            win.mouse.middle_just_pressed = true;
+                            win.mouse.middle_click_x = win.mouse.x;
+                            win.mouse.middle_click_y = win.mouse.y;
+                        }
+                        ElementState::Released => {
+                            win.mouse.middle_pressed = false;
+                        }
+                    },
+                    _ => {}
+                }
+                win.window.request_redraw();
             }
             WindowEvent::Resized(size) => {
                 let scale = win.window.scale_factor() as f32;
