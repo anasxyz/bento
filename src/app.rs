@@ -10,7 +10,7 @@ use winit::{
     window::{Window, WindowId},
 };
 
-use crate::draw::draw_tree;
+use crate::{draw::draw_tree, mouse::event_tree};
 use crate::element::{ElementType, Position, print_root};
 use crate::layout::layout_tree;
 use crate::render::{gpu::GpuContext, shape_renderer::ShapeDrawParams};
@@ -92,6 +92,7 @@ impl<A: App> ApplicationHandler for Runner<A> {
                 let logical_h = size.height as f32 / scale;
 
                 layout_tree(&mut element, logical_w, logical_h, &mut win.fonts);
+                event_tree(&element, &mut win.mouse);
                 draw_tree(&element, &mut win.draw);
                 
                 print_root(&element);

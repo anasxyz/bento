@@ -1,3 +1,5 @@
+use crate::element::Element;
+
 
 // all mouse state in one place
 pub struct MouseState {
@@ -65,3 +67,6 @@ impl Default for MouseState {
     }
 }
 
+pub fn event_tree(element: &Element, mouse: &mut MouseState) {
+    
+}
