@@ -92,7 +92,7 @@ impl<A: App> ApplicationHandler for Runner<A> {
                 let logical_h = size.height as f32 / scale;
 
                 layout_tree(&mut element, logical_w, logical_h, &mut win.fonts);
-                event_tree(&element, &mut win.mouse);
+                event_tree(&mut element, &mut win.mouse);
                 draw_tree(&element, &mut win.draw);
 
                 // print_root(&element);
@@ -104,6 +104,8 @@ impl<A: App> ApplicationHandler for Runner<A> {
             WindowEvent::CursorMoved { position, .. } => {
                 win.mouse.x = position.x as f32;
                 win.mouse.y = position.y as f32;
+                win.mouse.update_drag();
+                win.window.request_redraw();
             }
             WindowEvent::MouseInput { button, state, .. } => {
                 match button {
