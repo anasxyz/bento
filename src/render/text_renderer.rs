@@ -1,11 +1,34 @@
-use crate::{Color, TextAlign};
-use cosmic_text::Align as CosmicAlign;
+use crate::color::Color;
 use glyphon::{
     Attrs, Buffer, Cache, Color as GlyphonColor, Family, FontSystem, Metrics, Resolution, Shaping,
     Style as GlyphonStyle, SwashCache, TextArea, TextAtlas, TextBounds,
-    TextRenderer as GlyphonRenderer, Viewport, Weight, cosmic_text,
+    TextRenderer as GlyphonRenderer, Viewport, Weight,
 };
 use wgpu;
+
+pub struct TextDrawParams {
+    pub family: String,
+    pub size: f32,
+    pub weight: u16,
+    pub italic: bool,
+    pub color: Color,
+    pub width: f32,
+    pub clip: Option<[f32; 4]>,
+}
+
+impl Default for TextDrawParams {
+    fn default() -> Self {
+        Self {
+            family: "sans-serif".to_string(),
+            size: 16.0,
+            weight: 400,
+            italic: false,
+            color: Color::WHITE,
+            width: f32::MAX,
+            clip: None,
+        }
+    }
+}
 
 struct TextEntry {
     buffer: Buffer,
@@ -19,7 +42,6 @@ struct TextEntry {
     size: f32,
     weight: u16,
     italic: bool,
-    text_align: TextAlign,
     color: GlyphonColor,
 }
 
@@ -76,22 +98,21 @@ impl TextRenderer {
     pub fn draw(
         &mut self,
         font_system: &mut FontSystem,
-        family: String,
-        size: f32,
-        weight: u16,
-        italic: bool,
-        text_align: TextAlign,
         text: &str,
         x: f32,
         y: f32,
-        width: f32,
-        clip: Option<[f32; 4]>,
-        color: Color,
+        p: TextDrawParams,
     ) {
+        let family = p.family.clone();
+        let size = p.size;
+        let weight = p.weight;
+        let italic = p.italic;
+        let width = p.width;
+        let clip = p.clip;
         let glyphon_color = GlyphonColor::rgb(
-            (color.r * 255.0) as u8,
-            (color.g * 255.0) as u8,
-            (color.b * 255.0) as u8,
+            (p.color.r * 255.0) as u8,
+            (p.color.g * 255.0) as u8,
+            (p.color.b * 255.0) as u8,
         );
 
         let scale = self.scale_factor as f32;
@@ -108,18 +129,6 @@ impl TextRenderer {
                 GlyphonStyle::Normal
             });
 
-        let cosmic_align = match text_align {
-            TextAlign::Left => Some(CosmicAlign::Left),
-            TextAlign::Center => Some(CosmicAlign::Center),
-            TextAlign::Right => Some(CosmicAlign::Right),
-        };
-
-        let apply_align = |buffer: &mut Buffer| {
-            for line in buffer.lines.iter_mut() {
-                line.set_align(cosmic_align);
-            }
-        };
-
         if idx < self.entries.len() {
             let entry = &mut self.entries[idx];
             entry.x = x;
@@ -133,7 +142,6 @@ impl TextRenderer {
                 || entry.size != size
                 || entry.weight != weight
                 || entry.italic != italic
-                || entry.text_align != text_align
                 || entry.width != width;
             if content_changed {
                 entry.text = text.to_string();
@@ -141,39 +149,28 @@ impl TextRenderer {
                 entry.size = size;
                 entry.weight = weight;
                 entry.italic = italic;
-                entry.text_align = text_align;
                 entry.width = width;
                 entry
                     .buffer
                     .set_metrics(font_system, Metrics::new(size, line_height));
                 entry.buffer.set_size(
                     font_system,
-                    Some(if width == f32::MAX {
-                        self.screen_width - x
-                    } else {
-                        width
-                    }),
-                    Some(self.screen_height - y),
+                    if width == f32::MAX { None } else { Some(width) },
+                    None,
                 );
                 entry
                     .buffer
                     .set_text(font_system, text, &attrs, Shaping::Advanced);
-                apply_align(&mut entry.buffer);
                 entry.buffer.shape_until_scroll(font_system, false);
             }
         } else {
             let mut buffer = Buffer::new(font_system, Metrics::new(size, line_height));
             buffer.set_size(
                 font_system,
-                Some(if width == f32::MAX {
-                    self.screen_width - x
-                } else {
-                    width
-                }),
-                Some(self.screen_height - y),
+                if width == f32::MAX { None } else { Some(width) },
+                None,
             );
             buffer.set_text(font_system, text, &attrs, Shaping::Advanced);
-            apply_align(&mut buffer);
             buffer.shape_until_scroll(font_system, false);
             self.entries.push(TextEntry {
                 buffer,
@@ -187,7 +184,6 @@ impl TextRenderer {
                 size,
                 weight,
                 italic,
-                text_align,
                 color: glyphon_color,
             });
         }

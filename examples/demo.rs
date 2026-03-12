@@ -1,76 +1,53 @@
-#![allow(dead_code, unused)]
-
 use bento::*;
 
-#[derive(Clone)]
-enum Action {
-    UpdateAddress(String),
-}
-
-struct MyApp {
-    count: i32,
-    address: String,
-}
+struct MyApp;
 
 impl App for MyApp {
-    type Action = Action;
-
     fn new() -> Self {
-        Self { 
-            count: 0,
-            address: String::new()
-        }
+        MyApp
     }
 
-    fn start(&mut self) -> Vec<Task<Action>> {
-        vec![]
-    }
-
-    fn view(&self) -> Element<Action> {
-        column(vec![
-            text("Billing address:", Color::hex("#1f282d"))
-                .font_size(12.0)
-                .font_weight(500),
-            text_input("address")
-                .value(&self.address)
-                .on_change(|v| Action::UpdateAddress(v))
-                .placeholder("Enter address")
-                .placeholder_color(Color::hex("#333333"))
-                .font_size(12.0)
-                .font_weight(500)
-                .border(Color::hex("#000000"), 0.0)
-                .border_radius(0.0)
-                .margin(Margin::top(3.0))
-                .background(Color::hex("#1f282d"))
-                .text_color(Color::hex("#000000"))
-                .width(percent(100.0)),
-            {
-                if !self.address.is_empty() {
-                    text(&self.address, Color::hex("#ffffff"))
-                } else {
-                    text("No address", Color::hex("#ffffff"))
-                }
-            }
+    fn view(&mut self) -> Element {
+        col(vec![
+            // main content
+            rect()
+                .w(pct(100.0))
+                .h(pct(100.0))
+                .bg(rgb(30, 30, 30)),
+            // modal overlay
+            modal("Hello world!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!111111111111111111111111111"),
         ])
-        .padding(Edges::all(5.0))
-        .width(percent(100.0))
-        .height(percent(100.0))
+        .w(pct(100.0))
+        .h(pct(100.0))
     }
+}
 
-    fn update(&mut self, action: Action) -> Vec<Task<Action>> {
-        match action {
-            Action::UpdateAddress(v) => {
-                self.address = v;
-                vec![]
-            },
-        }
-    }
-
-    fn fonts(&self, fonts: &mut Fonts) {
-        fonts.add("mono", "JetBrainsMono Nerd Font Mono", 24.0);
-    }
+fn modal(title: &str) -> Element {
+    col(vec![
+        col(vec![
+            rect()
+                .w(pct(100.0))
+                .h(pct(100.0))
+                .bg(rgba(40, 40, 40, 255))
+                .border(2.0)
+                .border_color(rgb(20, 20, 20))
+                .border_radius(8.0)
+                .absolute(),
+            text(title).bold().font_size(12.0).text_color(Color::WHITE).w(pct(100.0)).align_self(AlignSelf::Start).bottom(pct(30.0)),
+        ])
+        .w(px(300.0))
+        .h(px(200.0))
+        .align_items(AlignItems::Center)
+        .justify_content(JustifyContent::Center)
+        .p([10.0, 10.0, 10.0, 10.0]),
+    ])
+    .w(pct(100.0))
+    .h(pct(100.0))
+    .absolute()
+    .align_items(AlignItems::Center)
+    .justify_content(JustifyContent::Center)
 }
 
 fn main() {
-    MyApp::run(Settings::default());
+    MyApp::run(WindowSettings::default());
 }

@@ -1,216 +1,154 @@
-use crate::state::StateStore;
-use crate::{Element, Fonts, ShadowRenderer, ShapeRenderer, TextRenderer};
+use crate::Color;
+use crate::element::{Element, ElementType, Position};
+use crate::render::draw_ctx::DrawContext;
+use crate::render::shape_renderer::ShapeDrawParams;
+use crate::render::text_renderer::TextDrawParams;
 
-#[derive(Clone, Copy, PartialEq)]
-pub enum Cursor {
-    Default,
-    Text,
-    Pointer,
-    Crosshair,
-    Move,
-    ResizeNS,
-    ResizeEW,
-    NotAllowed,
-    Grab,
-    Grabbing,
-    Wait,
+pub enum DrawCall {
+    Rect {
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+        params: ShapeDrawParams,
+        z_index: i32,
+    },
+    Text {
+        x: f32,
+        y: f32,
+        content: String,
+        params: TextDrawParams,
+        z_index: i32,
+    },
 }
 
-// all mouse state in one place
-pub struct MouseState {
-    pub x: f32,
-    pub y: f32,
-    pub left_pressed: bool,
-    pub left_just_pressed: bool,
-    pub left_just_released: bool,
-    pub right_pressed: bool,
-    pub right_just_pressed: bool,
-    pub middle_pressed: bool,
-    pub middle_just_pressed: bool,
-    pub left_click_count: u32, // 1 = single, 2 = double, 3 = triple
-    pub left_click_x: f32,
-    pub left_click_y: f32,
-    // click timing — used for double/triple click detection
-    pub(crate) click_timer: std::time::Instant,
-    pub(crate) last_click_time: f64,
-}
-
-// everything a widget needs to draw itself
-pub struct DrawCtx<'a, M> {
-    pub sr: &'a mut ShapeRenderer,
-    pub shadow: &'a mut ShadowRenderer,
-    pub tr: &'a mut TextRenderer,
-    pub fonts: &'a mut Fonts,
-    pub state: &'a mut StateStore,
-    pub mouse: &'a MouseState,
-    pub clip: Option<[f32; 4]>,
-    pub actions: &'a mut Vec<M>,
-    pub scale_factor: f32,
-    pub cursor: &'a mut Option<Cursor>,
-}
-
-pub fn draw<M: Clone + 'static>(
-    element: &mut Element<M>,
-    sr: &mut ShapeRenderer,
-    shadow: &mut ShadowRenderer,
-    tr: &mut TextRenderer,
-    fonts: &mut Fonts,
-    state: &mut StateStore,
-    mouse: &MouseState,
-    scale_factor: f32,
-) -> (Vec<M>, Option<Cursor>) {
-    let mut actions = Vec::new();
-    let mut cursor = None;
-    let mut ctx = DrawCtx {
-        sr,
-        shadow,
-        tr,
-        fonts,
-        state,
-        mouse,
-        clip: None,
-        actions: &mut actions,
-        scale_factor,
-        cursor: &mut cursor,
-    };
-    draw_element(element, &mut ctx);
-    (actions, cursor)
-}
-
-pub fn draw_element<M: Clone + 'static>(el: &mut Element<M>, ctx: &mut DrawCtx<M>) {
-    match el {
-        Element::Empty => {}
-        Element::Rect(r) => r.draw(ctx),
-        Element::Text(t) => t.draw(ctx),
-        Element::Button(b) => b.draw(ctx),
-        Element::TextInput(t) => t.draw(ctx),
-        Element::TextEditor(t) => t.draw(ctx),
-        Element::Row(r) => r.draw(ctx),
-        Element::Column(c) => c.draw(ctx),
-    }
-}
-
-// helpers shared across widgets
-
-pub fn is_outside(x: f32, y: f32, w: f32, h: f32, clip: Option<[f32; 4]>) -> bool {
-    let Some([cx, cy, cx2, cy2]) = clip else {
-        return false;
-    };
-    x + w < cx || y + h < cy || x > cx2 || y > cy2
-}
-
-pub fn make_child_clip(
-    x: f32,
-    y: f32,
-    w: f32,
-    h: f32,
-    overflow: crate::Overflow,
-    parent_clip: Option<[f32; 4]>,
-) -> Option<[f32; 4]> {
-    if overflow == crate::Overflow::Hidden || overflow == crate::Overflow::Scroll {
-        let new_clip = [x, y, x + w, y + h];
-        if let Some([px, py, px2, py2]) = parent_clip {
-            Some([
-                new_clip[0].max(px),
-                new_clip[1].max(py),
-                new_clip[2].min(px2),
-                new_clip[3].min(py2),
-            ])
-        } else {
-            Some(new_clip)
+impl DrawCall {
+    fn z_index(&self) -> i32 {
+        match self {
+            DrawCall::Rect { z_index, .. } => *z_index,
+            DrawCall::Text { z_index, .. } => *z_index,
         }
-    } else {
-        parent_clip
     }
 }
 
-pub fn with_opacity(mut color: [f32; 4], opacity: f32) -> [f32; 4] {
-    color[3] *= opacity;
-    color
+pub fn clip_intersect(a: Option<[f32; 4]>, b: Option<[f32; 4]>) -> Option<[f32; 4]> {
+    match (a, b) {
+        (Some([ax, ay, ax2, ay2]), Some([bx, by, bx2, by2])) => {
+            Some([ax.max(bx), ay.max(by), ax2.min(bx2), ay2.min(by2)])
+        }
+        (Some(a), None) => Some(a),
+        (None, Some(b)) => Some(b),
+        (None, None) => None,
+    }
 }
 
-pub fn draw_shape(
-    sr: &mut ShapeRenderer,
-    x: f32,
-    y: f32,
-    w: f32,
-    h: f32,
-    color: [f32; 4],
-    border_radius: f32,
-    border_color: [f32; 4],
-    border_thickness: f32,
+pub fn collect_draws(
+    el: &Element,
     clip: Option<[f32; 4]>,
+    parent_z: i32,
+    parent_opacity: f32,
+    calls: &mut Vec<DrawCall>,
 ) {
-    if border_radius > 0.0 {
-        if let Some([cx, cy, cx2, cy2]) = clip {
-            if x < cx || y < cy || x + w > cx2 || y + h > cy2 {
-                sr.draw_rect_clipped(x, y, w, h, color, [cx, cy, cx2, cy2]);
-                return;
+    // skip invisible elements entirely
+    if !el.style.visible {
+        return;
+    }
+
+    let z = parent_z + el.style.z_index;
+    let opacity = parent_opacity * el.style.opacity;
+
+    match el._type {
+        ElementType::Rect => {
+            let mut color = el.style.fill.to_array();
+            color[3] *= opacity;
+
+            let mut border_color = el.style.border_color.unwrap_or(Color::BLACK).to_array();
+            border_color[3] *= opacity;
+
+            calls.push(DrawCall::Rect {
+                x: el.style.x,
+                y: el.style.y,
+                w: el.style.w,
+                h: el.style.h,
+                params: ShapeDrawParams {
+                    color,
+                    radius: el.style.border_radius.unwrap_or(0.0),
+                    border_color,
+                    border_width: el.style.border_thickness,
+                    clip,
+                },
+                z_index: z,
+            });
+        }
+        ElementType::Text => {
+            let mut text_color = el.style.text_color;
+            text_color.a *= opacity;
+
+            calls.push(DrawCall::Text {
+                x: el.style.x,
+                y: el.style.y,
+                content: el.style.text_content.clone(),
+                params: TextDrawParams {
+                    family: el.style.font_family.clone(),
+                    size: el.style.font_size,
+                    weight: el.style.font_weight,
+                    italic: el.style.font_italic,
+                    color: text_color,
+                    width: if el.style.w > 0.0 {
+                        el.style.w
+                    } else {
+                        f32::MAX
+                    },
+                    clip,
+                },
+                z_index: z,
+            });
+        }
+        ElementType::Row | ElementType::Col => {
+            let my_clip = Some([
+                el.style.x,
+                el.style.y,
+                el.style.x + el.style.w,
+                el.style.y + el.style.h,
+            ]);
+
+            if let Some(children) = &el.children {
+                for child in children {
+                    // absolutely positioned children escape parent clip
+                    let child_clip = if child.style.position == Position::Absolute {
+                        clip // only outer clip, not this container's clip
+                    } else {
+                        clip_intersect(clip, my_clip)
+                    };
+                    collect_draws(child, child_clip, z, opacity, calls);
+                }
             }
         }
-        sr.draw_rounded_rect(
-            x,
-            y,
-            w,
-            h,
-            border_radius,
-            color,
-            border_color,
-            border_thickness,
-        );
-    } else if let Some([cx, cy, cx2, cy2]) = clip {
-        sr.draw_rect_clipped(x, y, w, h, color, [cx, cy, cx2, cy2]);
-    } else {
-        sr.draw_rect(x, y, w, h, color, border_color, border_thickness);
     }
 }
 
-pub fn draw_shadow(
-    shadow: &mut ShadowRenderer,
-    x: f32,
-    y: f32,
-    w: f32,
-    h: f32,
-    style: &crate::Style,
-) {
-    if style.shadow_color.a > 0.0 && style.shadow_blur > 0.0 {
-        shadow.draw_shadow(
-            x,
-            y,
-            w,
-            h,
-            with_opacity(style.shadow_color.to_array(), style.opacity),
-            style.border_radius,
-            style.shadow_blur,
-            style.shadow_offset_x,
-            style.shadow_offset_y,
-        );
-    }
-}
+pub fn draw_tree(el: &Element, draw: &mut DrawContext) {
+    let mut calls: Vec<DrawCall> = Vec::new();
+    collect_draws(el, None, 0, 1.0, &mut calls);
 
-pub fn check_interactions<M: Clone + 'static>(
-    interactions: &crate::Interactions<M>,
-    x: f32,
-    y: f32,
-    w: f32,
-    h: f32,
-    ctx: &mut DrawCtx<M>,
-) {
-    let hovered =
-        ctx.mouse.x >= x && ctx.mouse.x <= x + w && ctx.mouse.y >= y && ctx.mouse.y <= y + h;
+    // stable sort so tree order is preserved within same z
+    calls.sort_by_key(|c| c.z_index());
 
-    if hovered {
-        if let Some(a) = &interactions.on_hover {
-            ctx.actions.push(a.clone());
-        }
-        if ctx.mouse.left_just_pressed {
-            if let Some(a) = &interactions.on_mouse_down {
-                ctx.actions.push(a.clone());
+    for call in calls {
+        match call {
+            DrawCall::Rect {
+                x, y, w, h, params, ..
+            } => {
+                draw.draw_rect(x, y, w, h, params);
             }
-        }
-        if ctx.mouse.left_just_released {
-            if let Some(a) = &interactions.on_click {
-                ctx.actions.push(a.clone());
+            DrawCall::Text {
+                x,
+                y,
+                content,
+                params,
+                ..
+            } => {
+                draw.draw_text(x, y, &content, params);
             }
         }
     }
