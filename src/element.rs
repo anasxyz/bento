@@ -250,10 +250,8 @@ impl Default for ElementStyle {
 // element
 
 pub struct Element {
-    pub id: u32,
     pub _type: ElementType,
     pub style: ElementStyle,
-    pub children: Option<Vec<Element>>,
 }
 
 impl Display for Element {
@@ -265,10 +263,8 @@ impl Display for Element {
 impl Default for Element {
     fn default() -> Self {
         Self {
-            id: 0,
             _type: ElementType::Rect,
             style: ElementStyle::default(),
-            children: None,
         }
     }
 }
@@ -356,12 +352,12 @@ pub fn rect() -> Element {
     Element { _type: ElementType::Rect, ..Default::default() }
 }
 
-pub fn row(children: Vec<Element>) -> Element {
-    Element { _type: ElementType::Row, children: Some(children), ..Default::default() }
+pub fn row() -> Element {
+    Element { _type: ElementType::Row, ..Default::default() }
 }
 
-pub fn col(children: Vec<Element>) -> Element {
-    Element { _type: ElementType::Col, children: Some(children), ..Default::default() }
+pub fn col() -> Element {
+    Element { _type: ElementType::Col, ..Default::default() }
 }
 
 pub fn text(content: &str) -> Element {
@@ -374,28 +370,3 @@ pub fn text(content: &str) -> Element {
 // size shorthands
 pub fn px(v: f32) -> Size { Size::Fixed(v) }
 pub fn pct(v: f32) -> Size { Size::Percent(v) }
-
-// debug
-
-pub fn print_tree(el: &Element, prefix: &str, last: bool) {
-    let connector = if last { "└── " } else { "├── " };
-    println!("{}{}{} ({}, {}) {}x{}", prefix, connector, el, el.style.x, el.style.y, el.style.w, el.style.h);
-    if let Some(children) = &el.children {
-        let extension = if last { "    " } else { "│   " };
-        let new_prefix = format!("{}{}", prefix, extension);
-        let count = children.len();
-        for (i, child) in children.iter().enumerate() {
-            print_tree(child, &new_prefix, i == count - 1);
-        }
-    }
-}
-
-pub fn print_root(el: &Element) {
-    println!("{} ({}, {}) {}x{}", el, el.style.x, el.style.y, el.style.w, el.style.h);
-    if let Some(children) = &el.children {
-        let count = children.len();
-        for (i, child) in children.iter().enumerate() {
-            print_tree(child, "", i == count - 1);
-        }
-    }
-}

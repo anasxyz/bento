@@ -1,8 +1,9 @@
 use crate::Color;
-use crate::element::{Element, ElementType, Position};
+use crate::element::{ElementType, Position};
 use crate::render::draw_ctx::DrawContext;
 use crate::render::shape_renderer::ShapeDrawParams;
 use crate::render::text_renderer::TextDrawParams;
+use crate::ui::{Handle, Ui};
 
 pub enum DrawCall {
     Rect {
@@ -43,13 +44,18 @@ pub fn clip_intersect(a: Option<[f32; 4]>, b: Option<[f32; 4]>) -> Option<[f32; 
 }
 
 pub fn collect_draws(
-    el: &Element,
+    ui: &Ui,
+    handle: Handle,
     clip: Option<[f32; 4]>,
     parent_z: i32,
     parent_opacity: f32,
     calls: &mut Vec<DrawCall>,
 ) {
-    // skip invisible elements entirely
+    let el = match ui.get(handle) {
+        Some(e) => e,
+        None => return,
+    };
+
     if !el.style.visible {
         return;
     }
@@ -94,11 +100,7 @@ pub fn collect_draws(
                     weight: el.style.font_weight,
                     italic: el.style.font_italic,
                     color: text_color,
-                    width: if el.style.w > 0.0 {
-                        el.style.w
-                    } else {
-                        f32::MAX
-                    },
+                    width: if el.style.w > 0.0 { el.style.w } else { f32::MAX },
                     clip,
                 },
                 z_index: z,
@@ -112,42 +114,37 @@ pub fn collect_draws(
                 el.style.y + el.style.h,
             ]);
 
-            if let Some(children) = &el.children {
-                for child in children {
-                    // absolutely positioned children escape parent clip
-                    let child_clip = if child.style.position == Position::Absolute {
-                        clip // only outer clip, not this container's clip
-                    } else {
-                        clip_intersect(clip, my_clip)
-                    };
-                    collect_draws(child, child_clip, z, opacity, calls);
-                }
+            let children: Vec<Handle> = ui.children(handle).to_vec();
+            for child_handle in children {
+                let child_position = ui.get(child_handle).map(|c| c.style.position.clone());
+                let child_clip = if child_position == Some(Position::Absolute) {
+                    clip
+                } else {
+                    clip_intersect(clip, my_clip)
+                };
+                collect_draws(ui, child_handle, child_clip, z, opacity, calls);
             }
         }
     }
 }
 
-pub fn draw_tree(el: &Element, draw: &mut DrawContext) {
-    let mut calls: Vec<DrawCall> = Vec::new();
-    collect_draws(el, None, 0, 1.0, &mut calls);
+pub fn draw_tree(ui: &Ui, draw: &mut DrawContext) {
+    let root = match ui.root() {
+        Some(r) => r,
+        None => return,
+    };
 
-    // stable sort so tree order is preserved within same z
+    let mut calls: Vec<DrawCall> = Vec::new();
+    collect_draws(ui, root, None, 0, 1.0, &mut calls);
+
     calls.sort_by_key(|c| c.z_index());
 
     for call in calls {
         match call {
-            DrawCall::Rect {
-                x, y, w, h, params, ..
-            } => {
+            DrawCall::Rect { x, y, w, h, params, .. } => {
                 draw.draw_rect(x, y, w, h, params);
             }
-            DrawCall::Text {
-                x,
-                y,
-                content,
-                params,
-                ..
-            } => {
+            DrawCall::Text { x, y, content, params, .. } => {
                 draw.draw_text(x, y, &content, params);
             }
         }

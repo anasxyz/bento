@@ -1,11 +1,11 @@
 use crate::element::{
-    AlignItems, AlignSelf, Element, ElementType, FlexDirection, FlexWrap, JustifyContent, Overflow,
-    Position, Size,
+    AlignItems, AlignSelf, ElementType, FlexDirection, FlexWrap, JustifyContent, Overflow,
+    Position, Size, Element,
 };
 use crate::fonts::Fonts;
+use crate::ui::{Handle, Ui};
 use taffy::prelude::*;
 
-// context stored per text node in the taffy tree
 struct TextContext {
     content: String,
     family: String,
@@ -176,7 +176,12 @@ fn build_style(el: &Element) -> Style {
     }
 }
 
-fn add_node(el: &Element, taffy: &mut TaffyTree<TextContext>) -> NodeId {
+fn add_node(ui: &Ui, handle: Handle, taffy: &mut TaffyTree<TextContext>) -> NodeId {
+    let el = match ui.get(handle) {
+        Some(e) => e,
+        None => return taffy.new_leaf(Style::DEFAULT).unwrap(),
+    };
+
     let style = build_style(el);
 
     if el._type == ElementType::Text {
@@ -189,41 +194,53 @@ fn add_node(el: &Element, taffy: &mut TaffyTree<TextContext>) -> NodeId {
             italic: s.font_italic,
         };
         taffy.new_leaf_with_context(style, ctx).unwrap()
-    } else if let Some(children) = &el.children {
-        let ids: Vec<NodeId> = children.iter().map(|c| add_node(c, taffy)).collect();
-        taffy.new_with_children(style, &ids).unwrap()
     } else {
-        taffy.new_leaf(style).unwrap()
+        let children = ui.children(handle).to_vec();
+        let ids: Vec<NodeId> = children.iter().map(|&c| add_node(ui, c, taffy)).collect();
+        taffy.new_with_children(style, &ids).unwrap()
     }
 }
 
 fn write_back(
-    el: &mut Element,
+    ui: &mut Ui,
+    handle: Handle,
     taffy: &TaffyTree<TextContext>,
     node: NodeId,
     parent_x: f32,
     parent_y: f32,
 ) {
     let layout = taffy.layout(node).unwrap();
-    el.style.x = parent_x + layout.location.x;
-    el.style.y = parent_y + layout.location.y;
-    el.style.w = layout.size.width;
-    el.style.h = layout.size.height;
+    let x = parent_x + layout.location.x;
+    let y = parent_y + layout.location.y;
+    let w = layout.size.width;
+    let h = layout.size.height;
 
-    if let Some(children) = &mut el.children {
-        let child_ids = taffy.children(node).unwrap();
-        for (child, id) in children.iter_mut().zip(child_ids.iter()) {
-            write_back(child, taffy, *id, el.style.x, el.style.y);
-        }
+    if let Some(el) = ui.get_mut(handle) {
+        el.style.x = x;
+        el.style.y = y;
+        el.style.w = w;
+        el.style.h = h;
+    }
+
+    let children = ui.children(handle).to_vec();
+    let child_ids = taffy.children(node).unwrap();
+    for (child_handle, child_node) in children.iter().zip(child_ids.iter()) {
+        write_back(ui, *child_handle, taffy, *child_node, x, y);
     }
 }
 
-pub fn layout_tree(el: &mut Element, window_w: f32, window_h: f32, fonts: &mut Fonts) {
+pub fn layout_tree(ui: &mut Ui, window_w: f32, window_h: f32, fonts: &mut Fonts) {
+    let root = match ui.root() {
+        Some(r) => r,
+        None => return,
+    };
+
     let mut taffy: TaffyTree<TextContext> = TaffyTree::new();
-    let root = add_node(el, &mut taffy);
+    let root_node = add_node(ui, root, &mut taffy);
+
     taffy
         .compute_layout_with_measure(
-            root,
+            root_node,
             taffy::geometry::Size {
                 width: AvailableSpace::Definite(window_w),
                 height: AvailableSpace::Definite(window_h),
@@ -232,7 +249,6 @@ pub fn layout_tree(el: &mut Element, window_w: f32, window_h: f32, fonts: &mut F
                 let Some(ctx) = ctx else {
                     return taffy::geometry::Size::ZERO;
                 };
-                // use known width if taffy has already resolved it, otherwise use available space
                 let max_width = known_dimensions
                     .width
                     .or_else(|| match available_space.width {
@@ -254,5 +270,6 @@ pub fn layout_tree(el: &mut Element, window_w: f32, window_h: f32, fonts: &mut F
             },
         )
         .unwrap();
-    write_back(el, &taffy, root, 0.0, 0.0);
+
+    write_back(ui, root, &taffy, root_node, 0.0, 0.0);
 }
