@@ -69,7 +69,6 @@ pub fn collect_draws(
     let z = parent_z + layout.z_index;
     let opacity = parent_opacity * layout.opacity;
 
-    // draw self
     if let Some(rect) = el.as_any().downcast_ref::<Rect>() {
         let mut color = rect.bg_color.to_array();
         color[3] *= opacity;
@@ -110,9 +109,32 @@ pub fn collect_draws(
             },
             z_index: z,
         });
+    } else if let Some(container) = el.as_any().downcast_ref::<Container>() {
+        if let Some(bg) = container.bg_color {
+            let mut color = bg.to_array();
+            color[3] *= opacity;
+
+            let mut border_color = container.border_color.unwrap_or(Color::BLACK).to_array();
+            border_color[3] *= opacity;
+
+            calls.push(DrawCall::Rect {
+                x: layout.x,
+                y: layout.y,
+                w: layout.w,
+                h: layout.h,
+                params: ShapeDrawParams {
+                    color,
+                    radius: container.border_radius.unwrap_or(0.0),
+                    border_color,
+                    border_width: container.border_thickness,
+                    clip,
+                },
+                z_index: z,
+            });
+        }
     }
 
-    // always recurse into children regardless of element type
+    // always recurse into children
     let my_clip = Some([layout.x, layout.y, layout.x + layout.w, layout.y + layout.h]);
     let children = ui.children(handle).to_vec();
 

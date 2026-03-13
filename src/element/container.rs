@@ -1,3 +1,4 @@
+use crate::color::Color;
 use crate::element::element::Element;
 use crate::element::handle::Handle;
 use crate::element::layout::Layout;
@@ -8,12 +9,20 @@ use std::any::Any;
 
 pub struct Container {
     pub layout: Layout,
+    pub bg_color: Option<Color>,
+    pub border_radius: Option<f32>,
+    pub border_thickness: f32,
+    pub border_color: Option<Color>,
 }
 
 impl Container {
     pub fn new(ui: &mut Ui) -> Handle<Self> {
         ui.add(Self {
             layout: Layout::default(),
+            bg_color: None,
+            border_radius: None,
+            border_thickness: 0.0,
+            border_color: None,
         })
     }
 }
@@ -56,4 +65,3 @@ impl Column {
         h
     }
 }
-
