@@ -1,6 +1,5 @@
 use crate::element::element::Element;
 use crate::element::handle::Handle;
-use std::any::Any;
 
 struct Slot {
     element: Box<dyn Element + 'static>,
@@ -80,6 +79,29 @@ impl Ui {
             .and_then(|s| {
                 if s.generation == handle.generation {
                     s.element.as_any_mut().downcast_mut::<T>()
+                } else {
+                    None
+                }
+            })
+    }
+
+    pub fn get_dyn(&self, handle: Handle<()>) -> Option<&dyn Element> {
+        self.slots.get(handle.id as usize)?.as_ref().and_then(|s| {
+            if s.generation == handle.generation {
+                Some(s.element.as_ref())
+            } else {
+                None
+            }
+        })
+    }
+
+    pub fn get_dyn_mut(&mut self, handle: Handle<()>) -> Option<&mut (dyn Element + 'static)> {
+        self.slots
+            .get_mut(handle.id as usize)?
+            .as_mut()
+            .and_then(|s| {
+                if s.generation == handle.generation {
+                    Some(s.element.as_mut())
                 } else {
                     None
                 }

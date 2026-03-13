@@ -1,11 +1,10 @@
-use std::any::Any;
-
-use crate::Ui;
 use crate::color::Color;
 use crate::element::element::Element;
 use crate::element::handle::Handle;
 use crate::element::layout::Layout;
 use crate::fonts::Fonts;
+use crate::ui::Ui;
+use std::any::Any;
 
 pub struct Label {
     pub layout: Layout,
@@ -35,9 +34,12 @@ impl Element for Label {
     fn layout(&self) -> &Layout {
         &self.layout
     }
-
     fn layout_mut(&mut self) -> &mut Layout {
         &mut self.layout
+    }
+
+    fn has_measure(&self) -> bool {
+        true
     }
 
     fn measure(&self, fonts: &mut Fonts, max_width: Option<f32>) -> Option<(f32, f32)> {
@@ -54,7 +56,6 @@ impl Element for Label {
     fn as_any(&self) -> &dyn Any {
         self
     }
-
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
