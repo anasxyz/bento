@@ -59,7 +59,7 @@ impl Ui {
         self.root
     }
 
-    pub fn children(&self, handle: Handle<()>) -> &[Handle<()>] {
+    pub fn children<T>(&self, handle: Handle<T>) -> &[Handle<()>] {
         &self.children[handle.id as usize]
     }
 

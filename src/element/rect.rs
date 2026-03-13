@@ -7,7 +7,7 @@ use crate::fonts::Fonts;
 
 pub struct Rect {
     pub layout: Layout,
-    pub bg_color: Option<Color>,
+    pub bg_color: Color,
     pub border_color: Option<Color>,
     pub border_radius: Option<f32>,
     pub border_thickness: f32,
@@ -17,7 +17,7 @@ impl Rect {
     pub fn new() -> Self {
         Self {
             layout: Layout::default(),
-            bg_color: None,
+            bg_color: Color::rgb(0, 0, 0),
             border_color: None,
             border_radius: None,
             border_thickness: 0.0,
