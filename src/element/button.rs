@@ -3,7 +3,7 @@ use crate::element::element::Element;
 use crate::element::handle::Handle;
 use crate::element::label::Label;
 use crate::element::rect::Rect;
-use crate::element::values::Size;
+use crate::element::values::{AlignItems, JustifyContent, Size};
 use crate::signals::Signal;
 use crate::ui::Ui;
 
@@ -26,6 +26,8 @@ impl Button {
         ui[root].bg_color = base;
         ui[root].border_radius = Some(6.0);
         ui[root].layout_mut().padding = [8.0, 16.0, 8.0, 16.0];
+        ui[root].layout_mut().align_items = AlignItems::Center;
+        ui[root].layout_mut().justify_content = JustifyContent::Center;
         ui[label].text_color = Color::WHITE;
         ui[label].font_size = 16.0;
 
