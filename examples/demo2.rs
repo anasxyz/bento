@@ -1,7 +1,7 @@
 use bento::*;
 
 fn main() {
-    let rect = Rect::default();
+    let label1 = Label::new("Hello World".to_string());
 
-    println!("{:?}", rect.layout);
+    println!("{:?}", label1.font_size);
 }

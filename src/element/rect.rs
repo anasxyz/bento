@@ -11,8 +11,8 @@ pub struct Rect {
     pub border_thickness: f32,
 }
 
-impl Default for Rect {
-    fn default() -> Self {
+impl Rect {
+    pub fn new() -> Self {
         Self {
             layout: Layout::default(),
             bg_color: None,
@@ -32,7 +32,7 @@ impl Element for Rect {
         &mut self.layout
     }
 
-    fn measure(&self, _fonts: &mut Fonts) -> Option<(f32, f32)> {
-        Some((self.layout.w, self.layout.h))
+    fn measure(&self, _fonts: &mut Fonts, _max_width: Option<f32>) -> Option<(f32, f32)> {
+        None
     }
 }
