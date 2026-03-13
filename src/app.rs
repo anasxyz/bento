@@ -97,8 +97,9 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
             }
             WindowEvent::CursorMoved { position, .. } => {
                 let Some(win) = self.win.as_mut() else { return };
-                win.mouse.x = position.x as f32;
-                win.mouse.y = position.y as f32;
+                let scale = win.window.scale_factor() as f32;
+                win.mouse.x = position.x as f32 / scale;
+                win.mouse.y = position.y as f32 / scale;
                 win.mouse.update_drag();
                 win.window.request_redraw();
             }
