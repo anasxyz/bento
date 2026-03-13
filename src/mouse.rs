@@ -1,4 +1,6 @@
-use crate::element::Element;
+use crate::element::element::Element;
+use crate::element::handle::Handle;
+use crate::ui::Ui;
 
 const DRAG_THRESHOLD: f32 = 4.0;
 
@@ -106,17 +108,20 @@ impl MouseState {
     }
 }
 
-pub fn event_tree(element: &mut Element, mouse: &mut MouseState) {
-    let x = element.style.x;
-    let y = element.style.y;
-    let w = element.style.w;
-    let h = element.style.h;
+pub fn event_tree(ui: &Ui, handle: Handle<()>, mouse: &mut MouseState) {
+    let el = match ui.get_dyn(handle) {
+        Some(e) => e,
+        None => return,
+    };
 
-    let hovered = mouse.x >= x && mouse.x <= x + w && mouse.y >= y && mouse.y <= y + h;
+    let layout = el.layout();
+    let _hovered = mouse.x >= layout.x
+        && mouse.x <= layout.x + layout.w
+        && mouse.y >= layout.y
+        && mouse.y <= layout.y + layout.h;
 
-    if let Some(children) = &mut element.children {
-        for child in children.iter_mut() {
-            event_tree(child, mouse);
-        }
+    let children: Vec<Handle<()>> = ui.children(handle).to_vec();
+    for child in children {
+        event_tree(ui, child, mouse);
     }
 }

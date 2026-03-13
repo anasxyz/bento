@@ -1,90 +1,81 @@
 use pollster;
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use winit::{
     application::ApplicationHandler,
     event::{ElementState, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
-    keyboard::{KeyCode, PhysicalKey},
     window::{Window, WindowId},
 };
 
-use crate::element::{ElementType, Position, print_root};
+use crate::draw::draw_tree;
+use crate::events::fire_events;
 use crate::layout::layout_tree;
-use crate::render::{gpu::GpuContext, shape_renderer::ShapeDrawParams};
-use crate::settings::WindowSettings;
+use crate::mouse::event_tree;
+use crate::render::gpu::GpuContext;
+use crate::settings::WindowConfig;
+use crate::ui::Ui;
 use crate::window::WindowState;
-use crate::{color::Color, element::Element};
-use crate::{draw::draw_tree, mouse::event_tree};
 
-pub trait App: 'static + Sized {
-    fn new() -> Self;
-    fn view(&mut self) -> Element;
-    fn run(settings: WindowSettings) {
-        run::<Self>(settings);
+pub struct AppWindow {
+    settings: WindowConfig,
+}
+
+impl AppWindow {
+    pub fn new(settings: WindowConfig) -> Self {
+        Self { settings }
+    }
+
+    pub fn run<F>(self, ui: Ui, update: F)
+    where
+        F: FnMut(&mut Ui),
+    {
+        let event_loop = EventLoop::new().unwrap();
+        event_loop
+            .run_app(&mut Runner {
+                ui,
+                update,
+                win: None,
+                settings: self.settings,
+            })
+            .unwrap();
     }
 }
 
-fn run<A: App>(settings: WindowSettings) {
-    let event_loop = EventLoop::new().unwrap();
-    event_loop
-        .run_app(&mut Runner::new(A::new(), settings))
-        .unwrap();
+struct Runner<F: FnMut(&mut Ui)> {
+    ui: Ui,
+    update: F,
+    win: Option<WindowState>,
+    settings: WindowConfig,
 }
 
-struct Runner<A: App> {
-    app: A,
-    windows: HashMap<WindowId, WindowState>,
-    init: WindowSettings,
-}
-
-impl<A: App> Runner<A> {
-    fn new(app: A, settings: WindowSettings) -> Self {
-        Self {
-            app,
-            windows: HashMap::new(),
-            init: settings,
-        }
-    }
-
-    fn open_window(&mut self, event_loop: &ActiveEventLoop, settings: &WindowSettings) {
+impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let window = Arc::new(
             event_loop
                 .create_window(
                     Window::default_attributes()
-                        .with_title(&settings.title)
+                        .with_title(&self.settings.title)
                         .with_inner_size(winit::dpi::LogicalSize::new(
-                            settings.width,
-                            settings.height,
+                            self.settings.width,
+                            self.settings.height,
                         )),
                 )
                 .unwrap(),
         );
         let gpu = pollster::block_on(GpuContext::new(window.clone()));
-        let id = window.id();
-        self.windows
-            .insert(id, WindowState::new(window, gpu, settings.clear_color));
-    }
-}
-
-impl<A: App> ApplicationHandler for Runner<A> {
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        let settings = self.init.clone();
-        self.open_window(event_loop, &settings);
+        self.win = Some(WindowState::new(window, gpu, self.settings.clear_color));
     }
 
-    fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
+    fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         event_loop.set_control_flow(ControlFlow::Wait);
-        let Some(win) = self.windows.get_mut(&id) else {
-            return;
-        };
+        let Some(win) = self.win.as_mut() else { return };
 
         match event {
             WindowEvent::RedrawRequested => {
-                use std::time::Instant;
+                fire_events(&mut self.ui, &win.mouse);
 
-                let mut element = self.app.view();
+                (self.update)(&mut self.ui);
 
                 win.begin();
 
@@ -93,37 +84,26 @@ impl<A: App> ApplicationHandler for Runner<A> {
                 let logical_w = size.width as f32 / scale;
                 let logical_h = size.height as f32 / scale;
 
-                // Layout timing
-                let layout_start = Instant::now();
-                layout_tree(&mut element, logical_w, logical_h, &mut win.fonts);
-                let layout_time = layout_start.elapsed();
+                layout_tree(&mut self.ui, logical_w, logical_h, &mut win.fonts);
 
-                // Event timing
-                let event_start = Instant::now();
-                event_tree(&mut element, &mut win.mouse);
-                let event_time = event_start.elapsed();
+                if let Some(root) = self.ui.root() {
+                    event_tree(&self.ui, root, &mut win.mouse);
+                }
 
-                // Draw timing
-                let draw_start = Instant::now();
-                draw_tree(&element, &mut win.draw);
-                let draw_time = draw_start.elapsed();
+                draw_tree(&self.ui, &mut win.draw);
 
                 win.render();
-
-                println!(
-                    "layout: {:?}, event: {:?}, draw: {:?}",
-                    layout_time, event_time, draw_time
-                );
-
                 win.mouse.reset();
             }
             WindowEvent::CursorMoved { position, .. } => {
+                let Some(win) = self.win.as_mut() else { return };
                 win.mouse.x = position.x as f32;
                 win.mouse.y = position.y as f32;
                 win.mouse.update_drag();
                 win.window.request_redraw();
             }
             WindowEvent::MouseInput { button, state, .. } => {
+                let Some(win) = self.win.as_mut() else { return };
                 match button {
                     winit::event::MouseButton::Left => match state {
                         ElementState::Pressed => {
@@ -164,12 +144,14 @@ impl<A: App> ApplicationHandler for Runner<A> {
                 win.window.request_redraw();
             }
             WindowEvent::Resized(size) => {
+                let Some(win) = self.win.as_mut() else { return };
                 let scale = win.window.scale_factor() as f32;
                 win.gpu.resize(size.width, size.height);
                 win.draw
                     .resize(size.width as f32 / scale, size.height as f32 / scale);
             }
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
+                let Some(win) = self.win.as_mut() else { return };
                 let size = win.window.inner_size();
                 let scale = scale_factor as f32;
                 win.gpu.resize(size.width, size.height);
@@ -177,23 +159,8 @@ impl<A: App> ApplicationHandler for Runner<A> {
                     .set_scale(scale, size.width as f32 / scale, size.height as f32 / scale);
             }
             WindowEvent::CloseRequested => {
-                self.windows.remove(&id);
-                if self.windows.is_empty() {
-                    event_loop.exit();
-                }
-            }
-            WindowEvent::KeyboardInput { event, .. } => {
-                if event.state == ElementState::Pressed {
-                    if let PhysicalKey::Code(KeyCode::KeyL) = event.physical_key {
-                        let new_settings = WindowSettings {
-                            title: "demo".to_string(),
-                            width: 640,
-                            height: 480,
-                            clear_color: Color::new(0.2, 0.1, 0.1, 1.0),
-                        };
-                        self.open_window(event_loop, &new_settings);
-                    }
-                }
+                self.win = None;
+                event_loop.exit();
             }
             _ => {}
         }

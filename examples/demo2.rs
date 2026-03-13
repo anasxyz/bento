@@ -1,26 +1,23 @@
 use bento::*;
 
-struct MyApp;
-
-impl App for MyApp {
-    fn new() -> Self {
-        MyApp
-    }
-
-    fn view(&mut self) -> Element {
-        col(vec![
-            // main content
-            rect()
-                .w(px(100.0))
-                .h(px(100.0))
-                .bg(rgb(30, 30, 30)),
-        ])
-        .w(pct(100.0))
-        .h(pct(100.0))
-    }
-}
-
 fn main() {
-    MyApp::run(WindowSettings::default());
-}
+    let mut ui = Ui::new();
 
+    let root = Column::new(&mut ui);
+    let btn = Button::new(&mut ui, "Click meeeeeeeeeee");
+    ui.append(root, btn);
+    ui.set_root(root);
+
+    ui[root].layout_mut().width = Size::Percent(100.0);
+    ui[root].layout_mut().height = Size::Percent(100.0);
+
+    ui.connect(btn, Signal::Press, move |ui| {
+        println!("clicked");
+    });
+
+    ui.connect(btn, Signal::Click, move |ui| {
+        btn.set_text(ui, "Clicked!");
+    });
+
+    AppWindow::new(WindowConfig::default()).run(ui, |_ui| {});
+}

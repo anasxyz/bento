@@ -1,8 +1,13 @@
 use crate::Color;
-use crate::element::{Element, ElementType, Position};
+use crate::element::container::Container;
+use crate::element::handle::Handle;
+use crate::element::label::Label;
+use crate::element::rect::Rect;
+use crate::element::values::Position;
 use crate::render::draw_ctx::DrawContext;
 use crate::render::shape_renderer::ShapeDrawParams;
 use crate::render::text_renderer::TextDrawParams;
+use crate::ui::Ui;
 
 pub enum DrawCall {
     Rect {
@@ -43,95 +48,98 @@ pub fn clip_intersect(a: Option<[f32; 4]>, b: Option<[f32; 4]>) -> Option<[f32; 
 }
 
 pub fn collect_draws(
-    el: &Element,
+    ui: &Ui,
+    handle: Handle<()>,
     clip: Option<[f32; 4]>,
     parent_z: i32,
     parent_opacity: f32,
     calls: &mut Vec<DrawCall>,
 ) {
-    // skip invisible elements entirely
-    if !el.style.visible {
+    let el = match ui.get_dyn(handle) {
+        Some(e) => e,
+        None => return,
+    };
+
+    let layout = el.layout();
+
+    if !layout.visible {
         return;
     }
 
-    let z = parent_z + el.style.z_index;
-    let opacity = parent_opacity * el.style.opacity;
+    let z = parent_z + layout.z_index;
+    let opacity = parent_opacity * layout.opacity;
 
-    match el._type {
-        ElementType::Rect => {
-            let mut color = el.style.fill.to_array();
-            color[3] *= opacity;
+    // draw self
+    if let Some(rect) = el.as_any().downcast_ref::<Rect>() {
+        let mut color = rect.bg_color.to_array();
+        color[3] *= opacity;
 
-            let mut border_color = el.style.border_color.unwrap_or(Color::BLACK).to_array();
-            border_color[3] *= opacity;
+        let mut border_color = rect.border_color.unwrap_or(Color::BLACK).to_array();
+        border_color[3] *= opacity;
 
-            calls.push(DrawCall::Rect {
-                x: el.style.x,
-                y: el.style.y,
-                w: el.style.w,
-                h: el.style.h,
-                params: ShapeDrawParams {
-                    color,
-                    radius: el.style.border_radius.unwrap_or(0.0),
-                    border_color,
-                    border_width: el.style.border_thickness,
-                    clip,
-                },
-                z_index: z,
-            });
-        }
-        ElementType::Text => {
-            let mut text_color = el.style.text_color;
-            text_color.a *= opacity;
+        calls.push(DrawCall::Rect {
+            x: layout.x,
+            y: layout.y,
+            w: layout.w,
+            h: layout.h,
+            params: ShapeDrawParams {
+                color,
+                radius: rect.border_radius.unwrap_or(0.0),
+                border_color,
+                border_width: rect.border_thickness,
+                clip,
+            },
+            z_index: z,
+        });
+    } else if let Some(label) = el.as_any().downcast_ref::<Label>() {
+        let mut text_color = label.text_color;
+        text_color.a *= opacity;
 
-            calls.push(DrawCall::Text {
-                x: el.style.x,
-                y: el.style.y,
-                content: el.style.text_content.clone(),
-                params: TextDrawParams {
-                    family: el.style.font_family.clone(),
-                    size: el.style.font_size,
-                    weight: el.style.font_weight,
-                    italic: el.style.font_italic,
-                    color: text_color,
-                    width: if el.style.w > 0.0 {
-                        el.style.w
-                    } else {
-                        f32::MAX
-                    },
-                    clip,
-                },
-                z_index: z,
-            });
-        }
-        ElementType::Row | ElementType::Col => {
-            let my_clip = Some([
-                el.style.x,
-                el.style.y,
-                el.style.x + el.style.w,
-                el.style.y + el.style.h,
-            ]);
+        calls.push(DrawCall::Text {
+            x: layout.x,
+            y: layout.y,
+            content: label.text.clone(),
+            params: TextDrawParams {
+                family: label.font_family.clone(),
+                size: label.font_size,
+                weight: label.font_weight,
+                italic: label.font_italic,
+                color: text_color,
+                width: if layout.w > 0.0 { layout.w } else { f32::MAX },
+                clip,
+            },
+            z_index: z,
+        });
+    }
 
-            if let Some(children) = &el.children {
-                for child in children {
-                    // absolutely positioned children escape parent clip
-                    let child_clip = if child.style.position == Position::Absolute {
-                        clip // only outer clip, not this container's clip
-                    } else {
-                        clip_intersect(clip, my_clip)
-                    };
-                    collect_draws(child, child_clip, z, opacity, calls);
-                }
-            }
-        }
+    // always recurse into children regardless of element type
+    let my_clip = Some([layout.x, layout.y, layout.x + layout.w, layout.y + layout.h]);
+    let children = ui.children(handle).to_vec();
+
+    for child_handle in children {
+        let child_position = ui
+            .get_dyn(child_handle)
+            .map(|c| c.layout().position.clone());
+
+        let child_clip = if child_position == Some(Position::Absolute) {
+            clip
+        } else {
+            clip_intersect(clip, my_clip)
+        };
+
+        collect_draws(ui, child_handle, child_clip, z, opacity, calls);
     }
 }
 
-pub fn draw_tree(el: &Element, draw: &mut DrawContext) {
-    let mut calls: Vec<DrawCall> = Vec::new();
-    collect_draws(el, None, 0, 1.0, &mut calls);
+pub fn draw_tree(ui: &Ui, draw: &mut DrawContext) {
+    let root = match ui.root() {
+        Some(r) => r,
+        None => return,
+    };
 
-    // stable sort so tree order is preserved within same z
+    let mut calls: Vec<DrawCall> = Vec::new();
+    collect_draws(ui, root, None, 0, 1.0, &mut calls);
+
     calls.sort_by_key(|c| c.z_index());
 
     for call in calls {
