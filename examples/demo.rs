@@ -1,4 +1,5 @@
 use bento::*;
+
 fn main() {
     let mut ui = Ui::new();
     let btn = ui.add(rect().bg(rgb(100, 0, 0)).w(px(100.0)).h(px(40.0)));

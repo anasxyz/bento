@@ -15,6 +15,7 @@ mod element {
     pub mod element;
     pub mod values;
     pub mod layout;
+    pub mod rect;
 }
 
 mod app;
@@ -32,4 +33,5 @@ pub use crate::{
     color::{Color, hex, hsl, hsla, hwb, hwba, rgb, rgba},
     settings::WindowConfig,
     ui::{Ui, Handle},
+    element::rect::Rect
 };
