@@ -17,6 +17,8 @@ mod element {
     pub mod layout;
     pub mod rect;
     pub mod label;
+    pub mod container;
+    pub mod handle;
 }
 
 mod app;
