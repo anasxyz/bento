@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use crate::element::layout::Layout;
 use crate::color::Color;
 use crate::element::element::Element;
@@ -34,5 +36,13 @@ impl Element for Rect {
 
     fn measure(&self, _fonts: &mut Fonts, _max_width: Option<f32>) -> Option<(f32, f32)> {
         None
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }

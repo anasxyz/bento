@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use crate::element::layout::Layout;
 use crate::color::Color;
 use crate::element::element::Element;
@@ -38,5 +40,13 @@ impl Element for Label {
 
     fn measure(&self, fonts: &mut Fonts, max_width: Option<f32>) -> Option<(f32, f32)> {
         Some(fonts.measure_sized(&self.text, &self.font_family, self.font_size, self.font_weight, self.font_italic, max_width))
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }
