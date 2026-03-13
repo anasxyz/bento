@@ -7,7 +7,7 @@ use std::any::Any;
 
 pub struct Container {
     pub layout: Layout,
-    pub children: Vec<Handle>,
+    pub children: Vec<Handle<()>>,
 }
 
 impl Container {
