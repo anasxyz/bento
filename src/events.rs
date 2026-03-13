@@ -30,6 +30,35 @@ fn hit_test(ui: &Ui, handle: Handle<()>, mx: f32, my: f32, hits: &mut Vec<Handle
     hits.push(handle);
 }
 
+// Walk up the parent chain from a given node to find the first node
+// that has a connection for the given signal.
+fn find_handler(ui: &Ui, start: Handle<()>, signal: &Signal) -> Option<Handle<()>> {
+    let mut current = Some(start);
+    while let Some(handle) = current {
+        let has_handler = ui
+            .connections_ref()
+            .iter()
+            .any(|c| c.handle == handle && c.signal == *signal);
+        if has_handler {
+            return Some(handle);
+        }
+        current = ui.parent(handle);
+    }
+    None
+}
+
+fn fire_signal_for(ui: &mut Ui, handle: Handle<()>, signal: Signal) {
+    let mut connections = ui.take_connections();
+    let pos = connections
+        .iter()
+        .position(|c| c.handle == handle && c.signal == signal);
+    if let Some(pos) = pos {
+        let cb_ptr: *const dyn Fn(&mut Ui) = connections[pos].callback.as_ref();
+        unsafe { (*cb_ptr)(ui) };
+    }
+    ui.restore_connections(connections);
+}
+
 fn fire_signal(ui: &mut Ui, hits: &[Handle<()>], signal: Signal) {
     let mut connections = ui.take_connections();
     for handle in hits {
@@ -46,18 +75,6 @@ fn fire_signal(ui: &mut Ui, hits: &[Handle<()>], signal: Signal) {
     ui.restore_connections(connections);
 }
 
-fn fire_signal_for(ui: &mut Ui, handle: Handle<()>, signal: Signal) {
-    let mut connections = ui.take_connections();
-    let pos = connections
-        .iter()
-        .position(|c| c.handle == handle && c.signal == signal);
-    if let Some(pos) = pos {
-        let cb_ptr: *const dyn Fn(&mut Ui) = connections[pos].callback.as_ref();
-        unsafe { (*cb_ptr)(ui) };
-    }
-    ui.restore_connections(connections);
-}
-
 pub fn fire_events(ui: &mut Ui, mouse: &MouseState) {
     let root = match ui.root() {
         Some(r) => r,
@@ -70,7 +87,11 @@ pub fn fire_events(ui: &mut Ui, mouse: &MouseState) {
     // --- hover ---
     let mut hover_hits: Vec<Handle<()>> = Vec::new();
     hit_test(ui, root, mx, my, &mut hover_hits);
-    let new_hovered = hover_hits.first().copied();
+
+    // find the deepest hit node that has a hover handler, walking up parents if needed
+    let new_hovered = hover_hits
+        .first()
+        .and_then(|&deepest| find_handler(ui, deepest, &Signal::Hover));
 
     if ui.interaction.hovered != new_hovered {
         if let Some(prev) = ui.interaction.hovered {
@@ -86,26 +107,38 @@ pub fn fire_events(ui: &mut Ui, mouse: &MouseState) {
     if mouse.left_just_pressed {
         let mut press_hits: Vec<Handle<()>> = Vec::new();
         hit_test(ui, root, mx, my, &mut press_hits);
-        let pressed = press_hits.first().copied();
+        let pressed = press_hits.first().and_then(|&deepest| {
+            find_handler(ui, deepest, &Signal::Press).or(find_handler(ui, deepest, &Signal::Click))
+        });
         if let Some(h) = pressed {
             fire_signal_for(ui, h, Signal::Press);
         }
-        ui.interaction.pressed = pressed;
+        // store the deepest press target for click resolution
+        ui.interaction.pressed = press_hits.first().copied();
     }
 
     // --- release + click ---
     if mouse.left_just_released {
         let mut release_hits: Vec<Handle<()>> = Vec::new();
         hit_test(ui, root, mx, my, &mut release_hits);
-        let released = release_hits.first().copied();
 
-        if let Some(h) = released {
-            fire_signal_for(ui, h, Signal::Release);
-            // only fire click if released on same element that was pressed
-            if ui.interaction.pressed == Some(h) {
-                fire_signal_for(ui, h, Signal::Click);
+        if let Some(&deepest) = release_hits.first() {
+            // bubble release up to handler
+            if let Some(release_handler) = find_handler(ui, deepest, &Signal::Release) {
+                fire_signal_for(ui, release_handler, Signal::Release);
+            }
+
+            // click fires if released over same node or a descendant of the pressed node
+            if let Some(pressed) = ui.interaction.pressed {
+                let is_same_or_child = release_hits.contains(&pressed);
+                if is_same_or_child {
+                    if let Some(click_handler) = find_handler(ui, deepest, &Signal::Click) {
+                        fire_signal_for(ui, click_handler, Signal::Click);
+                    }
+                }
             }
         }
+
         ui.interaction.pressed = None;
     }
 }

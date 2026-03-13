@@ -10,8 +10,10 @@ fn main() {
 
     ui[root].layout_mut().width = Size::Percent(100.0);
     ui[root].layout_mut().height = Size::Percent(100.0);
-    ui[root].layout_mut().padding = [20.0, 20.0, 20.0, 20.0];
-    ui[root].layout_mut().align_items = AlignItems::End;
+
+    ui.connect(btn, Signal::Press, move |ui| {
+        println!("clicked");
+    });
 
     ui.connect(btn, Signal::Click, move |ui| {
         btn.set_text(ui, "Clicked!");

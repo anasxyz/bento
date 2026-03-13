@@ -233,6 +233,10 @@ impl Ui {
     pub fn restore_connections(&mut self, connections: Vec<Connection>) {
         self.connections = connections;
     }
+
+    pub fn connections_ref(&self) -> &[Connection] {
+        &self.connections
+    }
 }
 
 impl<T: Element + 'static> Index<Handle<T>> for Ui {
