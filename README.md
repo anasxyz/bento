@@ -3,8 +3,7 @@
 
 ## Features
 
-* Architecture inspired by [Elm](https://github.com/elm) and [Iced](https://github.com/iced-rs/iced)
-* Intuitive declarative API
+* Intuitive API
 * Cross-platform, runs on Windows, macOS, and Linux
 * GPU-accelerated rendering via a custom wgpu based rendering layer
 * Flexbox layout engine with support for grow, shrink, padding, margin, alignment, absolute positioning, overflow, etc
@@ -25,22 +24,29 @@ Bento is built on top of:
 ## Examples
 Simple text input:
 ```rust
-        column(vec![
-            text("Hello, Bento!", Color::hex("#ffffff"))
-                .font_size(24.0)
-                .font_weight(700),
-            text_input("name")
-                .value(&self.name)
-                .placeholder("Enter your name...")
-                .on_change(|v| Action::UpdateName(v))
-                .width(px(300.0)),
-            button("Submit")
-                .on_click(Action::Submit)
-                .background(Color::hex("#2563eb"))
-                .border_radius(6.0),
-        ])
-        .padding(Edges::all(32.0))
-        .gap(12.0)
+use bento::*;
+
+fn main() {
+    let mut ui = Ui::new();
+
+    let root = Column::new(&mut ui);
+    let btn = Button::new(&mut ui, "Click me");
+    ui.append(root, btn);
+    ui.set_root(root);
+
+    ui[root].layout_mut().width = Size::Percent(100.0);
+    ui[root].layout_mut().height = Size::Percent(100.0);
+
+    ui.connect(btn, Signal::Press, move |ui| {
+        println!("clicked");
+    });
+
+    ui.connect(btn, Signal::Click, move |ui| {
+        btn.set_text(ui, "Clicked!");
+    });
+
+    AppWindow::new(WindowConfig::default()).run(ui, |_ui| {});
+}
 ```
 
 ![Demo3](screenshots/demo3.gif)
