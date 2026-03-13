@@ -1,14 +1,14 @@
 use crate::color::Color;
 
 #[derive(Clone)]
-pub struct WindowSettings {
+pub struct WindowConfig {
     pub title: String,
     pub width: u32,
     pub height: u32,
     pub clear_color: Color,
 }
 
-impl Default for WindowSettings {
+impl Default for WindowConfig {
     fn default() -> Self {
         Self {
             title: "demo".to_string(),

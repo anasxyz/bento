@@ -1,53 +1,15 @@
 use bento::*;
-
-struct MyApp;
-
-impl App for MyApp {
-    fn new() -> Self {
-        MyApp
-    }
-
-    fn view(&mut self) -> Element {
-        col(vec![
-            // main content
-            rect()
-                .w(pct(100.0))
-                .h(pct(100.0))
-                .bg(rgb(30, 30, 30)),
-            // modal overlay
-            modal("Hello world!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!111111111111111111111111111"),
-        ])
-        .w(pct(100.0))
-        .h(pct(100.0))
-    }
-}
-
-fn modal(title: &str) -> Element {
-    col(vec![
-        col(vec![
-            rect()
-                .w(pct(100.0))
-                .h(pct(100.0))
-                .bg(rgba(40, 40, 40, 255))
-                .border(2.0)
-                .border_color(rgb(20, 20, 20))
-                .border_radius(8.0)
-                .absolute(),
-            text(title).bold().font_size(12.0).text_color(Color::WHITE).w(pct(100.0)).align_self(AlignSelf::Start).bottom(pct(30.0)),
-        ])
-        .w(px(300.0))
-        .h(px(200.0))
-        .align_items(AlignItems::Center)
-        .justify_content(JustifyContent::Center)
-        .p([10.0, 10.0, 10.0, 10.0]),
-    ])
-    .w(pct(100.0))
-    .h(pct(100.0))
-    .absolute()
-    .align_items(AlignItems::Center)
-    .justify_content(JustifyContent::Center)
-}
-
 fn main() {
-    MyApp::run(WindowSettings::default());
+    let mut ui = Ui::new();
+    let btn = ui.add(rect().bg(rgb(100, 0, 0)).w(px(100.0)).h(px(40.0)));
+    let root = ui.add(col().w(pct(100.0)).h(pct(100.0)));
+
+    ui.append(root, btn);
+    ui.set_root(root);
+
+    AppWindow::new(WindowConfig::default()).run(ui, |ui| {
+        // mutate directly each frame
+        let color = ui[btn].style.fill;
+        // ui[btn].style.fill = rgb(0, 200, 0);
+    });
 }

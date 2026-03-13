@@ -1,4 +1,4 @@
-use crate::element::{Element, ElementType};
+use crate::element::element::{Element, ElementType};
 use std::ops::{Index, IndexMut};
 
 #[derive(Copy, Clone, Debug, PartialEq)]

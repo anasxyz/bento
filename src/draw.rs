@@ -1,5 +1,5 @@
 use crate::Color;
-use crate::element::{ElementType, Position};
+use crate::element::element::{ElementType, Position};
 use crate::render::draw_ctx::DrawContext;
 use crate::render::shape_renderer::ShapeDrawParams;
 use crate::render::text_renderer::TextDrawParams;

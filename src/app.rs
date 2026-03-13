@@ -11,18 +11,18 @@ use winit::{
 
 use crate::layout::layout_tree;
 use crate::render::gpu::GpuContext;
-use crate::settings::WindowSettings;
+use crate::settings::WindowConfig;
 use crate::window::WindowState;
 use crate::ui::Ui;
 use crate::draw::draw_tree;
 use crate::mouse::event_tree;
 
 pub struct AppWindow {
-    settings: WindowSettings,
+    settings: WindowConfig,
 }
 
 impl AppWindow {
-    pub fn new(settings: WindowSettings) -> Self {
+    pub fn new(settings: WindowConfig) -> Self {
         Self { settings }
     }
 
@@ -46,7 +46,7 @@ struct Runner<F: FnMut(&mut Ui)> {
     ui: Ui,
     update: F,
     win: Option<WindowState>,
-    settings: WindowSettings,
+    settings: WindowConfig,
 }
 
 impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {

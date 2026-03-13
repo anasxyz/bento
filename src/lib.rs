@@ -11,21 +11,24 @@ mod render {
     pub mod text_renderer;
 }
 
+mod element {
+    pub mod element;
+}
+
 mod app;
 mod color;
 mod draw;
-mod element;
 mod fonts;
 mod layout;
 mod settings;
 mod window;
 mod mouse;
-pub mod ui;
+mod ui;
 
 pub use crate::{
     app::AppWindow,
     color::{Color, hex, hsl, hsla, hwb, hwba, rgb, rgba},
     element::*,
-    settings::WindowSettings,
+    settings::WindowConfig,
     ui::{Ui, Handle},
 };
