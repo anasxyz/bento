@@ -30,8 +30,8 @@ fn hit_test(ui: &Ui, handle: Handle<()>, mx: f32, my: f32, hits: &mut Vec<Handle
     hits.push(handle);
 }
 
-// Walk up the parent chain from a given node to find the first node
-// that has a connection for the given signal.
+// walk up the parent chain from a given node to find the first node
+// that has a connection for the given signal
 fn find_handler(ui: &Ui, start: Handle<()>, signal: &Signal) -> Option<Handle<()>> {
     let mut current = Some(start);
     while let Some(handle) = current {
@@ -47,7 +47,7 @@ fn find_handler(ui: &Ui, start: Handle<()>, signal: &Signal) -> Option<Handle<()
     None
 }
 
-// Fire all matching connections for a handle+signal, in registration order
+// fire all matching connections for a handle+signal, in registration order
 fn fire_signal_for(ui: &mut Ui, handle: Handle<()>, signal: Signal) {
     let mut connections = ui.take_connections();
     let indices: Vec<usize> = connections
@@ -72,7 +72,7 @@ pub fn fire_events(ui: &mut Ui, mouse: &MouseState) {
     let mx = mouse.x;
     let my = mouse.y;
 
-    // --- hover ---
+    // hover
     let mut hover_hits: Vec<Handle<()>> = Vec::new();
     hit_test(ui, root, mx, my, &mut hover_hits);
 
@@ -90,7 +90,7 @@ pub fn fire_events(ui: &mut Ui, mouse: &MouseState) {
         ui.interaction.hovered = new_hovered;
     }
 
-    // --- press ---
+    // press
     if mouse.left_just_pressed {
         let mut press_hits: Vec<Handle<()>> = Vec::new();
         hit_test(ui, root, mx, my, &mut press_hits);
@@ -103,7 +103,7 @@ pub fn fire_events(ui: &mut Ui, mouse: &MouseState) {
         ui.interaction.pressed = press_hits.first().copied();
     }
 
-    // --- release + click ---
+    // release + click 
     if mouse.left_just_released {
         let mut release_hits: Vec<Handle<()>> = Vec::new();
         hit_test(ui, root, mx, my, &mut release_hits);
