@@ -3,4 +3,8 @@ pub enum Signal {
     Click,
     Hover,
     HoverEnd,
+    Press,
+    Release,
+    FocusGained,
+    FocusLost,
 }

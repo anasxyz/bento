@@ -16,10 +16,27 @@ pub struct Connection {
     pub callback: Box<dyn Fn(&mut Ui)>,
 }
 
+pub struct InteractionState {
+    pub hovered: Option<Handle<()>>,
+    pub pressed: Option<Handle<()>>,
+    pub focused: Option<Handle<()>>,
+}
+
+impl InteractionState {
+    pub fn new() -> Self {
+        Self {
+            hovered: None,
+            pressed: None,
+            focused: None,
+        }
+    }
+}
+
 pub struct Ui {
     slots: Vec<Option<Slot>>,
     root: Option<Handle<()>>,
     connections: Vec<Connection>,
+    pub interaction: InteractionState,
 }
 
 impl Ui {
@@ -28,6 +45,7 @@ impl Ui {
             slots: Vec::new(),
             root: None,
             connections: Vec::new(),
+            interaction: InteractionState::new(),
         }
     }
 
@@ -55,10 +73,10 @@ impl Ui {
         handle
     }
 
-    pub fn remove<T>(&mut self, handle: Handle<T>) {
+    pub fn remove<T>(&mut self, handle: impl Into<Handle<T>>) {
+        let handle = handle.into();
         let erased = Handle::new(handle.id, handle.generation);
 
-        // remove from parent's children list
         let parent = self
             .slots
             .get(handle.id as usize)
@@ -71,7 +89,6 @@ impl Ui {
             }
         }
 
-        // nil the slot
         if let Some(slot) = self.slots.get_mut(handle.id as usize) {
             if let Some(s) = slot {
                 if s.generation == handle.generation {
@@ -80,11 +97,21 @@ impl Ui {
             }
         }
 
-        // remove all connections for this handle
         self.connections.retain(|c| c.handle != erased);
+
+        if self.interaction.hovered == Some(erased) {
+            self.interaction.hovered = None;
+        }
+        if self.interaction.pressed == Some(erased) {
+            self.interaction.pressed = None;
+        }
+        if self.interaction.focused == Some(erased) {
+            self.interaction.focused = None;
+        }
     }
 
-    pub fn remove_children<T>(&mut self, handle: Handle<T>) {
+    pub fn remove_children<T>(&mut self, handle: impl Into<Handle<T>>) {
+        let handle = handle.into();
         let erased = Handle::new(handle.id, handle.generation);
         let children = self.children(erased).to_vec();
         for child in children {
@@ -95,7 +122,9 @@ impl Ui {
         }
     }
 
-    pub fn append<P, C>(&mut self, parent: Handle<P>, child: Handle<C>) {
+    pub fn append<P, C>(&mut self, parent: impl Into<Handle<P>>, child: impl Into<Handle<C>>) {
+        let parent = parent.into();
+        let child = child.into();
         let parent_erased = Handle::new(parent.id, parent.generation);
         let child_erased: Handle<()> = Handle::new(child.id, child.generation);
         if let Some(Some(child_slot)) = self.slots.get_mut(child.id as usize) {
@@ -106,7 +135,8 @@ impl Ui {
         }
     }
 
-    pub fn set_root<T>(&mut self, handle: Handle<T>) {
+    pub fn set_root<T>(&mut self, handle: impl Into<Handle<T>>) {
+        let handle = handle.into();
         self.root = Some(Handle::new(handle.id, handle.generation));
     }
 
@@ -177,10 +207,11 @@ impl Ui {
 
     pub fn connect<T>(
         &mut self,
-        handle: Handle<T>,
+        handle: impl Into<Handle<T>>,
         signal: Signal,
         callback: impl Fn(&mut Ui) + 'static,
     ) {
+        let handle = handle.into();
         self.connections.push(Connection {
             handle: Handle::new(handle.id, handle.generation),
             signal,
@@ -188,7 +219,8 @@ impl Ui {
         });
     }
 
-    pub fn disconnect<T>(&mut self, handle: Handle<T>, signal: Signal) {
+    pub fn disconnect<T>(&mut self, handle: impl Into<Handle<T>>, signal: Signal) {
+        let handle = handle.into();
         let erased = Handle::new(handle.id, handle.generation);
         self.connections
             .retain(|c| !(c.handle == erased && c.signal == signal));

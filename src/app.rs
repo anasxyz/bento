@@ -73,10 +73,8 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
 
         match event {
             WindowEvent::RedrawRequested => {
-                // fire callbacks for click/hover before user update
                 fire_events(&mut self.ui, &win.mouse);
 
-                // user update
                 (self.update)(&mut self.ui);
 
                 win.begin();

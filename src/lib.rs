@@ -12,6 +12,7 @@ mod render {
 }
 
 mod element {
+    pub mod button;
     pub mod container;
     pub mod element;
     pub mod handle;
@@ -36,6 +37,7 @@ mod window;
 pub use crate::{
     app::AppWindow,
     color::{Color, hex, hsl, hsla, hwb, hwba, rgb, rgba},
+    element::button::Button,
     element::container::{Column, Container, Row},
     element::element::Element,
     element::handle::Handle,
