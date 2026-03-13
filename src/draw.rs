@@ -69,6 +69,7 @@ pub fn collect_draws(
     let z = parent_z + layout.z_index;
     let opacity = parent_opacity * layout.opacity;
 
+    // draw self
     if let Some(rect) = el.as_any().downcast_ref::<Rect>() {
         let mut color = rect.bg_color.to_array();
         color[3] *= opacity;
@@ -109,23 +110,24 @@ pub fn collect_draws(
             },
             z_index: z,
         });
-    } else if el.as_any().downcast_ref::<Container>().is_some() {
-        let my_clip = Some([layout.x, layout.y, layout.x + layout.w, layout.y + layout.h]);
-        let children = ui.children(handle).to_vec();
+    }
 
-        for child_handle in children {
-            let child_position = ui
-                .get_dyn(child_handle)
-                .map(|c| c.layout().position.clone());
+    // always recurse into children regardless of element type
+    let my_clip = Some([layout.x, layout.y, layout.x + layout.w, layout.y + layout.h]);
+    let children = ui.children(handle).to_vec();
 
-            let child_clip = if child_position == Some(Position::Absolute) {
-                clip
-            } else {
-                clip_intersect(clip, my_clip)
-            };
+    for child_handle in children {
+        let child_position = ui
+            .get_dyn(child_handle)
+            .map(|c| c.layout().position.clone());
 
-            collect_draws(ui, child_handle, child_clip, z, opacity, calls);
-        }
+        let child_clip = if child_position == Some(Position::Absolute) {
+            clip
+        } else {
+            clip_intersect(clip, my_clip)
+        };
+
+        collect_draws(ui, child_handle, child_clip, z, opacity, calls);
     }
 }
 
