@@ -5,13 +5,15 @@ use winit::{
     application::ApplicationHandler,
     event::{ElementState, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
-    keyboard::{KeyCode, PhysicalKey},
     window::{Window, WindowId},
 };
 
-// use crate::layout::layout_tree;
+use crate::draw::draw_tree;
+use crate::layout::layout_tree;
+use crate::mouse::event_tree;
 use crate::render::gpu::GpuContext;
 use crate::settings::WindowConfig;
+use crate::ui::Ui;
 use crate::window::WindowState;
 
 pub struct AppWindow {
@@ -23,13 +25,14 @@ impl AppWindow {
         Self { settings }
     }
 
-    pub fn run<F>(self, update: F)
+    pub fn run<F>(self, ui: Ui, update: F)
     where
-        F: FnMut(),
+        F: FnMut(&mut Ui),
     {
         let event_loop = EventLoop::new().unwrap();
         event_loop
             .run_app(&mut Runner {
+                ui,
                 update,
                 win: None,
                 settings: self.settings,
@@ -38,13 +41,14 @@ impl AppWindow {
     }
 }
 
-struct Runner<F: FnMut()> {
+struct Runner<F: FnMut(&mut Ui)> {
+    ui: Ui,
     update: F,
     win: Option<WindowState>,
     settings: WindowConfig,
 }
 
-impl<F: FnMut()> ApplicationHandler for Runner<F> {
+impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let window = Arc::new(
             event_loop
@@ -68,7 +72,7 @@ impl<F: FnMut()> ApplicationHandler for Runner<F> {
 
         match event {
             WindowEvent::RedrawRequested => {
-                // call user update
+                (self.update)(&mut self.ui);
 
                 win.begin();
 
@@ -77,6 +81,13 @@ impl<F: FnMut()> ApplicationHandler for Runner<F> {
                 let logical_w = size.width as f32 / scale;
                 let logical_h = size.height as f32 / scale;
 
+                layout_tree(&mut self.ui, logical_w, logical_h, &mut win.fonts);
+
+                if let Some(root) = self.ui.root() {
+                    event_tree(&self.ui, root, &mut win.mouse);
+                }
+
+                draw_tree(&self.ui, &mut win.draw);
 
                 win.render();
                 win.mouse.reset();
@@ -133,14 +144,16 @@ impl<F: FnMut()> ApplicationHandler for Runner<F> {
                 let Some(win) = self.win.as_mut() else { return };
                 let scale = win.window.scale_factor() as f32;
                 win.gpu.resize(size.width, size.height);
-                win.draw.resize(size.width as f32 / scale, size.height as f32 / scale);
+                win.draw
+                    .resize(size.width as f32 / scale, size.height as f32 / scale);
             }
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                 let Some(win) = self.win.as_mut() else { return };
                 let size = win.window.inner_size();
                 let scale = scale_factor as f32;
                 win.gpu.resize(size.width, size.height);
-                win.draw.set_scale(scale, size.width as f32 / scale, size.height as f32 / scale);
+                win.draw
+                    .set_scale(scale, size.width as f32 / scale, size.height as f32 / scale);
             }
             WindowEvent::CloseRequested => {
                 self.win = None;

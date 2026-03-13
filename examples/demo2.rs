@@ -13,21 +13,12 @@ fn main() {
 
     ui[btn].layout_mut().width = Size::Fixed(100.0);
     ui[btn].layout_mut().height = Size::Fixed(40.0);
+    ui[btn].layout_mut().margin = [10.0, 10.0, 10.0, 10.0];
+    ui[btn].bg_color = rgb(100, 0, 200);
+    ui[label].text_color = Color::WHITE;
+    ui[label].font_size = 18.0;
 
-    layout_tree(&mut ui, 800.0, 600.0, &mut Fonts::new());
+    AppWindow::new(WindowConfig::default()).run(ui, |ui| {
 
-    println!(
-        "btn x:{} y:{} w:{} h:{}",
-        ui[btn].layout().x,
-        ui[btn].layout().y,
-        ui[btn].layout().w,
-        ui[btn].layout().h
-    );
-    println!(
-        "label x:{} y:{} w:{} h:{}",
-        ui[label].layout().x,
-        ui[label].layout().y,
-        ui[label].layout().w,
-        ui[label].layout().h
-    );
+    });
 }

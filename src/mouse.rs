@@ -1,3 +1,7 @@
+use crate::element::element::Element;
+use crate::element::handle::Handle;
+use crate::ui::Ui;
+
 const DRAG_THRESHOLD: f32 = 4.0;
 
 #[derive(Debug)]
@@ -101,5 +105,23 @@ impl MouseState {
         if self.left_just_released {
             self.is_dragging = false;
         }
+    }
+}
+
+pub fn event_tree(ui: &Ui, handle: Handle<()>, mouse: &mut MouseState) {
+    let el = match ui.get_dyn(handle) {
+        Some(e) => e,
+        None => return,
+    };
+
+    let layout = el.layout();
+    let _hovered = mouse.x >= layout.x
+        && mouse.x <= layout.x + layout.w
+        && mouse.y >= layout.y
+        && mouse.y <= layout.y + layout.h;
+
+    let children: Vec<Handle<()>> = ui.children(handle).to_vec();
+    for child in children {
+        event_tree(ui, child, mouse);
     }
 }
