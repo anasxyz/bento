@@ -1,5 +1,7 @@
 use crate::element::layout::Layout;
 use crate::color::Color;
+use crate::element::element::Element;
+use crate::fonts::Fonts;
 
 pub struct Rect {
     pub layout: Layout,
@@ -18,5 +20,19 @@ impl Default for Rect {
             border_radius: None,
             border_thickness: 0.0,
         }
+    }
+}
+
+impl Element for Rect {
+    fn layout(&self) -> &Layout {
+        &self.layout
+    }
+
+    fn layout_mut(&mut self) -> &mut Layout {
+        &mut self.layout
+    }
+
+    fn measure(&self, _fonts: &mut Fonts) -> Option<(f32, f32)> {
+        Some((self.layout.w, self.layout.h))
     }
 }

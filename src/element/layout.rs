@@ -1,6 +1,7 @@
 use crate::color::Color;
 use crate::element::values::*;
 
+#[derive(Debug, Clone)]
 pub struct Layout {
     // computed by layout
     pub x: f32,

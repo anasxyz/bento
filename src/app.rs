@@ -9,13 +9,10 @@ use winit::{
     window::{Window, WindowId},
 };
 
-use crate::layout::layout_tree;
+// use crate::layout::layout_tree;
 use crate::render::gpu::GpuContext;
 use crate::settings::WindowConfig;
 use crate::window::WindowState;
-use crate::ui::Ui;
-use crate::draw::draw_tree;
-use crate::mouse::event_tree;
 
 pub struct AppWindow {
     settings: WindowConfig,
@@ -26,14 +23,13 @@ impl AppWindow {
         Self { settings }
     }
 
-    pub fn run<F>(self, ui: Ui, update: F)
+    pub fn run<F>(self, update: F)
     where
-        F: FnMut(&mut Ui),
+        F: FnMut(),
     {
         let event_loop = EventLoop::new().unwrap();
         event_loop
             .run_app(&mut Runner {
-                ui,
                 update,
                 win: None,
                 settings: self.settings,
@@ -42,14 +38,13 @@ impl AppWindow {
     }
 }
 
-struct Runner<F: FnMut(&mut Ui)> {
-    ui: Ui,
+struct Runner<F: FnMut()> {
     update: F,
     win: Option<WindowState>,
     settings: WindowConfig,
 }
 
-impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
+impl<F: FnMut()> ApplicationHandler for Runner<F> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let window = Arc::new(
             event_loop
@@ -74,7 +69,6 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
         match event {
             WindowEvent::RedrawRequested => {
                 // call user update
-                (self.update)(&mut self.ui);
 
                 win.begin();
 
@@ -83,13 +77,6 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                 let logical_w = size.width as f32 / scale;
                 let logical_h = size.height as f32 / scale;
 
-                layout_tree(&mut self.ui, logical_w, logical_h, &mut win.fonts);
-
-                if let Some(root) = self.ui.root() {
-                    event_tree(&self.ui, root, &mut win.mouse);
-                }
-
-                draw_tree(&self.ui, &mut win.draw);
 
                 win.render();
                 win.mouse.reset();
