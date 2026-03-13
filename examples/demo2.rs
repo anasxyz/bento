@@ -12,8 +12,8 @@ fn main() {
     ui[btn].layout_mut().height = Size::Fixed(40.0);
     ui[btn].bg_color = rgb(100, 0, 200);
 
-    ui[btn].on_click(|ui| {
-        println!("clicked");
+    ui.connect(btn, Signal::Click, move |ui| {
+        ui.remove(btn);
     });
 
     AppWindow::new(WindowConfig::default()).run(ui, |ui| {});

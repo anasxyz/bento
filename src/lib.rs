@@ -12,7 +12,6 @@ mod render {
 }
 
 mod element {
-    pub mod callbacks;
     pub mod container;
     pub mod element;
     pub mod handle;
@@ -30,6 +29,7 @@ mod fonts;
 mod layout;
 mod mouse;
 mod settings;
+mod signals;
 mod ui;
 mod window;
 
@@ -46,5 +46,6 @@ pub use crate::{
     fonts::Fonts,
     layout::layout_tree,
     settings::WindowConfig,
+    signals::Signal,
     ui::Ui,
 };

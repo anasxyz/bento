@@ -1,23 +1,33 @@
 use crate::element::element::Element;
 use crate::element::handle::Handle;
+use crate::signals::Signal;
+use std::ops::{Index, IndexMut};
 
 struct Slot {
     element: Box<dyn Element + 'static>,
     generation: u32,
+    children: Vec<Handle<()>>,
+    parent: Option<Handle<()>>,
+}
+
+pub struct Connection {
+    pub handle: Handle<()>,
+    pub signal: Signal,
+    pub callback: Box<dyn Fn(&mut Ui)>,
 }
 
 pub struct Ui {
     slots: Vec<Option<Slot>>,
-    children: Vec<Vec<Handle<()>>>,
     root: Option<Handle<()>>,
+    connections: Vec<Connection>,
 }
 
 impl Ui {
     pub fn new() -> Self {
         Self {
             slots: Vec::new(),
-            children: Vec::new(),
             root: None,
+            connections: Vec::new(),
         }
     }
 
@@ -28,38 +38,80 @@ impl Ui {
                 *slot = Some(Slot {
                     element: Box::new(element),
                     generation: 0,
+                    children: Vec::new(),
+                    parent: None,
                 });
-                self.children[i] = Vec::new();
                 return handle;
             }
         }
         let id = self.slots.len() as u32;
+        let handle = Handle::new(id, 0);
         self.slots.push(Some(Slot {
             element: Box::new(element),
             generation: 0,
+            children: Vec::new(),
+            parent: None,
         }));
-        self.children.push(Vec::new());
-        Handle::new(id, 0)
+        handle
     }
 
-    pub fn append<P: Element + 'static, C: Element + 'static>(
-        &mut self,
-        parent: Handle<P>,
-        child: Handle<C>,
-    ) {
-        self.children[parent.id as usize].push(Handle::new(child.id, child.generation));
+    pub fn remove<T>(&mut self, handle: Handle<T>) {
+        let erased = Handle::new(handle.id, handle.generation);
+
+        // remove from parent's children list
+        let parent = self
+            .slots
+            .get(handle.id as usize)
+            .and_then(|s| s.as_ref())
+            .and_then(|s| s.parent);
+
+        if let Some(parent_handle) = parent {
+            if let Some(Some(parent_slot)) = self.slots.get_mut(parent_handle.id as usize) {
+                parent_slot.children.retain(|c| *c != erased);
+            }
+        }
+
+        // nil the slot
+        if let Some(slot) = self.slots.get_mut(handle.id as usize) {
+            if let Some(s) = slot {
+                if s.generation == handle.generation {
+                    *slot = None;
+                }
+            }
+        }
+
+        // remove all connections for this handle
+        self.connections.retain(|c| c.handle != erased);
     }
 
-    pub fn set_root<T: Element + 'static>(&mut self, handle: Handle<T>) {
+    pub fn remove_children<T>(&mut self, handle: Handle<T>) {
+        let erased = Handle::new(handle.id, handle.generation);
+        let children = self.children(erased).to_vec();
+        for child in children {
+            self.remove(child);
+        }
+        if let Some(Some(slot)) = self.slots.get_mut(handle.id as usize) {
+            slot.children.clear();
+        }
+    }
+
+    pub fn append<P, C>(&mut self, parent: Handle<P>, child: Handle<C>) {
+        let parent_erased = Handle::new(parent.id, parent.generation);
+        let child_erased: Handle<()> = Handle::new(child.id, child.generation);
+        if let Some(Some(child_slot)) = self.slots.get_mut(child.id as usize) {
+            child_slot.parent = Some(parent_erased);
+        }
+        if let Some(Some(parent_slot)) = self.slots.get_mut(parent.id as usize) {
+            parent_slot.children.push(child_erased);
+        }
+    }
+
+    pub fn set_root<T>(&mut self, handle: Handle<T>) {
         self.root = Some(Handle::new(handle.id, handle.generation));
     }
 
     pub fn root(&self) -> Option<Handle<()>> {
         self.root
-    }
-
-    pub fn children<T>(&self, handle: Handle<T>) -> &[Handle<()>] {
-        &self.children[handle.id as usize]
     }
 
     pub fn get<T: Element + 'static>(&self, handle: Handle<T>) -> Option<&T> {
@@ -107,16 +159,58 @@ impl Ui {
                 }
             })
     }
+
+    pub fn children(&self, handle: Handle<()>) -> &[Handle<()>] {
+        self.slots
+            .get(handle.id as usize)
+            .and_then(|s| s.as_ref())
+            .map(|s| s.children.as_slice())
+            .unwrap_or(&[])
+    }
+
+    pub fn parent(&self, handle: Handle<()>) -> Option<Handle<()>> {
+        self.slots
+            .get(handle.id as usize)?
+            .as_ref()
+            .and_then(|s| s.parent)
+    }
+
+    pub fn connect<T>(
+        &mut self,
+        handle: Handle<T>,
+        signal: Signal,
+        callback: impl Fn(&mut Ui) + 'static,
+    ) {
+        self.connections.push(Connection {
+            handle: Handle::new(handle.id, handle.generation),
+            signal,
+            callback: Box::new(callback),
+        });
+    }
+
+    pub fn disconnect<T>(&mut self, handle: Handle<T>, signal: Signal) {
+        let erased = Handle::new(handle.id, handle.generation);
+        self.connections
+            .retain(|c| !(c.handle == erased && c.signal == signal));
+    }
+
+    pub fn take_connections(&mut self) -> Vec<Connection> {
+        std::mem::take(&mut self.connections)
+    }
+
+    pub fn restore_connections(&mut self, connections: Vec<Connection>) {
+        self.connections = connections;
+    }
 }
 
-impl<T: Element + 'static> std::ops::Index<Handle<T>> for Ui {
+impl<T: Element + 'static> Index<Handle<T>> for Ui {
     type Output = T;
     fn index(&self, handle: Handle<T>) -> &T {
         self.get(handle).expect("stale handle")
     }
 }
 
-impl<T: Element + 'static> std::ops::IndexMut<Handle<T>> for Ui {
+impl<T: Element + 'static> IndexMut<Handle<T>> for Ui {
     fn index_mut(&mut self, handle: Handle<T>) -> &mut T {
         self.get_mut(handle).expect("stale handle")
     }
