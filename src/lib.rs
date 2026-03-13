@@ -14,6 +14,7 @@ mod render {
 mod element {
     pub mod element;
     pub mod values;
+    pub mod layout;
 }
 
 mod app;
