@@ -9,6 +9,7 @@ use winit::{
 };
 
 use crate::draw::draw_tree;
+use crate::events::fire_events;
 use crate::layout::layout_tree;
 use crate::mouse::event_tree;
 use crate::render::gpu::GpuContext;
@@ -72,6 +73,10 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
 
         match event {
             WindowEvent::RedrawRequested => {
+                // fire callbacks for click/hover before user update
+                fire_events(&mut self.ui, &win.mouse);
+
+                // user update
                 (self.update)(&mut self.ui);
 
                 win.begin();

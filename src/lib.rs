@@ -12,6 +12,7 @@ mod render {
 }
 
 mod element {
+    pub mod callbacks;
     pub mod container;
     pub mod element;
     pub mod handle;
@@ -24,6 +25,7 @@ mod element {
 mod app;
 mod color;
 mod draw;
+mod events;
 mod fonts;
 mod layout;
 mod mouse;
