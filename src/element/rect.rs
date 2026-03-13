@@ -1,8 +1,10 @@
 use std::any::Any;
 
-use crate::element::layout::Layout;
+use crate::Ui;
 use crate::color::Color;
 use crate::element::element::Element;
+use crate::element::handle::Handle;
+use crate::element::layout::Layout;
 use crate::fonts::Fonts;
 
 pub struct Rect {
@@ -14,14 +16,14 @@ pub struct Rect {
 }
 
 impl Rect {
-    pub fn new() -> Self {
-        Self {
+    pub fn new(ui: &mut Ui) -> Handle<Self> {
+        ui.add(Self {
             layout: Layout::default(),
             bg_color: Color::rgb(0, 0, 0),
             border_color: None,
             border_radius: None,
             border_thickness: 0.0,
-        }
+        })
     }
 }
 

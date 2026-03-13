@@ -1,3 +1,4 @@
+use crate::Ui;
 use crate::element::element::Element;
 use crate::element::handle::Handle;
 use crate::element::layout::Layout;
@@ -11,11 +12,11 @@ pub struct Container {
 }
 
 impl Container {
-    pub fn new() -> Self {
-        Self {
+    pub fn new(ui: &mut Ui) -> Handle<Self> {
+        ui.add(Self {
             layout: Layout::default(),
             children: Vec::new(),
-        }
+        })
     }
 }
 
@@ -39,18 +40,24 @@ impl Element for Container {
 
 pub struct Row;
 impl Row {
-    pub fn new() -> Container {
-        let mut c = Container::new();
-        c.layout.flex_direction = FlexDirection::Row;
-        c
+    pub fn new(ui: &mut Ui) -> Handle<Container> {
+        let h = ui.add(Container {
+            layout: Layout::default(),
+            children: Vec::new(),
+        });
+        ui[h].layout.flex_direction = FlexDirection::Row;
+        h
     }
 }
 
 pub struct Column;
 impl Column {
-    pub fn new() -> Container {
-        let mut c = Container::new();
-        c.layout.flex_direction = FlexDirection::Col;
-        c
+    pub fn new(ui: &mut Ui) -> Handle<Container> {
+        let h = ui.add(Container {
+            layout: Layout::default(),
+            children: Vec::new(),
+        });
+        ui[h].layout.flex_direction = FlexDirection::Col;
+        h
     }
 }
