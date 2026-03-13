@@ -13,6 +13,7 @@ mod render {
 
 mod element {
     pub mod element;
+    pub mod values;
 }
 
 mod app;
@@ -28,7 +29,6 @@ mod ui;
 pub use crate::{
     app::AppWindow,
     color::{Color, hex, hsl, hsla, hwb, hwba, rgb, rgba},
-    element::*,
     settings::WindowConfig,
     ui::{Ui, Handle},
 };
