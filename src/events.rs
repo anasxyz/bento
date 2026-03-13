@@ -47,30 +47,18 @@ fn find_handler(ui: &Ui, start: Handle<()>, signal: &Signal) -> Option<Handle<()
     None
 }
 
+// Fire all matching connections for a handle+signal, in registration order
 fn fire_signal_for(ui: &mut Ui, handle: Handle<()>, signal: Signal) {
     let mut connections = ui.take_connections();
-    let pos = connections
+    let indices: Vec<usize> = connections
         .iter()
-        .position(|c| c.handle == handle && c.signal == signal);
-    if let Some(pos) = pos {
-        let cb_ptr: *const dyn Fn(&mut Ui) = connections[pos].callback.as_ref();
+        .enumerate()
+        .filter(|(_, c)| c.handle == handle && c.signal == signal)
+        .map(|(i, _)| i)
+        .collect();
+    for i in indices {
+        let cb_ptr: *const dyn Fn(&mut Ui) = connections[i].callback.as_ref();
         unsafe { (*cb_ptr)(ui) };
-    }
-    ui.restore_connections(connections);
-}
-
-fn fire_signal(ui: &mut Ui, hits: &[Handle<()>], signal: Signal) {
-    let mut connections = ui.take_connections();
-    for handle in hits {
-        let pos = connections
-            .iter()
-            .position(|c| c.handle == *handle && c.signal == signal);
-        if let Some(pos) = pos {
-            let cb_ptr: *const dyn Fn(&mut Ui) = connections[pos].callback.as_ref();
-            unsafe { (*cb_ptr)(ui) };
-            ui.restore_connections(connections);
-            return;
-        }
     }
     ui.restore_connections(connections);
 }
@@ -88,7 +76,6 @@ pub fn fire_events(ui: &mut Ui, mouse: &MouseState) {
     let mut hover_hits: Vec<Handle<()>> = Vec::new();
     hit_test(ui, root, mx, my, &mut hover_hits);
 
-    // find the deepest hit node that has a hover handler, walking up parents if needed
     let new_hovered = hover_hits
         .first()
         .and_then(|&deepest| find_handler(ui, deepest, &Signal::Hover));
@@ -113,7 +100,6 @@ pub fn fire_events(ui: &mut Ui, mouse: &MouseState) {
         if let Some(h) = pressed {
             fire_signal_for(ui, h, Signal::Press);
         }
-        // store the deepest press target for click resolution
         ui.interaction.pressed = press_hits.first().copied();
     }
 
@@ -123,12 +109,10 @@ pub fn fire_events(ui: &mut Ui, mouse: &MouseState) {
         hit_test(ui, root, mx, my, &mut release_hits);
 
         if let Some(&deepest) = release_hits.first() {
-            // bubble release up to handler
             if let Some(release_handler) = find_handler(ui, deepest, &Signal::Release) {
                 fire_signal_for(ui, release_handler, Signal::Release);
             }
 
-            // click fires if released over same node or a descendant of the pressed node
             if let Some(pressed) = ui.interaction.pressed {
                 let is_same_or_child = release_hits.contains(&pressed);
                 if is_same_or_child {
