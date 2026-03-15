@@ -1,114 +1,91 @@
 use crate::color::Color;
 use crate::element::element::Element;
 use crate::element::handle::Handle;
-use crate::element::label::Label;
-use crate::element::rect::Rect;
-use crate::element::values::{AlignItems, JustifyContent, Size};
-use crate::signals::Signal;
+use crate::element::layout::Layout;
+use crate::fonts::Fonts;
 use crate::ui::Ui;
+use std::any::Any;
+use std::cell::Cell;
 
-#[derive(Copy, Clone)]
 pub struct Button {
-    pub(crate) root: Handle<Rect>,
-    pub(crate) label: Handle<Label>,
+    pub layout: Layout,
+    pub text: String,
+    pub color: Color,
+    pub border_radius: f32,
+    pub font_size: f32,
+    pub font_weight: u16,
+    pub(crate) hovered: bool,
+    pub(crate) pressed: bool,
+    pub(crate) text_w: Cell<f32>,
+    pub(crate) text_h: Cell<f32>,
 }
 
 impl Button {
-    pub fn new(ui: &mut Ui, text: &str) -> Self {
-        let root = Rect::new(ui);
-        let label = Label::new(ui, text);
-        ui.append(root, label);
+    pub const CLICKED: u32 = 0;
+    pub const HOVERED: u32 = 1;
+    pub const HOVER_END: u32 = 2;
+    pub const PRESSED: u32 = 3;
 
-        let base = Color::rgb(70, 70, 200);
-        let hover = base.lighten(0.08);
-        let press = base.darken(0.08);
-
-        ui[root].bg_color = base;
-        ui[root].border_radius = Some(6.0);
-        ui[root].layout_mut().padding = [8.0, 16.0, 8.0, 16.0];
-        ui[root].layout_mut().align_items = AlignItems::Center;
-        ui[root].layout_mut().justify_content = JustifyContent::Center;
-        ui[label].text_color = Color::WHITE;
-        ui[label].font_size = 16.0;
-
-        ui.connect(root, Signal::Hover, move |ui| {
-            ui[root].bg_color = hover;
-        });
-        ui.connect(root, Signal::HoverEnd, move |ui| {
-            ui[root].bg_color = base;
-        });
-        ui.connect(root, Signal::Press, move |ui| {
-            ui[root].bg_color = press;
-        });
-        ui.connect(root, Signal::Release, move |ui| {
-            ui[root].bg_color = hover;
-        });
-
-        Self { root, label }
-    }
-
-    pub fn set_text(&self, ui: &mut Ui, text: &str) {
-        ui[self.label].text = text.to_string();
-    }
-
-    pub fn text<'a>(&self, ui: &'a Ui) -> &'a str {
-        &ui[self.label].text
-    }
-
-    pub fn set_color(&self, ui: &mut Ui, color: Color) {
-        let hover = color.lighten(0.08);
-        let press = color.darken(0.08);
-        let root = self.root;
-
-        ui[root].bg_color = color;
-
-        ui.disconnect(root, Signal::Hover);
-        ui.disconnect(root, Signal::HoverEnd);
-        ui.disconnect(root, Signal::Press);
-        ui.disconnect(root, Signal::Release);
-
-        ui.connect(root, Signal::Hover, move |ui| {
-            ui[root].bg_color = hover;
-        });
-        ui.connect(root, Signal::HoverEnd, move |ui| {
-            ui[root].bg_color = color;
-        });
-        ui.connect(root, Signal::Press, move |ui| {
-            ui[root].bg_color = press;
-        });
-        ui.connect(root, Signal::Release, move |ui| {
-            ui[root].bg_color = hover;
-        });
-    }
-
-    pub fn set_font_size(&self, ui: &mut Ui, size: f32) {
-        ui[self.label].font_size = size;
-    }
-
-    pub fn set_width(&self, ui: &mut Ui, width: f32) {
-        ui[self.root].layout_mut().width = Size::Fixed(width);
-    }
-
-    pub fn set_height(&self, ui: &mut Ui, height: f32) {
-        ui[self.root].layout_mut().height = Size::Fixed(height);
-    }
-
-    pub fn set_border_radius(&self, ui: &mut Ui, radius: f32) {
-        ui[self.root].border_radius = Some(radius);
-    }
-
-    pub fn set_padding(&self, ui: &mut Ui, padding: [f32; 4]) {
-        ui[self.root].layout_mut().padding = padding;
-    }
-
-    // explicit handle access for append/connect
-    pub fn handle(&self) -> Handle<Rect> {
-        self.root
+    pub fn new(ui: &mut Ui, text: &str) -> Handle<Self> {
+        ui.add(Self {
+            layout: Layout::default(),
+            text: text.to_string(),
+            color: Color::rgb(70, 70, 200),
+            border_radius: 6.0,
+            font_size: 16.0,
+            font_weight: 600,
+            hovered: false,
+            pressed: false,
+            text_w: Cell::new(0.0),
+            text_h: Cell::new(0.0),
+        })
     }
 }
 
-impl From<Button> for Handle<Rect> {
-    fn from(b: Button) -> Handle<Rect> {
-        b.root
+impl Element for Button {
+    fn layout(&self) -> &Layout {
+        &self.layout
+    }
+    fn layout_mut(&mut self) -> &mut Layout {
+        &mut self.layout
+    }
+    fn has_measure(&self) -> bool {
+        true
+    }
+    fn measure(&self, fonts: &mut Fonts, max_width: Option<f32>) -> Option<(f32, f32)> {
+        let (tw, th) = fonts.measure_sized(
+            &self.text,
+            "sans-serif",
+            self.font_size,
+            self.font_weight,
+            false,
+            max_width,
+        );
+        self.text_w.set(tw);
+        self.text_h.set(th);
+        Some((tw + 32.0, th + 16.0))
+    }
+    fn on_mouse_enter(&mut self) -> Option<u32> {
+        self.hovered = true;
+        Some(Button::HOVERED)
+    }
+    fn on_mouse_leave(&mut self) -> Option<u32> {
+        self.hovered = false;
+        self.pressed = false;
+        Some(Button::HOVER_END)
+    }
+    fn on_press(&mut self) -> Option<u32> {
+        self.pressed = true;
+        Some(Button::PRESSED)
+    }
+    fn on_release(&mut self) -> Option<u32> {
+        self.pressed = false;
+        Some(Button::CLICKED)
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }

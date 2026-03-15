@@ -1,4 +1,5 @@
 use crate::Color;
+use crate::element::button::Button;
 use crate::element::container::Container;
 use crate::element::handle::Handle;
 use crate::element::label::Label;
@@ -132,6 +133,56 @@ pub fn collect_draws(
                 z_index: z,
             });
         }
+    } else if let Some(btn) = el.as_any().downcast_ref::<Button>() {
+        let color = if btn.pressed {
+            btn.color.darken(0.08)
+        } else if btn.hovered {
+            btn.color.lighten(0.08)
+        } else {
+            btn.color
+        };
+
+        let mut bg = color.to_array();
+        bg[3] *= opacity;
+
+        calls.push(DrawCall::Rect {
+            x: layout.x,
+            y: layout.y,
+            w: layout.w,
+            h: layout.h,
+            params: ShapeDrawParams {
+                color: bg,
+                radius: btn.border_radius,
+                border_color: [0.0; 4],
+                border_width: 0.0,
+                clip,
+            },
+            z_index: z,
+        });
+
+        let mut text_color = Color::WHITE;
+        text_color.a *= opacity;
+
+        let tw = btn.text_w.get();
+        let th = btn.text_h.get();
+        let tx = layout.x + (layout.w - tw) / 2.0;
+        let ty = layout.y + (layout.h - th) / 2.0;
+
+        calls.push(DrawCall::Text {
+            x: tx,
+            y: ty,
+            content: btn.text.clone(),
+            params: TextDrawParams {
+                family: "sans-serif".to_string(),
+                size: btn.font_size,
+                weight: btn.font_weight,
+                italic: false,
+                color: text_color,
+                width: f32::MAX,
+                clip,
+            },
+            z_index: z,
+        });
     }
 
     // always recurse into children

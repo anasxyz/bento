@@ -1,18 +1,10 @@
 use crate::element::element::Element;
 use crate::element::handle::Handle;
-use crate::signals::Signal;
 use std::ops::{Index, IndexMut};
-
-struct Slot {
-    element: Box<dyn Element + 'static>,
-    generation: u32,
-    children: Vec<Handle<()>>,
-    parent: Option<Handle<()>>,
-}
 
 pub struct Connection {
     pub handle: Handle<()>,
-    pub signal: Signal,
+    pub signal: u32,
     pub callback: Box<dyn Fn(&mut Ui)>,
 }
 
@@ -30,6 +22,13 @@ impl InteractionState {
             focused: None,
         }
     }
+}
+
+struct Slot {
+    element: Box<dyn Element + 'static>,
+    generation: u32,
+    children: Vec<Handle<()>>,
+    parent: Option<Handle<()>>,
 }
 
 pub struct Ui {
@@ -208,7 +207,7 @@ impl Ui {
     pub fn connect<T>(
         &mut self,
         handle: impl Into<Handle<T>>,
-        signal: Signal,
+        signal: u32,
         callback: impl Fn(&mut Ui) + 'static,
     ) {
         let handle = handle.into();
@@ -219,11 +218,28 @@ impl Ui {
         });
     }
 
-    pub fn disconnect<T>(&mut self, handle: impl Into<Handle<T>>, signal: Signal) {
+    pub fn disconnect<T>(&mut self, handle: impl Into<Handle<T>>, signal: u32) {
         let handle = handle.into();
         let erased = Handle::new(handle.id, handle.generation);
         self.connections
             .retain(|c| !(c.handle == erased && c.signal == signal));
+    }
+
+    pub fn emit<T>(&mut self, handle: impl Into<Handle<T>>, signal: u32) {
+        let handle = handle.into();
+        let erased = Handle::new(handle.id, handle.generation);
+        let mut connections = std::mem::take(&mut self.connections);
+        let indices: Vec<usize> = connections
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| c.handle == erased && c.signal == signal)
+            .map(|(i, _)| i)
+            .collect();
+        for i in indices {
+            let cb_ptr: *const dyn Fn(&mut Ui) = connections[i].callback.as_ref();
+            unsafe { (*cb_ptr)(self) };
+        }
+        self.connections = connections;
     }
 
     pub fn take_connections(&mut self) -> Vec<Connection> {
