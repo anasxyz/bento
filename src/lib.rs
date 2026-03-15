@@ -29,6 +29,7 @@ mod events;
 mod fonts;
 mod layout;
 mod mouse;
+mod keyboard;
 mod settings;
 mod ui;
 mod window;
