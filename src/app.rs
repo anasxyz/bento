@@ -5,11 +5,13 @@ use winit::{
     application::ApplicationHandler,
     event::{ElementState, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
+    keyboard::PhysicalKey,
     window::{Window, WindowId},
 };
 
 use crate::draw::draw_tree;
 use crate::events::fire_events;
+use crate::keyboard::{Key, Modifiers};
 use crate::layout::layout_tree;
 use crate::render::gpu::GpuContext;
 use crate::settings::WindowConfig;
@@ -36,6 +38,7 @@ impl AppWindow {
                 update,
                 win: None,
                 settings: self.settings,
+                modifiers: Modifiers::default(),
             })
             .unwrap();
     }
@@ -46,6 +49,7 @@ struct Runner<F: FnMut(&mut Ui)> {
     update: F,
     win: Option<WindowState>,
     settings: WindowConfig,
+    modifiers: Modifiers,
 }
 
 impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
@@ -85,6 +89,53 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                 draw_tree(&self.ui, &mut win.draw);
                 win.render();
                 win.mouse.reset();
+            }
+            WindowEvent::ModifiersChanged(mods) => {
+                let state = mods.state();
+                self.modifiers = Modifiers {
+                    shift: state.shift_key(),
+                    ctrl: state.control_key(),
+                    alt: state.alt_key(),
+                    super_key: state.super_key(),
+                };
+            }
+            WindowEvent::KeyboardInput { event, .. } => {
+                let Some(win) = self.win.as_mut() else { return };
+                let key = match event.physical_key {
+                    PhysicalKey::Code(code) => Key::from(code),
+                    PhysicalKey::Unidentified(_) => Key::Unknown,
+                };
+                let text = event.text.as_ref().and_then(|t| t.chars().next());
+                let mods = self.modifiers.clone();
+
+                if let Some(focused) = self.ui.interaction.focused {
+                    match event.state {
+                        ElementState::Pressed => {
+                            let signal = self
+                                .ui
+                                .get_dyn_mut(focused)
+                                .and_then(|e| e.on_key_press(key, mods, text));
+                            if let Some(s) = signal {
+                                self.ui.emit_bubbling(focused, s);
+                            }
+                        }
+                        ElementState::Released => {
+                            let key2 = match event.physical_key {
+                                PhysicalKey::Code(code) => Key::from(code),
+                                PhysicalKey::Unidentified(_) => Key::Unknown,
+                            };
+                            let mods2 = self.modifiers.clone();
+                            let signal = self
+                                .ui
+                                .get_dyn_mut(focused)
+                                .and_then(|e| e.on_key_release(key2, mods2));
+                            if let Some(s) = signal {
+                                self.ui.emit_bubbling(focused, s);
+                            }
+                        }
+                    }
+                    win.window.request_redraw();
+                }
             }
             WindowEvent::CursorMoved { position, .. } => {
                 let Some(win) = self.win.as_mut() else { return };
