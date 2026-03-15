@@ -1,4 +1,8 @@
 use bento::*;
+use std::cell::Cell;
+use std::rc::Rc;
+
+const THEME_CHANGED: u32 = 100;
 
 fn main() {
     let mut ui = Ui::new();
@@ -10,60 +14,80 @@ fn main() {
     ui.get_mut(root).unwrap().layout.row_gap = 16.0;
     ui.get_mut(root).unwrap().bg_color = Some(Color::hex("181825"));
 
-    let status = Label::new(&mut ui, "Press a button...");
-    ui.get_mut(status).unwrap().font_size = 18.0;
+    let status = Label::new(&mut ui, "Click a button inside the panel.");
     ui.get_mut(status).unwrap().text_color = Color::hex("cdd6f4");
 
-    let btn_a = Button::new(&mut ui, "Button A");
-    ui.connect(btn_a, Button::CLICKED, move |ui| {
-        ui.get_mut(status).unwrap().text = "Button A clicked!".to_string();
-    });
+    // --- bubbling demo ---
+    let panel = Column::new(&mut ui);
+    ui.get_mut(panel).unwrap().layout.row_gap = 8.0;
+    ui.get_mut(panel).unwrap().layout.padding = [16.0, 16.0, 16.0, 16.0];
+    ui.get_mut(panel).unwrap().bg_color = Some(Color::hex("1e1e2e"));
+    ui.get_mut(panel).unwrap().border_radius = Some(8.0);
 
+    let btn_a = Button::new(&mut ui, "Button A");
     let btn_b = Button::new(&mut ui, "Button B");
     ui.get_mut(btn_b).unwrap().color = Color::hex("a6e3a1");
-    ui.get_mut(btn_b).unwrap().layout.width = Size::Fixed(160.0);
-    ui.connect(btn_b, Button::CLICKED, move |ui| {
-        ui.get_mut(status).unwrap().text = "Button B clicked!".to_string();
+
+    ui.append(panel, btn_a);
+    ui.append(panel, btn_b);
+
+    // connected on PANEL — bubbling makes this work
+    ui.connect(panel, Button::CLICKED, move |ui| {
+        ui.get_mut(status).unwrap().text =
+            "A button inside the panel was clicked! (bubbled)".to_string();
     });
 
-    let btn_c = Button::new(&mut ui, "Hover me");
-    ui.get_mut(btn_c).unwrap().color = Color::hex("f38ba8");
-    ui.connect(btn_c, Button::HOVERED, move |ui| {
-        ui.get_mut(btn_a).unwrap().color = Color::hex("fab387");
-    });
-    ui.connect(btn_c, Button::HOVERED, move |ui| {
-        println!("hovered");
-    });
-    ui.connect(btn_c, Button::HOVER_END, move |ui| {
-        ui.get_mut(btn_a).unwrap().color = Color::rgb(70, 70, 200);
-    });
-    ui.connect(btn_c, Button::CLICKED, move |ui| {
-        ui.get_mut(status).unwrap().text = "Button C clicked!".to_string();
+    // --- broadcast demo ---
+    let is_light = Rc::new(Cell::new(false));
+
+    let label_a = Label::new(&mut ui, "I react to theme changes");
+    let label_b = Label::new(&mut ui, "Me too!");
+    ui.get_mut(label_a).unwrap().text_color = Color::hex("cdd6f4");
+    ui.get_mut(label_b).unwrap().text_color = Color::hex("cdd6f4");
+
+    let is_light_a = is_light.clone();
+    ui.connect(label_a, THEME_CHANGED, move |ui| {
+        ui.get_mut(label_a).unwrap().text_color = if is_light_a.get() {
+            Color::hex("cdd6f4")
+        } else {
+            Color::hex("4c4f69")
+        };
     });
 
-    let counter_label = Label::new(&mut ui, "Count: 0");
-    ui.get_mut(counter_label).unwrap().font_size = 14.0;
-    ui.get_mut(counter_label).unwrap().text_color = Color::hex("a6adc8");
+    let is_light_b = is_light.clone();
+    ui.connect(label_b, THEME_CHANGED, move |ui| {
+        ui.get_mut(label_b).unwrap().text_color = if is_light_b.get() {
+            Color::hex("cdd6f4")
+        } else {
+            Color::hex("4c4f69")
+        };
+    });
 
-    let btn_count = Button::new(&mut ui, "Increment");
-    ui.get_mut(btn_count).unwrap().color = Color::hex("cba6f7");
+    let is_light_root = is_light.clone();
+    ui.connect(root, THEME_CHANGED, move |ui| {
+        ui.get_mut(root).unwrap().bg_color = Some(if is_light_root.get() {
+            Color::hex("181825")
+        } else {
+            Color::hex("eff1f5")
+        });
+    });
 
-    let count = std::rc::Rc::new(std::cell::Cell::new(0u32));
-    ui.connect(btn_count, Button::CLICKED, move |ui| {
-        count.set(count.get() + 1);
-        ui.get_mut(counter_label).unwrap().text = format!("Count: {}", count.get());
+    let btn_theme = Button::new(&mut ui, "Toggle Theme");
+    ui.get_mut(btn_theme).unwrap().color = Color::hex("cba6f7");
+    ui.connect(btn_theme, Button::CLICKED, move |ui| {
+        is_light.set(!is_light.get());
+        ui.broadcast(THEME_CHANGED);
     });
 
     ui.append(root, status);
-    ui.append(root, btn_a);
-    ui.append(root, btn_b);
-    ui.append(root, btn_c);
-    ui.append(root, counter_label);
-    ui.append(root, btn_count);
+    ui.append(root, panel);
+    ui.append(root, label_a);
+    ui.append(root, label_b);
+    ui.append(root, btn_theme);
     ui.set_root(root);
 
     AppWindow::new(WindowConfig {
-        title: "bento demo".to_string(),
+        title: "signal demo".to_string(),
         width: 600,
         height: 400,
         clear_color: Color::hex("181825"),

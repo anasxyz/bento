@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Handle<T> {
     pub id: u32,
     pub generation: u32,

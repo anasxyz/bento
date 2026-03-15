@@ -228,18 +228,54 @@ impl Ui {
     pub fn emit<T>(&mut self, handle: impl Into<Handle<T>>, signal: u32) {
         let handle = handle.into();
         let erased = Handle::new(handle.id, handle.generation);
-        let mut connections = std::mem::take(&mut self.connections);
-        let indices: Vec<usize> = connections
+        let indices: Vec<usize> = self
+            .connections
             .iter()
             .enumerate()
             .filter(|(_, c)| c.handle == erased && c.signal == signal)
             .map(|(i, _)| i)
             .collect();
         for i in indices {
+            // take connections out so the callback can call emit/broadcast recursively
+            let mut connections = std::mem::take(&mut self.connections);
             let cb_ptr: *const dyn Fn(&mut Ui) = connections[i].callback.as_ref();
+            self.connections = connections;
             unsafe { (*cb_ptr)(self) };
         }
-        self.connections = connections;
+    }
+
+    // emit with bubbling — fires on handle, then walks up parent chain
+    pub fn emit_bubbling<T>(&mut self, handle: impl Into<Handle<T>>, signal: u32) {
+        let handle = handle.into();
+        let erased = Handle::new(handle.id, handle.generation);
+
+        // collect ancestor chain
+        let mut chain = vec![erased];
+        let mut current = self.parent(erased);
+        while let Some(p) = current {
+            chain.push(p);
+            current = self.parent(p);
+        }
+
+        for ancestor in chain {
+            self.emit(ancestor, signal);
+        }
+    }
+
+    // broadcast — fires on every element that has a connection for this signal
+    pub fn broadcast(&mut self, signal: u32) {
+        let handles: Vec<Handle<()>> = self
+            .connections
+            .iter()
+            .filter(|c| c.signal == signal)
+            .map(|c| c.handle)
+            .collect::<std::collections::HashSet<_>>()
+            .into_iter()
+            .collect();
+
+        for handle in handles {
+            self.emit(handle, signal);
+        }
     }
 
     pub fn take_connections(&mut self) -> Vec<Connection> {

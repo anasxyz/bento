@@ -47,13 +47,13 @@ pub fn fire_events(ui: &mut Ui, mouse: &MouseState) {
         // leave old
         if let Some(prev) = ui.interaction.hovered {
             if let Some(signal) = ui.get_dyn_mut(prev).and_then(|e| e.on_mouse_leave()) {
-                ui.emit(prev, signal);
+                ui.emit_bubbling(prev, signal);
             }
         }
         // enter new
         if let Some(next) = new_hovered {
             if let Some(signal) = ui.get_dyn_mut(next).and_then(|e| e.on_mouse_enter()) {
-                ui.emit(next, signal);
+                ui.emit_bubbling(next, signal);
             }
         }
         ui.interaction.hovered = new_hovered;
@@ -63,7 +63,7 @@ pub fn fire_events(ui: &mut Ui, mouse: &MouseState) {
     if mouse.left_just_pressed {
         if let Some(target) = new_hovered {
             if let Some(signal) = ui.get_dyn_mut(target).and_then(|e| e.on_press()) {
-                ui.emit(target, signal);
+                ui.emit_bubbling(target, signal);
             }
             ui.interaction.pressed = Some(target);
         }
@@ -75,7 +75,7 @@ pub fn fire_events(ui: &mut Ui, mouse: &MouseState) {
             if let Some(signal) = ui.get_dyn_mut(target).and_then(|e| e.on_release()) {
                 let is_click = ui.interaction.pressed == Some(target);
                 if is_click {
-                    ui.emit(target, signal);
+                    ui.emit_bubbling(target, signal);
                 }
             }
         }
