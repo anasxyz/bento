@@ -3,6 +3,7 @@ use crate::element::element::Element;
 use crate::element::handle::Handle;
 use crate::element::layout::Layout;
 use crate::fonts::Fonts;
+use crate::mouse::MouseButton;
 use crate::ui::Ui;
 use std::any::Any;
 
@@ -16,15 +17,8 @@ pub struct Rect {
 }
 
 impl Rect {
-    pub const CLICKED: u32 = 0;
-    pub const HOVERED: u32 = 1;
-    pub const HOVER_END: u32 = 2;
-    pub const PRESSED: u32 = 3;
-    pub const RIGHT_CLICKED: u32 = 4;
-    pub const MIDDLE_CLICKED: u32 = 5;
-    pub const DOUBLE_CLICKED: u32 = 6;
-    pub const FOCUS_GAINED: u32 = 7;
-    pub const FOCUS_LOST: u32 = 8;
+    pub const FOCUS_GAINED: u32 = 0;
+    pub const FOCUS_LOST: u32 = 1;
 
     pub fn new(ui: &mut Ui) -> Handle<Self> {
         ui.add(Self {
@@ -58,34 +52,11 @@ impl Element for Rect {
         self
     }
 
-    fn on_mouse_enter(&mut self) -> Option<u32> {
-        Some(Rect::HOVERED)
-    }
-    fn on_mouse_leave(&mut self) -> Option<u32> {
-        Some(Rect::HOVER_END)
-    }
-    fn on_left_press(&mut self) -> Option<u32> {
-        Some(Rect::PRESSED)
-    }
-    fn on_left_release(&mut self) -> Option<u32> {
-        Some(Rect::CLICKED)
-    }
-    fn on_left_click(&mut self) -> Option<u32> {
-        Some(Rect::CLICKED)
-    }
-    fn on_left_double_click(&mut self) -> Option<u32> {
-        Some(Rect::DOUBLE_CLICKED)
-    }
-    fn on_right_click(&mut self) -> Option<u32> {
-        Some(Rect::RIGHT_CLICKED)
-    }
-    fn on_middle_click(&mut self) -> Option<u32> {
-        Some(Rect::MIDDLE_CLICKED)
-    }
     fn on_focus_gained(&mut self) -> Option<u32> {
         self.focused = true;
         Some(Rect::FOCUS_GAINED)
     }
+
     fn on_focus_lost(&mut self) -> Option<u32> {
         self.focused = false;
         Some(Rect::FOCUS_LOST)

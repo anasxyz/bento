@@ -135,7 +135,6 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                             }
                         }
                     }
-                    _ => {}
                 }
                 win.window.request_redraw();
             }
@@ -153,17 +152,14 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                     winit::event::MouseButton::Left => match state {
                         ElementState::Pressed => win.mouse.on_left_press(),
                         ElementState::Released => win.mouse.on_left_release(),
-                        _ => {}
                     },
                     winit::event::MouseButton::Right => match state {
                         ElementState::Pressed => win.mouse.on_right_press(),
                         ElementState::Released => win.mouse.on_right_release(),
-                        _ => {}
                     },
                     winit::event::MouseButton::Middle => match state {
                         ElementState::Pressed => win.mouse.on_middle_press(),
                         ElementState::Released => win.mouse.on_middle_release(),
-                        _ => {}
                     },
                     _ => {}
                 }

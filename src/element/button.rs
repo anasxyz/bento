@@ -3,6 +3,7 @@ use crate::element::element::Element;
 use crate::element::handle::Handle;
 use crate::element::layout::Layout;
 use crate::fonts::Fonts;
+use crate::mouse::MouseButton;
 use crate::ui::Ui;
 use std::any::Any;
 use std::cell::Cell;
@@ -67,6 +68,7 @@ impl Element for Button {
     fn has_measure(&self) -> bool {
         true
     }
+
     fn measure(&self, fonts: &mut Fonts, max_width: Option<f32>) -> Option<(f32, f32)> {
         let (tw, th) = fonts.measure_sized(
             &self.text,
@@ -81,6 +83,7 @@ impl Element for Button {
         let pad = &self.layout.padding;
         Some((tw + pad[1] + pad[3], th + pad[0] + pad[2]))
     }
+
     fn on_mouse_enter(&mut self) -> Option<u32> {
         if self.disabled {
             return None;
@@ -88,49 +91,49 @@ impl Element for Button {
         self.hovered = true;
         Some(Button::HOVERED)
     }
+
     fn on_mouse_leave(&mut self) -> Option<u32> {
         self.hovered = false;
         self.pressed = false;
         Some(Button::HOVER_END)
     }
-    fn on_left_press(&mut self) -> Option<u32> {
+
+    fn on_mouse_press(&mut self, _x: f32, _y: f32, button: MouseButton) -> Option<u32> {
         if self.disabled {
             return None;
         }
-        self.pressed = true;
-        Some(Button::PRESSED)
-    }
-    fn on_left_release(&mut self) -> Option<u32> {
-        if self.disabled {
-            return None;
+        if let MouseButton::Left = button {
+            self.pressed = true;
+            return Some(Button::PRESSED);
         }
-        self.pressed = false;
         None
     }
-    fn on_left_click(&mut self) -> Option<u32> {
+
+    fn on_mouse_release(&mut self, _x: f32, _y: f32, button: MouseButton) -> Option<u32> {
+        if let MouseButton::Left = button {
+            self.pressed = false;
+        }
+        None
+    }
+
+    fn on_mouse_click(&mut self, _x: f32, _y: f32, button: MouseButton) -> Option<u32> {
         if self.disabled {
             return None;
         }
-        Some(Button::CLICKED)
+        match button {
+            MouseButton::Left => Some(Button::CLICKED),
+            MouseButton::Right => Some(Button::RIGHT_CLICKED),
+            MouseButton::Middle => Some(Button::MIDDLE_CLICKED),
+        }
     }
-    fn on_left_double_click(&mut self) -> Option<u32> {
+
+    fn on_mouse_double_click(&mut self, _x: f32, _y: f32, _button: MouseButton) -> Option<u32> {
         if self.disabled {
             return None;
         }
         Some(Button::DOUBLE_CLICKED)
     }
-    fn on_right_click(&mut self) -> Option<u32> {
-        if self.disabled {
-            return None;
-        }
-        Some(Button::RIGHT_CLICKED)
-    }
-    fn on_middle_click(&mut self) -> Option<u32> {
-        if self.disabled {
-            return None;
-        }
-        Some(Button::MIDDLE_CLICKED)
-    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }

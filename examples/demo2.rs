@@ -27,19 +27,19 @@ fn main() {
     ui.connect(input, TextInput::SUBMITTED, move |ui| {
         ui[output].text = format!("Submitted: {}", ui[input].text);
         ui[input].text.clear();
-        ui[input].cursor_pos = 0;
+        ui[input].cursor_pos.set(0);
     });
 
     ui.connect(btn, Button::CLICKED, move |ui| {
         ui[output].text = format!("Submitted: {}", ui[input].text);
         ui[input].text.clear();
-        ui[input].cursor_pos = 0;
+        ui[input].cursor_pos.set(0);
     });
 
     ui.connect_key_global(move |ui, key, _mods, _text| {
         if key == Key::Escape {
             ui[input].text.clear();
-            ui[input].cursor_pos = 0;
+            ui[input].cursor_pos.set(0);
         }
     });
 

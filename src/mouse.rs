@@ -1,3 +1,12 @@
+#[derive(Debug, Clone, PartialEq)]
+pub enum MouseButton {
+    Left,
+    Right,
+    Middle,
+}
+
+use crate::element::layout::Layout;
+
 const DRAG_THRESHOLD: f32 = 4.0;
 const DOUBLE_CLICK_MS: u128 = 300;
 

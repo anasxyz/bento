@@ -1,6 +1,7 @@
 use crate::element::layout::Layout;
 use crate::fonts::Fonts;
 use crate::keyboard::{Key, Modifiers};
+use crate::mouse::MouseButton;
 use std::any::Any;
 
 pub trait Element {
@@ -11,21 +12,12 @@ pub trait Element {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
+    fn on_mouse_press(&mut self, _x: f32, _y: f32, _button: MouseButton) -> Option<u32> { None }
+    fn on_mouse_release(&mut self, _x: f32, _y: f32, _button: MouseButton) -> Option<u32> { None }
+    fn on_mouse_click(&mut self, _x: f32, _y: f32, _button: MouseButton) -> Option<u32> { None }
+    fn on_mouse_double_click(&mut self, _x: f32, _y: f32, _button: MouseButton) -> Option<u32> { None }
     fn on_mouse_enter(&mut self) -> Option<u32> { None }
     fn on_mouse_leave(&mut self) -> Option<u32> { None }
-
-    fn on_left_press(&mut self) -> Option<u32> { None }
-    fn on_left_release(&mut self) -> Option<u32> { None }
-    fn on_left_click(&mut self) -> Option<u32> { None }
-    fn on_left_double_click(&mut self) -> Option<u32> { None }
-
-    fn on_right_press(&mut self) -> Option<u32> { None }
-    fn on_right_release(&mut self) -> Option<u32> { None }
-    fn on_right_click(&mut self) -> Option<u32> { None }
-
-    fn on_middle_press(&mut self) -> Option<u32> { None }
-    fn on_middle_release(&mut self) -> Option<u32> { None }
-    fn on_middle_click(&mut self) -> Option<u32> { None }
 
     fn on_key_press(&mut self, key: Key, modifiers: Modifiers, text: Option<char>) -> Option<u32> { None }
     fn on_key_release(&mut self, key: Key, modifiers: Modifiers) -> Option<u32> { None }

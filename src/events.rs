@@ -1,5 +1,5 @@
 use crate::element::handle::Handle;
-use crate::mouse::MouseState;
+use crate::mouse::{MouseButton, MouseState};
 use crate::ui::Ui;
 
 fn hit_test(ui: &Ui, handle: Handle<()>, mx: f32, my: f32, hits: &mut Vec<Handle<()>>) {
@@ -64,14 +64,20 @@ pub fn fire_events(ui: &mut Ui, mouse: &MouseState) {
     // --- left ---
     if mouse.left_just_pressed {
         if let Some(target) = new_hovered {
-            let signal = ui.get_dyn_mut(target).and_then(|e| e.on_left_press());
+            let signal = ui.get_dyn_mut(target).and_then(|e| {
+                e.on_mouse_press(mouse.left_click_x, mouse.left_click_y, MouseButton::Left)
+            });
             fire_on(ui, target, signal);
             ui.interaction.pressed = Some(target);
 
             if mouse.left_just_double_clicked {
-                let signal = ui
-                    .get_dyn_mut(target)
-                    .and_then(|e| e.on_left_double_click());
+                let signal = ui.get_dyn_mut(target).and_then(|e| {
+                    e.on_mouse_double_click(
+                        mouse.left_click_x,
+                        mouse.left_click_y,
+                        MouseButton::Left,
+                    )
+                });
                 fire_on(ui, target, signal);
             }
         }
@@ -79,11 +85,15 @@ pub fn fire_events(ui: &mut Ui, mouse: &MouseState) {
 
     if mouse.left_just_released {
         if let Some(target) = new_hovered {
-            let signal = ui.get_dyn_mut(target).and_then(|e| e.on_left_release());
+            let signal = ui.get_dyn_mut(target).and_then(|e| {
+                e.on_mouse_release(mouse.left_click_x, mouse.left_click_y, MouseButton::Left)
+            });
             fire_on(ui, target, signal);
 
             if ui.interaction.pressed == Some(target) {
-                let signal = ui.get_dyn_mut(target).and_then(|e| e.on_left_click());
+                let signal = ui.get_dyn_mut(target).and_then(|e| {
+                    e.on_mouse_click(mouse.left_click_x, mouse.left_click_y, MouseButton::Left)
+                });
                 fire_on(ui, target, signal);
             }
         }
@@ -93,16 +103,22 @@ pub fn fire_events(ui: &mut Ui, mouse: &MouseState) {
     // --- right ---
     if mouse.right_just_pressed {
         if let Some(target) = new_hovered {
-            let signal = ui.get_dyn_mut(target).and_then(|e| e.on_right_press());
+            let signal = ui.get_dyn_mut(target).and_then(|e| {
+                e.on_mouse_press(mouse.right_click_x, mouse.right_click_y, MouseButton::Right)
+            });
             fire_on(ui, target, signal);
         }
     }
 
     if mouse.right_just_released {
         if let Some(target) = new_hovered {
-            let signal = ui.get_dyn_mut(target).and_then(|e| e.on_right_release());
+            let signal = ui.get_dyn_mut(target).and_then(|e| {
+                e.on_mouse_release(mouse.right_click_x, mouse.right_click_y, MouseButton::Right)
+            });
             fire_on(ui, target, signal);
-            let signal = ui.get_dyn_mut(target).and_then(|e| e.on_right_click());
+            let signal = ui.get_dyn_mut(target).and_then(|e| {
+                e.on_mouse_click(mouse.right_click_x, mouse.right_click_y, MouseButton::Right)
+            });
             fire_on(ui, target, signal);
         }
     }
@@ -110,16 +126,34 @@ pub fn fire_events(ui: &mut Ui, mouse: &MouseState) {
     // --- middle ---
     if mouse.middle_just_pressed {
         if let Some(target) = new_hovered {
-            let signal = ui.get_dyn_mut(target).and_then(|e| e.on_middle_press());
+            let signal = ui.get_dyn_mut(target).and_then(|e| {
+                e.on_mouse_press(
+                    mouse.middle_click_x,
+                    mouse.middle_click_y,
+                    MouseButton::Middle,
+                )
+            });
             fire_on(ui, target, signal);
         }
     }
 
     if mouse.middle_just_released {
         if let Some(target) = new_hovered {
-            let signal = ui.get_dyn_mut(target).and_then(|e| e.on_middle_release());
+            let signal = ui.get_dyn_mut(target).and_then(|e| {
+                e.on_mouse_release(
+                    mouse.middle_click_x,
+                    mouse.middle_click_y,
+                    MouseButton::Middle,
+                )
+            });
             fire_on(ui, target, signal);
-            let signal = ui.get_dyn_mut(target).and_then(|e| e.on_middle_click());
+            let signal = ui.get_dyn_mut(target).and_then(|e| {
+                e.on_mouse_click(
+                    mouse.middle_click_x,
+                    mouse.middle_click_y,
+                    MouseButton::Middle,
+                )
+            });
             fire_on(ui, target, signal);
         }
     }
