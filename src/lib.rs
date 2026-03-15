@@ -12,6 +12,7 @@ mod render {
 }
 
 mod element {
+    pub mod text_input;
     pub mod button;
     pub mod container;
     pub mod element;
@@ -39,6 +40,7 @@ pub use crate::{
     color::{Color, hex, hsl, hsla, hwb, hwba, rgb, rgba},
     element::button::Button,
     element::container::{Column, Container, Row},
+    element::text_input::TextInput,
     element::element::Element,
     element::handle::Handle,
     element::label::Label,

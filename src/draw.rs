@@ -4,6 +4,7 @@ use crate::element::container::Container;
 use crate::element::handle::Handle;
 use crate::element::label::Label;
 use crate::element::rect::Rect;
+use crate::element::text_input::TextInput;
 use crate::element::values::Position;
 use crate::render::draw_ctx::DrawContext;
 use crate::render::shape_renderer::ShapeDrawParams;
@@ -191,6 +192,100 @@ pub fn collect_draws(
             },
             z_index: z,
         });
+    } else if let Some(input) = el.as_any().downcast_ref::<TextInput>() {
+        let border_color = if input.focused {
+            input.focused_border_color
+        } else {
+            input.border_color
+        };
+
+        let mut bg = input.color.to_array();
+        bg[3] *= opacity;
+        let mut bc = border_color.to_array();
+        bc[3] *= opacity;
+
+        calls.push(DrawCall::Rect {
+            x: layout.x,
+            y: layout.y,
+            w: layout.w,
+            h: layout.h,
+            params: ShapeDrawParams {
+                color: bg,
+                radius: input.border_radius,
+                border_color: bc,
+                border_width: if input.focused { 2.0 } else { 1.0 },
+                clip,
+            },
+            z_index: z,
+        });
+
+        let pad = &input.layout.padding;
+        let tx = layout.x + pad[3];
+        let ty = layout.y + pad[0];
+        let scroll = input.scroll_offset.get();
+
+        // clip text to inside the input box
+        let text_clip = clip_intersect(
+            clip,
+            Some([
+                layout.x + pad[3],
+                layout.y,
+                layout.x + layout.w - pad[1],
+                layout.y + layout.h,
+            ]),
+        );
+
+        let is_empty = input.text.is_empty();
+        let display_text = if is_empty {
+            &input.placeholder
+        } else {
+            &input.text
+        };
+        let mut text_color = if is_empty {
+            input.placeholder_color
+        } else {
+            input.text_color
+        };
+        text_color.a *= opacity;
+
+        calls.push(DrawCall::Text {
+            x: tx - scroll,
+            y: ty,
+            content: display_text.clone(),
+            params: TextDrawParams {
+                family: input.font_family.clone(),
+                size: input.font_size,
+                weight: input.font_weight,
+                italic: false,
+                color: text_color,
+                width: f32::MAX,
+                clip: text_clip,
+            },
+            z_index: z,
+        });
+
+        // cursor
+        if input.focused {
+            let th = input.text_h.get();
+            let cx = tx + input.cursor_x.get() - scroll;
+            let cy = ty;
+            let mut cursor_color = input.text_color.to_array();
+            cursor_color[3] *= opacity;
+            calls.push(DrawCall::Rect {
+                x: cx,
+                y: cy,
+                w: 2.0,
+                h: th,
+                params: ShapeDrawParams {
+                    color: cursor_color,
+                    radius: 0.0,
+                    border_color: [0.0; 4],
+                    border_width: 0.0,
+                    clip: text_clip,
+                },
+                z_index: z,
+            });
+        }
     }
 
     // always recurse into children
