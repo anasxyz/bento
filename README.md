@@ -3,15 +3,15 @@
 
 ## Features
 
-* Intuitive API
+* Inspired by [Qt](https://www.qt.io/)
 * Cross-platform, runs on Windows, macOS, and Linux
 * GPU-accelerated rendering via a custom wgpu based rendering layer
-* Flexbox layout engine with support for grow, shrink, padding, margin, alignment, absolute positioning, overflow, etc
-* Composable styling (colors, borders, border radius, opacity, shadows, and more)
+* Signals and slots system for events handling
+* Flexbox layout engine
+* Composable styling
 * Async task system (futures, background threads, delays, repeating intervals, exclusive tasks, and timeouts)
 * Builtin widget library
 * Font loading and management
-* Keyboard, mouse, and window event handling
 
 Bento is built on top of:
 * **[`winit`](https://github.com/rust-windowing/winit)** for window handling
