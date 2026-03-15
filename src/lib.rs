@@ -30,7 +30,6 @@ mod fonts;
 mod layout;
 mod mouse;
 mod settings;
-mod signals;
 mod ui;
 mod window;
 
@@ -48,7 +47,6 @@ pub use crate::{
     fonts::Fonts,
     layout::layout_tree,
     settings::WindowConfig,
-    signals::Signal,
     ui::Ui,
     element::values::*,
 };
