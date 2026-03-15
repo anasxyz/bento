@@ -31,7 +31,7 @@ impl Color {
         }
     }
 
-    // hex string: "#rgb", "#rrggbb", "#rrggbbaa" 
+    // hex string: "#rgb", "#rrggbb", "#rrggbbaa"
     // # is optional and ignored
     pub fn hex(s: &str) -> Self {
         let s = s.trim_start_matches('#');
@@ -77,7 +77,7 @@ impl Color {
 
     pub fn hwba(h: f32, w: f32, b_val: f32, a: f32) -> Self {
         // hwb -> hsl conversion
-        let w = w.min(1.0 - b_val); 
+        let w = w.min(1.0 - b_val);
         let s = 1.0 - w / (1.0 - b_val);
         let l = (1.0 - b_val) / 2.0 + w / 2.0;
         let (r, g, b) = hsl_to_rgb(h, s, l);
@@ -88,6 +88,11 @@ impl Color {
     pub fn lighten(self, amount: f32) -> Self {
         let (h, s, l) = rgb_to_hsl(self.r, self.g, self.b);
         Self::hsla(h, s, (l + amount).min(1.0), self.a)
+    }
+
+    pub fn desaturate(self, amount: f32) -> Self {
+        let (h, s, l) = rgb_to_hsl(self.r, self.g, self.b);
+        Self::hsla(h, (s - amount).max(0.0), l, self.a)
     }
 
     pub fn darken(self, amount: f32) -> Self {

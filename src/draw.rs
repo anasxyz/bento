@@ -134,7 +134,9 @@ pub fn collect_draws(
             });
         }
     } else if let Some(btn) = el.as_any().downcast_ref::<Button>() {
-        let color = if btn.pressed {
+        let color = if btn.disabled {
+            btn.color.desaturate(0.6).lighten(0.05)
+        } else if btn.pressed {
             btn.color.darken(0.08)
         } else if btn.hovered {
             btn.color.lighten(0.08)
@@ -145,6 +147,9 @@ pub fn collect_draws(
         let mut bg = color.to_array();
         bg[3] *= opacity;
 
+        let mut border_color = btn.border_color.unwrap_or(Color::TRANSPARENT).to_array();
+        border_color[3] *= opacity;
+
         calls.push(DrawCall::Rect {
             x: layout.x,
             y: layout.y,
@@ -153,14 +158,17 @@ pub fn collect_draws(
             params: ShapeDrawParams {
                 color: bg,
                 radius: btn.border_radius,
-                border_color: [0.0; 4],
-                border_width: 0.0,
+                border_color,
+                border_width: btn.border_thickness,
                 clip,
             },
             z_index: z,
         });
 
-        let mut text_color = Color::WHITE;
+        let mut text_color = btn.text_color;
+        if btn.disabled {
+            text_color.a *= 0.4;
+        }
         text_color.a *= opacity;
 
         let tw = btn.text_w.get();
@@ -173,7 +181,7 @@ pub fn collect_draws(
             y: ty,
             content: btn.text.clone(),
             params: TextDrawParams {
-                family: "sans-serif".to_string(),
+                family: btn.font_family.clone(),
                 size: btn.font_size,
                 weight: btn.font_weight,
                 italic: false,
