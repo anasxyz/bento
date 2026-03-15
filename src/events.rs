@@ -126,6 +126,17 @@ pub fn fire_events(ui: &mut Ui, mouse: &MouseState) {
 
     // --- focus on left click ---
     if mouse.left_just_pressed {
-        ui.interaction.focused = new_hovered;
+        let new_focused = new_hovered;
+        if ui.interaction.focused != new_focused {
+            if let Some(prev) = ui.interaction.focused {
+                let signal = ui.get_dyn_mut(prev).and_then(|e| e.on_focus_lost());
+                fire_on(ui, prev, signal);
+            }
+            if let Some(next) = new_focused {
+                let signal = ui.get_dyn_mut(next).and_then(|e| e.on_focus_gained());
+                fire_on(ui, next, signal);
+            }
+            ui.interaction.focused = new_focused;
+        }
     }
 }

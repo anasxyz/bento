@@ -107,35 +107,37 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                 };
                 let text = event.text.as_ref().and_then(|t| t.chars().next());
                 let mods = self.modifiers.clone();
+                let focused = self.ui.interaction.focused;
 
-                if let Some(focused) = self.ui.interaction.focused {
-                    match event.state {
-                        ElementState::Pressed => {
+                match event.state {
+                    ElementState::Pressed => {
+                        // fire trait method on focused element
+                        if let Some(f) = focused {
                             let signal = self
                                 .ui
-                                .get_dyn_mut(focused)
-                                .and_then(|e| e.on_key_press(key, mods, text));
+                                .get_dyn_mut(f)
+                                .and_then(|e| e.on_key_press(key.clone(), mods.clone(), text));
                             if let Some(s) = signal {
-                                self.ui.emit_bubbling(focused, s);
+                                self.ui.emit_bubbling(f, s);
                             }
                         }
-                        ElementState::Released => {
-                            let key2 = match event.physical_key {
-                                PhysicalKey::Code(code) => Key::from(code),
-                                PhysicalKey::Unidentified(_) => Key::Unknown,
-                            };
-                            let mods2 = self.modifiers.clone();
+                        // fire connect_key and connect_key_global callbacks
+                        self.ui.fire_key(focused, key, mods, text);
+                    }
+                    ElementState::Released => {
+                        if let Some(f) = focused {
                             let signal = self
                                 .ui
-                                .get_dyn_mut(focused)
-                                .and_then(|e| e.on_key_release(key2, mods2));
+                                .get_dyn_mut(f)
+                                .and_then(|e| e.on_key_release(key.clone(), mods.clone()));
                             if let Some(s) = signal {
-                                self.ui.emit_bubbling(focused, s);
+                                self.ui.emit_bubbling(f, s);
                             }
                         }
                     }
-                    win.window.request_redraw();
+                    _ => {}
                 }
+                win.window.request_redraw();
             }
             WindowEvent::CursorMoved { position, .. } => {
                 let Some(win) = self.win.as_mut() else { return };

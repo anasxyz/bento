@@ -1,11 +1,17 @@
 use crate::element::element::Element;
 use crate::element::handle::Handle;
+use crate::keyboard::{Key, Modifiers};
 use std::ops::{Index, IndexMut};
 
 pub struct Connection {
     pub handle: Handle<()>,
     pub signal: u32,
     pub callback: Box<dyn Fn(&mut Ui)>,
+}
+
+pub struct KeyConnection {
+    pub handle: Option<Handle<()>>, // None = global
+    pub callback: Box<dyn Fn(&mut Ui, Key, Modifiers, Option<char>)>,
 }
 
 pub struct InteractionState {
@@ -35,6 +41,7 @@ pub struct Ui {
     slots: Vec<Option<Slot>>,
     root: Option<Handle<()>>,
     connections: Vec<Connection>,
+    key_connections: Vec<KeyConnection>,
     pub interaction: InteractionState,
 }
 
@@ -44,6 +51,7 @@ impl Ui {
             slots: Vec::new(),
             root: None,
             connections: Vec::new(),
+            key_connections: Vec::new(),
             interaction: InteractionState::new(),
         }
     }
@@ -276,6 +284,50 @@ impl Ui {
         for handle in handles {
             self.emit(handle, signal);
         }
+    }
+
+    pub fn connect_key<T>(
+        &mut self,
+        handle: impl Into<Handle<T>>,
+        callback: impl Fn(&mut Ui, Key, Modifiers, Option<char>) + 'static,
+    ) {
+        let handle = handle.into();
+        self.key_connections.push(KeyConnection {
+            handle: Some(Handle::new(handle.id, handle.generation)),
+            callback: Box::new(callback),
+        });
+    }
+
+    pub fn connect_key_global(
+        &mut self,
+        callback: impl Fn(&mut Ui, Key, Modifiers, Option<char>) + 'static,
+    ) {
+        self.key_connections.push(KeyConnection {
+            handle: None,
+            callback: Box::new(callback),
+        });
+    }
+
+    pub fn fire_key(
+        &mut self,
+        focused: Option<Handle<()>>,
+        key: Key,
+        modifiers: Modifiers,
+        text: Option<char>,
+    ) {
+        let mut key_connections = std::mem::take(&mut self.key_connections);
+        for conn in &key_connections {
+            let should_fire = match conn.handle {
+                None => true, // global
+                Some(h) => Some(h) == focused,
+            };
+            if should_fire {
+                let cb_ptr: *const dyn Fn(&mut Ui, Key, Modifiers, Option<char>) =
+                    conn.callback.as_ref();
+                unsafe { (*cb_ptr)(self, key.clone(), modifiers.clone(), text) };
+            }
+        }
+        self.key_connections = key_connections;
     }
 
     pub fn take_connections(&mut self) -> Vec<Connection> {
