@@ -30,6 +30,9 @@ impl Button {
     pub const HOVERED: u32 = 1;
     pub const HOVER_END: u32 = 2;
     pub const PRESSED: u32 = 3;
+    pub const RIGHT_CLICKED: u32 = 4;
+    pub const MIDDLE_CLICKED: u32 = 5;
+    pub const DOUBLE_CLICKED: u32 = 6;
 
     pub fn new(ui: &mut Ui, text: &str) -> Handle<Self> {
         let mut layout = Layout::default();
@@ -90,19 +93,43 @@ impl Element for Button {
         self.pressed = false;
         Some(Button::HOVER_END)
     }
-    fn on_press(&mut self) -> Option<u32> {
+    fn on_left_press(&mut self) -> Option<u32> {
         if self.disabled {
             return None;
         }
         self.pressed = true;
         Some(Button::PRESSED)
     }
-    fn on_release(&mut self) -> Option<u32> {
+    fn on_left_release(&mut self) -> Option<u32> {
         if self.disabled {
             return None;
         }
         self.pressed = false;
+        None
+    }
+    fn on_left_click(&mut self) -> Option<u32> {
+        if self.disabled {
+            return None;
+        }
         Some(Button::CLICKED)
+    }
+    fn on_left_double_click(&mut self) -> Option<u32> {
+        if self.disabled {
+            return None;
+        }
+        Some(Button::DOUBLE_CLICKED)
+    }
+    fn on_right_click(&mut self) -> Option<u32> {
+        if self.disabled {
+            return None;
+        }
+        Some(Button::RIGHT_CLICKED)
+    }
+    fn on_middle_click(&mut self) -> Option<u32> {
+        if self.disabled {
+            return None;
+        }
+        Some(Button::MIDDLE_CLICKED)
     }
     fn as_any(&self) -> &dyn Any {
         self

@@ -16,7 +16,7 @@ fn main() {
     let btn = Button::new(&mut ui, "Click me");
     ui.get_mut(btn).unwrap().border_radius = 0.0;
     ui.get_mut(btn).unwrap().layout.padding = [5.0; 4];
-    ui.connect(btn, Button::CLICKED, move |ui| {
+    ui.connect(root, Button::DOUBLE_CLICKED, move |ui| {
         ui.get_mut(label).unwrap().text = "Clicked!".to_string();
     });
 

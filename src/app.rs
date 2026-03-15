@@ -11,7 +11,6 @@ use winit::{
 use crate::draw::draw_tree;
 use crate::events::fire_events;
 use crate::layout::layout_tree;
-use crate::mouse::event_tree;
 use crate::render::gpu::GpuContext;
 use crate::settings::WindowConfig;
 use crate::ui::Ui;
@@ -74,9 +73,7 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
         match event {
             WindowEvent::RedrawRequested => {
                 fire_events(&mut self.ui, &win.mouse);
-
                 (self.update)(&mut self.ui);
-
                 win.begin();
 
                 let size = win.window.inner_size();
@@ -85,13 +82,7 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                 let logical_h = size.height as f32 / scale;
 
                 layout_tree(&mut self.ui, logical_w, logical_h, &mut win.fonts);
-
-                if let Some(root) = self.ui.root() {
-                    event_tree(&self.ui, root, &mut win.mouse);
-                }
-
                 draw_tree(&self.ui, &mut win.draw);
-
                 win.render();
                 win.mouse.reset();
             }
@@ -107,38 +98,19 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                 let Some(win) = self.win.as_mut() else { return };
                 match button {
                     winit::event::MouseButton::Left => match state {
-                        ElementState::Pressed => {
-                            win.mouse.left_pressed = true;
-                            win.mouse.left_just_pressed = true;
-                            win.mouse.left_click_x = win.mouse.x;
-                            win.mouse.left_click_y = win.mouse.y;
-                        }
-                        ElementState::Released => {
-                            win.mouse.left_pressed = false;
-                            win.mouse.left_just_released = true;
-                        }
+                        ElementState::Pressed => win.mouse.on_left_press(),
+                        ElementState::Released => win.mouse.on_left_release(),
+                        _ => {}
                     },
                     winit::event::MouseButton::Right => match state {
-                        ElementState::Pressed => {
-                            win.mouse.right_pressed = true;
-                            win.mouse.right_just_pressed = true;
-                            win.mouse.right_click_x = win.mouse.x;
-                            win.mouse.right_click_y = win.mouse.y;
-                        }
-                        ElementState::Released => {
-                            win.mouse.right_pressed = false;
-                        }
+                        ElementState::Pressed => win.mouse.on_right_press(),
+                        ElementState::Released => win.mouse.on_right_release(),
+                        _ => {}
                     },
                     winit::event::MouseButton::Middle => match state {
-                        ElementState::Pressed => {
-                            win.mouse.middle_pressed = true;
-                            win.mouse.middle_just_pressed = true;
-                            win.mouse.middle_click_x = win.mouse.x;
-                            win.mouse.middle_click_y = win.mouse.y;
-                        }
-                        ElementState::Released => {
-                            win.mouse.middle_pressed = false;
-                        }
+                        ElementState::Pressed => win.mouse.on_middle_press(),
+                        ElementState::Released => win.mouse.on_middle_release(),
+                        _ => {}
                     },
                     _ => {}
                 }

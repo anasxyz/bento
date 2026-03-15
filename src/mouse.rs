@@ -1,49 +1,39 @@
-use crate::element::element::Element;
-use crate::element::handle::Handle;
-use crate::ui::Ui;
-
 const DRAG_THRESHOLD: f32 = 4.0;
+const DOUBLE_CLICK_MS: u128 = 300;
 
 #[derive(Debug)]
 pub struct MouseState {
-    // mouse position
     pub x: f32,
     pub y: f32,
 
-    // mouse button state
     pub left_pressed: bool,
     pub left_just_pressed: bool,
     pub left_just_released: bool,
+    pub left_just_double_clicked: bool,
+
     pub right_pressed: bool,
     pub right_just_pressed: bool,
+    pub right_just_released: bool,
+
     pub middle_pressed: bool,
     pub middle_just_pressed: bool,
+    pub middle_just_released: bool,
 
-    // drag
     pub is_dragging: bool,
     pub drag_start_x: f32,
     pub drag_start_y: f32,
 
-    // left click count
-    pub left_click_count: u32,
     pub left_click_x: f32,
     pub left_click_y: f32,
-
-    // right click count
-    pub right_click_count: u32,
     pub right_click_x: f32,
     pub right_click_y: f32,
-
-    // middle click count
-    pub middle_click_count: u32,
     pub middle_click_x: f32,
     pub middle_click_y: f32,
 
-    // click timing
-    pub right_click_timer: std::time::Instant,
-    pub last_right_click_time: f64,
-    pub left_click_timer: std::time::Instant,
-    pub last_left_click_time: f64,
+    left_click_count: u32,
+    left_last_click: std::time::Instant,
+    right_click_count: u32,
+    right_last_click: std::time::Instant,
 }
 
 impl Default for MouseState {
@@ -54,36 +44,95 @@ impl Default for MouseState {
             left_pressed: false,
             left_just_pressed: false,
             left_just_released: false,
+            left_just_double_clicked: false,
             right_pressed: false,
             right_just_pressed: false,
+            right_just_released: false,
             middle_pressed: false,
             middle_just_pressed: false,
+            middle_just_released: false,
             is_dragging: false,
             drag_start_x: 0.0,
             drag_start_y: 0.0,
-            left_click_count: 0,
             left_click_x: 0.0,
             left_click_y: 0.0,
-            right_click_count: 0,
             right_click_x: 0.0,
             right_click_y: 0.0,
-            middle_click_count: 0,
             middle_click_x: 0.0,
             middle_click_y: 0.0,
-            right_click_timer: std::time::Instant::now(),
-            last_right_click_time: 0.0,
-            left_click_timer: std::time::Instant::now(),
-            last_left_click_time: 0.0,
+            left_click_count: 0,
+            left_last_click: std::time::Instant::now(),
+            right_click_count: 0,
+            right_last_click: std::time::Instant::now(),
         }
     }
 }
 
 impl MouseState {
+    pub fn on_left_press(&mut self) {
+        self.left_pressed = true;
+        self.left_just_pressed = true;
+        self.left_click_x = self.x;
+        self.left_click_y = self.y;
+
+        let now = std::time::Instant::now();
+        if now.duration_since(self.left_last_click).as_millis() < DOUBLE_CLICK_MS {
+            self.left_click_count += 1;
+        } else {
+            self.left_click_count = 1;
+        }
+        self.left_just_double_clicked = self.left_click_count >= 2;
+        if self.left_just_double_clicked {
+            self.left_click_count = 0;
+        }
+        self.left_last_click = now;
+    }
+
+    pub fn on_left_release(&mut self) {
+        self.left_pressed = false;
+        self.left_just_released = true;
+    }
+
+    pub fn on_right_press(&mut self) {
+        self.right_pressed = true;
+        self.right_just_pressed = true;
+        self.right_click_x = self.x;
+        self.right_click_y = self.y;
+
+        let now = std::time::Instant::now();
+        if now.duration_since(self.right_last_click).as_millis() < DOUBLE_CLICK_MS {
+            self.right_click_count += 1;
+        } else {
+            self.right_click_count = 1;
+        }
+        self.right_last_click = now;
+    }
+
+    pub fn on_right_release(&mut self) {
+        self.right_pressed = false;
+        self.right_just_released = true;
+    }
+
+    pub fn on_middle_press(&mut self) {
+        self.middle_pressed = true;
+        self.middle_just_pressed = true;
+        self.middle_click_x = self.x;
+        self.middle_click_y = self.y;
+    }
+
+    pub fn on_middle_release(&mut self) {
+        self.middle_pressed = false;
+        self.middle_just_released = true;
+    }
+
     pub fn reset(&mut self) {
         self.left_just_pressed = false;
         self.left_just_released = false;
+        self.left_just_double_clicked = false;
         self.right_just_pressed = false;
+        self.right_just_released = false;
         self.middle_just_pressed = false;
+        self.middle_just_released = false;
     }
 
     pub fn update_drag(&mut self) {
@@ -105,23 +154,5 @@ impl MouseState {
         if self.left_just_released {
             self.is_dragging = false;
         }
-    }
-}
-
-pub fn event_tree(ui: &Ui, handle: Handle<()>, mouse: &mut MouseState) {
-    let el = match ui.get_dyn(handle) {
-        Some(e) => e,
-        None => return,
-    };
-
-    let layout = el.layout();
-    let _hovered = mouse.x >= layout.x
-        && mouse.x <= layout.x + layout.w
-        && mouse.y >= layout.y
-        && mouse.y <= layout.y + layout.h;
-
-    let children: Vec<Handle<()>> = ui.children(handle).to_vec();
-    for child in children {
-        event_tree(ui, child, mouse);
     }
 }

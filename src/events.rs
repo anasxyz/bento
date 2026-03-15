@@ -29,6 +29,12 @@ fn hit_test(ui: &Ui, handle: Handle<()>, mx: f32, my: f32, hits: &mut Vec<Handle
     hits.push(handle);
 }
 
+fn fire_on(ui: &mut Ui, target: Handle<()>, signal: Option<u32>) {
+    if let Some(s) = signal {
+        ui.emit_bubbling(target, s);
+    }
+}
+
 pub fn fire_events(ui: &mut Ui, mouse: &MouseState) {
     let root = match ui.root() {
         Some(r) => r,
@@ -44,41 +50,82 @@ pub fn fire_events(ui: &mut Ui, mouse: &MouseState) {
     let new_hovered = hover_hits.first().copied();
 
     if ui.interaction.hovered != new_hovered {
-        // leave old
         if let Some(prev) = ui.interaction.hovered {
-            if let Some(signal) = ui.get_dyn_mut(prev).and_then(|e| e.on_mouse_leave()) {
-                ui.emit_bubbling(prev, signal);
-            }
+            let signal = ui.get_dyn_mut(prev).and_then(|e| e.on_mouse_leave());
+            fire_on(ui, prev, signal);
         }
-        // enter new
         if let Some(next) = new_hovered {
-            if let Some(signal) = ui.get_dyn_mut(next).and_then(|e| e.on_mouse_enter()) {
-                ui.emit_bubbling(next, signal);
-            }
+            let signal = ui.get_dyn_mut(next).and_then(|e| e.on_mouse_enter());
+            fire_on(ui, next, signal);
         }
         ui.interaction.hovered = new_hovered;
     }
 
-    // --- press ---
+    // --- left ---
     if mouse.left_just_pressed {
         if let Some(target) = new_hovered {
-            if let Some(signal) = ui.get_dyn_mut(target).and_then(|e| e.on_press()) {
-                ui.emit_bubbling(target, signal);
-            }
+            let signal = ui.get_dyn_mut(target).and_then(|e| e.on_left_press());
+            fire_on(ui, target, signal);
             ui.interaction.pressed = Some(target);
+
+            if mouse.left_just_double_clicked {
+                let signal = ui
+                    .get_dyn_mut(target)
+                    .and_then(|e| e.on_left_double_click());
+                fire_on(ui, target, signal);
+            }
         }
     }
 
-    // --- release + click ---
     if mouse.left_just_released {
         if let Some(target) = new_hovered {
-            if let Some(signal) = ui.get_dyn_mut(target).and_then(|e| e.on_release()) {
-                let is_click = ui.interaction.pressed == Some(target);
-                if is_click {
-                    ui.emit_bubbling(target, signal);
-                }
+            let signal = ui.get_dyn_mut(target).and_then(|e| e.on_left_release());
+            fire_on(ui, target, signal);
+
+            if ui.interaction.pressed == Some(target) {
+                let signal = ui.get_dyn_mut(target).and_then(|e| e.on_left_click());
+                fire_on(ui, target, signal);
             }
         }
         ui.interaction.pressed = None;
+    }
+
+    // --- right ---
+    if mouse.right_just_pressed {
+        if let Some(target) = new_hovered {
+            let signal = ui.get_dyn_mut(target).and_then(|e| e.on_right_press());
+            fire_on(ui, target, signal);
+        }
+    }
+
+    if mouse.right_just_released {
+        if let Some(target) = new_hovered {
+            let signal = ui.get_dyn_mut(target).and_then(|e| e.on_right_release());
+            fire_on(ui, target, signal);
+            let signal = ui.get_dyn_mut(target).and_then(|e| e.on_right_click());
+            fire_on(ui, target, signal);
+        }
+    }
+
+    // --- middle ---
+    if mouse.middle_just_pressed {
+        if let Some(target) = new_hovered {
+            let signal = ui.get_dyn_mut(target).and_then(|e| e.on_middle_press());
+            fire_on(ui, target, signal);
+        }
+    }
+
+    if mouse.middle_just_released {
+        if let Some(target) = new_hovered {
+            let signal = ui.get_dyn_mut(target).and_then(|e| e.on_middle_release());
+            fire_on(ui, target, signal);
+            let signal = ui.get_dyn_mut(target).and_then(|e| e.on_middle_click());
+            fire_on(ui, target, signal);
+        }
+    }
+
+    // --- focus on left click ---
+    if mouse.left_just_pressed {
+        ui.interaction.focused = new_hovered;
     }
 }

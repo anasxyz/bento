@@ -12,17 +12,43 @@ pub trait Element {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
-    // return a signal id to emit after the state change, or None
     fn on_mouse_enter(&mut self) -> Option<u32> {
         None
     }
     fn on_mouse_leave(&mut self) -> Option<u32> {
         None
     }
-    fn on_press(&mut self) -> Option<u32> {
+
+    fn on_left_press(&mut self) -> Option<u32> {
         None
     }
-    fn on_release(&mut self) -> Option<u32> {
+    fn on_left_release(&mut self) -> Option<u32> {
+        None
+    }
+    fn on_left_click(&mut self) -> Option<u32> {
+        None
+    }
+    fn on_left_double_click(&mut self) -> Option<u32> {
+        None
+    }
+
+    fn on_right_press(&mut self) -> Option<u32> {
+        None
+    }
+    fn on_right_release(&mut self) -> Option<u32> {
+        None
+    }
+    fn on_right_click(&mut self) -> Option<u32> {
+        None
+    }
+
+    fn on_middle_press(&mut self) -> Option<u32> {
+        None
+    }
+    fn on_middle_release(&mut self) -> Option<u32> {
+        None
+    }
+    fn on_middle_click(&mut self) -> Option<u32> {
         None
     }
 }
