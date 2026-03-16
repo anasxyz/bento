@@ -2,6 +2,8 @@ use crate::element::element::Element;
 use crate::element::handle::Handle;
 use crate::keyboard::{Key, Modifiers};
 use std::ops::{Index, IndexMut};
+use crate::fonts::Fonts;
+use crate::mouse::MouseState;
 
 pub struct Connection {
     pub handle: Handle<()>,
@@ -42,7 +44,10 @@ pub struct Ui {
     root: Option<Handle<()>>,
     connections: Vec<Connection>,
     key_connections: Vec<KeyConnection>,
-    pub interaction: InteractionState,
+    pub(crate) interaction: InteractionState,
+
+    pub fonts: Option<Fonts>,
+    pub mouse: MouseState,
 
     pub window_width: u32,
     pub window_height: u32,
@@ -58,6 +63,8 @@ impl Ui {
             interaction: InteractionState::new(),
             window_width: 0,
             window_height: 0,
+            fonts: Some(Fonts::new()),
+            mouse: MouseState::default(),
         }
     }
 

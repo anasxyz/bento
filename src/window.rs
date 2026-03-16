@@ -11,8 +11,6 @@ pub struct WindowState {
     pub gpu: GpuContext,
     pub clear_color: Color,
     pub draw: DrawContext,
-    pub fonts: Fonts,
-    pub mouse: MouseState,
 }
 
 impl WindowState {
@@ -32,8 +30,6 @@ impl WindowState {
             gpu,
             clear_color,
             draw,
-            fonts: Fonts::new(),
-            mouse: MouseState::default(),
         }
     }
 

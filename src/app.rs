@@ -76,15 +76,15 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
 
         match event {
             WindowEvent::RedrawRequested => {
-                fire_events(&mut self.ui, &win.mouse);
+                fire_events(&mut self.ui);
                 (self.update)(&mut self.ui);
                 win.begin();
 
-                layout_tree(&mut self.ui, &mut win.fonts);
+                layout_tree(&mut self.ui);
                 draw_tree(&self.ui, &mut win.draw);
 
                 win.render();
-                win.mouse.reset();
+                self.ui.mouse.reset();
             }
             WindowEvent::ModifiersChanged(mods) => {
                 let state = mods.state();
@@ -135,26 +135,25 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                 win.request_redraw();
             }
             WindowEvent::CursorMoved { position, .. } => {
-                let Some(win) = self.win.as_mut() else { return };
                 let scale = win.window.scale_factor() as f32;
-                win.mouse.x = position.x as f32 / scale;
-                win.mouse.y = position.y as f32 / scale;
+                self.ui.mouse.x = position.x as f32 / scale;
+                self.ui.mouse.y = position.y as f32 / scale;
                 win.request_redraw();
             }
             WindowEvent::MouseInput { button, state, .. } => {
                 let Some(win) = self.win.as_mut() else { return };
                 match button {
                     winit::event::MouseButton::Left => match state {
-                        ElementState::Pressed => win.mouse.on_left_press(),
-                        ElementState::Released => win.mouse.on_left_release(),
+                        ElementState::Pressed => self.ui.mouse.on_left_press(),
+                        ElementState::Released => self.ui.mouse.on_left_release(),
                     },
                     winit::event::MouseButton::Right => match state {
-                        ElementState::Pressed => win.mouse.on_right_press(),
-                        ElementState::Released => win.mouse.on_right_release(),
+                        ElementState::Pressed => self.ui.mouse.on_right_press(),
+                        ElementState::Released => self.ui.mouse.on_right_release(),
                     },
                     winit::event::MouseButton::Middle => match state {
-                        ElementState::Pressed => win.mouse.on_middle_press(),
-                        ElementState::Released => win.mouse.on_middle_release(),
+                        ElementState::Pressed => self.ui.mouse.on_middle_press(),
+                        ElementState::Released => self.ui.mouse.on_middle_release(),
                     },
                     _ => {}
                 }

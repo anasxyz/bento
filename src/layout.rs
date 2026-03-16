@@ -203,7 +203,9 @@ fn write_back(
     }
 }
 
-pub fn layout_tree(ui: &mut Ui, fonts: &mut Fonts) {
+pub fn layout_tree(ui: &mut Ui) {
+    let mut fonts = ui.fonts.take().unwrap();
+
     let root = match ui.root() {
         Some(r) => r,
         None => return,
@@ -236,7 +238,7 @@ pub fn layout_tree(ui: &mut Ui, fonts: &mut Fonts) {
                         AvailableSpace::Definite(w) => Some(w),
                         _ => None,
                     });
-                let (w, h) = match el.measure(fonts, max_width) {
+                let (w, h) = match el.measure(&mut fonts, max_width) {
                     Some(size) => size,
                     None => return taffy::geometry::Size::ZERO,
                 };
@@ -247,6 +249,8 @@ pub fn layout_tree(ui: &mut Ui, fonts: &mut Fonts) {
             },
         )
         .unwrap();
+
+    ui.fonts = Some(fonts);
 
     write_back(ui, root, &taffy, root_node, 0.0, 0.0);
 }
