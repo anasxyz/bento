@@ -3,26 +3,8 @@
 #![allow(unused_imports)]
 #![allow(unused_mut)]
 
-mod render {
-    pub mod draw_ctx;
-    pub mod gpu;
-    pub mod shadow_renderer;
-    pub mod shape_renderer;
-    pub mod text_renderer;
-}
-
-mod element {
-    pub mod text_input;
-    pub mod button;
-    pub mod container;
-    pub mod element;
-    pub mod handle;
-    pub mod label;
-    pub mod layout;
-    pub mod rect;
-    pub mod values;
-}
-
+mod render;
+mod element;
 mod app;
 mod color;
 mod draw;
@@ -35,22 +17,24 @@ mod settings;
 mod ui;
 mod window;
 
+pub use crate::app::AppWindow;
+pub use crate::color::{Color, hex, hsl, hsla, hwb, hwba, rgb, rgba};
+pub use crate::element::{
+    element::Element,
+    button::Button,
+    container::{Column, Container, Row},
+    text_input::TextInput,
+    handle::Handle,
+    label::Label,
+    layout::Layout,
+    rect::Rect,
+    values::*,
+};
+
 pub use crate::{
-    app::AppWindow,
-    color::{Color, hex, hsl, hsla, hwb, hwba, rgb, rgba},
-    element::button::Button,
-    element::container::{Column, Container, Row},
-    element::text_input::TextInput,
-    element::element::Element,
-    element::handle::Handle,
-    element::label::Label,
-    element::layout::Layout,
-    element::rect::Rect,
-    element::values::Size,
     fonts::Fonts,
     layout::layout_tree,
     settings::WindowConfig,
     ui::Ui,
-    element::values::*,
     keyboard::{Key, Modifiers},
 };
