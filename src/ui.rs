@@ -1,15 +1,20 @@
+use taffy::{NodeId, TaffyTree};
+
 use crate::element::element::AnyElement;
 use crate::element::handle::Handle;
 use crate::event::Event;
 use crate::fonts::Fonts;
 use crate::mouse::MouseState;
-use std::ops::{Index, IndexMut};
+use std::{
+    collections::HashMap,
+    ops::{Index, IndexMut},
+};
 
 const GLOBAL_ID: u32 = u32::MAX;
 
-struct Slot {
-    element: AnyElement,
-    generation: u32,
+pub struct Slot {
+    pub(crate) element: AnyElement,
+    pub(crate) generation: u32,
     children: Vec<Handle<()>>,
     parent: Option<Handle<()>>,
 }
@@ -37,7 +42,7 @@ impl InteractionState {
 }
 
 pub struct Ui {
-    slots: Vec<Option<Slot>>,
+    pub(crate) slots: Vec<Option<Slot>>,
     root: Option<Handle<()>>,
     connections: Vec<Connection>,
     next_connection_id: u32,
@@ -47,6 +52,9 @@ pub struct Ui {
     pub mouse: MouseState,
     pub window_width: u32,
     pub window_height: u32,
+    pub(crate) taffy: Option<TaffyTree<Handle<()>>>,
+    pub(crate) taffy_nodes: HashMap<Handle<()>, NodeId>,
+    pub(crate) taffy_root: Option<NodeId>,
 }
 
 impl Ui {
@@ -62,6 +70,9 @@ impl Ui {
             mouse: MouseState::default(),
             window_width: 0,
             window_height: 0,
+            taffy: Some(TaffyTree::new()),
+            taffy_nodes: HashMap::new(),
+            taffy_root: None,
         }
     }
 
@@ -89,6 +100,8 @@ impl Ui {
             children: Vec::new(),
             parent: None,
         }));
+        crate::layout::invalidate_layout(self);
+
         Handle::new(id, 0)
     }
 
@@ -188,6 +201,7 @@ impl Ui {
         if self.interaction.focused == Some(handle) {
             self.interaction.focused = None;
         }
+        crate::layout::invalidate_layout(self);
     }
 
     pub fn remove_children<T>(&mut self, handle: Handle<T>) {
@@ -199,6 +213,7 @@ impl Ui {
         if let Some(Some(slot)) = self.slots.get_mut(handle.id as usize) {
             slot.children.clear();
         }
+        crate::layout::invalidate_layout(self);
     }
 
     pub fn connect<T>(

@@ -4,6 +4,7 @@ use crate::element::values::{
     AlignItems, AlignSelf, FlexDirection, FlexWrap, JustifyContent, Overflow, Position, Size,
 };
 use crate::ui::Ui;
+use std::collections::HashMap;
 use taffy::prelude::{
     AvailableSpace, Dimension, Display, LengthPercentage, LengthPercentageAuto, NodeId, Style,
     TaffyTree,
@@ -156,21 +157,37 @@ fn build_style(layout: &Layout) -> Style {
     }
 }
 
-fn add_node(ui: &Ui, handle: Handle<()>, taffy: &mut TaffyTree<Handle<()>>) -> NodeId {
+fn add_node(
+    ui: &Ui,
+    handle: Handle<()>,
+    taffy: &mut TaffyTree<Handle<()>>,
+    nodes: &mut HashMap<Handle<()>, NodeId>,
+) -> NodeId {
     let el = match ui.get_any(handle) {
         Some(e) => e,
-        None => return taffy.new_leaf(Style::DEFAULT).unwrap(),
+        None => {
+            let node = taffy.new_leaf(Style::DEFAULT).unwrap();
+            nodes.insert(handle, node);
+            return node;
+        }
     };
 
     let style = build_style(el.layout());
+    let has_measure = el.has_measure();
 
-    if el.has_measure() {
+    let node = if has_measure {
         taffy.new_leaf_with_context(style, handle).unwrap()
     } else {
         let children = ui.children(handle).to_vec();
-        let ids: Vec<NodeId> = children.iter().map(|&c| add_node(ui, c, taffy)).collect();
+        let ids: Vec<NodeId> = children
+            .iter()
+            .map(|&c| add_node(ui, c, taffy, nodes))
+            .collect();
         taffy.new_with_children(style, &ids).unwrap()
-    }
+    };
+
+    nodes.insert(handle, node);
+    node
 }
 
 fn write_back(
@@ -181,11 +198,15 @@ fn write_back(
     parent_x: f32,
     parent_y: f32,
 ) {
-    let layout = taffy.layout(node).unwrap();
-    let x = parent_x + layout.location.x;
-    let y = parent_y + layout.location.y;
-    let w = layout.size.width;
-    let h = layout.size.height;
+    let (x, y, w, h) = {
+        let layout = taffy.layout(node).unwrap();
+        (
+            parent_x + layout.location.x,
+            parent_y + layout.location.y,
+            layout.size.width,
+            layout.size.height,
+        )
+    };
 
     if let Some(el) = ui.get_any_mut(handle) {
         let l = el.layout_mut_internal();
@@ -196,15 +217,13 @@ fn write_back(
     }
 
     let children = ui.children(handle).to_vec();
-    let child_ids = taffy.children(node).unwrap();
+    let child_ids = taffy.children(node).unwrap().to_vec();
     for (child_handle, child_node) in children.iter().zip(child_ids.iter()) {
         write_back(ui, *child_handle, taffy, *child_node, x, y);
     }
 }
 
 pub fn layout_tree(ui: &mut Ui) {
-    let mut fonts = ui.fonts.take().unwrap();
-
     let root = match ui.root() {
         Some(r) => r,
         None => return,
@@ -213,8 +232,44 @@ pub fn layout_tree(ui: &mut Ui) {
     let window_w = ui.window_width as f32;
     let window_h = ui.window_height as f32;
 
-    let mut taffy: TaffyTree<Handle<()>> = TaffyTree::new();
-    let root_node = add_node(ui, root, &mut taffy);
+    // take taffy out of ui to avoid borrow conflicts
+    let mut taffy = ui.taffy.take().unwrap();
+    let mut taffy_nodes = std::mem::take(&mut ui.taffy_nodes);
+    let mut taffy_root = ui.taffy_root;
+
+    if taffy_root.is_none() {
+        // first frame, build the entire tree from scratch
+        let root_node = add_node(ui, root, &mut taffy, &mut taffy_nodes);
+        taffy_root = Some(root_node);
+    } else {
+        // subsequent frames, only update styles for dirty elements
+        let dirty_handles: Vec<Handle<()>> = ui
+            .slots
+            .iter()
+            .enumerate()
+            .filter_map(|(i, s)| {
+                let s = s.as_ref()?;
+                if s.element.is_dirty() {
+                    Some(Handle::new(i as u32, s.generation))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        for handle in dirty_handles {
+            if let Some(&node) = taffy_nodes.get(&handle) {
+                if let Some(el) = ui.get_any(handle) {
+                    let style = build_style(el.layout());
+                    taffy.set_style(node, style).unwrap();
+                    taffy.mark_dirty(node).unwrap();
+                }
+            }
+        }
+    }
+
+    let root_node = taffy_root.unwrap();
+    let mut fonts = ui.fonts.take().unwrap();
 
     taffy
         .compute_layout_with_measure(
@@ -251,5 +306,17 @@ pub fn layout_tree(ui: &mut Ui) {
 
     ui.fonts = Some(fonts);
 
+    // write computed positions back to elements
     write_back(ui, root, &taffy, root_node, 0.0, 0.0);
+
+    // put taffy back
+    ui.taffy = Some(taffy);
+    ui.taffy_nodes = taffy_nodes;
+    ui.taffy_root = taffy_root;
+}
+
+pub fn invalidate_layout(ui: &mut Ui) {
+    ui.taffy = Some(TaffyTree::new());
+    ui.taffy_nodes.clear();
+    ui.taffy_root = None;
 }
