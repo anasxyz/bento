@@ -304,6 +304,33 @@ impl Ui {
         }
     }
 
+    pub fn dirty_region(&self) -> Option<[f32; 4]> {
+        let pad = 4.0; // extra pixels to account for AA bleed
+        let mut region: Option<[f32; 4]> = None;
+        for slot in self.slots.iter().filter_map(|s| s.as_ref()) {
+            if !slot.element.is_dirty() {
+                continue;
+            }
+            let l = slot.element.layout();
+
+            if l.w > 0.0 || l.h > 0.0 {
+                let rect = [l.x - pad, l.y - pad, l.x + l.w + pad, l.y + l.h + pad];
+                region = Some(union(region, rect));
+            }
+
+            if l.prev_w > 0.0 || l.prev_h > 0.0 {
+                let rect = [
+                    l.prev_x - pad,
+                    l.prev_y - pad,
+                    l.prev_x + l.prev_w + pad,
+                    l.prev_y + l.prev_h + pad,
+                ];
+                region = Some(union(region, rect));
+            }
+        }
+        region
+    }
+
     // mouse helpers
     pub fn mouse_x(&self) -> f32 {
         self.mouse.x
@@ -355,4 +382,16 @@ fn get_inner_mut<T: 'static>(el: &mut AnyElement) -> Option<&mut T> {
         AnyElement::Container(e) => e,
     };
     any.downcast_mut::<T>()
+}
+
+fn union(region: Option<[f32; 4]>, rect: [f32; 4]) -> [f32; 4] {
+    match region {
+        None => rect,
+        Some([ax, ay, ax2, ay2]) => [
+            ax.min(rect[0]),
+            ay.min(rect[1]),
+            ax2.max(rect[2]),
+            ay2.max(rect[3]),
+        ],
+    }
 }

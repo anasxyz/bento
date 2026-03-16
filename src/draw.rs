@@ -168,3 +168,30 @@ pub fn draw_tree(ui: &Ui, draw: &mut DrawContext) {
         }
     }
 }
+
+// returns the union of all dirty element rects in logical pixels
+// None means nothing dirty, Some means the region that needs repainting
+pub fn dirty_region(ui: &Ui) -> Option<[f32; 4]> {
+    let mut region: Option<[f32; 4]> = None;
+    for slot in ui.slots.iter().filter_map(|s| s.as_ref()) {
+        if !slot.element.is_dirty() {
+            continue;
+        }
+        let l = slot.element.layout();
+        // skip elements with no size yet
+        if l.w == 0.0 && l.h == 0.0 {
+            continue;
+        }
+        let rect = [l.x, l.y, l.x + l.w, l.y + l.h];
+        region = Some(match region {
+            None => rect,
+            Some([ax, ay, ax2, ay2]) => [
+                ax.min(rect[0]),
+                ay.min(rect[1]),
+                ax2.max(rect[2]),
+                ay2.max(rect[3]),
+            ],
+        });
+    }
+    region
+}

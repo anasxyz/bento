@@ -74,6 +74,22 @@ impl DrawContext {
         );
     }
 
+    pub fn draw_clear(&mut self, color: [f32; 4]) {
+        self.shapes.draw_rect(
+            0.0,
+            0.0,
+            self.width,
+            self.height,
+            crate::render::shape_renderer::ShapeDrawParams {
+                color,
+                radius: 0.0,
+                border_color: [0.0; 4],
+                border_width: 0.0,
+                clip: None,
+            },
+        );
+    }
+
     pub fn clear(&mut self) {
         self.shapes.clear();
         self.text.clear();

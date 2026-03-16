@@ -8,6 +8,8 @@ pub struct GpuContext {
     pub surface: wgpu::Surface<'static>,
     pub config: wgpu::SurfaceConfiguration,
     pub format: wgpu::TextureFormat,
+    pub backing_store: wgpu::Texture,
+    pub backing_view: wgpu::TextureView,
 }
 
 impl GpuContext {
@@ -43,7 +45,7 @@ impl GpuContext {
 
         let size = window.inner_size();
         let config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_DST,
             format,
             width: size.width,
             height: size.height,
@@ -54,13 +56,42 @@ impl GpuContext {
         };
         surface.configure(&device, &config);
 
+        let (backing_store, backing_view) =
+            Self::create_backing_store(&device, format, size.width, size.height);
+
         Self {
             device,
             queue,
             surface,
             config,
             format,
+            backing_store,
+            backing_view,
         }
+    }
+
+    fn create_backing_store(
+        device: &wgpu::Device,
+        format: wgpu::TextureFormat,
+        width: u32,
+        height: u32,
+    ) -> (wgpu::Texture, wgpu::TextureView) {
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Backing Store"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        (texture, view)
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -70,6 +101,12 @@ impl GpuContext {
         self.config.width = width;
         self.config.height = height;
         self.surface.configure(&self.device, &self.config);
+
+        // recreate backing store at new size
+        let (backing_store, backing_view) =
+            Self::create_backing_store(&self.device, self.format, width, height);
+        self.backing_store = backing_store;
+        self.backing_view = backing_view;
     }
 
     pub fn begin_frame(&mut self) -> Result<RenderFrame, wgpu::SurfaceError> {
@@ -91,9 +128,9 @@ impl GpuContext {
 }
 
 pub struct RenderFrame {
-    frame: wgpu::SurfaceTexture,
-    view: wgpu::TextureView,
-    encoder: wgpu::CommandEncoder,
+    pub frame: wgpu::SurfaceTexture,
+    pub view: wgpu::TextureView,
+    pub encoder: wgpu::CommandEncoder,
 }
 
 impl RenderFrame {
@@ -103,7 +140,7 @@ impl RenderFrame {
 }
 
 pub struct FrameFinisher {
-    frame: wgpu::SurfaceTexture,
+    pub frame: wgpu::SurfaceTexture,
 }
 
 impl FrameFinisher {

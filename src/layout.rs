@@ -210,6 +210,11 @@ fn write_back(
 
     if let Some(el) = ui.get_any_mut(handle) {
         let l = el.layout_mut_internal();
+        // save previous position before overwriting
+        l.prev_x = l.x;
+        l.prev_y = l.y;
+        l.prev_w = l.w;
+        l.prev_h = l.h;
         l.x = x;
         l.y = y;
         l.w = w;

@@ -9,7 +9,7 @@ use winit::{
     window::{Window, WindowId},
 };
 
-use crate::draw::draw_tree;
+use crate::draw::{dirty_region, draw_tree};
 use crate::event::Event;
 use crate::events::fire_events;
 use crate::keyboard::{Key, Modifiers};
@@ -85,7 +85,6 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
             gpu,
             self.settings.clear_color,
         ));
-
         self.sync_window_size();
     }
 
@@ -100,14 +99,18 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                 (self.update)(&mut self.ui);
 
                 if self.ui.any_dirty() {
-                    println!("dirty, recomputing");
                     win.begin();
                     layout_tree(&mut self.ui);
+                    let region = self.ui.dirty_region();
+                    let c = win.clear_color.to_array();
+                    win.draw.draw_clear(c); 
                     draw_tree(&self.ui, &mut win.draw);
                     self.ui.clear_dirty();
+                    win.render(region, true);
+                } else {
+                    win.render(None, false);
                 }
 
-                win.render();
                 self.ui.mouse.reset();
             }
             WindowEvent::ModifiersChanged(mods) => {
@@ -138,13 +141,11 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                             text,
                         };
                         if let Some(f) = focused {
-                            // fire internal key handler on focused element then bubble to global
                             self.ui
                                 .get_any_mut(f)
                                 .map(|e| e.on_key_press(key.clone(), mods.clone(), text));
                             self.ui.emit_bubbling(f, ev);
                         } else {
-                            // nothing focused, fire directly on global
                             self.ui.emit(global, ev);
                         }
                     }
