@@ -27,29 +27,19 @@ fn hit_test(ui: &Ui, handle: Handle<()>, mx: f32, my: f32, hits: &mut Vec<Handle
         hit_test(ui, child, mx, my, hits);
     }
 
-    // only add to hits if this element has at least one connection
     if ui.has_connections(handle) {
         hits.push(handle);
     }
 }
 
 fn top_hit(ui: &Ui, hits: &[Handle<()>]) -> Option<Handle<()>> {
-    // hits are in depth first order, last = deepest / latest sibling
-    // among elements at the same depth, prefer higher z_index
-    for h in hits {
-        let l = ui.get_any(*h).map(|e| {
-            let l = e.layout();
-            (l.x, l.y, l.w, l.h, l.z_index)
-        });
-        println!("hit: id={} layout={:?}", h.id, l);
-    }
     hits.iter()
         .copied()
         .enumerate()
         .max_by(|(i, a), (j, b)| {
             let az = ui.get_any(*a).map(|e| e.layout().z_index).unwrap_or(0);
             let bz = ui.get_any(*b).map(|e| e.layout().z_index).unwrap_or(0);
-            az.cmp(&bz).then(i.cmp(j)) // z_index first, position in list as tiebreaker
+            az.cmp(&bz).then(i.cmp(j))
         })
         .map(|(_, h)| h)
 }
@@ -92,11 +82,11 @@ pub fn fire_events(ui: &mut Ui) {
     // hover enter/leave
     if ui.interaction.hovered != new_hovered {
         if let Some(prev) = ui.interaction.hovered {
-            ui.get_any_mut(prev).and_then(|e| e.on_mouse_leave());
+            ui.get_any_mut(prev).map(|e| e.on_mouse_leave());
             ui.emit_bubbling(prev, Event::HoverEnd);
         }
         if let Some(next) = new_hovered {
-            ui.get_any_mut(next).and_then(|e| e.on_mouse_enter());
+            ui.get_any_mut(next).map(|e| e.on_mouse_enter());
             ui.emit_bubbling(next, Event::Hover);
         }
         ui.interaction.hovered = new_hovered;
@@ -106,13 +96,13 @@ pub fn fire_events(ui: &mut Ui) {
     if left_pressed {
         if let Some(target) = new_hovered {
             ui.get_any_mut(target)
-                .and_then(|e| e.on_mouse_press(lx, ly, MouseButton::Left));
+                .map(|e| e.on_mouse_press(lx, ly, MouseButton::Left));
             ui.emit_bubbling(target, Event::Press { x: lx, y: ly });
             ui.interaction.pressed = Some(target);
 
             if double_clicked {
                 ui.get_any_mut(target)
-                    .and_then(|e| e.on_mouse_double_click(lx, ly, MouseButton::Left));
+                    .map(|e| e.on_mouse_double_click(lx, ly, MouseButton::Left));
                 ui.emit_bubbling(target, Event::DoubleClick { x: lx, y: ly });
             }
         } else {
@@ -124,12 +114,12 @@ pub fn fire_events(ui: &mut Ui) {
     if left_released {
         if let Some(target) = new_hovered {
             ui.get_any_mut(target)
-                .and_then(|e| e.on_mouse_release(lx, ly, MouseButton::Left));
+                .map(|e| e.on_mouse_release(lx, ly, MouseButton::Left));
             ui.emit_bubbling(target, Event::Release { x: lx, y: ly });
 
             if ui.interaction.pressed == Some(target) {
                 ui.get_any_mut(target)
-                    .and_then(|e| e.on_mouse_click(lx, ly, MouseButton::Left));
+                    .map(|e| e.on_mouse_click(lx, ly, MouseButton::Left));
                 ui.emit_bubbling(target, Event::Click { x: lx, y: ly });
             }
         } else {
@@ -142,7 +132,7 @@ pub fn fire_events(ui: &mut Ui) {
     if right_pressed {
         if let Some(target) = new_hovered {
             ui.get_any_mut(target)
-                .and_then(|e| e.on_mouse_press(rx, ry, MouseButton::Right));
+                .map(|e| e.on_mouse_press(rx, ry, MouseButton::Right));
             ui.emit_bubbling(target, Event::Press { x: rx, y: ry });
         } else {
             ui.emit(global, Event::Press { x: rx, y: ry });
@@ -151,9 +141,9 @@ pub fn fire_events(ui: &mut Ui) {
     if right_released {
         if let Some(target) = new_hovered {
             ui.get_any_mut(target)
-                .and_then(|e| e.on_mouse_release(rx, ry, MouseButton::Right));
+                .map(|e| e.on_mouse_release(rx, ry, MouseButton::Right));
             ui.get_any_mut(target)
-                .and_then(|e| e.on_mouse_click(rx, ry, MouseButton::Right));
+                .map(|e| e.on_mouse_click(rx, ry, MouseButton::Right));
             ui.emit_bubbling(target, Event::RightClick { x: rx, y: ry });
         } else {
             ui.emit(global, Event::RightClick { x: rx, y: ry });
@@ -164,15 +154,15 @@ pub fn fire_events(ui: &mut Ui) {
     if middle_pressed {
         if let Some(target) = new_hovered {
             ui.get_any_mut(target)
-                .and_then(|e| e.on_mouse_press(midx, midy, MouseButton::Middle));
+                .map(|e| e.on_mouse_press(midx, midy, MouseButton::Middle));
         }
     }
     if middle_released {
         if let Some(target) = new_hovered {
             ui.get_any_mut(target)
-                .and_then(|e| e.on_mouse_release(midx, midy, MouseButton::Middle));
+                .map(|e| e.on_mouse_release(midx, midy, MouseButton::Middle));
             ui.get_any_mut(target)
-                .and_then(|e| e.on_mouse_click(midx, midy, MouseButton::Middle));
+                .map(|e| e.on_mouse_click(midx, midy, MouseButton::Middle));
         }
     }
 
@@ -181,11 +171,11 @@ pub fn fire_events(ui: &mut Ui) {
         let new_focused = new_hovered;
         if ui.interaction.focused != new_focused {
             if let Some(prev) = ui.interaction.focused {
-                ui.get_any_mut(prev).and_then(|e| e.on_focus_lost());
+                ui.get_any_mut(prev).map(|e| e.on_focus_lost());
                 ui.emit_bubbling(prev, Event::FocusLost);
             }
             if let Some(next) = new_focused {
-                ui.get_any_mut(next).and_then(|e| e.on_focus_gained());
+                ui.get_any_mut(next).map(|e| e.on_focus_gained());
                 ui.emit_bubbling(next, Event::FocusGained);
             }
             ui.interaction.focused = new_focused;

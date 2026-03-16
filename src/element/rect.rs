@@ -1,27 +1,23 @@
 use crate::color::Color;
-use crate::element::handle::Handle;
 use crate::element::layout::Layout;
 use crate::fonts::Fonts;
-use crate::mouse::MouseButton;
-use crate::ui::Ui;
 
 pub struct Rect {
-    pub layout: Layout,
-    pub bg_color: Color,
-    pub border_color: Option<Color>,
-    pub border_radius: Option<f32>,
-    pub border_thickness: f32,
-    pub focused: bool,
+    pub(crate) layout: Layout,
+    pub(crate) dirty: bool,
+    bg_color: Color,
+    border_color: Option<Color>,
+    border_radius: Option<f32>,
+    border_thickness: f32,
+    focused: bool,
 }
 
 impl Rect {
-    pub const FOCUS_GAINED: u32 = 0;
-    pub const FOCUS_LOST: u32 = 1;
-
     pub fn new() -> Self {
         Self {
             layout: Layout::default(),
-            bg_color: Color::new(0.0, 0.0, 0.0, 1.0),
+            dirty: true,
+            bg_color: Color::BLACK,
             border_color: None,
             border_radius: None,
             border_thickness: 0.0,
@@ -29,13 +25,51 @@ impl Rect {
         }
     }
 
-    pub fn on_focus_gained(&mut self) -> Option<u32> {
-        self.focused = true;
-        Some(Self::FOCUS_GAINED)
+    // getters
+    pub fn bg_color(&self) -> Color {
+        self.bg_color
+    }
+    pub fn border_color(&self) -> Option<Color> {
+        self.border_color
+    }
+    pub fn border_radius(&self) -> Option<f32> {
+        self.border_radius
+    }
+    pub fn border_thickness(&self) -> f32 {
+        self.border_thickness
+    }
+    pub fn focused(&self) -> bool {
+        self.focused
     }
 
-    pub fn on_focus_lost(&mut self) -> Option<u32> {
+    // setters
+    pub fn set_bg_color(&mut self, color: Color) -> &mut Self {
+        self.bg_color = color;
+        self.dirty = true;
+        self
+    }
+    pub fn set_border_color(&mut self, color: Option<Color>) -> &mut Self {
+        self.border_color = color;
+        self.dirty = true;
+        self
+    }
+    pub fn set_border_radius(&mut self, radius: Option<f32>) -> &mut Self {
+        self.border_radius = radius;
+        self.dirty = true;
+        self
+    }
+    pub fn set_border_thickness(&mut self, thickness: f32) -> &mut Self {
+        self.border_thickness = thickness;
+        self.dirty = true;
+        self
+    }
+
+    pub(crate) fn on_focus_gained(&mut self) {
+        self.focused = true;
+        self.dirty = true;
+    }
+    pub(crate) fn on_focus_lost(&mut self) {
         self.focused = false;
-        Some(Self::FOCUS_LOST)
+        self.dirty = true;
     }
 }

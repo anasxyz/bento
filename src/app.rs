@@ -53,6 +53,18 @@ struct Runner<F: FnMut(&mut Ui)> {
     modifiers: Modifiers,
 }
 
+impl<F: FnMut(&mut Ui)> Runner<F> {
+    fn sync_window_size(&mut self) {
+        let Some(win) = self.win.as_mut() else { return };
+        win.resize_and_rescale();
+        let scale = win.window.scale_factor() as f32;
+        self.ui.window_width = (win.window.inner_size().width as f32 / scale) as u32;
+        self.ui.window_height = (win.window.inner_size().height as f32 / scale) as u32;
+        self.ui.mark_all_dirty();
+        win.request_redraw();
+    }
+}
+
 impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let window = Arc::new(
@@ -68,7 +80,13 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                 .unwrap(),
         );
         let gpu = pollster::block_on(GpuContext::new(window.clone()));
-        self.win = Some(WindowState::new(window, gpu, self.settings.clear_color));
+        self.win = Some(WindowState::new(
+            window.clone(),
+            gpu,
+            self.settings.clear_color,
+        ));
+
+        self.sync_window_size();
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
@@ -80,9 +98,15 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                 fire_events(&mut self.ui);
                 self.ui.drain_events();
                 (self.update)(&mut self.ui);
-                win.begin();
-                layout_tree(&mut self.ui);
-                draw_tree(&self.ui, &mut win.draw);
+
+                if self.ui.any_dirty() {
+                    println!("dirty, recomputing");
+                    win.begin();
+                    layout_tree(&mut self.ui);
+                    draw_tree(&self.ui, &mut win.draw);
+                    self.ui.clear_dirty();
+                }
+
                 win.render();
                 self.ui.mouse.reset();
             }
@@ -108,11 +132,16 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
 
                 match event.state {
                     ElementState::Pressed => {
-                        let ev = Event::KeyPress { key: key.clone(), mods: mods.clone(), text };
+                        let ev = Event::KeyPress {
+                            key: key.clone(),
+                            mods: mods.clone(),
+                            text,
+                        };
                         if let Some(f) = focused {
-                            // fire on focused element and let it bubble up to global
-                            // so I dont emit on global separately, that was firing twice
-                            self.ui.get_any_mut(f).and_then(|e| e.on_key_press(key.clone(), mods.clone(), text));
+                            // fire internal key handler on focused element then bubble to global
+                            self.ui
+                                .get_any_mut(f)
+                                .map(|e| e.on_key_press(key.clone(), mods.clone(), text));
                             self.ui.emit_bubbling(f, ev);
                         } else {
                             // nothing focused, fire directly on global
@@ -120,11 +149,14 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                         }
                     }
                     ElementState::Released => {
-                        let ev = Event::KeyRelease { key: key.clone(), mods: mods.clone() };
+                        let ev = Event::KeyRelease {
+                            key: key.clone(),
+                            mods: mods.clone(),
+                        };
                         if let Some(f) = focused {
-                            // same as above
-                            // bubbling reaches global, no need to emit separately
-                            self.ui.get_any_mut(f).and_then(|e| e.on_key_release(key.clone(), mods.clone()));
+                            self.ui
+                                .get_any_mut(f)
+                                .map(|e| e.on_key_release(key.clone(), mods.clone()));
                             self.ui.emit_bubbling(f, ev);
                         } else {
                             self.ui.emit(global, ev);
@@ -159,14 +191,10 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                 win.request_redraw();
             }
             WindowEvent::Resized(_) => {
-                win.resize_and_rescale();
-                self.ui.window_width =
-                    win.window.inner_size().width / win.window.scale_factor() as u32;
-                self.ui.window_height =
-                    win.window.inner_size().height / win.window.scale_factor() as u32;
+                self.sync_window_size();
             }
             WindowEvent::ScaleFactorChanged { .. } => {
-                win.resize_and_rescale();
+                self.sync_window_size();
             }
             WindowEvent::CloseRequested => {
                 self.win = None;

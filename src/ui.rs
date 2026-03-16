@@ -92,20 +92,20 @@ impl Ui {
         Handle::new(id, 0)
     }
 
-    pub fn get<T: 'static>(&self, handle: Handle<T>) -> Option<&T> {
-        let slot = self.slots.get(handle.id as usize)?.as_ref()?;
-        if slot.generation != handle.generation {
-            return None;
-        }
-        get_inner_ref::<T>(&slot.element)
-    }
-
-    pub fn get_mut<T: 'static>(&mut self, handle: Handle<T>) -> Option<&mut T> {
+    pub fn get_mut<T>(&mut self, handle: Handle<T>) -> Option<&mut AnyElement> {
         let slot = self.slots.get_mut(handle.id as usize)?.as_mut()?;
         if slot.generation != handle.generation {
             return None;
         }
-        get_inner_mut::<T>(&mut slot.element)
+        Some(&mut slot.element)
+    }
+
+    pub fn get<T>(&self, handle: Handle<T>) -> Option<&AnyElement> {
+        let slot = self.slots.get(handle.id as usize)?.as_ref()?;
+        if slot.generation != handle.generation {
+            return None;
+        }
+        Some(&slot.element)
     }
 
     pub(crate) fn get_any(&self, handle: Handle<()>) -> Option<&AnyElement> {
@@ -270,6 +270,25 @@ impl Ui {
         }
     }
 
+    pub fn any_dirty(&self) -> bool {
+        self.slots
+            .iter()
+            .filter_map(|s| s.as_ref())
+            .any(|s| s.element.is_dirty())
+    }
+
+    pub fn clear_dirty(&mut self) {
+        for slot in self.slots.iter_mut().filter_map(|s| s.as_mut()) {
+            slot.element.clear_dirty();
+        }
+    }
+
+    pub fn mark_all_dirty(&mut self) {
+        for slot in self.slots.iter_mut().filter_map(|s| s.as_mut()) {
+            slot.element.mark_dirty();
+        }
+    }
+
     // mouse helpers
     pub fn mouse_x(&self) -> f32 {
         self.mouse.x
@@ -294,19 +313,6 @@ impl Ui {
     }
     pub fn right_mouse_just_released(&self) -> bool {
         self.mouse.right_just_released
-    }
-}
-
-impl<T: 'static> Index<Handle<T>> for Ui {
-    type Output = T;
-    fn index(&self, handle: Handle<T>) -> &T {
-        self.get(handle).expect("stale handle")
-    }
-}
-
-impl<T: 'static> IndexMut<Handle<T>> for Ui {
-    fn index_mut(&mut self, handle: Handle<T>) -> &mut T {
-        self.get_mut(handle).expect("stale handle")
     }
 }
 

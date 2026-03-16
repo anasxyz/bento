@@ -188,7 +188,7 @@ fn write_back(
     let h = layout.size.height;
 
     if let Some(el) = ui.get_any_mut(handle) {
-        let l = el.layout_mut();
+        let l = el.layout_mut_internal();
         l.x = x;
         l.y = y;
         l.w = w;

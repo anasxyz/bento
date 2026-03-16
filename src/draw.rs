@@ -69,9 +69,9 @@ pub fn collect_draws(
 
     match el {
         AnyElement::Rect(rect) => {
-            let mut color = rect.bg_color.to_array();
+            let mut color = rect.bg_color().to_array();
             color[3] *= opacity;
-            let mut border_color = rect.border_color.unwrap_or(Color::BLACK).to_array();
+            let mut border_color = rect.border_color().unwrap_or(Color::BLACK).to_array();
             border_color[3] *= opacity;
             calls.push(DrawCall::Rect {
                 x: layout.x,
@@ -80,26 +80,26 @@ pub fn collect_draws(
                 h: layout.h,
                 params: ShapeDrawParams {
                     color,
-                    radius: rect.border_radius.unwrap_or(0.0),
+                    radius: rect.border_radius().unwrap_or(0.0),
                     border_color,
-                    border_width: rect.border_thickness,
+                    border_width: rect.border_thickness(),
                     clip,
                 },
                 z_index: z,
             });
         }
         AnyElement::Label(label) => {
-            let mut text_color = label.text_color;
+            let mut text_color = label.text_color();
             text_color.a *= opacity;
             calls.push(DrawCall::Text {
                 x: layout.x,
                 y: layout.y,
-                content: label.text.clone(),
+                content: label.text().to_string(),
                 params: TextDrawParams {
-                    family: label.font_family.clone(),
-                    size: label.font_size,
-                    weight: label.font_weight,
-                    italic: label.font_italic,
+                    family: label.font_family().to_string(),
+                    size: label.font_size(),
+                    weight: label.font_weight(),
+                    italic: label.font_italic(),
                     color: text_color,
                     width: if layout.w > 0.0 { layout.w } else { f32::MAX },
                     clip,
@@ -108,10 +108,10 @@ pub fn collect_draws(
             });
         }
         AnyElement::Container(container) => {
-            if let Some(bg) = container.bg_color {
+            if let Some(bg) = container.bg_color() {
                 let mut color = bg.to_array();
                 color[3] *= opacity;
-                let mut border_color = container.border_color.unwrap_or(Color::BLACK).to_array();
+                let mut border_color = container.border_color().unwrap_or(Color::BLACK).to_array();
                 border_color[3] *= opacity;
                 calls.push(DrawCall::Rect {
                     x: layout.x,
@@ -120,9 +120,9 @@ pub fn collect_draws(
                     h: layout.h,
                     params: ShapeDrawParams {
                         color,
-                        radius: container.border_radius.unwrap_or(0.0),
+                        radius: container.border_radius().unwrap_or(0.0),
                         border_color,
-                        border_width: container.border_thickness,
+                        border_width: container.border_thickness(),
                         clip,
                     },
                     z_index: z,
