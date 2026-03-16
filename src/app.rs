@@ -74,19 +74,18 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
         event_loop.set_control_flow(ControlFlow::Wait);
         let Some(win) = self.win.as_mut() else { return };
 
+        self.ui.window_width = win.window.inner_size().width / win.window.scale_factor() as u32;
+        self.ui.window_height = win.window.inner_size().height / win.window.scale_factor() as u32;
+
         match event {
             WindowEvent::RedrawRequested => {
                 fire_events(&mut self.ui, &win.mouse);
                 (self.update)(&mut self.ui);
                 win.begin();
 
-                let size = win.window.inner_size();
-                let scale = win.window.scale_factor() as f32;
-                let logical_w = size.width as f32 / scale;
-                let logical_h = size.height as f32 / scale;
-
-                layout_tree(&mut self.ui, logical_w, logical_h, &mut win.fonts);
+                layout_tree(&mut self.ui, &mut win.fonts);
                 draw_tree(&self.ui, &mut win.draw);
+
                 win.render();
                 win.mouse.reset();
             }
@@ -136,15 +135,14 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                         }
                     }
                 }
-                win.window.request_redraw();
+                win.request_redraw();
             }
             WindowEvent::CursorMoved { position, .. } => {
                 let Some(win) = self.win.as_mut() else { return };
                 let scale = win.window.scale_factor() as f32;
                 win.mouse.x = position.x as f32 / scale;
                 win.mouse.y = position.y as f32 / scale;
-                win.mouse.update_drag();
-                win.window.request_redraw();
+                win.request_redraw();
             }
             WindowEvent::MouseInput { button, state, .. } => {
                 let Some(win) = self.win.as_mut() else { return };
@@ -163,22 +161,13 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                     },
                     _ => {}
                 }
-                win.window.request_redraw();
+                win.request_redraw();
             }
             WindowEvent::Resized(size) => {
-                let Some(win) = self.win.as_mut() else { return };
-                let scale = win.window.scale_factor() as f32;
-                win.gpu.resize(size.width, size.height);
-                win.draw
-                    .resize(size.width as f32 / scale, size.height as f32 / scale);
+                win.resize_and_rescale();
             }
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
-                let Some(win) = self.win.as_mut() else { return };
-                let size = win.window.inner_size();
-                let scale = scale_factor as f32;
-                win.gpu.resize(size.width, size.height);
-                win.draw
-                    .set_scale(scale, size.width as f32 / scale, size.height as f32 / scale);
+                win.resize_and_rescale();
             }
             WindowEvent::CloseRequested => {
                 self.win = None;

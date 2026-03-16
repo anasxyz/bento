@@ -143,25 +143,4 @@ impl MouseState {
         self.middle_just_pressed = false;
         self.middle_just_released = false;
     }
-
-    pub fn update_drag(&mut self) {
-        if !self.left_pressed && !self.left_just_pressed {
-            self.is_dragging = false;
-        }
-        if self.left_just_pressed {
-            self.drag_start_x = self.x;
-            self.drag_start_y = self.y;
-            self.is_dragging = false;
-        }
-        if self.left_pressed {
-            let dx = self.x - self.drag_start_x;
-            let dy = self.y - self.drag_start_y;
-            if (dx * dx + dy * dy).sqrt() > DRAG_THRESHOLD {
-                self.is_dragging = true;
-            }
-        }
-        if self.left_just_released {
-            self.is_dragging = false;
-        }
-    }
 }

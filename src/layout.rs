@@ -203,11 +203,14 @@ fn write_back(
     }
 }
 
-pub fn layout_tree(ui: &mut Ui, window_w: f32, window_h: f32, fonts: &mut Fonts) {
+pub fn layout_tree(ui: &mut Ui, fonts: &mut Fonts) {
     let root = match ui.root() {
         Some(r) => r,
         None => return,
     };
+
+    let window_w = ui.window_width as f32;
+    let window_h = ui.window_height as f32;
 
     let mut taffy: TaffyTree<Handle<()>> = TaffyTree::new();
     let root_node = add_node(ui, root, &mut taffy);

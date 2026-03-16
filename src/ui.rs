@@ -43,6 +43,9 @@ pub struct Ui {
     connections: Vec<Connection>,
     key_connections: Vec<KeyConnection>,
     pub interaction: InteractionState,
+
+    pub window_width: u32,
+    pub window_height: u32,
 }
 
 impl Ui {
@@ -53,6 +56,8 @@ impl Ui {
             connections: Vec::new(),
             key_connections: Vec::new(),
             interaction: InteractionState::new(),
+            window_width: 0,
+            window_height: 0,
         }
     }
 

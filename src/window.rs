@@ -41,6 +41,19 @@ impl WindowState {
         self.draw.clear();
     }
 
+    pub fn resize_and_rescale(&mut self) {
+        let size = self.window.inner_size();
+        let scale = self.window.scale_factor();
+
+        self.gpu.resize(size.width, size.height);
+        self.draw
+            .set_scale(scale as f32, size.width as f32 / scale as f32, size.height as f32 / scale as f32);
+    }
+
+    pub fn request_redraw(&mut self) {
+        self.window.request_redraw();
+    }
+
     pub fn render(&mut self) {
         let frame = match self.gpu.begin_frame() {
             Ok(f) => f,
