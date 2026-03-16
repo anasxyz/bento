@@ -4,52 +4,30 @@ use wgpu;
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct Instance {
-    pos_size: [f32; 4],     //  0
-    params: [f32; 4],       //  1  [radius, border_w, aa_width, _pad]
-    fill_color: [f32; 4],   //  2
-    border_color: [f32; 4], //  3
-    clip: [f32; 4],         //  4  [cx, cy, cx2, cy2], all-zero = disabled
-    screen_size: [f32; 4],  //  5  [sw, sh, 0, 0]
+    pos_size:      [f32; 4],  // 0
+    params:        [f32; 4],  // 1  [radius, aa_width, 0, 0]
+    fill_color:    [f32; 4],  // 2
+    border_color:  [f32; 4],  // 3
+    clip:          [f32; 4],  // 4
+    screen_size:   [f32; 4],  // 5
+    border_widths: [f32; 4],  // 6  top, right, bottom, left
 }
 
 const INSTANCE_ATTRS: &[wgpu::VertexAttribute] = &[
-    wgpu::VertexAttribute {
-        offset: 0,
-        shader_location: 0,
-        format: wgpu::VertexFormat::Float32x4,
-    },
-    wgpu::VertexAttribute {
-        offset: 16,
-        shader_location: 1,
-        format: wgpu::VertexFormat::Float32x4,
-    },
-    wgpu::VertexAttribute {
-        offset: 32,
-        shader_location: 2,
-        format: wgpu::VertexFormat::Float32x4,
-    },
-    wgpu::VertexAttribute {
-        offset: 48,
-        shader_location: 3,
-        format: wgpu::VertexFormat::Float32x4,
-    },
-    wgpu::VertexAttribute {
-        offset: 64,
-        shader_location: 4,
-        format: wgpu::VertexFormat::Float32x4,
-    },
-    wgpu::VertexAttribute {
-        offset: 80,
-        shader_location: 5,
-        format: wgpu::VertexFormat::Float32x4,
-    },
+    wgpu::VertexAttribute { offset: 0,   shader_location: 0, format: wgpu::VertexFormat::Float32x4 },
+    wgpu::VertexAttribute { offset: 16,  shader_location: 1, format: wgpu::VertexFormat::Float32x4 },
+    wgpu::VertexAttribute { offset: 32,  shader_location: 2, format: wgpu::VertexFormat::Float32x4 },
+    wgpu::VertexAttribute { offset: 48,  shader_location: 3, format: wgpu::VertexFormat::Float32x4 },
+    wgpu::VertexAttribute { offset: 64,  shader_location: 4, format: wgpu::VertexFormat::Float32x4 },
+    wgpu::VertexAttribute { offset: 80,  shader_location: 5, format: wgpu::VertexFormat::Float32x4 },
+    wgpu::VertexAttribute { offset: 96,  shader_location: 6, format: wgpu::VertexFormat::Float32x4 },
 ];
 
 pub struct ShapeDrawParams {
     pub color: [f32; 4],
     pub radius: f32,
     pub border_color: [f32; 4],
-    pub border_width: f32,
+    pub border_widths: [f32; 4],  // top, right, bottom, left
     pub clip: Option<[f32; 4]>,
 }
 
@@ -59,7 +37,7 @@ impl Default for ShapeDrawParams {
             color: [1.0; 4],
             radius: 0.0,
             border_color: [0.0; 4],
-            border_width: 0.0,
+            border_widths: [0.0; 4],
             clip: None,
         }
     }
@@ -167,15 +145,18 @@ impl ShapeRenderer {
         let pw = w * s;
         let ph = h * s;
         let radius = (p.radius * s).min(pw * 0.5).min(ph * 0.5);
-        let border_width = p.border_width * s;
+        let border_widths = [
+            p.border_widths[0] * s,
+            p.border_widths[1] * s,
+            p.border_widths[2] * s,
+            p.border_widths[3] * s,
+        ];
 
         let clip_arr = match p.clip {
             Some([cx, cy, cx2, cy2]) => {
-                // early out in logical space
                 if x + w <= cx || y + h <= cy || x >= cx2 || y >= cy2 {
                     return;
                 }
-                // scale clip to physical
                 [cx * s, cy * s, cx2 * s, cy2 * s]
             }
             None => [0.0; 4],
@@ -183,11 +164,12 @@ impl ShapeRenderer {
 
         self.instances.push(Instance {
             pos_size: [px, py, pw, ph],
-            params: [radius, border_width, 1.0, 0.0],
+            params: [radius, 1.0, 0.0, 0.0],
             fill_color: p.color,
             border_color: p.border_color,
             clip: clip_arr,
             screen_size: [self.screen_width, self.screen_height, 0.0, 0.0],
+            border_widths,
         });
     }
 

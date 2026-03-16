@@ -8,7 +8,7 @@ pub struct Rect {
     bg_color: Color,
     border_color: Option<Color>,
     border_radius: Option<f32>,
-    border_thickness: f32,
+    border_widths: [f32; 4], // [top, right, bottom, left]
     focused: bool,
 }
 
@@ -20,7 +20,7 @@ impl Rect {
             bg_color: Color::BLACK,
             border_color: None,
             border_radius: None,
-            border_thickness: 0.0,
+            border_widths: [0.0; 4],
             focused: false,
         }
     }
@@ -35,8 +35,8 @@ impl Rect {
     pub fn border_radius(&self) -> Option<f32> {
         self.border_radius
     }
-    pub fn border_thickness(&self) -> f32 {
-        self.border_thickness
+    pub fn border_widths(&self) -> [f32; 4] {
+        self.border_widths
     }
     pub fn focused(&self) -> bool {
         self.focused
@@ -58,8 +58,8 @@ impl Rect {
         self.dirty = true;
         self
     }
-    pub fn set_border_thickness(&mut self, thickness: f32) -> &mut Self {
-        self.border_thickness = thickness;
+    pub fn set_border(&mut self, widths: [f32; 4]) -> &mut Self {
+        self.border_widths = widths;
         self.dirty = true;
         self
     }

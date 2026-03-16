@@ -21,7 +21,7 @@ fn main() {
         .set_justify_content(JustifyContent::Center)
         .set_bg_color(Color::hex("cba6f7"))
         .set_border_radius(Some(8.0))
-        .set_border_thickness(2.0);
+        .set_border([0.0, 0.0, 4.0, 0.0]);
     ui.append(root, btn);
 
     let label = ui.add(Label::new("Click me"));

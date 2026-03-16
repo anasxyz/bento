@@ -287,13 +287,13 @@ impl AnyElement {
         }
         self
     }
-    pub fn set_border_thickness(&mut self, thickness: f32) -> &mut Self {
+    pub fn set_border(&mut self, widths: [f32; 4]) -> &mut Self {
         match self {
             AnyElement::Rect(e) => {
-                e.set_border_thickness(thickness);
+                e.set_border(widths);
             }
             AnyElement::Container(e) => {
-                e.set_border_thickness(thickness);
+                e.set_border(widths);
             }
             _ => {}
         }

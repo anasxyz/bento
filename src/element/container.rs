@@ -7,7 +7,7 @@ pub struct Container {
     pub(crate) dirty: bool,
     bg_color: Option<Color>,
     border_radius: Option<f32>,
-    border_thickness: f32,
+    border_width: [f32; 4],
     border_color: Option<Color>,
 }
 
@@ -18,7 +18,7 @@ impl Container {
             dirty: true,
             bg_color: None,
             border_radius: None,
-            border_thickness: 0.0,
+            border_width: [0.0; 4],
             border_color: None,
         }
     }
@@ -30,8 +30,8 @@ impl Container {
     pub fn border_radius(&self) -> Option<f32> {
         self.border_radius
     }
-    pub fn border_thickness(&self) -> f32 {
-        self.border_thickness
+    pub fn border_widths(&self) -> [f32; 4] {
+        self.border_width
     }
     pub fn border_color(&self) -> Option<Color> {
         self.border_color
@@ -48,13 +48,13 @@ impl Container {
         self.dirty = true;
         self
     }
-    pub fn set_border_thickness(&mut self, thickness: f32) -> &mut Self {
-        self.border_thickness = thickness;
+    pub fn set_border_color(&mut self, color: Option<Color>) -> &mut Self {
+        self.border_color = color;
         self.dirty = true;
         self
     }
-    pub fn set_border_color(&mut self, color: Option<Color>) -> &mut Self {
-        self.border_color = color;
+    pub fn set_border(&mut self, widths: [f32; 4]) -> &mut Self {
+        self.border_width = widths;
         self.dirty = true;
         self
     }
