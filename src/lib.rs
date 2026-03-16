@@ -8,6 +8,7 @@ mod element;
 mod app;
 mod color;
 mod draw;
+mod event;
 mod events;
 mod fonts;
 mod layout;
@@ -34,4 +35,5 @@ pub use crate::{
     settings::WindowConfig,
     ui::Ui,
     keyboard::{Key, Modifiers},
+    event::Event,
 };

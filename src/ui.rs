@@ -1,9 +1,11 @@
 use crate::element::element::AnyElement;
 use crate::element::handle::Handle;
+use crate::event::Event;
 use crate::fonts::Fonts;
-use crate::keyboard::{Key, Modifiers};
 use crate::mouse::MouseState;
 use std::ops::{Index, IndexMut};
+
+const GLOBAL_ID: u32 = u32::MAX;
 
 struct Slot {
     element: AnyElement,
@@ -13,14 +15,9 @@ struct Slot {
 }
 
 pub struct Connection {
+    pub id: u32,
     pub handle: Handle<()>,
-    pub signal: u32,
-    pub callback: Box<dyn Fn(&mut Ui)>,
-}
-
-pub struct KeyConnection {
-    pub handle: Option<Handle<()>>,
-    pub callback: Box<dyn Fn(&mut Ui, Key, Modifiers, Option<char>)>,
+    pub callback: Box<dyn Fn(&mut Ui, &Event)>,
 }
 
 pub struct InteractionState {
@@ -43,7 +40,8 @@ pub struct Ui {
     slots: Vec<Option<Slot>>,
     root: Option<Handle<()>>,
     connections: Vec<Connection>,
-    key_connections: Vec<KeyConnection>,
+    next_connection_id: u32,
+    event_queue: Vec<(Handle<()>, Event)>,
     pub interaction: InteractionState,
     pub fonts: Option<Fonts>,
     pub mouse: MouseState,
@@ -57,13 +55,18 @@ impl Ui {
             slots: Vec::new(),
             root: None,
             connections: Vec::new(),
-            key_connections: Vec::new(),
+            next_connection_id: 0,
+            event_queue: Vec::new(),
             interaction: InteractionState::new(),
             fonts: Some(Fonts::new()),
             mouse: MouseState::default(),
             window_width: 0,
             window_height: 0,
         }
+    }
+
+    pub fn global(&self) -> Handle<()> {
+        Handle::new(GLOBAL_ID, 0)
     }
 
     pub fn add<T: Into<AnyElement>>(&mut self, element: T) -> Handle<T> {
@@ -105,7 +108,6 @@ impl Ui {
         get_inner_mut::<T>(&mut slot.element)
     }
 
-    // internal — returns the AnyElement directly, used by draw/events/layout
     pub(crate) fn get_any(&self, handle: Handle<()>) -> Option<&AnyElement> {
         let slot = self.slots.get(handle.id as usize)?.as_ref()?;
         if slot.generation != handle.generation {
@@ -176,6 +178,7 @@ impl Ui {
             }
         }
         self.connections.retain(|c| c.handle != handle);
+        self.event_queue.retain(|(h, _)| *h != handle);
         if self.interaction.hovered == Some(handle) {
             self.interaction.hovered = None;
         }
@@ -201,105 +204,91 @@ impl Ui {
     pub fn connect<T>(
         &mut self,
         handle: Handle<T>,
-        signal: u32,
-        callback: impl Fn(&mut Ui) + 'static,
-    ) {
+        callback: impl Fn(&mut Ui, &Event) + 'static,
+    ) -> u32 {
+        let id = self.next_connection_id;
+        self.next_connection_id += 1;
         self.connections.push(Connection {
+            id,
             handle: handle.untyped(),
-            signal,
             callback: Box::new(callback),
         });
+        id
     }
 
-    pub fn disconnect<T>(&mut self, handle: Handle<T>, signal: u32) {
+    pub fn disconnect(&mut self, connection_id: u32) {
+        self.connections.retain(|c| c.id != connection_id);
+    }
+
+    // pushes event onto the queue — safe to call from inside callbacks
+    pub fn emit<T>(&mut self, handle: Handle<T>, event: Event) {
+        self.event_queue.push((handle.untyped(), event));
+    }
+
+    pub fn emit_bubbling<T>(&mut self, handle: Handle<T>, event: Event) {
         let handle = handle.untyped();
-        self.connections
-            .retain(|c| !(c.handle == handle && c.signal == signal));
-    }
-
-    pub fn emit(&mut self, handle: Handle<()>, signal: u32) {
-        let indices: Vec<usize> = self
-            .connections
-            .iter()
-            .enumerate()
-            .filter(|(_, c)| c.handle == handle && c.signal == signal)
-            .map(|(i, _)| i)
-            .collect();
-        for i in indices {
-            let mut connections = std::mem::take(&mut self.connections);
-            let cb_ptr: *const dyn Fn(&mut Ui) = connections[i].callback.as_ref();
-            self.connections = connections;
-            unsafe { (*cb_ptr)(self) };
-        }
-    }
-
-    pub fn emit_bubbling(&mut self, handle: Handle<()>, signal: u32) {
         let mut chain = vec![handle];
         let mut current = self.parent(handle);
         while let Some(p) = current {
             chain.push(p);
             current = self.parent(p);
         }
+        chain.push(self.global());
         for ancestor in chain {
-            self.emit(ancestor, signal);
+            self.event_queue.push((ancestor, event.clone()));
         }
     }
 
-    pub fn broadcast(&mut self, signal: u32) {
-        let handles: Vec<Handle<()>> = self
-            .connections
-            .iter()
-            .filter(|c| c.signal == signal)
-            .map(|c| c.handle)
-            .collect::<std::collections::HashSet<_>>()
-            .into_iter()
-            .collect();
-        for handle in handles {
-            self.emit(handle, signal);
-        }
-    }
-
-    pub fn connect_key<T>(
-        &mut self,
-        handle: Handle<T>,
-        callback: impl Fn(&mut Ui, Key, Modifiers, Option<char>) + 'static,
-    ) {
-        self.key_connections.push(KeyConnection {
-            handle: Some(handle.untyped()),
-            callback: Box::new(callback),
-        });
-    }
-
-    pub fn connect_key_global(
-        &mut self,
-        callback: impl Fn(&mut Ui, Key, Modifiers, Option<char>) + 'static,
-    ) {
-        self.key_connections.push(KeyConnection {
-            handle: None,
-            callback: Box::new(callback),
-        });
-    }
-
-    pub fn fire_key(
-        &mut self,
-        focused: Option<Handle<()>>,
-        key: Key,
-        modifiers: Modifiers,
-        text: Option<char>,
-    ) {
-        let mut key_connections = std::mem::take(&mut self.key_connections);
-        for conn in &key_connections {
-            let should_fire = match conn.handle {
-                None => true,
-                Some(h) => Some(h) == focused,
-            };
-            if should_fire {
-                let cb_ptr: *const dyn Fn(&mut Ui, Key, Modifiers, Option<char>) =
-                    conn.callback.as_ref();
-                unsafe { (*cb_ptr)(self, key.clone(), modifiers.clone(), text) };
+    // drains the event queue and fires all callbacks
+    // called once per frame by the app loop
+    pub fn drain_events(&mut self) {
+        while !self.event_queue.is_empty() {
+            let queue = std::mem::take(&mut self.event_queue);
+            for (handle, event) in queue {
+                let ids: Vec<u32> = self
+                    .connections
+                    .iter()
+                    .filter(|c| c.handle == handle)
+                    .map(|c| c.id)
+                    .collect();
+                for id in ids {
+                    let i = match self.connections.iter().position(|c| c.id == id) {
+                        Some(i) => i,
+                        None => continue, // was disconnected
+                    };
+                    let mut connections = std::mem::take(&mut self.connections);
+                    let cb_ptr: *const dyn Fn(&mut Ui, &Event) = connections[i].callback.as_ref();
+                    self.connections = connections;
+                    unsafe { (*cb_ptr)(self, &event) };
+                }
             }
         }
-        self.key_connections = key_connections;
+    }
+
+    // mouse helpers
+    pub fn mouse_x(&self) -> f32 {
+        self.mouse.x
+    }
+    pub fn mouse_y(&self) -> f32 {
+        self.mouse.y
+    }
+    pub fn mouse_down(&self) -> bool {
+        self.mouse.left_pressed
+    }
+    pub fn mouse_just_pressed(&self) -> bool {
+        self.mouse.left_just_pressed
+    }
+    pub fn mouse_just_released(&self) -> bool {
+        self.mouse.left_just_released
+    }
+    pub fn right_mouse_down(&self) -> bool {
+        self.mouse.right_pressed
+    }
+    pub fn right_mouse_just_pressed(&self) -> bool {
+        self.mouse.right_just_pressed
+    }
+    pub fn right_mouse_just_released(&self) -> bool {
+        self.mouse.right_just_released
     }
 }
 
@@ -316,13 +305,11 @@ impl<T: 'static> IndexMut<Handle<T>> for Ui {
     }
 }
 
-// downcast helpers — match AnyElement to get &T or &mut T
 fn get_inner_ref<T: 'static>(el: &AnyElement) -> Option<&T> {
     use crate::element::container::Container;
     use crate::element::label::Label;
     use crate::element::rect::Rect;
     use std::any::Any;
-
     let any: &dyn Any = match el {
         AnyElement::Rect(e) => e,
         AnyElement::Label(e) => e,
@@ -336,7 +323,6 @@ fn get_inner_mut<T: 'static>(el: &mut AnyElement) -> Option<&mut T> {
     use crate::element::label::Label;
     use crate::element::rect::Rect;
     use std::any::Any;
-
     let any: &mut dyn Any = match el {
         AnyElement::Rect(e) => e,
         AnyElement::Label(e) => e,

@@ -10,6 +10,7 @@ use winit::{
 };
 
 use crate::draw::draw_tree;
+use crate::event::Event;
 use crate::events::fire_events;
 use crate::keyboard::{Key, Modifiers};
 use crate::layout::layout_tree;
@@ -77,12 +78,11 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
         match event {
             WindowEvent::RedrawRequested => {
                 fire_events(&mut self.ui);
+                self.ui.drain_events();
                 (self.update)(&mut self.ui);
                 win.begin();
-
                 layout_tree(&mut self.ui);
                 draw_tree(&self.ui, &mut win.draw);
-
                 win.render();
                 self.ui.mouse.reset();
             }
@@ -104,30 +104,24 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                 let text = event.text.as_ref().and_then(|t| t.chars().next());
                 let mods = self.modifiers.clone();
                 let focused = self.ui.interaction.focused;
+                let global = self.ui.global();
 
                 match event.state {
                     ElementState::Pressed => {
+                        let ev = Event::KeyPress { key: key.clone(), mods: mods.clone(), text };
                         if let Some(f) = focused {
-                            let signal = self
-                                .ui
-                                .get_any_mut(f)
-                                .and_then(|e| e.on_key_press(key.clone(), mods.clone(), text));
-                            if let Some(s) = signal {
-                                self.ui.emit_bubbling(f, s);
-                            }
+                            self.ui.get_any_mut(f).and_then(|e| e.on_key_press(key.clone(), mods.clone(), text));
+                            self.ui.emit_bubbling(f, ev.clone());
                         }
-                        self.ui.fire_key(focused, key, mods, text);
+                        self.ui.emit(global, ev);
                     }
                     ElementState::Released => {
+                        let ev = Event::KeyRelease { key: key.clone(), mods: mods.clone() };
                         if let Some(f) = focused {
-                            let signal = self
-                                .ui
-                                .get_any_mut(f)
-                                .and_then(|e| e.on_key_release(key.clone(), mods.clone()));
-                            if let Some(s) = signal {
-                                self.ui.emit_bubbling(f, s);
-                            }
+                            self.ui.get_any_mut(f).and_then(|e| e.on_key_release(key.clone(), mods.clone()));
+                            self.ui.emit_bubbling(f, ev.clone());
                         }
+                        self.ui.emit(global, ev);
                     }
                 }
                 win.request_redraw();

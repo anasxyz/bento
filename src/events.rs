@@ -1,4 +1,5 @@
 use crate::element::handle::Handle;
+use crate::event::Event;
 use crate::mouse::MouseButton;
 use crate::ui::Ui;
 
@@ -29,12 +30,6 @@ fn hit_test(ui: &Ui, handle: Handle<()>, mx: f32, my: f32, hits: &mut Vec<Handle
     hits.push(handle);
 }
 
-fn fire_on(ui: &mut Ui, target: Handle<()>, signal: Option<u32>) {
-    if let Some(s) = signal {
-        ui.emit_bubbling(target, s);
-    }
-}
-
 pub fn fire_events(ui: &mut Ui) {
     let root = match ui.root() {
         Some(r) => r,
@@ -61,106 +56,108 @@ pub fn fire_events(ui: &mut Ui) {
     hit_test(ui, root, mx, my, &mut hover_hits);
     let new_hovered = hover_hits.first().copied();
 
+    // mouse move — always fire on global and hovered element
+    let global = ui.global();
+    ui.emit(global, Event::MouseMove { x: mx, y: my });
+    if let Some(hovered) = new_hovered {
+        ui.emit(hovered, Event::MouseMove { x: mx, y: my });
+    }
+
+    // hover enter/leave
     if ui.interaction.hovered != new_hovered {
         if let Some(prev) = ui.interaction.hovered {
             let signal = ui.get_any_mut(prev).and_then(|e| e.on_mouse_leave());
-            fire_on(ui, prev, signal);
+            if signal.is_some() {
+                ui.emit_bubbling(prev, Event::HoverEnd);
+            } else {
+                ui.emit(prev, Event::HoverEnd);
+            }
         }
         if let Some(next) = new_hovered {
             let signal = ui.get_any_mut(next).and_then(|e| e.on_mouse_enter());
-            fire_on(ui, next, signal);
+            if signal.is_some() {
+                ui.emit_bubbling(next, Event::Hover);
+            } else {
+                ui.emit(next, Event::Hover);
+            }
         }
         ui.interaction.hovered = new_hovered;
     }
 
+    // left press
     if left_pressed {
         if let Some(target) = new_hovered {
-            let signal = ui
-                .get_any_mut(target)
+            ui.get_any_mut(target)
                 .and_then(|e| e.on_mouse_press(lx, ly, MouseButton::Left));
-            fire_on(ui, target, signal);
+            ui.emit_bubbling(target, Event::Press { x: lx, y: ly });
             ui.interaction.pressed = Some(target);
 
             if double_clicked {
-                let signal = ui
-                    .get_any_mut(target)
-                    .and_then(|e| e.on_mouse_double_click(lx, ly, MouseButton::Left));
-                fire_on(ui, target, signal);
+                ui.emit_bubbling(target, Event::DoubleClick { x: lx, y: ly });
             }
         }
     }
 
+    // left release
     if left_released {
         if let Some(target) = new_hovered {
-            let signal = ui
-                .get_any_mut(target)
+            ui.get_any_mut(target)
                 .and_then(|e| e.on_mouse_release(lx, ly, MouseButton::Left));
-            fire_on(ui, target, signal);
+            ui.emit_bubbling(target, Event::Release { x: lx, y: ly });
 
             if ui.interaction.pressed == Some(target) {
-                let signal = ui
-                    .get_any_mut(target)
+                ui.get_any_mut(target)
                     .and_then(|e| e.on_mouse_click(lx, ly, MouseButton::Left));
-                fire_on(ui, target, signal);
+                ui.emit_bubbling(target, Event::Click { x: lx, y: ly });
             }
         }
         ui.interaction.pressed = None;
     }
 
+    // right press/release
     if right_pressed {
         if let Some(target) = new_hovered {
-            let signal = ui
-                .get_any_mut(target)
+            ui.get_any_mut(target)
                 .and_then(|e| e.on_mouse_press(rx, ry, MouseButton::Right));
-            fire_on(ui, target, signal);
         }
     }
-
     if right_released {
         if let Some(target) = new_hovered {
-            let signal = ui
-                .get_any_mut(target)
+            ui.get_any_mut(target)
                 .and_then(|e| e.on_mouse_release(rx, ry, MouseButton::Right));
-            fire_on(ui, target, signal);
-            let signal = ui
-                .get_any_mut(target)
+            ui.get_any_mut(target)
                 .and_then(|e| e.on_mouse_click(rx, ry, MouseButton::Right));
-            fire_on(ui, target, signal);
+            ui.emit_bubbling(target, Event::RightClick { x: rx, y: ry });
         }
     }
 
+    // middle press/release
     if middle_pressed {
         if let Some(target) = new_hovered {
-            let signal = ui
-                .get_any_mut(target)
+            ui.get_any_mut(target)
                 .and_then(|e| e.on_mouse_press(midx, midy, MouseButton::Middle));
-            fire_on(ui, target, signal);
         }
     }
-
     if middle_released {
         if let Some(target) = new_hovered {
-            let signal = ui
-                .get_any_mut(target)
+            ui.get_any_mut(target)
                 .and_then(|e| e.on_mouse_release(midx, midy, MouseButton::Middle));
-            fire_on(ui, target, signal);
-            let signal = ui
-                .get_any_mut(target)
+            ui.get_any_mut(target)
                 .and_then(|e| e.on_mouse_click(midx, midy, MouseButton::Middle));
-            fire_on(ui, target, signal);
         }
     }
 
+    // focus
     if left_pressed {
         let new_focused = new_hovered;
         if ui.interaction.focused != new_focused {
             if let Some(prev) = ui.interaction.focused {
-                let signal = ui.get_any_mut(prev).and_then(|e| e.on_focus_lost());
-                fire_on(ui, prev, signal);
+                ui.get_any_mut(prev).and_then(|e| e.on_focus_lost());
+                ui.emit_bubbling(prev, Event::FocusLost);
             }
             if let Some(next) = new_focused {
-                let signal = ui.get_any_mut(next).and_then(|e| e.on_focus_gained());
-                fire_on(ui, next, signal);
+                ui.get_any_mut(next).and_then(|e| e.on_focus_gained());
+                ui.emit_bubbling(next, Event::FocusGained);
             }
             ui.interaction.focused = new_focused;
         }
