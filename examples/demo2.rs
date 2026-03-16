@@ -1,6 +1,4 @@
 use bento::*;
-use std::cell::Cell;
-use std::rc::Rc;
 
 fn main() {
     let mut ui = Ui::new();
@@ -28,22 +26,19 @@ fn main() {
         }
     });
 
-    let following = Rc::new(Cell::new(true));
-    let current_id = Rc::new(Cell::new(Some(follow_id)));
-
-    let following2 = following.clone();
-    let current_id2 = current_id.clone();
+    let mut following = true;
+    let mut current_id = Some(follow_id);
 
     ui.connect(ui.global(), move |ui, event| {
         if let Event::KeyPress {
             key: Key::Space, ..
         } = event
         {
-            if following2.get() {
-                if let Some(id) = current_id2.get() {
+            if following {
+                if let Some(id) = current_id {
                     ui.disconnect(id);
-                    current_id2.set(None);
-                    following2.set(false);
+                    current_id = None;
+                    following = false;
                     println!("stopped following");
                 }
             } else {
@@ -53,8 +48,8 @@ fn main() {
                         ui[cursor].layout.inset[3] = Size::Fixed(x - size / 2.0);
                     }
                 });
-                current_id2.set(Some(id));
-                following2.set(true);
+                current_id = Some(id);
+                following = true;
                 println!("started following");
             }
         }

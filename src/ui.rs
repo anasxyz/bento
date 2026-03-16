@@ -17,7 +17,7 @@ struct Slot {
 pub struct Connection {
     pub id: u32,
     pub handle: Handle<()>,
-    pub callback: Box<dyn Fn(&mut Ui, &Event)>,
+    pub callback: Box<dyn FnMut(&mut Ui, &Event)>,
 }
 
 pub struct InteractionState {
@@ -204,7 +204,7 @@ impl Ui {
     pub fn connect<T>(
         &mut self,
         handle: Handle<T>,
-        callback: impl Fn(&mut Ui, &Event) + 'static,
+        callback: impl FnMut(&mut Ui, &Event) + 'static,
     ) -> u32 {
         let id = self.next_connection_id;
         self.next_connection_id += 1;
@@ -257,7 +257,7 @@ impl Ui {
                         None => continue, // was disconnected
                     };
                     let mut connections = std::mem::take(&mut self.connections);
-                    let cb_ptr: *const dyn Fn(&mut Ui, &Event) = connections[i].callback.as_ref();
+                    let cb_ptr: *mut dyn FnMut(&mut Ui, &Event) = connections[i].callback.as_mut();
                     self.connections = connections;
                     unsafe { (*cb_ptr)(self, &event) };
                 }
