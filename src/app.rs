@@ -99,15 +99,39 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                 (self.update)(&mut self.ui);
 
                 if self.ui.any_dirty() {
+                    println!("dirty!");
                     win.begin();
                     layout_tree(&mut self.ui);
                     let region = self.ui.dirty_region();
+
                     let c = win.clear_color.to_array();
-                    win.draw.draw_clear(c); 
+                    win.draw.draw_clear(c);
                     draw_tree(&self.ui, &mut win.draw);
+
+                    /*
+                                        // debug
+                                        // draw dirty region on top of everything
+                                        if let Some([x, y, x2, y2]) = region {
+                                            win.draw.draw_rect(
+                                                x,
+                                                y,
+                                                x2 - x,
+                                                y2 - y,
+                                                crate::render::shape_renderer::ShapeDrawParams {
+                                                    color: [1.0, 0.0, 0.0, 0.3],
+                                                    radius: 0.0,
+                                                    border_color: [1.0, 0.0, 0.0, 1.0],
+                                                    border_width: 1.0,
+                                                    clip: None,
+                                                },
+                                            );
+                                        }
+                    */
+
                     self.ui.clear_dirty();
                     win.render(region, true);
                 } else {
+                    println!("not dirty!");
                     win.render(None, false);
                 }
 
