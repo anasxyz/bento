@@ -220,7 +220,12 @@ impl Ui {
         self.connections.retain(|c| c.id != connection_id);
     }
 
-    // pushes event onto the queue — safe to call from inside callbacks
+    pub fn has_connections(&self, handle: Handle<()>) -> bool {
+        self.connections.iter().any(|c| c.handle == handle)
+    }
+
+    // pushes event onto the queue
+    // safe to call from inside callbacks
     pub fn emit<T>(&mut self, handle: Handle<T>, event: Event) {
         self.event_queue.push((handle.untyped(), event));
     }

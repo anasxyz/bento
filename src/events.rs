@@ -27,7 +27,31 @@ fn hit_test(ui: &Ui, handle: Handle<()>, mx: f32, my: f32, hits: &mut Vec<Handle
         hit_test(ui, child, mx, my, hits);
     }
 
-    hits.push(handle);
+    // only add to hits if this element has at least one connection
+    if ui.has_connections(handle) {
+        hits.push(handle);
+    }
+}
+
+fn top_hit(ui: &Ui, hits: &[Handle<()>]) -> Option<Handle<()>> {
+    // hits are in depth first order, last = deepest / latest sibling
+    // among elements at the same depth, prefer higher z_index
+    for h in hits {
+        let l = ui.get_any(*h).map(|e| {
+            let l = e.layout();
+            (l.x, l.y, l.w, l.h, l.z_index)
+        });
+        println!("hit: id={} layout={:?}", h.id, l);
+    }
+    hits.iter()
+        .copied()
+        .enumerate()
+        .max_by(|(i, a), (j, b)| {
+            let az = ui.get_any(*a).map(|e| e.layout().z_index).unwrap_or(0);
+            let bz = ui.get_any(*b).map(|e| e.layout().z_index).unwrap_or(0);
+            az.cmp(&bz).then(i.cmp(j)) // z_index first, position in list as tiebreaker
+        })
+        .map(|(_, h)| h)
 }
 
 pub fn fire_events(ui: &mut Ui) {
@@ -56,10 +80,9 @@ pub fn fire_events(ui: &mut Ui) {
 
     let mut hover_hits: Vec<Handle<()>> = Vec::new();
     hit_test(ui, root, mx, my, &mut hover_hits);
-    let new_hovered = hover_hits.first().copied();
+    let new_hovered = top_hit(ui, &hover_hits);
 
-    // mouse move — fire on hovered element which bubbles to global
-    // if nothing hovered, fire directly on global
+    // mouse move
     if let Some(hovered) = new_hovered {
         ui.emit_bubbling(hovered, Event::MouseMove { x: mx, y: my });
     } else {

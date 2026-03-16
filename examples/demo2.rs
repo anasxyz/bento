@@ -1,4 +1,5 @@
 use bento::*;
+use std::cell::Cell;
 
 fn main() {
     let mut ui = Ui::new();
@@ -20,7 +21,7 @@ fn main() {
     ui[hover_rect].bg_color = Color::hex("313244");
     ui.append(root, hover_rect);
 
-    ui.connect(hover_rect, |ui, event| match event {
+    ui.connect(hover_rect, move |ui, event| match event {
         Event::Hover => {
             println!("rect hovered");
             ui[hover_rect].bg_color = Color::hex("89b4fa");
@@ -45,25 +46,34 @@ fn main() {
     ui[drag_rect].layout.height = Size::Fixed(40.0);
     ui[drag_rect].bg_color = Color::hex("a6e3a1");
     ui[drag_rect].layout.position = Position::Absolute;
+    ui[drag_rect].layout.z_index = 100;
     ui.append(root, drag_rect);
 
-    let mut dragging = false;
-    ui.connect(drag_rect, move |ui, event| match event {
-        Event::Press { .. } => dragging = true,
-        Event::Release { .. } => dragging = false,
+    // Cell so both closures can share and mutate dragging
+    let dragging = std::rc::Rc::new(Cell::new(false));
+    let dragging2 = dragging.clone();
+
+    ui.connect(drag_rect, move |_ui, event| match event {
+        Event::Press { .. } => {
+            println!("drag rect pressed");
+            dragging.set(true);
+        }
+        Event::Release { .. } => {
+            println!("drag rect released");
+            dragging.set(false);
+        }
         _ => {}
     });
 
-    ui.connect(ui.global(), move |ui, event| {
-        if let Event::MouseMove { x, y } = event {
-            if dragging {
+    ui.connect(ui.global(), move |ui, event| match event {
+        Event::MouseMove { x, y } => {
+            if dragging2.get() {
                 ui[drag_rect].layout.inset[0] = Size::Fixed(y - 20.0);
                 ui[drag_rect].layout.inset[3] = Size::Fixed(x - 20.0);
             }
         }
-        if let Event::Release { .. } = event {
-            dragging = false;
-        }
+        Event::Release { .. } => dragging2.set(false),
+        _ => {}
     });
 
     // --- key events on focused rect ---
@@ -89,7 +99,7 @@ fn main() {
     });
 
     // --- global events ---
-    ui.connect(ui.global(), |ui, event| match event {
+    ui.connect(ui.global(), |_ui, event| match event {
         Event::KeyPress {
             key: Key::Escape, ..
         } => println!("GLOBAL: escape"),
@@ -98,7 +108,7 @@ fn main() {
     });
 
     // --- emit and disconnect test ---
-    let conn = ui.connect(ui.global(), |ui, event| {
+    let conn = ui.connect(ui.global(), |_ui, event| {
         if let Event::Custom(99) = event {
             println!("custom event 99 received");
         }
