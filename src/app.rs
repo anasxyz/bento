@@ -74,9 +74,6 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
         event_loop.set_control_flow(ControlFlow::Wait);
         let Some(win) = self.win.as_mut() else { return };
 
-        self.ui.window_width = win.window.inner_size().width / win.window.scale_factor() as u32;
-        self.ui.window_height = win.window.inner_size().height / win.window.scale_factor() as u32;
-
         match event {
             WindowEvent::RedrawRequested => {
                 fire_events(&mut self.ui, &win.mouse);
@@ -165,6 +162,12 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
             }
             WindowEvent::Resized(size) => {
                 win.resize_and_rescale();
+
+                // update window size
+                self.ui.window_width =
+                    win.window.inner_size().width / win.window.scale_factor() as u32;
+                self.ui.window_height =
+                    win.window.inner_size().height / win.window.scale_factor() as u32;
             }
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                 win.resize_and_rescale();
