@@ -110,18 +110,25 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                     ElementState::Pressed => {
                         let ev = Event::KeyPress { key: key.clone(), mods: mods.clone(), text };
                         if let Some(f) = focused {
+                            // fire on focused element and let it bubble up to global
+                            // so I dont emit on global separately, that was firing twice
                             self.ui.get_any_mut(f).and_then(|e| e.on_key_press(key.clone(), mods.clone(), text));
-                            self.ui.emit_bubbling(f, ev.clone());
+                            self.ui.emit_bubbling(f, ev);
+                        } else {
+                            // nothing focused, fire directly on global
+                            self.ui.emit(global, ev);
                         }
-                        self.ui.emit(global, ev);
                     }
                     ElementState::Released => {
                         let ev = Event::KeyRelease { key: key.clone(), mods: mods.clone() };
                         if let Some(f) = focused {
+                            // same as above
+                            // bubbling reaches global, no need to emit separately
                             self.ui.get_any_mut(f).and_then(|e| e.on_key_release(key.clone(), mods.clone()));
-                            self.ui.emit_bubbling(f, ev.clone());
+                            self.ui.emit_bubbling(f, ev);
+                        } else {
+                            self.ui.emit(global, ev);
                         }
-                        self.ui.emit(global, ev);
                     }
                 }
                 win.request_redraw();
