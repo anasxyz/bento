@@ -1,5 +1,4 @@
 use crate::color::Color;
-use crate::element::element::Element;
 use crate::element::handle::Handle;
 use crate::element::layout::Layout;
 use crate::element::values::FlexDirection;
@@ -13,55 +12,50 @@ pub struct Container {
     pub border_radius: Option<f32>,
     pub border_thickness: f32,
     pub border_color: Option<Color>,
+    pub focused: bool,
 }
 
 impl Container {
-    pub fn new(ui: &mut Ui) -> Handle<Self> {
-        ui.add(Self {
+    pub const FOCUS_GAINED: u32 = 0;
+    pub const FOCUS_LOST: u32 = 1;
+
+    pub fn new() -> Self {
+        Self {
             layout: Layout::default(),
             bg_color: None,
             border_radius: None,
             border_thickness: 0.0,
             border_color: None,
-        })
+            focused: false,
+        }
+    }
+
+    pub fn on_focus_gained(&mut self) -> Option<u32> {
+        self.focused = true;
+        Some(Self::FOCUS_GAINED)
+    }
+
+    pub fn on_focus_lost(&mut self) -> Option<u32> {
+        self.focused = false;
+        Some(Self::FOCUS_LOST)
     }
 }
 
-impl Element for Container {
-    fn layout(&self) -> &Layout {
-        &self.layout
-    }
-    fn layout_mut(&mut self) -> &mut Layout {
-        &mut self.layout
-    }
-    fn has_measure(&self) -> bool {
-        false
-    }
-    fn measure(&self, _fonts: &mut Fonts, _max_width: Option<f32>) -> Option<(f32, f32)> {
-        None
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-}
 
 pub struct Row;
 impl Row {
-    pub fn new(ui: &mut Ui) -> Handle<Container> {
-        let h = Container::new(ui);
-        ui.get_mut(h).unwrap().layout.flex_direction = FlexDirection::Row;
+    pub fn new() -> Container {
+        let mut h = Container::new();
+        h.layout.flex_direction = FlexDirection::Row;
         h
     }
 }
 
 pub struct Column;
 impl Column {
-    pub fn new(ui: &mut Ui) -> Handle<Container> {
-        let h = Container::new(ui);
-        ui.get_mut(h).unwrap().layout.flex_direction = FlexDirection::Col;
+    pub fn new() -> Container {
+        let mut h = Container::new();
+        h.layout.flex_direction = FlexDirection::Col;
         h
     }
 }

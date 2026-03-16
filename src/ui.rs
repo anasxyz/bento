@@ -1,9 +1,16 @@
-use crate::element::element::Element;
+use crate::element::element::AnyElement;
 use crate::element::handle::Handle;
-use crate::keyboard::{Key, Modifiers};
-use std::ops::{Index, IndexMut};
 use crate::fonts::Fonts;
+use crate::keyboard::{Key, Modifiers};
 use crate::mouse::MouseState;
+use std::ops::{Index, IndexMut};
+
+struct Slot {
+    element: AnyElement,
+    generation: u32,
+    children: Vec<Handle<()>>,
+    parent: Option<Handle<()>>,
+}
 
 pub struct Connection {
     pub handle: Handle<()>,
@@ -12,7 +19,7 @@ pub struct Connection {
 }
 
 pub struct KeyConnection {
-    pub handle: Option<Handle<()>>, // None = global
+    pub handle: Option<Handle<()>>,
     pub callback: Box<dyn Fn(&mut Ui, Key, Modifiers, Option<char>)>,
 }
 
@@ -32,23 +39,14 @@ impl InteractionState {
     }
 }
 
-struct Slot {
-    element: Box<dyn Element + 'static>,
-    generation: u32,
-    children: Vec<Handle<()>>,
-    parent: Option<Handle<()>>,
-}
-
 pub struct Ui {
     slots: Vec<Option<Slot>>,
     root: Option<Handle<()>>,
     connections: Vec<Connection>,
     key_connections: Vec<KeyConnection>,
-    pub(crate) interaction: InteractionState,
-
+    pub interaction: InteractionState,
     pub fonts: Option<Fonts>,
     pub mouse: MouseState,
-
     pub window_width: u32,
     pub window_height: u32,
 }
@@ -61,152 +59,86 @@ impl Ui {
             connections: Vec::new(),
             key_connections: Vec::new(),
             interaction: InteractionState::new(),
-            window_width: 0,
-            window_height: 0,
             fonts: Some(Fonts::new()),
             mouse: MouseState::default(),
+            window_width: 0,
+            window_height: 0,
         }
     }
 
-    pub fn add<T: Element + 'static>(&mut self, element: T) -> Handle<T> {
+    pub fn add<T: Into<AnyElement>>(&mut self, element: T) -> Handle<T> {
+        let any = element.into();
         for (i, slot) in self.slots.iter_mut().enumerate() {
             if slot.is_none() {
-                let handle = Handle::new(i as u32, 0);
                 *slot = Some(Slot {
-                    element: Box::new(element),
+                    element: any,
                     generation: 0,
                     children: Vec::new(),
                     parent: None,
                 });
-                return handle;
+                return Handle::new(i as u32, 0);
             }
         }
         let id = self.slots.len() as u32;
-        let handle = Handle::new(id, 0);
         self.slots.push(Some(Slot {
-            element: Box::new(element),
+            element: any,
             generation: 0,
             children: Vec::new(),
             parent: None,
         }));
-        handle
+        Handle::new(id, 0)
     }
 
-    pub fn remove<T>(&mut self, handle: impl Into<Handle<T>>) {
-        let handle = handle.into();
-        let erased = Handle::new(handle.id, handle.generation);
-
-        let parent = self
-            .slots
-            .get(handle.id as usize)
-            .and_then(|s| s.as_ref())
-            .and_then(|s| s.parent);
-
-        if let Some(parent_handle) = parent {
-            if let Some(Some(parent_slot)) = self.slots.get_mut(parent_handle.id as usize) {
-                parent_slot.children.retain(|c| *c != erased);
-            }
+    pub fn get<T: 'static>(&self, handle: Handle<T>) -> Option<&T> {
+        let slot = self.slots.get(handle.id as usize)?.as_ref()?;
+        if slot.generation != handle.generation {
+            return None;
         }
-
-        if let Some(slot) = self.slots.get_mut(handle.id as usize) {
-            if let Some(s) = slot {
-                if s.generation == handle.generation {
-                    *slot = None;
-                }
-            }
-        }
-
-        self.connections.retain(|c| c.handle != erased);
-
-        if self.interaction.hovered == Some(erased) {
-            self.interaction.hovered = None;
-        }
-        if self.interaction.pressed == Some(erased) {
-            self.interaction.pressed = None;
-        }
-        if self.interaction.focused == Some(erased) {
-            self.interaction.focused = None;
-        }
+        get_inner_ref::<T>(&slot.element)
     }
 
-    pub fn remove_children<T>(&mut self, handle: impl Into<Handle<T>>) {
-        let handle = handle.into();
-        let erased = Handle::new(handle.id, handle.generation);
-        let children = self.children(erased).to_vec();
-        for child in children {
-            self.remove(child);
+    pub fn get_mut<T: 'static>(&mut self, handle: Handle<T>) -> Option<&mut T> {
+        let slot = self.slots.get_mut(handle.id as usize)?.as_mut()?;
+        if slot.generation != handle.generation {
+            return None;
         }
-        if let Some(Some(slot)) = self.slots.get_mut(handle.id as usize) {
-            slot.children.clear();
-        }
+        get_inner_mut::<T>(&mut slot.element)
     }
 
-    pub fn append<P, C>(&mut self, parent: impl Into<Handle<P>>, child: impl Into<Handle<C>>) {
-        let parent = parent.into();
-        let child = child.into();
-        let parent_erased = Handle::new(parent.id, parent.generation);
-        let child_erased: Handle<()> = Handle::new(child.id, child.generation);
-        if let Some(Some(child_slot)) = self.slots.get_mut(child.id as usize) {
-            child_slot.parent = Some(parent_erased);
+    // internal — returns the AnyElement directly, used by draw/events/layout
+    pub(crate) fn get_any(&self, handle: Handle<()>) -> Option<&AnyElement> {
+        let slot = self.slots.get(handle.id as usize)?.as_ref()?;
+        if slot.generation != handle.generation {
+            return None;
         }
-        if let Some(Some(parent_slot)) = self.slots.get_mut(parent.id as usize) {
-            parent_slot.children.push(child_erased);
-        }
+        Some(&slot.element)
     }
 
-    pub fn set_root<T>(&mut self, handle: impl Into<Handle<T>>) {
-        let handle = handle.into();
-        self.root = Some(Handle::new(handle.id, handle.generation));
+    pub(crate) fn get_any_mut(&mut self, handle: Handle<()>) -> Option<&mut AnyElement> {
+        let slot = self.slots.get_mut(handle.id as usize)?.as_mut()?;
+        if slot.generation != handle.generation {
+            return None;
+        }
+        Some(&mut slot.element)
+    }
+
+    pub fn set_root<T>(&mut self, handle: Handle<T>) {
+        self.root = Some(handle.untyped());
     }
 
     pub fn root(&self) -> Option<Handle<()>> {
         self.root
     }
 
-    pub fn get<T: Element + 'static>(&self, handle: Handle<T>) -> Option<&T> {
-        self.slots.get(handle.id as usize)?.as_ref().and_then(|s| {
-            if s.generation == handle.generation {
-                s.element.as_any().downcast_ref::<T>()
-            } else {
-                None
-            }
-        })
-    }
-
-    pub fn get_mut<T: Element + 'static>(&mut self, handle: Handle<T>) -> Option<&mut T> {
-        self.slots
-            .get_mut(handle.id as usize)?
-            .as_mut()
-            .and_then(|s| {
-                if s.generation == handle.generation {
-                    s.element.as_any_mut().downcast_mut::<T>()
-                } else {
-                    None
-                }
-            })
-    }
-
-    pub fn get_dyn(&self, handle: Handle<()>) -> Option<&dyn Element> {
-        self.slots.get(handle.id as usize)?.as_ref().and_then(|s| {
-            if s.generation == handle.generation {
-                Some(s.element.as_ref())
-            } else {
-                None
-            }
-        })
-    }
-
-    pub fn get_dyn_mut(&mut self, handle: Handle<()>) -> Option<&mut (dyn Element + 'static)> {
-        self.slots
-            .get_mut(handle.id as usize)?
-            .as_mut()
-            .and_then(|s| {
-                if s.generation == handle.generation {
-                    Some(s.element.as_mut())
-                } else {
-                    None
-                }
-            })
+    pub fn append<P, C>(&mut self, parent: Handle<P>, child: Handle<C>) {
+        let parent = parent.untyped();
+        let child = child.untyped();
+        if let Some(Some(slot)) = self.slots.get_mut(child.id as usize) {
+            slot.parent = Some(parent);
+        }
+        if let Some(Some(slot)) = self.slots.get_mut(parent.id as usize) {
+            slot.children.push(child);
+        }
     }
 
     pub fn children(&self, handle: Handle<()>) -> &[Handle<()>] {
@@ -224,39 +156,76 @@ impl Ui {
             .and_then(|s| s.parent)
     }
 
+    pub fn remove<T>(&mut self, handle: Handle<T>) {
+        let handle = handle.untyped();
+        if let Some(parent) = self
+            .slots
+            .get(handle.id as usize)
+            .and_then(|s| s.as_ref())
+            .and_then(|s| s.parent)
+        {
+            if let Some(Some(slot)) = self.slots.get_mut(parent.id as usize) {
+                slot.children.retain(|c| *c != handle);
+            }
+        }
+        if let Some(slot) = self.slots.get_mut(handle.id as usize) {
+            if let Some(s) = slot {
+                if s.generation == handle.generation {
+                    *slot = None;
+                }
+            }
+        }
+        self.connections.retain(|c| c.handle != handle);
+        if self.interaction.hovered == Some(handle) {
+            self.interaction.hovered = None;
+        }
+        if self.interaction.pressed == Some(handle) {
+            self.interaction.pressed = None;
+        }
+        if self.interaction.focused == Some(handle) {
+            self.interaction.focused = None;
+        }
+    }
+
+    pub fn remove_children<T>(&mut self, handle: Handle<T>) {
+        let handle = handle.untyped();
+        let children = self.children(handle).to_vec();
+        for child in children {
+            self.remove(child);
+        }
+        if let Some(Some(slot)) = self.slots.get_mut(handle.id as usize) {
+            slot.children.clear();
+        }
+    }
+
     pub fn connect<T>(
         &mut self,
-        handle: impl Into<Handle<T>>,
+        handle: Handle<T>,
         signal: u32,
         callback: impl Fn(&mut Ui) + 'static,
     ) {
-        let handle = handle.into();
         self.connections.push(Connection {
-            handle: Handle::new(handle.id, handle.generation),
+            handle: handle.untyped(),
             signal,
             callback: Box::new(callback),
         });
     }
 
-    pub fn disconnect<T>(&mut self, handle: impl Into<Handle<T>>, signal: u32) {
-        let handle = handle.into();
-        let erased = Handle::new(handle.id, handle.generation);
+    pub fn disconnect<T>(&mut self, handle: Handle<T>, signal: u32) {
+        let handle = handle.untyped();
         self.connections
-            .retain(|c| !(c.handle == erased && c.signal == signal));
+            .retain(|c| !(c.handle == handle && c.signal == signal));
     }
 
-    pub fn emit<T>(&mut self, handle: impl Into<Handle<T>>, signal: u32) {
-        let handle = handle.into();
-        let erased = Handle::new(handle.id, handle.generation);
+    pub fn emit(&mut self, handle: Handle<()>, signal: u32) {
         let indices: Vec<usize> = self
             .connections
             .iter()
             .enumerate()
-            .filter(|(_, c)| c.handle == erased && c.signal == signal)
+            .filter(|(_, c)| c.handle == handle && c.signal == signal)
             .map(|(i, _)| i)
             .collect();
         for i in indices {
-            // take connections out so the callback can call emit/broadcast recursively
             let mut connections = std::mem::take(&mut self.connections);
             let cb_ptr: *const dyn Fn(&mut Ui) = connections[i].callback.as_ref();
             self.connections = connections;
@@ -264,25 +233,18 @@ impl Ui {
         }
     }
 
-    // emit with bubbling — fires on handle, then walks up parent chain
-    pub fn emit_bubbling<T>(&mut self, handle: impl Into<Handle<T>>, signal: u32) {
-        let handle = handle.into();
-        let erased = Handle::new(handle.id, handle.generation);
-
-        // collect ancestor chain
-        let mut chain = vec![erased];
-        let mut current = self.parent(erased);
+    pub fn emit_bubbling(&mut self, handle: Handle<()>, signal: u32) {
+        let mut chain = vec![handle];
+        let mut current = self.parent(handle);
         while let Some(p) = current {
             chain.push(p);
             current = self.parent(p);
         }
-
         for ancestor in chain {
             self.emit(ancestor, signal);
         }
     }
 
-    // broadcast — fires on every element that has a connection for this signal
     pub fn broadcast(&mut self, signal: u32) {
         let handles: Vec<Handle<()>> = self
             .connections
@@ -292,7 +254,6 @@ impl Ui {
             .collect::<std::collections::HashSet<_>>()
             .into_iter()
             .collect();
-
         for handle in handles {
             self.emit(handle, signal);
         }
@@ -300,12 +261,11 @@ impl Ui {
 
     pub fn connect_key<T>(
         &mut self,
-        handle: impl Into<Handle<T>>,
+        handle: Handle<T>,
         callback: impl Fn(&mut Ui, Key, Modifiers, Option<char>) + 'static,
     ) {
-        let handle = handle.into();
         self.key_connections.push(KeyConnection {
-            handle: Some(Handle::new(handle.id, handle.generation)),
+            handle: Some(handle.untyped()),
             callback: Box::new(callback),
         });
     }
@@ -330,7 +290,7 @@ impl Ui {
         let mut key_connections = std::mem::take(&mut self.key_connections);
         for conn in &key_connections {
             let should_fire = match conn.handle {
-                None => true, // global
+                None => true,
                 Some(h) => Some(h) == focused,
             };
             if should_fire {
@@ -341,29 +301,46 @@ impl Ui {
         }
         self.key_connections = key_connections;
     }
-
-    pub fn take_connections(&mut self) -> Vec<Connection> {
-        std::mem::take(&mut self.connections)
-    }
-
-    pub fn restore_connections(&mut self, connections: Vec<Connection>) {
-        self.connections = connections;
-    }
-
-    pub fn connections_ref(&self) -> &[Connection] {
-        &self.connections
-    }
 }
 
-impl<T: Element + 'static> Index<Handle<T>> for Ui {
+impl<T: 'static> Index<Handle<T>> for Ui {
     type Output = T;
     fn index(&self, handle: Handle<T>) -> &T {
         self.get(handle).expect("stale handle")
     }
 }
 
-impl<T: Element + 'static> IndexMut<Handle<T>> for Ui {
+impl<T: 'static> IndexMut<Handle<T>> for Ui {
     fn index_mut(&mut self, handle: Handle<T>) -> &mut T {
         self.get_mut(handle).expect("stale handle")
     }
+}
+
+// downcast helpers — match AnyElement to get &T or &mut T
+fn get_inner_ref<T: 'static>(el: &AnyElement) -> Option<&T> {
+    use crate::element::container::Container;
+    use crate::element::label::Label;
+    use crate::element::rect::Rect;
+    use std::any::Any;
+
+    let any: &dyn Any = match el {
+        AnyElement::Rect(e) => e,
+        AnyElement::Label(e) => e,
+        AnyElement::Container(e) => e,
+    };
+    any.downcast_ref::<T>()
+}
+
+fn get_inner_mut<T: 'static>(el: &mut AnyElement) -> Option<&mut T> {
+    use crate::element::container::Container;
+    use crate::element::label::Label;
+    use crate::element::rect::Rect;
+    use std::any::Any;
+
+    let any: &mut dyn Any = match el {
+        AnyElement::Rect(e) => e,
+        AnyElement::Label(e) => e,
+        AnyElement::Container(e) => e,
+    };
+    any.downcast_mut::<T>()
 }

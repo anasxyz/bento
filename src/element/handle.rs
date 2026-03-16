@@ -15,6 +15,10 @@ impl<T> Handle<T> {
             _marker: PhantomData,
         }
     }
+
+    pub fn untyped(&self) -> Handle<()> {
+        Handle::new(self.id, self.generation)
+    }
 }
 
 impl<T> Copy for Handle<T> {}

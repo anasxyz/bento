@@ -3,7 +3,6 @@ use crate::element::layout::Layout;
 use crate::element::values::{
     AlignItems, AlignSelf, FlexDirection, FlexWrap, JustifyContent, Overflow, Position, Size,
 };
-use crate::fonts::Fonts;
 use crate::ui::Ui;
 use taffy::prelude::{
     AvailableSpace, Dimension, Display, LengthPercentage, LengthPercentageAuto, NodeId, Style,
@@ -158,7 +157,7 @@ fn build_style(layout: &Layout) -> Style {
 }
 
 fn add_node(ui: &Ui, handle: Handle<()>, taffy: &mut TaffyTree<Handle<()>>) -> NodeId {
-    let el = match ui.get_dyn(handle) {
+    let el = match ui.get_any(handle) {
         Some(e) => e,
         None => return taffy.new_leaf(Style::DEFAULT).unwrap(),
     };
@@ -188,7 +187,7 @@ fn write_back(
     let w = layout.size.width;
     let h = layout.size.height;
 
-    if let Some(el) = ui.get_dyn_mut(handle) {
+    if let Some(el) = ui.get_any_mut(handle) {
         let l = el.layout_mut();
         l.x = x;
         l.y = y;
@@ -228,7 +227,7 @@ pub fn layout_tree(ui: &mut Ui) {
                 let Some(handle) = ctx else {
                     return taffy::geometry::Size::ZERO;
                 };
-                let el = match ui.get_dyn(*handle) {
+                let el = match ui.get_any(*handle) {
                     Some(e) => e,
                     None => return taffy::geometry::Size::ZERO,
                 };

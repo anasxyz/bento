@@ -107,24 +107,22 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
 
                 match event.state {
                     ElementState::Pressed => {
-                        // fire trait method on focused element
                         if let Some(f) = focused {
                             let signal = self
                                 .ui
-                                .get_dyn_mut(f)
+                                .get_any_mut(f)
                                 .and_then(|e| e.on_key_press(key.clone(), mods.clone(), text));
                             if let Some(s) = signal {
                                 self.ui.emit_bubbling(f, s);
                             }
                         }
-                        // fire connect_key and connect_key_global callbacks
                         self.ui.fire_key(focused, key, mods, text);
                     }
                     ElementState::Released => {
                         if let Some(f) = focused {
                             let signal = self
                                 .ui
-                                .get_dyn_mut(f)
+                                .get_any_mut(f)
                                 .and_then(|e| e.on_key_release(key.clone(), mods.clone()));
                             if let Some(s) = signal {
                                 self.ui.emit_bubbling(f, s);
@@ -159,16 +157,14 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                 }
                 win.request_redraw();
             }
-            WindowEvent::Resized(size) => {
+            WindowEvent::Resized(_) => {
                 win.resize_and_rescale();
-
-                // update window size
                 self.ui.window_width =
                     win.window.inner_size().width / win.window.scale_factor() as u32;
                 self.ui.window_height =
                     win.window.inner_size().height / win.window.scale_factor() as u32;
             }
-            WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
+            WindowEvent::ScaleFactorChanged { .. } => {
                 win.resize_and_rescale();
             }
             WindowEvent::CloseRequested => {

@@ -20,10 +20,7 @@ mod window;
 pub use crate::app::AppWindow;
 pub use crate::color::{Color, hex, hsl, hsla, hwb, hwba, rgb, rgba};
 pub use crate::element::{
-    element::Element,
-    button::Button,
     container::{Column, Container, Row},
-    text_input::TextInput,
     handle::Handle,
     label::Label,
     layout::Layout,

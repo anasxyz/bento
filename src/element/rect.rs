@@ -1,11 +1,9 @@
 use crate::color::Color;
-use crate::element::element::Element;
 use crate::element::handle::Handle;
 use crate::element::layout::Layout;
 use crate::fonts::Fonts;
 use crate::mouse::MouseButton;
 use crate::ui::Ui;
-use std::any::Any;
 
 pub struct Rect {
     pub layout: Layout,
@@ -20,45 +18,24 @@ impl Rect {
     pub const FOCUS_GAINED: u32 = 0;
     pub const FOCUS_LOST: u32 = 1;
 
-    pub fn new(ui: &mut Ui) -> Handle<Self> {
-        ui.add(Self {
+    pub fn new() -> Self {
+        Self {
             layout: Layout::default(),
             bg_color: Color::new(0.0, 0.0, 0.0, 1.0),
             border_color: None,
             border_radius: None,
             border_thickness: 0.0,
             focused: false,
-        })
-    }
-}
-
-impl Element for Rect {
-    fn layout(&self) -> &Layout {
-        &self.layout
-    }
-    fn layout_mut(&mut self) -> &mut Layout {
-        &mut self.layout
-    }
-    fn has_measure(&self) -> bool {
-        false
-    }
-    fn measure(&self, _fonts: &mut Fonts, _max_width: Option<f32>) -> Option<(f32, f32)> {
-        None
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
+        }
     }
 
-    fn on_focus_gained(&mut self) -> Option<u32> {
+    pub fn on_focus_gained(&mut self) -> Option<u32> {
         self.focused = true;
-        Some(Rect::FOCUS_GAINED)
+        Some(Self::FOCUS_GAINED)
     }
 
-    fn on_focus_lost(&mut self) -> Option<u32> {
+    pub fn on_focus_lost(&mut self) -> Option<u32> {
         self.focused = false;
-        Some(Rect::FOCUS_LOST)
+        Some(Self::FOCUS_LOST)
     }
 }
