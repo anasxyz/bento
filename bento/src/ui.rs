@@ -105,7 +105,7 @@ impl Ui {
         Handle::new(id, 0)
     }
 
-    // Returns the concrete type directly — no enum, no match needed by caller.
+    // returns the concrete type directly
     pub fn get_mut<T: Element>(&mut self, handle: Handle<T>) -> Option<&mut T> {
         let slot = self.slots.get_mut(handle.id as usize)?.as_mut()?;
         if slot.generation != handle.generation {

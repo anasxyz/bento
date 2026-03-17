@@ -5,17 +5,18 @@ use crate::input::{Key, Modifiers, MouseButton};
 use crate::render::DrawCall;
 use std::any::Any;
 
-// Separate trait so the derive macro can generate it independently
+// separate trait so the derive macro can generate it independently
 pub trait AsAny {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
 pub trait Element: HasBase + AsAny + Any + 'static {
-    // ── the only method you must implement ───────────────────────────────────
+    // the only method you must implement 
     fn draw_calls(&self, clip: Option<[f32; 4]>, z: i32, opacity: f32) -> Vec<DrawCall>;
 
-    // ── provided via HasBase — never override these ───────────────────────────
+    // provided via HasBase
+    // never override these 
     fn layout(&self) -> &Layout {
         self.base().layout()
     }
@@ -29,7 +30,8 @@ pub trait Element: HasBase + AsAny + Any + 'static {
         self.base_mut().set_dirty(v);
     }
 
-    // ── measure — override if element needs intrinsic sizing ─────────────────
+    // measure
+    // override if element needs intrinsic sizing 
     fn measure(&self, _fonts: &mut Fonts, _max_width: Option<f32>) -> Option<(f32, f32)> {
         None
     }
@@ -37,7 +39,9 @@ pub trait Element: HasBase + AsAny + Any + 'static {
         false
     }
 
-    // ── event hooks — override only what you need ─────────────────────────────
+    // event hooks
+    // override only what is needed for example when user is creating custom elements and wants
+    // builtin behaviour
     fn on_focus_gained(&mut self) {}
     fn on_focus_lost(&mut self) {}
     fn on_key_press(&mut self, _key: Key, _mods: Modifiers, _text: Option<char>) {}
