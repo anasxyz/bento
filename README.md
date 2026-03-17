@@ -3,15 +3,14 @@
 
 ## Features
 
-* Inspired by [Qt](https://www.qt.io/)
-* Cross-platform, runs on Windows, macOS, and Linux
-* GPU-accelerated rendering via a custom wgpu based rendering layer
-* Signals and slots system for events handling
-* Flexbox layout engine
-* Composable styling
-* Async task system (futures, background threads, delays, repeating intervals, exclusive tasks, and timeouts)
-* Builtin widget library
-* Font loading and management
+- Cross-platform, runs on Windows, macOS, and Linux
+- GPU-accelerated rendering via a custom wgpu based rendering layer
+- Event handling system
+- Layout engine
+- Comprehensive UI element styling
+- Async task support
+- Builtin widget library
+- Font loading and management
 
 Bento is built on top of:
 * **[`winit`](https://github.com/rust-windowing/winit)** for window handling
