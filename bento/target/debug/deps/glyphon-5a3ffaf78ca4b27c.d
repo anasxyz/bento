@@ -1,0 +1,12 @@
+/home/anas/code/bento/bento/target/debug/deps/glyphon-5a3ffaf78ca4b27c.d: /home/anas/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/glyphon-0.9.0/src/lib.rs /home/anas/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/glyphon-0.9.0/src/cache.rs /home/anas/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/glyphon-0.9.0/src/custom_glyph.rs /home/anas/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/glyphon-0.9.0/src/error.rs /home/anas/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/glyphon-0.9.0/src/text_atlas.rs /home/anas/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/glyphon-0.9.0/src/text_render.rs /home/anas/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/glyphon-0.9.0/src/viewport.rs /home/anas/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/glyphon-0.9.0/src/shader.wgsl
+
+/home/anas/code/bento/bento/target/debug/deps/libglyphon-5a3ffaf78ca4b27c.rmeta: /home/anas/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/glyphon-0.9.0/src/lib.rs /home/anas/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/glyphon-0.9.0/src/cache.rs /home/anas/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/glyphon-0.9.0/src/custom_glyph.rs /home/anas/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/glyphon-0.9.0/src/error.rs /home/anas/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/glyphon-0.9.0/src/text_atlas.rs /home/anas/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/glyphon-0.9.0/src/text_render.rs /home/anas/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/glyphon-0.9.0/src/viewport.rs /home/anas/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/glyphon-0.9.0/src/shader.wgsl
+
+/home/anas/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/glyphon-0.9.0/src/lib.rs:
+/home/anas/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/glyphon-0.9.0/src/cache.rs:
+/home/anas/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/glyphon-0.9.0/src/custom_glyph.rs:
+/home/anas/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/glyphon-0.9.0/src/error.rs:
+/home/anas/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/glyphon-0.9.0/src/text_atlas.rs:
+/home/anas/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/glyphon-0.9.0/src/text_render.rs:
+/home/anas/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/glyphon-0.9.0/src/viewport.rs:
+/home/anas/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/glyphon-0.9.0/src/shader.wgsl:
