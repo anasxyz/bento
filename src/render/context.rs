@@ -1,15 +1,15 @@
-use crate::render::shape_renderer::{ShapeDrawParams, ShapeRenderer};
-use crate::render::text_renderer::{TextDrawParams, TextRenderer};
+use super::shapes::{RectParams, ShapeRenderer};
+use super::text::{TextParams, TextRenderer};
 use glyphon::FontSystem;
 use wgpu;
 
 pub struct DrawContext {
     shapes: ShapeRenderer,
     text: TextRenderer,
-    font_system: FontSystem,
-    width: f32,
-    height: f32,
-    scale: f32,
+    pub font_system: FontSystem,
+    pub width: f32,
+    pub height: f32,
+    pub scale: f32,
 }
 
 impl DrawContext {
@@ -31,14 +31,6 @@ impl DrawContext {
         }
     }
 
-    // logical pixels
-    pub fn resize(&mut self, width: f32, height: f32) {
-        self.width = width;
-        self.height = height;
-        self.shapes.resize(width, height);
-        self.text.resize(width, height, self.scale as f64);
-    }
-
     pub fn set_scale(&mut self, scale: f32, width: f32, height: f32) {
         self.scale = scale;
         self.width = width;
@@ -47,13 +39,28 @@ impl DrawContext {
         self.text.resize(width, height, scale as f64);
     }
 
-    // all inputs in logical pixels
-    pub fn draw_rect(&mut self, x: f32, y: f32, w: f32, h: f32, p: ShapeDrawParams) {
-        self.shapes.draw_rect(x, y, w, h, p);
+    pub fn draw_rect(&mut self, x: f32, y: f32, w: f32, h: f32, p: RectParams) {
+        self.shapes.draw(x, y, w, h, p);
     }
 
-    pub fn draw_text(&mut self, x: f32, y: f32, content: &str, p: TextDrawParams) {
+    pub fn draw_text(&mut self, x: f32, y: f32, content: &str, p: TextParams) {
         self.text.draw(&mut self.font_system, content, x, y, p);
+    }
+
+    pub fn draw_clear(&mut self, color: [f32; 4]) {
+        self.shapes.draw(
+            0.0,
+            0.0,
+            self.width,
+            self.height,
+            RectParams {
+                color,
+                radius: 0.0,
+                border_color: [0.0; 4],
+                border_widths: [0.0; 4],
+                clip: None,
+            },
+        );
     }
 
     pub fn render<'pass>(
@@ -71,22 +78,6 @@ impl DrawContext {
             device,
             queue,
             pass,
-        );
-    }
-
-    pub fn draw_clear(&mut self, color: [f32; 4]) {
-        self.shapes.draw_rect(
-            0.0,
-            0.0,
-            self.width,
-            self.height,
-            crate::render::shape_renderer::ShapeDrawParams {
-                color,
-                radius: 0.0,
-                border_color: [0.0; 4],
-                border_widths: [0.0; 4],
-                clip: None,
-            },
         );
     }
 

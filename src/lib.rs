@@ -3,20 +3,18 @@
 #![allow(unused_imports)]
 #![allow(unused_mut)]
 
-mod render;
-mod element;
 mod app;
 mod color;
-mod draw;
+mod element;
 mod event;
 mod events;
 mod fonts;
+mod keyboard;
 mod layout;
 mod mouse;
-mod keyboard;
+mod render;
 mod settings;
 mod ui;
-mod window;
 
 pub use crate::app::AppWindow;
 pub use crate::color::{Color, hex, hsl, hsla, hwb, hwba, rgb, rgba};
@@ -30,10 +28,10 @@ pub use crate::element::{
 };
 
 pub use crate::{
+    event::Event,
     fonts::Fonts,
+    keyboard::{Key, Modifiers},
     layout::layout_tree,
     settings::WindowConfig,
     ui::Ui,
-    keyboard::{Key, Modifiers},
-    event::Event,
 };

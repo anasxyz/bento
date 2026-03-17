@@ -101,8 +101,6 @@ impl GpuContext {
         self.config.width = width;
         self.config.height = height;
         self.surface.configure(&self.device, &self.config);
-
-        // recreate backing store at new size
         let (backing_store, backing_view) =
             Self::create_backing_store(&self.device, self.format, width, height);
         self.backing_store = backing_store;

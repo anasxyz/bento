@@ -6,8 +6,7 @@ use glyphon::{
 };
 use wgpu;
 
-#[derive(Clone)]
-pub struct TextDrawParams {
+pub struct TextParams {
     pub family: String,
     pub size: f32,
     pub weight: u16,
@@ -17,21 +16,7 @@ pub struct TextDrawParams {
     pub clip: Option<[f32; 4]>,
 }
 
-impl Default for TextDrawParams {
-    fn default() -> Self {
-        Self {
-            family: "sans-serif".to_string(),
-            size: 16.0,
-            weight: 400,
-            italic: false,
-            color: Color::WHITE,
-            width: f32::MAX,
-            clip: None,
-        }
-    }
-}
-
-struct TextEntry {
+struct Entry {
     buffer: Buffer,
     x: f32,
     y: f32,
@@ -49,10 +34,10 @@ struct TextEntry {
 pub struct TextRenderer {
     cache: Cache,
     swash_cache: SwashCache,
-    pub atlas: TextAtlas,
+    atlas: TextAtlas,
     viewport: Viewport,
     renderer: GlyphonRenderer,
-    entries: Vec<TextEntry>,
+    entries: Vec<Entry>,
     active: usize,
     screen_width: f32,
     screen_height: f32,
@@ -75,7 +60,6 @@ impl TextRenderer {
             None,
         );
         let viewport = Viewport::new(device, &cache);
-
         Self {
             cache,
             swash_cache,
@@ -102,29 +86,22 @@ impl TextRenderer {
         text: &str,
         x: f32,
         y: f32,
-        p: TextDrawParams,
+        p: TextParams,
     ) {
-        let family = p.family.clone();
-        let size = p.size;
-        let weight = p.weight;
-        let italic = p.italic;
-        let width = p.width;
-        let clip = p.clip;
         let glyphon_color = GlyphonColor::rgb(
             (p.color.r * 255.0) as u8,
             (p.color.g * 255.0) as u8,
             (p.color.b * 255.0) as u8,
         );
-
         let scale = self.scale_factor as f32;
-        let line_height = size * 1.4;
+        let line_height = p.size * 1.4;
         let idx = self.active;
         self.active += 1;
 
         let attrs = Attrs::new()
-            .family(Family::Name(family.as_str()))
-            .weight(Weight(weight))
-            .style(if italic {
+            .family(Family::Name(p.family.as_str()))
+            .weight(Weight(p.weight))
+            .style(if p.italic {
                 GlyphonStyle::Italic
             } else {
                 GlyphonStyle::Normal
@@ -136,27 +113,32 @@ impl TextRenderer {
             entry.y = y;
             entry.scale = scale;
             entry.color = glyphon_color;
-            entry.clip = clip;
+            entry.clip = p.clip;
 
-            let content_changed = entry.text != text
-                || entry.family != family
-                || entry.size != size
-                || entry.weight != weight
-                || entry.italic != italic
-                || entry.width != width;
-            if content_changed {
+            let changed = entry.text != text
+                || entry.family != p.family
+                || entry.size != p.size
+                || entry.weight != p.weight
+                || entry.italic != p.italic
+                || entry.width != p.width;
+
+            if changed {
                 entry.text = text.to_string();
-                entry.family = family.clone();
-                entry.size = size;
-                entry.weight = weight;
-                entry.italic = italic;
-                entry.width = width;
+                entry.family = p.family.clone();
+                entry.size = p.size;
+                entry.weight = p.weight;
+                entry.italic = p.italic;
+                entry.width = p.width;
                 entry
                     .buffer
-                    .set_metrics(font_system, Metrics::new(size, line_height));
+                    .set_metrics(font_system, Metrics::new(p.size, line_height));
                 entry.buffer.set_size(
                     font_system,
-                    if width == f32::MAX { None } else { Some(width) },
+                    if p.width == f32::MAX {
+                        None
+                    } else {
+                        Some(p.width)
+                    },
                     None,
                 );
                 entry
@@ -165,26 +147,30 @@ impl TextRenderer {
                 entry.buffer.shape_until_scroll(font_system, false);
             }
         } else {
-            let mut buffer = Buffer::new(font_system, Metrics::new(size, line_height));
+            let mut buffer = Buffer::new(font_system, Metrics::new(p.size, line_height));
             buffer.set_size(
                 font_system,
-                if width == f32::MAX { None } else { Some(width) },
+                if p.width == f32::MAX {
+                    None
+                } else {
+                    Some(p.width)
+                },
                 None,
             );
             buffer.set_text(font_system, text, &attrs, Shaping::Advanced);
             buffer.shape_until_scroll(font_system, false);
-            self.entries.push(TextEntry {
+            self.entries.push(Entry {
                 buffer,
                 x,
                 y,
-                width,
-                clip,
+                width: p.width,
+                clip: p.clip,
                 scale,
                 text: text.to_string(),
-                family,
-                size,
-                weight,
-                italic,
+                family: p.family,
+                size: p.size,
+                weight: p.weight,
+                italic: p.italic,
                 color: glyphon_color,
             });
         }
@@ -200,47 +186,44 @@ impl TextRenderer {
         queue: &wgpu::Queue,
         pass: &mut wgpu::RenderPass<'pass>,
     ) {
-        let physical_width = (screen_width * scale_factor as f32) as u32;
-        let physical_height = (screen_height * scale_factor as f32) as u32;
-
+        let phys_w = (screen_width * scale_factor as f32) as u32;
+        let phys_h = (screen_height * scale_factor as f32) as u32;
         self.viewport.update(
             queue,
             Resolution {
-                width: physical_width,
-                height: physical_height,
+                width: phys_w,
+                height: phys_h,
             },
         );
-
         if self.active == 0 {
             return;
         }
 
         let text_areas: Vec<TextArea> = self.entries[..self.active]
             .iter()
-            .map(|entry| {
-                let scale = entry.scale;
-                let bounds = if let Some([cx, cy, cx2, cy2]) = entry.clip {
-                    TextBounds {
+            .map(|e| {
+                let scale = e.scale;
+                let bounds = match e.clip {
+                    Some([cx, cy, cx2, cy2]) => TextBounds {
                         left: (cx * scale) as i32,
                         top: (cy * scale) as i32,
                         right: (cx2 * scale) as i32,
                         bottom: (cy2 * scale) as i32,
-                    }
-                } else {
-                    TextBounds {
+                    },
+                    None => TextBounds {
                         left: 0,
                         top: 0,
-                        right: physical_width as i32,
-                        bottom: physical_height as i32,
-                    }
+                        right: phys_w as i32,
+                        bottom: phys_h as i32,
+                    },
                 };
                 TextArea {
-                    buffer: &entry.buffer,
-                    left: entry.x * scale,
-                    top: entry.y * scale,
+                    buffer: &e.buffer,
+                    left: e.x * scale,
+                    top: e.y * scale,
                     scale,
                     bounds,
-                    default_color: entry.color,
+                    default_color: e.color,
                     custom_glyphs: &[],
                 }
             })
@@ -257,17 +240,15 @@ impl TextRenderer {
                 &mut self.swash_cache,
             )
             .unwrap();
-
         self.renderer
             .render(&self.atlas, &self.viewport, pass)
             .unwrap();
     }
 
-    pub fn trim_atlas(&mut self) {
-        self.atlas.trim();
-    }
-
     pub fn clear(&mut self) {
         self.active = 0;
+    }
+    pub fn trim_atlas(&mut self) {
+        self.atlas.trim();
     }
 }

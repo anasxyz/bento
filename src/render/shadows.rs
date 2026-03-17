@@ -1,12 +1,11 @@
 use std::mem;
 use wgpu;
 
-// one instance per shadow, passed directly to the vertex shader
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct ShadowInstance {
-    rect: [f32; 4],   // x, y, w, h
-    color: [f32; 4],  // r, g, b, a
+    rect: [f32; 4], // x, y, w, h
+    color: [f32; 4],
     params: [f32; 4], // corner_radius, blur, offset_x, offset_y
 }
 
@@ -46,12 +45,14 @@ impl ShadowRenderer {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-
-        let screen_uniform = ScreenUniform {
-            size: [width, height],
-            _pad: [0.0; 2],
-        };
-        queue.write_buffer(&screen_buffer, 0, bytemuck::bytes_of(&screen_uniform));
+        queue.write_buffer(
+            &screen_buffer,
+            0,
+            bytemuck::bytes_of(&ScreenUniform {
+                size: [width, height],
+                _pad: [0.0; 2],
+            }),
+        );
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Shadow BGL"),
@@ -76,15 +77,15 @@ impl ShadowRenderer {
             }],
         });
 
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Shadow Pipeline Layout"),
-            bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
-        });
-
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Shadow Pipeline"),
-            layout: Some(&pipeline_layout),
+            layout: Some(
+                &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    label: Some("Shadow Pipeline Layout"),
+                    bind_group_layouts: &[&bind_group_layout],
+                    push_constant_ranges: &[],
+                }),
+            ),
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: Some("vs_main"),
@@ -93,19 +94,16 @@ impl ShadowRenderer {
                     array_stride: mem::size_of::<ShadowInstance>() as wgpu::BufferAddress,
                     step_mode: wgpu::VertexStepMode::Instance,
                     attributes: &[
-                        // rect: location 0
                         wgpu::VertexAttribute {
                             offset: 0,
                             shader_location: 0,
                             format: wgpu::VertexFormat::Float32x4,
                         },
-                        // color: location 1
                         wgpu::VertexAttribute {
                             offset: mem::size_of::<[f32; 4]>() as u64,
                             shader_location: 1,
                             format: wgpu::VertexFormat::Float32x4,
                         },
-                        // params: location 2
                         wgpu::VertexAttribute {
                             offset: mem::size_of::<[f32; 8]>() as u64,
                             shader_location: 2,
@@ -126,12 +124,8 @@ impl ShadowRenderer {
             }),
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
                 cull_mode: None,
-                unclipped_depth: false,
-                polygon_mode: wgpu::PolygonMode::Fill,
-                conservative: false,
+                ..Default::default()
             },
             depth_stencil: None,
             multisample: wgpu::MultisampleState {
@@ -161,7 +155,7 @@ impl ShadowRenderer {
         }
     }
 
-    pub fn draw_shadow(
+    pub fn draw(
         &mut self,
         x: f32,
         y: f32,
@@ -184,14 +178,17 @@ impl ShadowRenderer {
         self.instances.clear();
     }
 
-    pub fn resize(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, width: f32, height: f32) {
+    pub fn resize(&mut self, queue: &wgpu::Queue, width: f32, height: f32) {
         self.screen_width = width;
         self.screen_height = height;
-        let screen_uniform = ScreenUniform {
-            size: [width, height],
-            _pad: [0.0; 2],
-        };
-        queue.write_buffer(&self.screen_buffer, 0, bytemuck::bytes_of(&screen_uniform));
+        queue.write_buffer(
+            &self.screen_buffer,
+            0,
+            bytemuck::bytes_of(&ScreenUniform {
+                size: [width, height],
+                _pad: [0.0; 2],
+            }),
+        );
     }
 
     pub fn render<'pass>(
@@ -203,7 +200,6 @@ impl ShadowRenderer {
         if self.instances.is_empty() {
             return;
         }
-
         let data = bytemuck::cast_slice(&self.instances);
         if data.len() as u64 > self.instance_buffer.size() {
             self.instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -213,12 +209,10 @@ impl ShadowRenderer {
                 mapped_at_creation: false,
             });
         }
-
         queue.write_buffer(&self.instance_buffer, 0, data);
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.bind_group, &[]);
         pass.set_vertex_buffer(0, self.instance_buffer.slice(..));
-        // 6 vertices per instance (two triangles = one quad)
         pass.draw(0..6, 0..self.instances.len() as u32);
     }
 }

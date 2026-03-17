@@ -1,4 +1,3 @@
-use pollster;
 use std::sync::Arc;
 
 use winit::{
@@ -9,15 +8,13 @@ use winit::{
     window::{Window, WindowId},
 };
 
-use crate::draw::{submit_draw_list, update_draw_list};
 use crate::event::Event;
 use crate::events::fire_events;
 use crate::keyboard::{Key, Modifiers};
 use crate::layout::layout_tree;
-use crate::render::gpu::GpuContext;
+use crate::render::{Renderer, WindowState};
 use crate::settings::WindowConfig;
 use crate::ui::Ui;
-use crate::window::WindowState;
 
 pub struct AppWindow {
     settings: WindowConfig,
@@ -38,6 +35,7 @@ impl AppWindow {
                 ui,
                 update,
                 win: None,
+                renderer: None,
                 settings: self.settings,
                 modifiers: Modifiers::default(),
             })
@@ -49,14 +47,17 @@ struct Runner<F: FnMut(&mut Ui)> {
     ui: Ui,
     update: F,
     win: Option<WindowState>,
+    renderer: Option<Renderer>,
     settings: WindowConfig,
     modifiers: Modifiers,
 }
 
 impl<F: FnMut(&mut Ui)> Runner<F> {
     fn sync_window_size(&mut self) {
-        let Some(win) = self.win.as_mut() else { return };
-        win.resize_and_rescale();
+        let (Some(win), Some(renderer)) = (self.win.as_mut(), self.renderer.as_mut()) else {
+            return;
+        };
+        win.resize_and_rescale(renderer);
         let scale = win.window.scale_factor() as f32;
         self.ui.window_width = (win.window.inner_size().width as f32 / scale) as u32;
         self.ui.window_height = (win.window.inner_size().height as f32 / scale) as u32;
@@ -79,18 +80,17 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                 )
                 .unwrap(),
         );
-        let gpu = pollster::block_on(GpuContext::new(window.clone()));
-        self.win = Some(WindowState::new(
-            window.clone(),
-            gpu,
-            self.settings.clear_color,
-        ));
+        let (win, renderer) = WindowState::create(window, self.settings.clear_color);
+        self.win = Some(win);
+        self.renderer = Some(renderer);
         self.sync_window_size();
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         event_loop.set_control_flow(ControlFlow::Wait);
-        let Some(win) = self.win.as_mut() else { return };
+        let (Some(win), Some(renderer)) = (self.win.as_mut(), self.renderer.as_mut()) else {
+            return;
+        };
 
         match event {
             WindowEvent::RedrawRequested => {
@@ -99,28 +99,19 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                 (self.update)(&mut self.ui);
 
                 if self.ui.any_dirty() {
-                    // if elements were added/removed, invalidate the draw list entirely
                     if self.ui.draw_list_dirty {
-                        self.ui.draw_list_dirty = false; // reset first
-                        win.draw_list.invalidate();
-                        self.ui.mark_all_dirty(); // then mark dirty without retriggering draw_list_dirty
+                        self.ui.draw_list_dirty = false;
+                        renderer.invalidate();
+                        self.ui.mark_all_dirty();
                     }
 
-                    win.begin();
                     layout_tree(&mut self.ui);
                     let region = self.ui.dirty_region();
-
-                    let c = win.clear_color.to_array();
-                    win.draw.draw_clear(c);
-
-                    // only rebuild draw calls for dirty elements
-                    update_draw_list(&self.ui, &mut win.draw_list);
-                    submit_draw_list(&win.draw_list, &mut win.draw);
-
+                    renderer.paint(&self.ui, win.clear_color.to_array());
                     self.ui.clear_dirty();
-                    win.render(region, true);
+                    win.present(renderer, region, true);
                 } else {
-                    win.render(None, false);
+                    win.present(renderer, None, false);
                 }
 
                 self.ui.mouse.reset();
@@ -135,7 +126,6 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                 };
             }
             WindowEvent::KeyboardInput { event, .. } => {
-                let Some(win) = self.win.as_mut() else { return };
                 let key = match event.physical_key {
                     PhysicalKey::Code(code) => Key::from(code),
                     PhysicalKey::Unidentified(_) => Key::Unknown,
@@ -185,7 +175,6 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                 win.request_redraw();
             }
             WindowEvent::MouseInput { button, state, .. } => {
-                let Some(win) = self.win.as_mut() else { return };
                 match button {
                     winit::event::MouseButton::Left => match state {
                         ElementState::Pressed => self.ui.mouse.on_left_press(),
@@ -211,6 +200,7 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
             }
             WindowEvent::CloseRequested => {
                 self.win = None;
+                self.renderer = None;
                 event_loop.exit();
             }
             _ => {}

@@ -1,5 +1,10 @@
-pub mod draw_ctx;
-pub mod gpu;
-pub mod shadow_renderer;
-pub mod shape_renderer;
-pub mod text_renderer;
+mod context;
+mod gpu;
+mod renderer;
+mod shadows;
+mod shapes;
+mod text;
+mod window;
+
+pub use renderer::Renderer;
+pub use window::WindowState;

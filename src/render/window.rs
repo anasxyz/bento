@@ -1,63 +1,58 @@
+use super::gpu::GpuContext;
+use super::renderer::Renderer;
 use crate::color::Color;
-use crate::draw::DrawList;
-use crate::render::draw_ctx::DrawContext;
-use crate::render::gpu::GpuContext;
+use pollster;
 use std::sync::Arc;
+use wgpu;
 use winit::window::Window;
 
 pub struct WindowState {
     pub window: Arc<Window>,
-    pub gpu: GpuContext,
+    gpu: GpuContext,
     pub clear_color: Color,
-    pub draw: DrawContext,
-    pub draw_list: DrawList,
     first_frame: bool,
 }
 
 impl WindowState {
-    pub fn new(window: Arc<Window>, gpu: GpuContext, clear_color: Color) -> Self {
+    pub fn create(window: Arc<Window>, clear_color: Color) -> (Self, Renderer) {
+        let gpu = pollster::block_on(GpuContext::new(window.clone()));
         let size = window.inner_size();
-        let scale = window.scale_factor();
-        let draw = DrawContext::new(
+        let scale = window.scale_factor() as f32;
+        let renderer = Renderer::new(
             &gpu.device,
             &gpu.queue,
             gpu.format,
-            size.width as f32 / scale as f32,
-            size.height as f32 / scale as f32,
-            scale as f32,
+            size.width as f32 / scale,
+            size.height as f32 / scale,
+            scale,
         );
-        Self {
+        let win = Self {
             window,
             gpu,
             clear_color,
-            draw,
-            draw_list: DrawList::new(),
             first_frame: true,
-        }
+        };
+        (win, renderer)
     }
 
-    pub fn begin(&mut self) {
-        self.draw.clear();
-    }
-
-    pub fn resize_and_rescale(&mut self) {
+    pub fn resize_and_rescale(&mut self, renderer: &mut Renderer) {
         let size = self.window.inner_size();
-        let scale = self.window.scale_factor();
+        let scale = self.window.scale_factor() as f32;
         self.gpu.resize(size.width, size.height);
-        self.draw.set_scale(
-            scale as f32,
-            size.width as f32 / scale as f32,
-            size.height as f32 / scale as f32,
-        );
-        self.draw_list.invalidate();
+        renderer.resize(scale, size.width as f32 / scale, size.height as f32 / scale);
         self.first_frame = true;
     }
 
-    pub fn request_redraw(&mut self) {
+    pub fn request_redraw(&self) {
         self.window.request_redraw();
     }
 
-    pub fn render(&mut self, dirty_region: Option<[f32; 4]>, has_dirty: bool) {
+    pub fn present(
+        &mut self,
+        renderer: &mut Renderer,
+        dirty_region: Option<[f32; 4]>,
+        has_dirty: bool,
+    ) {
         let frame = match self.gpu.begin_frame() {
             Ok(f) => f,
             Err(_) => return,
@@ -71,9 +66,8 @@ impl WindowState {
         let (mut encoder, finisher, _surface_view) = frame.begin();
 
         if has_dirty || self.first_frame {
-            // compute scissor rect in physical pixels
             let scissor = if self.first_frame || dirty_region.is_none() {
-                None // full redraw
+                None
             } else {
                 dirty_region.map(|[x, y, x2, y2]| {
                     let px = ((x * scale).floor() as u32).min(phys_w);
@@ -84,7 +78,6 @@ impl WindowState {
                 })
             };
 
-            // render into backing store
             {
                 let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("Backing Store Pass"),
@@ -93,7 +86,6 @@ impl WindowState {
                         resolve_target: None,
                         ops: wgpu::Operations {
                             load: if scissor.is_none() {
-                                // full clear
                                 wgpu::LoadOp::Clear(wgpu::Color {
                                     r: c.r as f64,
                                     g: c.g as f64,
@@ -101,8 +93,6 @@ impl WindowState {
                                     a: c.a as f64,
                                 })
                             } else {
-                                // partial
-                                // preserve existing backing store
                                 wgpu::LoadOp::Load
                             },
                             store: wgpu::StoreOp::Store,
@@ -117,14 +107,14 @@ impl WindowState {
                     pass.set_scissor_rect(x, y, w, h);
                 }
 
-                self.draw
+                renderer
+                    .ctx
                     .render(&self.gpu.device, &self.gpu.queue, &mut pass);
             }
 
             self.first_frame = false;
         }
 
-        // blit backing store to surface texture
         encoder.copy_texture_to_texture(
             wgpu::TexelCopyTextureInfo {
                 texture: &self.gpu.backing_store,

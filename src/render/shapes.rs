@@ -4,44 +4,31 @@ use wgpu;
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct Instance {
-    pos_size:      [f32; 4],  // 0
-    params:        [f32; 4],  // 1  [radius, aa_width, 0, 0]
-    fill_color:    [f32; 4],  // 2
-    border_color:  [f32; 4],  // 3
-    clip:          [f32; 4],  // 4
-    screen_size:   [f32; 4],  // 5
-    border_widths: [f32; 4],  // 6  top, right, bottom, left
+    pos_size:      [f32; 4],
+    params:        [f32; 4],  // [radius, aa_width, 0, 0]
+    fill_color:    [f32; 4],
+    border_color:  [f32; 4],
+    clip:          [f32; 4],
+    screen_size:   [f32; 4],
+    border_widths: [f32; 4],  // top, right, bottom, left
 }
 
 const INSTANCE_ATTRS: &[wgpu::VertexAttribute] = &[
-    wgpu::VertexAttribute { offset: 0,   shader_location: 0, format: wgpu::VertexFormat::Float32x4 },
-    wgpu::VertexAttribute { offset: 16,  shader_location: 1, format: wgpu::VertexFormat::Float32x4 },
-    wgpu::VertexAttribute { offset: 32,  shader_location: 2, format: wgpu::VertexFormat::Float32x4 },
-    wgpu::VertexAttribute { offset: 48,  shader_location: 3, format: wgpu::VertexFormat::Float32x4 },
-    wgpu::VertexAttribute { offset: 64,  shader_location: 4, format: wgpu::VertexFormat::Float32x4 },
-    wgpu::VertexAttribute { offset: 80,  shader_location: 5, format: wgpu::VertexFormat::Float32x4 },
-    wgpu::VertexAttribute { offset: 96,  shader_location: 6, format: wgpu::VertexFormat::Float32x4 },
+    wgpu::VertexAttribute { offset: 0,  shader_location: 0, format: wgpu::VertexFormat::Float32x4 },
+    wgpu::VertexAttribute { offset: 16, shader_location: 1, format: wgpu::VertexFormat::Float32x4 },
+    wgpu::VertexAttribute { offset: 32, shader_location: 2, format: wgpu::VertexFormat::Float32x4 },
+    wgpu::VertexAttribute { offset: 48, shader_location: 3, format: wgpu::VertexFormat::Float32x4 },
+    wgpu::VertexAttribute { offset: 64, shader_location: 4, format: wgpu::VertexFormat::Float32x4 },
+    wgpu::VertexAttribute { offset: 80, shader_location: 5, format: wgpu::VertexFormat::Float32x4 },
+    wgpu::VertexAttribute { offset: 96, shader_location: 6, format: wgpu::VertexFormat::Float32x4 },
 ];
 
-#[derive(Clone)]
-pub struct ShapeDrawParams {
+pub struct RectParams {
     pub color: [f32; 4],
     pub radius: f32,
     pub border_color: [f32; 4],
-    pub border_widths: [f32; 4],  // top, right, bottom, left
+    pub border_widths: [f32; 4],
     pub clip: Option<[f32; 4]>,
-}
-
-impl Default for ShapeDrawParams {
-    fn default() -> Self {
-        Self {
-            color: [1.0; 4],
-            radius: 0.0,
-            border_color: [0.0; 4],
-            border_widths: [0.0; 4],
-            clip: None,
-        }
-    }
 }
 
 pub struct ShapeRenderer {
@@ -57,18 +44,17 @@ impl ShapeRenderer {
     pub fn new(
         device: &wgpu::Device,
         format: wgpu::TextureFormat,
-        // logical pixels
         width: f32,
         height: f32,
         scale: f32,
     ) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("SDF Shape Shader"),
+            label: Some("Shape Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/rect.wgsl").into()),
         });
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("SDF Shape Pipeline"),
+            label: Some("Shape Pipeline"),
             layout: None,
             vertex: wgpu::VertexState {
                 module: &shader,
@@ -95,18 +81,14 @@ impl ShapeRenderer {
                 ..Default::default()
             },
             depth_stencil: None,
-            multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
+            multisample: wgpu::MultisampleState { count: 1, mask: !0, alpha_to_coverage_enabled: false },
             multiview: None,
             cache: None,
         });
 
         let cap = 1024;
         let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("SDF Instance Buffer"),
+            label: Some("Shape Instance Buffer"),
             size: (cap * mem::size_of::<Instance>()) as u64,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
@@ -122,11 +104,6 @@ impl ShapeRenderer {
         }
     }
 
-    pub fn clear(&mut self) {
-        self.instances.clear();
-    }
-
-    // takes logical pixels
     pub fn resize(&mut self, width: f32, height: f32) {
         self.screen_width = width * self.scale;
         self.screen_height = height * self.scale;
@@ -138,13 +115,9 @@ impl ShapeRenderer {
         self.screen_height = height * scale;
     }
 
-    // all inputs in logical pixels
-    pub fn draw_rect(&mut self, x: f32, y: f32, w: f32, h: f32, p: ShapeDrawParams) {
+    pub fn draw(&mut self, x: f32, y: f32, w: f32, h: f32, p: RectParams) {
         let s = self.scale;
-        let px = x * s;
-        let py = y * s;
-        let pw = w * s;
-        let ph = h * s;
+        let (px, py, pw, ph) = (x * s, y * s, w * s, h * s);
         let radius = (p.radius * s).min(pw * 0.5).min(ph * 0.5);
         let border_widths = [
             p.border_widths[0] * s,
@@ -152,17 +125,13 @@ impl ShapeRenderer {
             p.border_widths[2] * s,
             p.border_widths[3] * s,
         ];
-
         let clip_arr = match p.clip {
             Some([cx, cy, cx2, cy2]) => {
-                if x + w <= cx || y + h <= cy || x >= cx2 || y >= cy2 {
-                    return;
-                }
+                if x + w <= cx || y + h <= cy || x >= cx2 || y >= cy2 { return; }
                 [cx * s, cy * s, cx2 * s, cy2 * s]
             }
             None => [0.0; 4],
         };
-
         self.instances.push(Instance {
             pos_size: [px, py, pw, ph],
             params: [radius, 1.0, 0.0, 0.0],
@@ -174,28 +143,24 @@ impl ShapeRenderer {
         });
     }
 
+    pub fn clear(&mut self) { self.instances.clear(); }
+
     pub fn render<'pass>(
         &'pass mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         pass: &mut wgpu::RenderPass<'pass>,
     ) {
-        if self.instances.is_empty() {
-            return;
-        }
-
+        if self.instances.is_empty() { return; }
         let data = bytemuck::cast_slice(&self.instances);
-
         if data.len() as u64 > self.instance_buffer.size() {
-            let new_size = (data.len() as u64 * 2).max(data.len() as u64);
             self.instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("SDF Instance Buffer"),
-                size: new_size,
+                label: Some("Shape Instance Buffer"),
+                size: (data.len() as u64 * 2).max(data.len() as u64),
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
         }
-
         queue.write_buffer(&self.instance_buffer, 0, data);
         pass.set_pipeline(&self.pipeline);
         pass.set_vertex_buffer(0, self.instance_buffer.slice(..));
