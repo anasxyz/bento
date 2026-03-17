@@ -1,16 +1,18 @@
 <h1 align="center">Bento</h1> 
 <p align="center"><strong>Rust GUI framework</strong></p>
 
+> Warning: Bento is in early development. The API is unstable and will change between versions. Not recommended for production use.
+
 ## Features
 
 - Cross-platform, runs on Windows, macOS, and Linux
-- GPU-accelerated rendering via a custom wgpu based rendering layer
-- Event handling system
-- Layout engine
-- Comprehensive UI element styling
-- Async task support
-- Builtin widget library
-- Font loading and management
+- High performance, GPU-accelerated rendering with dirty tracking, incremental redraws, and partial GPU updates for low overhead at scale
+- Extensible UI element system using `#[derive(Element)]` trait, make your own custom UI elements that integrate seamlessly
+- Comprehensive element/widget and styling library
+- Rich event system with builtin input handling, element lifecycle hooks using `connect()`, and custom event broadcasting using `emit()`
+- Flexbox layout engine
+- ~~Async task support~~
+- ~~Font loading and management~~
 
 Bento is built on top of:
 * **[`winit`](https://github.com/rust-windowing/winit)** for window handling
