@@ -94,6 +94,7 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
 
         match event {
             WindowEvent::RedrawRequested => {
+                // let start = std::time::Instant::now();
                 fire_events(&mut self.ui);
                 self.ui.drain_events();
                 (self.update)(&mut self.ui);
@@ -115,6 +116,7 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                 }
 
                 self.ui.mouse.reset();
+                // println!("frame: {:?}", start.elapsed());
             }
             WindowEvent::ModifiersChanged(mods) => {
                 let state = mods.state();
