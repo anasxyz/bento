@@ -23,6 +23,7 @@ const INSTANCE_ATTRS: &[wgpu::VertexAttribute] = &[
     wgpu::VertexAttribute { offset: 96,  shader_location: 6, format: wgpu::VertexFormat::Float32x4 },
 ];
 
+#[derive(Clone)]
 pub struct ShapeDrawParams {
     pub color: [f32; 4],
     pub radius: f32,

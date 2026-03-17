@@ -1,4 +1,5 @@
 use crate::color::Color;
+use crate::draw::DrawList;
 use crate::render::draw_ctx::DrawContext;
 use crate::render::gpu::GpuContext;
 use std::sync::Arc;
@@ -9,6 +10,7 @@ pub struct WindowState {
     pub gpu: GpuContext,
     pub clear_color: Color,
     pub draw: DrawContext,
+    pub draw_list: DrawList,
     first_frame: bool,
 }
 
@@ -29,6 +31,7 @@ impl WindowState {
             gpu,
             clear_color,
             draw,
+            draw_list: DrawList::new(),
             first_frame: true,
         }
     }
@@ -46,6 +49,7 @@ impl WindowState {
             size.width as f32 / scale as f32,
             size.height as f32 / scale as f32,
         );
+        self.draw_list.invalidate();
         self.first_frame = true;
     }
 

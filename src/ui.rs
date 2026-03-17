@@ -1,14 +1,10 @@
-use taffy::{NodeId, TaffyTree};
-
 use crate::element::element::AnyElement;
 use crate::element::handle::Handle;
 use crate::event::Event;
 use crate::fonts::Fonts;
 use crate::mouse::MouseState;
-use std::{
-    collections::HashMap,
-    ops::{Index, IndexMut},
-};
+use std::collections::HashMap;
+use taffy::prelude::{NodeId, TaffyTree};
 
 const GLOBAL_ID: u32 = u32::MAX;
 
@@ -52,9 +48,12 @@ pub struct Ui {
     pub mouse: MouseState,
     pub window_width: u32,
     pub window_height: u32,
+    // taffy persistent layout tree
     pub(crate) taffy: Option<TaffyTree<Handle<()>>>,
     pub(crate) taffy_nodes: HashMap<Handle<()>, NodeId>,
     pub(crate) taffy_root: Option<NodeId>,
+    // signals that draw list needs full rebuild (elements added/removed)
+    pub draw_list_dirty: bool,
 }
 
 impl Ui {
@@ -73,6 +72,7 @@ impl Ui {
             taffy: Some(TaffyTree::new()),
             taffy_nodes: HashMap::new(),
             taffy_root: None,
+            draw_list_dirty: false,
         }
     }
 
@@ -90,6 +90,8 @@ impl Ui {
                     children: Vec::new(),
                     parent: None,
                 });
+                crate::layout::invalidate_layout(self);
+                self.draw_list_dirty = true;
                 return Handle::new(i as u32, 0);
             }
         }
@@ -101,7 +103,7 @@ impl Ui {
             parent: None,
         }));
         crate::layout::invalidate_layout(self);
-
+        self.draw_list_dirty = true;
         Handle::new(id, 0)
     }
 
@@ -154,6 +156,8 @@ impl Ui {
         if let Some(Some(slot)) = self.slots.get_mut(parent.id as usize) {
             slot.children.push(child);
         }
+        crate::layout::invalidate_layout(self);
+        self.draw_list_dirty = true;
     }
 
     pub fn children(&self, handle: Handle<()>) -> &[Handle<()>] {
@@ -202,6 +206,7 @@ impl Ui {
             self.interaction.focused = None;
         }
         crate::layout::invalidate_layout(self);
+        self.draw_list_dirty = true;
     }
 
     pub fn remove_children<T>(&mut self, handle: Handle<T>) {
@@ -214,6 +219,7 @@ impl Ui {
             slot.children.clear();
         }
         crate::layout::invalidate_layout(self);
+        self.draw_list_dirty = true;
     }
 
     pub fn connect<T>(
@@ -239,8 +245,6 @@ impl Ui {
         self.connections.iter().any(|c| c.handle == handle)
     }
 
-    // pushes event onto the queue
-    // safe to call from inside callbacks
     pub fn emit<T>(&mut self, handle: Handle<T>, event: Event) {
         self.event_queue.push((handle.untyped(), event));
     }
@@ -259,8 +263,6 @@ impl Ui {
         }
     }
 
-    // drains the event queue and fires all callbacks
-    // called once per frame by the app loop
     pub fn drain_events(&mut self) {
         while !self.event_queue.is_empty() {
             let queue = std::mem::take(&mut self.event_queue);
@@ -274,7 +276,7 @@ impl Ui {
                 for id in ids {
                     let i = match self.connections.iter().position(|c| c.id == id) {
                         Some(i) => i,
-                        None => continue, // was disconnected
+                        None => continue,
                     };
                     let mut connections = std::mem::take(&mut self.connections);
                     let cb_ptr: *mut dyn FnMut(&mut Ui, &Event) = connections[i].callback.as_mut();
@@ -305,19 +307,17 @@ impl Ui {
     }
 
     pub fn dirty_region(&self) -> Option<[f32; 4]> {
-        let pad = 4.0; // extra pixels to account for AA bleed
+        let pad = 4.0;
         let mut region: Option<[f32; 4]> = None;
         for slot in self.slots.iter().filter_map(|s| s.as_ref()) {
             if !slot.element.is_dirty() {
                 continue;
             }
             let l = slot.element.layout();
-
             if l.w > 0.0 || l.h > 0.0 {
                 let rect = [l.x - pad, l.y - pad, l.x + l.w + pad, l.y + l.h + pad];
-                region = Some(union(region, rect));
+                region = Some(union_rect(region, rect));
             }
-
             if l.prev_w > 0.0 || l.prev_h > 0.0 {
                 let rect = [
                     l.prev_x - pad,
@@ -325,7 +325,7 @@ impl Ui {
                     l.prev_x + l.prev_w + pad,
                     l.prev_y + l.prev_h + pad,
                 ];
-                region = Some(union(region, rect));
+                region = Some(union_rect(region, rect));
             }
         }
         region
@@ -358,33 +358,7 @@ impl Ui {
     }
 }
 
-fn get_inner_ref<T: 'static>(el: &AnyElement) -> Option<&T> {
-    use crate::element::container::Container;
-    use crate::element::label::Label;
-    use crate::element::rect::Rect;
-    use std::any::Any;
-    let any: &dyn Any = match el {
-        AnyElement::Rect(e) => e,
-        AnyElement::Label(e) => e,
-        AnyElement::Container(e) => e,
-    };
-    any.downcast_ref::<T>()
-}
-
-fn get_inner_mut<T: 'static>(el: &mut AnyElement) -> Option<&mut T> {
-    use crate::element::container::Container;
-    use crate::element::label::Label;
-    use crate::element::rect::Rect;
-    use std::any::Any;
-    let any: &mut dyn Any = match el {
-        AnyElement::Rect(e) => e,
-        AnyElement::Label(e) => e,
-        AnyElement::Container(e) => e,
-    };
-    any.downcast_mut::<T>()
-}
-
-fn union(region: Option<[f32; 4]>, rect: [f32; 4]) -> [f32; 4] {
+fn union_rect(region: Option<[f32; 4]>, rect: [f32; 4]) -> [f32; 4] {
     match region {
         None => rect,
         Some([ax, ay, ax2, ay2]) => [

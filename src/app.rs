@@ -9,7 +9,7 @@ use winit::{
     window::{Window, WindowId},
 };
 
-use crate::draw::{dirty_region, draw_tree};
+use crate::draw::{submit_draw_list, update_draw_list};
 use crate::event::Event;
 use crate::events::fire_events;
 use crate::keyboard::{Key, Modifiers};
@@ -99,39 +99,27 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                 (self.update)(&mut self.ui);
 
                 if self.ui.any_dirty() {
-                    println!("dirty!");
+                    // if elements were added/removed, invalidate the draw list entirely
+                    if self.ui.draw_list_dirty {
+                        self.ui.draw_list_dirty = false; // reset first
+                        win.draw_list.invalidate();
+                        self.ui.mark_all_dirty(); // then mark dirty without retriggering draw_list_dirty
+                    }
+
                     win.begin();
                     layout_tree(&mut self.ui);
                     let region = self.ui.dirty_region();
 
                     let c = win.clear_color.to_array();
                     win.draw.draw_clear(c);
-                    draw_tree(&self.ui, &mut win.draw);
 
-                    /*
-                                        // debug
-                                        // draw dirty region on top of everything
-                                        if let Some([x, y, x2, y2]) = region {
-                                            win.draw.draw_rect(
-                                                x,
-                                                y,
-                                                x2 - x,
-                                                y2 - y,
-                                                crate::render::shape_renderer::ShapeDrawParams {
-                                                    color: [1.0, 0.0, 0.0, 0.3],
-                                                    radius: 0.0,
-                                                    border_color: [1.0, 0.0, 0.0, 1.0],
-                                                    border_width: 1.0,
-                                                    clip: None,
-                                                },
-                                            );
-                                        }
-                    */
+                    // only rebuild draw calls for dirty elements
+                    update_draw_list(&self.ui, &mut win.draw_list);
+                    submit_draw_list(&win.draw_list, &mut win.draw);
 
                     self.ui.clear_dirty();
                     win.render(region, true);
                 } else {
-                    println!("not dirty!");
                     win.render(None, false);
                 }
 

@@ -6,6 +6,7 @@ use glyphon::{
 };
 use wgpu;
 
+#[derive(Clone)]
 pub struct TextDrawParams {
     pub family: String,
     pub size: f32,
