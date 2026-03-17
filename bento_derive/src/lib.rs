@@ -1,4 +1,5 @@
 use proc_macro::TokenStream;
+use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{DeriveInput, parse_macro_input};
 
@@ -48,13 +49,26 @@ pub fn derive_element(input: TokenStream) -> TokenStream {
         .into();
     }
 
+    // when used inside bento itself, the crate root is `crate::`.
+    // when used outside bento, it's `bento::`.
+    // we detect this by checking if the cargo_pkg_name env var is "bento".
+    let is_internal = std::env::var("CARGO_PKG_NAME")
+        .map(|n| n == "bento")
+        .unwrap_or(false);
+
+    let root: TokenStream2 = if is_internal {
+        quote! { crate }
+    } else {
+        quote! { bento }
+    };
+
     quote! {
-        impl #impl_generics crate::element::base::HasBase for #name #ty_generics #where_clause {
-            fn base(&self) -> &crate::element::base::Base { &self.base }
-            fn base_mut(&mut self) -> &mut crate::element::base::Base { &mut self.base }
+        impl #impl_generics #root::HasBase for #name #ty_generics #where_clause {
+            fn base(&self) -> &#root::Base { &self.base }
+            fn base_mut(&mut self) -> &mut #root::Base { &mut self.base }
         }
 
-        impl #impl_generics crate::element::element::AsAny for #name #ty_generics #where_clause {
+        impl #impl_generics #root::AsAny for #name #ty_generics #where_clause {
             fn as_any(&self) -> &dyn ::std::any::Any { self }
             fn as_any_mut(&mut self) -> &mut dyn ::std::any::Any { self }
         }
