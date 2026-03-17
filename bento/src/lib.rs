@@ -17,7 +17,6 @@ mod ui;
 pub use crate::app::AppWindow;
 pub use crate::color::{Color, hex, hsl, hsla, hwb, hwba, rgb, rgba};
 pub use crate::element::{
-    // exposed for custom element authors
     base::{Base, HasBase, LayoutExt},
     container::{Column, Container, Row},
     element::{AnyElement, AsAny, Element},
@@ -27,6 +26,7 @@ pub use crate::element::{
     rect::Rect,
     values::*,
 };
+pub use crate::render::DrawCall;
 
 pub use crate::{
     event::Event,
@@ -37,5 +37,4 @@ pub use crate::{
     ui::Ui,
 };
 
-// reexport the derive macro
 pub use bento_derive::Element;
