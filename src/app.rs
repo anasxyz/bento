@@ -9,8 +9,8 @@ use winit::{
 };
 
 use crate::event::Event;
-use crate::events::fire_events;
-use crate::keyboard::{Key, Modifiers};
+use crate::event::fire_events;
+use crate::input::{Key, Modifiers};
 use crate::layout::layout_tree;
 use crate::render::{Renderer, WindowState};
 use crate::settings::WindowConfig;

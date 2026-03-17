@@ -1,4 +1,4 @@
-use crate::keyboard::{Key, Modifiers};
+use crate::input::{Key, Modifiers};
 
 #[derive(Clone, Debug)]
 pub enum Event {

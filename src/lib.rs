@@ -7,11 +7,9 @@ mod app;
 mod color;
 mod element;
 mod event;
-mod events;
 mod fonts;
-mod keyboard;
+mod input;
 mod layout;
-mod mouse;
 mod render;
 mod settings;
 mod ui;
@@ -30,7 +28,7 @@ pub use crate::element::{
 pub use crate::{
     event::Event,
     fonts::Fonts,
-    keyboard::{Key, Modifiers},
+    input::{Key, Modifiers},
     layout::layout_tree,
     settings::WindowConfig,
     ui::Ui,

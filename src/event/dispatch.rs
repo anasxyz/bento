@@ -1,6 +1,6 @@
 use crate::element::handle::Handle;
-use crate::event::Event;
-use crate::mouse::MouseButton;
+use super::types::Event;
+use crate::input::MouseButton;
 use crate::ui::Ui;
 
 fn hit_test(ui: &Ui, handle: Handle<()>, mx: f32, my: f32, hits: &mut Vec<Handle<()>>) {

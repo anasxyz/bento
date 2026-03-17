@@ -2,7 +2,7 @@ use crate::element::element::AnyElement;
 use crate::element::handle::Handle;
 use crate::event::Event;
 use crate::fonts::Fonts;
-use crate::mouse::MouseState;
+use crate::input::MouseState;
 use std::collections::HashMap;
 use taffy::prelude::{NodeId, TaffyTree};
 

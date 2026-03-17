@@ -5,8 +5,8 @@ use crate::element::layout::Layout;
 use crate::element::rect::Rect;
 use crate::element::values::*;
 use crate::fonts::Fonts;
-use crate::keyboard::{Key, Modifiers};
-use crate::mouse::MouseButton;
+use crate::input::MouseButton;
+use crate::input::{Key, Modifiers};
 
 pub enum AnyElement {
     Rect(Rect),
