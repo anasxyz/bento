@@ -8,9 +8,6 @@ use crate::element::values::Position;
 use crate::ui::Ui;
 use wgpu;
 
-// ── DrawCall ──────────────────────────────────────────────────────────────────
-// Plain data — no render imports. Elements produce these; renderer consumes them.
-
 #[derive(Clone)]
 pub enum DrawCall {
     Rect {
@@ -48,10 +45,13 @@ impl DrawCall {
     }
 }
 
-// ── DrawList ──────────────────────────────────────────────────────────────────
+// DrawList 
 
 struct ElementDrawData {
     calls: Vec<DrawCall>,
+    // store the offset that was used when this entry was built
+    offset_x: f32,
+    offset_y: f32,
 }
 
 struct DrawList {
@@ -72,7 +72,7 @@ impl DrawList {
     }
 }
 
-// ── traversal ─────────────────────────────────────────────────────────────────
+// helpers 
 
 fn clip_intersect(a: Option<[f32; 4]>, b: Option<[f32; 4]>) -> Option<[f32; 4]> {
     match (a, b) {
@@ -85,6 +85,62 @@ fn clip_intersect(a: Option<[f32; 4]>, b: Option<[f32; 4]>) -> Option<[f32; 4]> 
     }
 }
 
+fn offset_call(call: DrawCall, ox: f32, oy: f32) -> DrawCall {
+    if ox == 0.0 && oy == 0.0 {
+        return call;
+    }
+    match call {
+        DrawCall::Rect {
+            x,
+            y,
+            w,
+            h,
+            color,
+            radius,
+            border_color,
+            border_widths,
+            clip,
+            z_index,
+        } => DrawCall::Rect {
+            x: x + ox,
+            y: y + oy,
+            w,
+            h,
+            color,
+            radius,
+            border_color,
+            border_widths,
+            clip,
+            z_index,
+        },
+        DrawCall::Text {
+            x,
+            y,
+            content,
+            family,
+            size,
+            weight,
+            italic,
+            color,
+            width,
+            clip,
+            z_index,
+        } => DrawCall::Text {
+            x: x + ox,
+            y: y + oy,
+            content,
+            family,
+            size,
+            weight,
+            italic,
+            color,
+            width,
+            clip,
+            z_index,
+        },
+    }
+}
+
 fn traverse(
     ui: &Ui,
     handle: Handle<()>,
@@ -92,6 +148,8 @@ fn traverse(
     parent_z: i32,
     parent_opacity: f32,
     parent_dirty: bool,
+    offset_x: f32,
+    offset_y: f32,
     draw_list: &mut DrawList,
 ) {
     let el = match ui.get_any(handle) {
@@ -105,15 +163,51 @@ fn traverse(
 
     let z = parent_z + layout.z_index;
     let opacity = parent_opacity * layout.opacity;
-    let my_clip = Some([layout.x, layout.y, layout.x + layout.w, layout.y + layout.h]);
-    let should_rebuild = el.is_dirty() || parent_dirty;
+
+    let (tx, ty) = layout.transform.unwrap_or((0.0, 0.0));
+    let child_offset_x = offset_x + tx;
+    let child_offset_y = offset_y + ty;
+
+    let my_clip = Some([
+        layout.x + offset_x,
+        layout.y + offset_y,
+        layout.x + offset_x + layout.w,
+        layout.y + offset_y + layout.h,
+    ]);
+
+    // check if offset changed since last build
+    // if so, force rebuild
+    let offset_changed = draw_list
+        .elements
+        .iter()
+        .find(|(h, _)| *h == handle)
+        .map(|(_, data)| data.offset_x != offset_x || data.offset_y != offset_y)
+        .unwrap_or(true); // default true so first time elements always build
+
+    let should_rebuild = el.is_dirty() || parent_dirty || offset_changed;
 
     if should_rebuild {
-        let calls = el.draw_calls(clip, z, opacity);
+        let calls = el
+            .draw_calls(clip, z, opacity)
+            .into_iter()
+            .map(|c| offset_call(c, offset_x, offset_y))
+            .collect();
+
         if let Some(entry) = draw_list.elements.iter_mut().find(|(h, _)| *h == handle) {
-            entry.1 = ElementDrawData { calls };
+            entry.1 = ElementDrawData {
+                calls,
+                offset_x,
+                offset_y,
+            };
         } else {
-            draw_list.elements.push((handle, ElementDrawData { calls }));
+            draw_list.elements.push((
+                handle,
+                ElementDrawData {
+                    calls,
+                    offset_x,
+                    offset_y,
+                },
+            ));
         }
     }
 
@@ -123,7 +217,17 @@ fn traverse(
             Some(el) if el.layout().position == Position::Absolute => clip,
             _ => clip_intersect(clip, my_clip),
         };
-        traverse(ui, child, child_clip, z, opacity, should_rebuild, draw_list);
+        traverse(
+            ui,
+            child,
+            child_clip,
+            z,
+            opacity,
+            should_rebuild,
+            child_offset_x,
+            child_offset_y,
+            draw_list,
+        );
     }
 }
 
@@ -192,7 +296,7 @@ fn submit(draw_list: &DrawList, ctx: &mut DrawContext) {
     }
 }
 
-// ── Renderer ──────────────────────────────────────────────────────────────────
+// Renderer 
 
 pub struct Renderer {
     pub(super) ctx: DrawContext,
@@ -230,7 +334,7 @@ impl Renderer {
             Some(r) => r,
             None => return,
         };
-        traverse(ui, root, None, 0, 1.0, false, &mut self.draw_list);
+        traverse(ui, root, None, 0, 1.0, false, 0.0, 0.0, &mut self.draw_list);
         rebuild_sorted(&mut self.draw_list);
         submit(&self.draw_list, &mut self.ctx);
     }

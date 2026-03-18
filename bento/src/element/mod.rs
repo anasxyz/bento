@@ -5,6 +5,7 @@ pub mod handle;
 pub mod label;
 pub mod layout;
 pub mod rect;
+pub mod scroll;
 pub mod values;
 
 pub use base::HasBase;

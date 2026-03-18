@@ -1,9 +1,8 @@
-use crate::color::Color;
 use crate::element::values::*;
 
 #[derive(Debug, Clone)]
 pub struct Layout {
-    // computed by layout
+    // computed by layout system
     pub x: f32,
     pub y: f32,
     pub w: f32,
@@ -13,6 +12,7 @@ pub struct Layout {
     pub prev_w: f32,
     pub prev_h: f32,
 
+    // size
     pub width: Size,
     pub height: Size,
     pub min_w: Size,
@@ -21,12 +21,13 @@ pub struct Layout {
     pub max_h: Size,
     pub aspect_ratio: Option<f32>,
 
+    // spacing
     pub padding: [f32; 4], // [top, right, bottom, left]
     pub margin: [f32; 4],
-
     pub row_gap: f32,
     pub col_gap: f32,
 
+    // flex
     pub flex_direction: FlexDirection,
     pub flex_wrap: FlexWrap,
     pub flex_grow: f32,
@@ -36,15 +37,22 @@ pub struct Layout {
     pub align_self: AlignSelf,
     pub justify_content: JustifyContent,
 
+    // overflow + position
     pub overflow_x: Overflow,
     pub overflow_y: Overflow,
-
     pub position: Position,
     pub inset: [Size; 4],
 
+    // visual
     pub opacity: f32,
     pub z_index: i32,
     pub visible: bool,
+
+    // transform
+    // applied during rendering only, never touches taffy
+    // can be used by scroll containers, animations, drag, etc but have to be careful between layout
+    // altering animations and non layout altering animations
+    pub transform: Option<(f32, f32)>,
 }
 
 impl Default for Layout {
@@ -69,7 +77,6 @@ impl Default for Layout {
 
             padding: [0.0; 4],
             margin: [0.0; 4],
-
             row_gap: 0.0,
             col_gap: 0.0,
 
@@ -84,13 +91,14 @@ impl Default for Layout {
 
             overflow_x: Overflow::Hidden,
             overflow_y: Overflow::Hidden,
-
             position: Position::Relative,
             inset: [Size::Auto, Size::Auto, Size::Auto, Size::Auto],
 
             opacity: 1.0,
             z_index: 0,
             visible: true,
+
+            transform: None,
         }
     }
 }

@@ -1,39 +1,59 @@
-use crate::element::handle::Handle;
 use super::types::Event;
+use crate::element::element::EventResult;
+use crate::element::handle::Handle;
 use crate::input::MouseButton;
 use crate::ui::Ui;
 
-fn hit_test(ui: &Ui, handle: Handle<()>, mx: f32, my: f32, hits: &mut Vec<Handle<()>>) {
+// builds hit chain from outermost to innermost for all elements under cursor
+fn hit_chain(ui: &Ui, handle: Handle<()>, mx: f32, my: f32, chain: &mut Vec<Handle<()>>) {
     let el = match ui.get_any(handle) {
         Some(e) => e,
         None => return,
     };
-
     let layout = el.layout();
-
     if !layout.visible {
         return;
     }
-
     let inside =
         mx >= layout.x && mx <= layout.x + layout.w && my >= layout.y && my <= layout.y + layout.h;
-
     if !inside {
         return;
     }
-
+    chain.push(handle);
     let children = ui.children(handle).to_vec();
     for child in children {
-        hit_test(ui, child, mx, my, hits);
-    }
-
-    if ui.has_connections(handle) {
-        hits.push(handle);
+        hit_chain(ui, child, mx, my, chain);
     }
 }
 
-fn top_hit(ui: &Ui, hits: &[Handle<()>]) -> Option<Handle<()>> {
-    hits.iter()
+// builds hit chain for connected elements only 
+// for event emission
+fn connected_chain(ui: &Ui, handle: Handle<()>, mx: f32, my: f32, chain: &mut Vec<Handle<()>>) {
+    let el = match ui.get_any(handle) {
+        Some(e) => e,
+        None => return,
+    };
+    let layout = el.layout();
+    if !layout.visible {
+        return;
+    }
+    let inside =
+        mx >= layout.x && mx <= layout.x + layout.w && my >= layout.y && my <= layout.y + layout.h;
+    if !inside {
+        return;
+    }
+    let children = ui.children(handle).to_vec();
+    for child in children {
+        connected_chain(ui, child, mx, my, chain);
+    }
+    if ui.has_connections(handle) {
+        chain.push(handle);
+    }
+}
+
+fn top_hit(ui: &Ui, chain: &[Handle<()>]) -> Option<Handle<()>> {
+    chain
+        .iter()
         .copied()
         .enumerate()
         .max_by(|(i, a), (j, b)| {
@@ -42,6 +62,23 @@ fn top_hit(ui: &Ui, hits: &[Handle<()>]) -> Option<Handle<()>> {
             az.cmp(&bz).then(i.cmp(j))
         })
         .map(|(_, h)| h)
+}
+
+// walk chain innermost first, stop when Handled
+macro_rules! propagate {
+    ($chain:expr, $ui:expr, $method:ident ( $($arg:expr),* )) => {{
+        let mut claimed: Option<Handle<()>> = None;
+        for handle in $chain.iter().rev() {
+            let result = $ui.get_any_mut(*handle)
+                .map(|e| e.$method($($arg),*))
+                .unwrap_or(EventResult::Propagate);
+            if result == EventResult::Handled {
+                claimed = Some(*handle);
+                break;
+            }
+        }
+        claimed
+    }};
 }
 
 pub fn fire_events(ui: &mut Ui) {
@@ -65,14 +102,37 @@ pub fn fire_events(ui: &mut Ui) {
     let middle_pressed = ui.mouse.middle_just_pressed;
     let middle_released = ui.mouse.middle_just_released;
     let double_clicked = ui.mouse.left_just_double_clicked;
+    let just_scrolled = ui.mouse.just_scrolled;
+    let scroll_dx = ui.mouse.scroll_delta_x;
+    let scroll_dy = ui.mouse.scroll_delta_y;
 
     let global = ui.global();
 
-    let mut hover_hits: Vec<Handle<()>> = Vec::new();
-    hit_test(ui, root, mx, my, &mut hover_hits);
-    let new_hovered = top_hit(ui, &hover_hits);
+    // full chain (all elements)
+    // for hook propagation
+    let mut chain: Vec<Handle<()>> = Vec::new();
+    hit_chain(ui, root, mx, my, &mut chain);
 
-    // mouse move
+    // connected chain
+    // for event emission and hover tracking
+    let mut conn_chain: Vec<Handle<()>> = Vec::new();
+    connected_chain(ui, root, mx, my, &mut conn_chain);
+    let new_hovered = top_hit(ui, &conn_chain);
+
+    // mouse move 
+    // on pressed element first (drag), then propagate through chain
+    if let Some(pressed) = ui.interaction.pressed {
+        let result = ui
+            .get_any_mut(pressed)
+            .map(|e| e.on_mouse_move(mx, my))
+            .unwrap_or(EventResult::Propagate);
+        if result == EventResult::Propagate {
+            propagate!(chain, ui, on_mouse_move(mx, my));
+        }
+    } else {
+        propagate!(chain, ui, on_mouse_move(mx, my));
+    }
+
     if let Some(hovered) = new_hovered {
         ui.emit_bubbling(hovered, Event::MouseMove { x: mx, y: my });
     } else {
@@ -92,17 +152,35 @@ pub fn fire_events(ui: &mut Ui) {
         ui.interaction.hovered = new_hovered;
     }
 
+    // scroll — propagate innermost to outermost, stop when handled
+    if just_scrolled {
+        let claimed = propagate!(chain, ui, on_mouse_scroll(scroll_dx, scroll_dy));
+        let emit_target = claimed.or(chain.last().copied());
+        if let Some(target) = emit_target {
+            ui.emit_bubbling(
+                target,
+                Event::Scroll {
+                    x: scroll_dx,
+                    y: scroll_dy,
+                },
+            );
+        }
+    }
+
     // left press
     if left_pressed {
-        if let Some(target) = new_hovered {
-            ui.get_any_mut(target)
-                .map(|e| e.on_mouse_press(lx, ly, MouseButton::Left));
-            ui.emit_bubbling(target, Event::Press { x: lx, y: ly });
-            ui.interaction.pressed = Some(target);
+        let claimed = propagate!(chain, ui, on_mouse_press(lx, ly, MouseButton::Left));
+        ui.interaction.pressed = claimed.or_else(|| top_hit(ui, &chain));
 
-            if double_clicked {
+        if double_clicked {
+            if let Some(target) = ui.interaction.pressed {
                 ui.get_any_mut(target)
                     .map(|e| e.on_mouse_double_click(lx, ly, MouseButton::Left));
+            }
+        }
+        if let Some(target) = new_hovered {
+            ui.emit_bubbling(target, Event::Press { x: lx, y: ly });
+            if double_clicked {
                 ui.emit_bubbling(target, Event::DoubleClick { x: lx, y: ly });
             }
         } else {
@@ -112,11 +190,14 @@ pub fn fire_events(ui: &mut Ui) {
 
     // left release
     if left_released {
-        if let Some(target) = new_hovered {
-            ui.get_any_mut(target)
+        if let Some(pressed) = ui.interaction.pressed {
+            ui.get_any_mut(pressed)
                 .map(|e| e.on_mouse_release(lx, ly, MouseButton::Left));
+        } else {
+            propagate!(chain, ui, on_mouse_release(lx, ly, MouseButton::Left));
+        }
+        if let Some(target) = new_hovered {
             ui.emit_bubbling(target, Event::Release { x: lx, y: ly });
-
             if ui.interaction.pressed == Some(target) {
                 ui.get_any_mut(target)
                     .map(|e| e.on_mouse_click(lx, ly, MouseButton::Left));
@@ -130,20 +211,17 @@ pub fn fire_events(ui: &mut Ui) {
 
     // right
     if right_pressed {
+        propagate!(chain, ui, on_mouse_press(rx, ry, MouseButton::Right));
         if let Some(target) = new_hovered {
-            ui.get_any_mut(target)
-                .map(|e| e.on_mouse_press(rx, ry, MouseButton::Right));
             ui.emit_bubbling(target, Event::Press { x: rx, y: ry });
         } else {
             ui.emit(global, Event::Press { x: rx, y: ry });
         }
     }
     if right_released {
+        propagate!(chain, ui, on_mouse_release(rx, ry, MouseButton::Right));
+        propagate!(chain, ui, on_mouse_click(rx, ry, MouseButton::Right));
         if let Some(target) = new_hovered {
-            ui.get_any_mut(target)
-                .map(|e| e.on_mouse_release(rx, ry, MouseButton::Right));
-            ui.get_any_mut(target)
-                .map(|e| e.on_mouse_click(rx, ry, MouseButton::Right));
             ui.emit_bubbling(target, Event::RightClick { x: rx, y: ry });
         } else {
             ui.emit(global, Event::RightClick { x: rx, y: ry });
@@ -152,18 +230,11 @@ pub fn fire_events(ui: &mut Ui) {
 
     // middle
     if middle_pressed {
-        if let Some(target) = new_hovered {
-            ui.get_any_mut(target)
-                .map(|e| e.on_mouse_press(midx, midy, MouseButton::Middle));
-        }
+        propagate!(chain, ui, on_mouse_press(midx, midy, MouseButton::Middle));
     }
     if middle_released {
-        if let Some(target) = new_hovered {
-            ui.get_any_mut(target)
-                .map(|e| e.on_mouse_release(midx, midy, MouseButton::Middle));
-            ui.get_any_mut(target)
-                .map(|e| e.on_mouse_click(midx, midy, MouseButton::Middle));
-        }
+        propagate!(chain, ui, on_mouse_release(midx, midy, MouseButton::Middle));
+        propagate!(chain, ui, on_mouse_click(midx, midy, MouseButton::Middle));
     }
 
     // focus

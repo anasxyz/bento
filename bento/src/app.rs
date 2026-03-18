@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use winit::{
     application::ApplicationHandler,
+    event::MouseScrollDelta,
     event::{ElementState, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::PhysicalKey,
@@ -94,7 +95,6 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
 
         match event {
             WindowEvent::RedrawRequested => {
-                // let start = std::time::Instant::now();
                 fire_events(&mut self.ui);
                 self.ui.drain_events();
                 (self.update)(&mut self.ui);
@@ -107,6 +107,7 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                     }
 
                     layout_tree(&mut self.ui);
+                    crate::element::scroll::sync_scroll_containers(&mut self.ui);
                     let region = self.ui.dirty_region();
                     renderer.paint(&self.ui, win.clear_color.to_array());
                     self.ui.clear_dirty();
@@ -116,7 +117,6 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                 }
 
                 self.ui.mouse.reset();
-                // println!("frame: {:?}", start.elapsed());
             }
             WindowEvent::ModifiersChanged(mods) => {
                 let state = mods.state();
@@ -192,6 +192,16 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                     },
                     _ => {}
                 }
+                win.request_redraw();
+            }
+            WindowEvent::MouseWheel { delta, .. } => {
+                let (dx, dy) = match delta {
+                    MouseScrollDelta::LineDelta(x, y) => (x, -y),
+                    MouseScrollDelta::PixelDelta(pos) => {
+                        (pos.x as f32 / 40.0, -pos.y as f32 / 40.0)
+                    }
+                };
+                self.ui.mouse.on_scroll(dx, dy);
                 win.request_redraw();
             }
             WindowEvent::Resized(_) => {

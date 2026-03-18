@@ -5,18 +5,22 @@ use crate::input::{Key, Modifiers, MouseButton};
 use crate::render::DrawCall;
 use std::any::Any;
 
-// separate trait so the derive macro can generate it independently
 pub trait AsAny {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum EventResult {
+    Handled,
+    Propagate,
+}
+
 pub trait Element: HasBase + AsAny + Any + 'static {
-    // the only method you must implement 
+    // required 
     fn draw_calls(&self, clip: Option<[f32; 4]>, z: i32, opacity: f32) -> Vec<DrawCall>;
 
-    // provided via HasBase
-    // never override these 
+    // provided via HasBase 
     fn layout(&self) -> &Layout {
         self.base().layout()
     }
@@ -30,8 +34,7 @@ pub trait Element: HasBase + AsAny + Any + 'static {
         self.base_mut().set_dirty(v);
     }
 
-    // measure
-    // override if element needs intrinsic sizing 
+    // measure 
     fn measure(&self, _fonts: &mut Fonts, _max_width: Option<f32>) -> Option<(f32, f32)> {
         None
     }
@@ -40,16 +43,33 @@ pub trait Element: HasBase + AsAny + Any + 'static {
     }
 
     // event hooks
-    // override only what is needed for example when user is creating custom elements and wants
-    // builtin behaviour
+    // return handled to stop propagation, propagate to continue
     fn on_focus_gained(&mut self) {}
     fn on_focus_lost(&mut self) {}
-    fn on_key_press(&mut self, _key: Key, _mods: Modifiers, _text: Option<char>) {}
-    fn on_key_release(&mut self, _key: Key, _mods: Modifiers) {}
-    fn on_mouse_press(&mut self, _x: f32, _y: f32, _button: MouseButton) {}
-    fn on_mouse_release(&mut self, _x: f32, _y: f32, _button: MouseButton) {}
-    fn on_mouse_click(&mut self, _x: f32, _y: f32, _button: MouseButton) {}
-    fn on_mouse_double_click(&mut self, _x: f32, _y: f32, _button: MouseButton) {}
+    fn on_key_press(&mut self, _key: Key, _mods: Modifiers, _text: Option<char>) -> EventResult {
+        EventResult::Propagate
+    }
+    fn on_key_release(&mut self, _key: Key, _mods: Modifiers) -> EventResult {
+        EventResult::Propagate
+    }
+    fn on_mouse_press(&mut self, _x: f32, _y: f32, _button: MouseButton) -> EventResult {
+        EventResult::Propagate
+    }
+    fn on_mouse_release(&mut self, _x: f32, _y: f32, _button: MouseButton) -> EventResult {
+        EventResult::Propagate
+    }
+    fn on_mouse_click(&mut self, _x: f32, _y: f32, _button: MouseButton) -> EventResult {
+        EventResult::Propagate
+    }
+    fn on_mouse_double_click(&mut self, _x: f32, _y: f32, _button: MouseButton) -> EventResult {
+        EventResult::Propagate
+    }
+    fn on_mouse_move(&mut self, _x: f32, _y: f32) -> EventResult {
+        EventResult::Propagate
+    }
+    fn on_mouse_scroll(&mut self, _delta_x: f32, _delta_y: f32) -> EventResult {
+        EventResult::Propagate
+    }
     fn on_mouse_enter(&mut self) {}
     fn on_mouse_leave(&mut self) {}
 }

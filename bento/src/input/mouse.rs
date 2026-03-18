@@ -5,9 +5,6 @@ pub enum MouseButton {
     Middle,
 }
 
-use crate::element::layout::Layout;
-
-const DRAG_THRESHOLD: f32 = 4.0;
 const DOUBLE_CLICK_MS: u128 = 300;
 
 #[derive(Debug)]
@@ -39,6 +36,11 @@ pub struct MouseState {
     pub middle_click_x: f32,
     pub middle_click_y: f32,
 
+    // scroll delta for current frame
+    pub scroll_delta_x: f32,
+    pub scroll_delta_y: f32,
+    pub just_scrolled: bool,
+
     left_click_count: u32,
     left_last_click: std::time::Instant,
     right_click_count: u32,
@@ -69,6 +71,9 @@ impl Default for MouseState {
             right_click_y: 0.0,
             middle_click_x: 0.0,
             middle_click_y: 0.0,
+            scroll_delta_x: 0.0,
+            scroll_delta_y: 0.0,
+            just_scrolled: false,
             left_click_count: 0,
             left_last_click: std::time::Instant::now(),
             right_click_count: 0,
@@ -83,7 +88,6 @@ impl MouseState {
         self.left_just_pressed = true;
         self.left_click_x = self.x;
         self.left_click_y = self.y;
-
         let now = std::time::Instant::now();
         if now.duration_since(self.left_last_click).as_millis() < DOUBLE_CLICK_MS {
             self.left_click_count += 1;
@@ -107,7 +111,6 @@ impl MouseState {
         self.right_just_pressed = true;
         self.right_click_x = self.x;
         self.right_click_y = self.y;
-
         let now = std::time::Instant::now();
         if now.duration_since(self.right_last_click).as_millis() < DOUBLE_CLICK_MS {
             self.right_click_count += 1;
@@ -134,6 +137,12 @@ impl MouseState {
         self.middle_just_released = true;
     }
 
+    pub fn on_scroll(&mut self, delta_x: f32, delta_y: f32) {
+        self.scroll_delta_x = delta_x;
+        self.scroll_delta_y = delta_y;
+        self.just_scrolled = true;
+    }
+
     pub fn reset(&mut self) {
         self.left_just_pressed = false;
         self.left_just_released = false;
@@ -142,5 +151,8 @@ impl MouseState {
         self.right_just_released = false;
         self.middle_just_pressed = false;
         self.middle_just_released = false;
+        self.scroll_delta_x = 0.0;
+        self.scroll_delta_y = 0.0;
+        self.just_scrolled = false;
     }
 }
