@@ -28,6 +28,8 @@ pub use crate::element::{
     values::*,
 };
 
+pub use crate::render::DrawCall;
+
 pub use crate::{
     event::Event,
     fonts::Fonts,
