@@ -8,6 +8,8 @@ use crate::element::values::Position;
 use crate::ui::Ui;
 use wgpu;
 
+// DrawCall 
+
 #[derive(Clone)]
 pub enum DrawCall {
     Rect {
@@ -49,9 +51,9 @@ impl DrawCall {
 
 struct ElementDrawData {
     calls: Vec<DrawCall>,
-    // store the offset that was used when this entry was built
     offset_x: f32,
     offset_y: f32,
+    culled: bool,
 }
 
 struct DrawList {
@@ -141,6 +143,13 @@ fn offset_call(call: DrawCall, ox: f32, oy: f32) -> DrawCall {
     }
 }
 
+fn is_outside_clip(clip: Option<[f32; 4]>, x: f32, y: f32, w: f32, h: f32) -> bool {
+    match clip {
+        Some([cx, cy, cx2, cy2]) => x + w <= cx || y + h <= cy || x >= cx2 || y >= cy2,
+        None => false,
+    }
+}
+
 fn traverse(
     ui: &Ui,
     handle: Handle<()>,
@@ -168,21 +177,57 @@ fn traverse(
     let child_offset_x = offset_x + tx;
     let child_offset_y = offset_y + ty;
 
-    let my_clip = Some([
-        layout.x + offset_x,
-        layout.y + offset_y,
-        layout.x + offset_x + layout.w,
-        layout.y + offset_y + layout.h,
-    ]);
+    let ex = layout.x + offset_x;
+    let ey = layout.y + offset_y;
 
-    // check if offset changed since last build
-    // if so, force rebuild
-    let offset_changed = draw_list
-        .elements
-        .iter()
-        .find(|(h, _)| *h == handle)
-        .map(|(_, data)| data.offset_x != offset_x || data.offset_y != offset_y)
-        .unwrap_or(true); // default true so first time elements always build
+    let my_clip = Some([ex, ey, ex + layout.w, ey + layout.h]);
+
+    // check if completely outside clip
+    // if so, mark culled but preserve last offset
+    // so when it comes back into view, offset_changed will be true and it rebuilds
+    if is_outside_clip(clip, ex, ey, layout.w, layout.h) {
+        if let Some(entry) = draw_list.elements.iter_mut().find(|(h, _)| *h == handle) {
+            entry.1.culled = true;
+            // intentionally do not update offset_x/offset_y here
+            // so coming back into view forces a rebuild
+        } else {
+            draw_list.elements.push((
+                handle,
+                ElementDrawData {
+                    calls: vec![],
+                    offset_x: f32::NAN,
+                    offset_y: f32::NAN,
+                    culled: true,
+                },
+            ));
+        }
+        // still recurse into children so they also get marked culled
+        let children = ui.children(handle).to_vec();
+        for child in children {
+            let child_clip = match ui.get_any(child) {
+                Some(el) if el.layout().position == Position::Absolute => clip,
+                _ => clip_intersect(clip, my_clip),
+            };
+            traverse(
+                ui,
+                child,
+                child_clip,
+                z,
+                opacity,
+                parent_dirty,
+                child_offset_x,
+                child_offset_y,
+                draw_list,
+            );
+        }
+        return;
+    }
+
+    // find existing entry and check if offset changed or was previously culled
+    let existing = draw_list.elements.iter().find(|(h, _)| *h == handle);
+    let offset_changed = existing
+        .map(|(_, data)| data.culled || data.offset_x != offset_x || data.offset_y != offset_y)
+        .unwrap_or(true); // first time always builds
 
     let should_rebuild = el.is_dirty() || parent_dirty || offset_changed;
 
@@ -198,6 +243,7 @@ fn traverse(
                 calls,
                 offset_x,
                 offset_y,
+                culled: false,
             };
         } else {
             draw_list.elements.push((
@@ -206,8 +252,14 @@ fn traverse(
                     calls,
                     offset_x,
                     offset_y,
+                    culled: false,
                 },
             ));
+        }
+    } else {
+        // not rebuilding but make sure culled flag is cleared
+        if let Some(entry) = draw_list.elements.iter_mut().find(|(h, _)| *h == handle) {
+            entry.1.culled = false;
         }
     }
 
@@ -234,7 +286,9 @@ fn traverse(
 fn rebuild_sorted(draw_list: &mut DrawList) {
     draw_list.sorted.clear();
     for (_, data) in &draw_list.elements {
-        draw_list.sorted.extend(data.calls.iter().cloned());
+        if !data.culled {
+            draw_list.sorted.extend(data.calls.iter().cloned());
+        }
     }
     draw_list.sorted.sort_by_key(|c| c.z_index());
 }

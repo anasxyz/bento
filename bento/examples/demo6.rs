@@ -80,15 +80,6 @@ fn main() {
         .set_text_color(Color::WHITE);
     ui.append(content, title);
 
-    ui.connect(ui.global(), move |ui, event| {
-        if let Event::KeyPress { key, mods, .. } = event {
-            match key {
-                Key::D => { let _ = ui.get_mut(scroll).unwrap().set_scrollbar_visible(false); },
-                _ => {}
-            }
-        }
-    });
-
     // settings rows
     let settings = [
         ("Auto Save", "Save files automatically after a delay"),

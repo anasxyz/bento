@@ -324,6 +324,7 @@ pub fn sync_scroll_containers(ui: &mut crate::ui::Ui) {
                 max_h = max_h.max(l.h);
             }
         }
+
         if let Some(el) = ui.get_any_mut(handle) {
             if let Some(sc) = el.as_any_mut().downcast_mut::<ScrollContainer>() {
                 if sc.content_width != max_w || sc.content_height != max_h {
