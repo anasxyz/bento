@@ -63,8 +63,9 @@ fn main() {
         .unwrap()
         .set_flex_grow(1.0)
         .set_height(Size::Percent(100.0))
-        .set_overflow_x(Overflow::Scroll) // tells taffy children can be wider
+        .set_overflow_x(Overflow::Hidden) // tells taffy children can be wider
         .set_scroll_x_enabled(true)
+        .set_smooth_scroll(true)
         .set_bg_color(Some(Color::rgb(30, 30, 30)));
 
     let content = ui.add(Column::new());

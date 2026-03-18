@@ -39,6 +39,7 @@ impl AppWindow {
                 renderer: None,
                 settings: self.settings,
                 modifiers: Modifiers::default(),
+                last_frame: std::time::Instant::now(),
             })
             .unwrap();
     }
@@ -51,6 +52,7 @@ struct Runner<F: FnMut(&mut Ui)> {
     renderer: Option<Renderer>,
     settings: WindowConfig,
     modifiers: Modifiers,
+    last_frame: std::time::Instant,
 }
 
 impl<F: FnMut(&mut Ui)> Runner<F> {
@@ -95,9 +97,14 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
 
         match event {
             WindowEvent::RedrawRequested => {
+                let now = std::time::Instant::now();
+                let dt = now.duration_since(self.last_frame).as_secs_f32().min(0.1);
+                self.last_frame = now;
+
                 fire_events(&mut self.ui);
                 self.ui.drain_events();
                 (self.update)(&mut self.ui);
+                crate::element::scroll::tick_scroll_containers(&mut self.ui, dt);
 
                 if self.ui.any_dirty() {
                     if self.ui.draw_list_dirty {
@@ -114,6 +121,11 @@ impl<F: FnMut(&mut Ui)> ApplicationHandler for Runner<F> {
                     win.present(renderer, region, true);
                 } else {
                     win.present(renderer, None, false);
+                }
+
+                // if smooth scroll is still animating, schedule the next frame
+                if crate::element::scroll::is_scroll_animating(&self.ui) {
+                    win.request_redraw();
                 }
 
                 self.ui.mouse.reset();
