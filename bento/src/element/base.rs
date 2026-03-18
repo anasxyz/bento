@@ -4,6 +4,7 @@ use crate::element::values::*;
 pub struct Base {
     pub layout: Layout,
     pub dirty: bool,
+    pub focused: bool,
 }
 
 impl Base {
@@ -11,6 +12,7 @@ impl Base {
         Self {
             layout: Layout::default(),
             dirty: true,
+            focused: false,
         }
     }
 
@@ -42,7 +44,7 @@ pub trait HasBase {
 }
 
 // ayout setters 
-// blanket impl: any type with hasbase gets all layout setters for free
+// blanket impl: any type with HasBase gets all layout setters for free
 // all setters mark dirty automatically
 
 pub trait LayoutExt: HasBase + Sized {

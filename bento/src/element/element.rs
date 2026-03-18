@@ -44,8 +44,14 @@ pub trait Element: HasBase + AsAny + Any + 'static {
 
     // event hooks
     // return handled to stop propagation, propagate to continue
-    fn on_focus_gained(&mut self) {}
-    fn on_focus_lost(&mut self) {}
+    fn on_focus_gained(&mut self) {
+        self.base_mut().focused = true;
+        self.base_mut().dirty = true;
+    }
+    fn on_focus_lost(&mut self) {
+        self.base_mut().focused = false;
+        self.base_mut().dirty = true;
+    }
     fn on_key_press(&mut self, _key: Key, _mods: Modifiers, _text: Option<char>) -> EventResult {
         EventResult::Propagate
     }

@@ -13,7 +13,6 @@ pub struct Rect {
     border_color: Option<Color>,
     border_radius: Option<f32>,
     border_widths: [f32; 4],
-    focused: bool,
 }
 
 impl Rect {
@@ -24,7 +23,6 @@ impl Rect {
             border_color: None,
             border_radius: None,
             border_widths: [0.0; 4],
-            focused: false,
         }
     }
 
@@ -41,7 +39,7 @@ impl Rect {
         self.border_widths
     }
     pub fn focused(&self) -> bool {
-        self.focused
+        self.base.focused
     }
 
     pub fn set_bg_color(&mut self, color: Color) -> &mut Self {
@@ -85,14 +83,5 @@ impl Element for Rect {
             clip,
             z_index: z,
         }]
-    }
-
-    fn on_focus_gained(&mut self) {
-        self.focused = true;
-        self.base.dirty = true;
-    }
-    fn on_focus_lost(&mut self) {
-        self.focused = false;
-        self.base.dirty = true;
     }
 }

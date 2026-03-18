@@ -60,6 +60,7 @@ fn main() {
     let scroll = ui.add(ScrollContainer::new());
     ui.get_mut(scroll)
         .unwrap()
+        .set_flex_grow(1.0)
         .set_width(Size::Percent(100.0))
         .set_height(Size::Percent(100.0))
         .set_bg_color(Some(Color::rgb(30, 30, 30)));
