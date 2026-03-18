@@ -8,7 +8,13 @@ use bento_derive::Element;
 
 const SCROLL_SPEED: f32 = 40.0;
 const SCROLLBAR_WIDTH: f32 = 6.0;
-const SCROLLBAR_MIN_HEIGHT: f32 = 24.0;
+const SCROLLBAR_MIN_SIZE: f32 = 24.0;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum DragAxis {
+    Vertical,
+    Horizontal,
+}
 
 #[derive(Element)]
 pub struct ScrollContainer {
@@ -33,7 +39,7 @@ pub struct ScrollContainer {
     pub border_radius: Option<f32>,
     pub border_widths: [f32; 4],
 
-    dragging: bool,
+    dragging: Option<DragAxis>,
     drag_offset: f32,
 }
 
@@ -56,7 +62,7 @@ impl ScrollContainer {
             border_color: None,
             border_radius: None,
             border_widths: [0.0; 4],
-            dragging: false,
+            dragging: None,
             drag_offset: 0.0,
         }
     }
@@ -106,8 +112,20 @@ impl ScrollContainer {
         self.scroll_y = self.max_scroll_y();
         self.apply_transform();
     }
+    pub fn scroll_to_left(&mut self) {
+        self.scroll_x = 0.0;
+        self.apply_transform();
+    }
+    pub fn scroll_to_right(&mut self) {
+        self.scroll_x = self.max_scroll_x();
+        self.apply_transform();
+    }
     pub fn set_scroll_y(&mut self, y: f32) {
         self.scroll_y = y.clamp(0.0, self.max_scroll_y());
+        self.apply_transform();
+    }
+    pub fn set_scroll_x(&mut self, x: f32) {
+        self.scroll_x = x.clamp(0.0, self.max_scroll_x());
         self.apply_transform();
     }
     pub fn set_content_size(&mut self, w: f32, h: f32) {
@@ -122,29 +140,104 @@ impl ScrollContainer {
     fn max_scroll_x(&self) -> f32 {
         (self.content_width - self.base.layout.w).max(0.0)
     }
+
     fn apply_transform(&mut self) {
         self.base.layout.transform = Some((-self.scroll_x, -self.scroll_y));
         self.base.dirty = true;
     }
 
-    fn thumb_geometry(&self) -> (f32, f32, f32, f32) {
+    // vertical scrollbar geometry 
+
+    fn v_track(&self) -> (f32, f32, f32, f32) {
         let l = &self.base.layout;
-        let track_x = l.x + l.w - self.scrollbar_width - 2.0;
-        let track_y = l.y + 2.0;
-        let track_h = l.h - 4.0;
-        let thumb_ratio = (l.h / self.content_height).min(1.0);
-        let thumb_h = (track_h * thumb_ratio).max(SCROLLBAR_MIN_HEIGHT);
-        let thumb_y =
-            track_y + (track_h - thumb_h) * (self.scroll_y / self.max_scroll_y().max(1.0));
-        (track_x, thumb_y, self.scrollbar_width, thumb_h)
+        let x = l.x + l.w - self.scrollbar_width - 2.0;
+        let y = l.y + 2.0;
+        let h = l.h
+            - if self.scroll_x_enabled && self.content_width > l.w {
+                self.scrollbar_width + 4.0
+            } else {
+                4.0
+            };
+        (x, y, self.scrollbar_width, h)
     }
 
-    fn track_geometry(&self) -> (f32, f32, f32, f32) {
+    fn v_thumb(&self) -> (f32, f32, f32, f32) {
+        let (tx, ty, tw, th) = self.v_track();
+        let ratio = (self.base.layout.h / self.content_height).min(1.0);
+        let thumb_h = (th * ratio).max(SCROLLBAR_MIN_SIZE);
+        let thumb_y = ty + (th - thumb_h) * (self.scroll_y / self.max_scroll_y().max(1.0));
+        (tx, thumb_y, tw, thumb_h)
+    }
+
+    // horizontal scrollbar geometry 
+
+    fn h_track(&self) -> (f32, f32, f32, f32) {
         let l = &self.base.layout;
-        let track_x = l.x + l.w - self.scrollbar_width - 2.0;
-        let track_y = l.y + 2.0;
-        let track_h = l.h - 4.0;
-        (track_x, track_y, self.scrollbar_width, track_h)
+        let x = l.x + 2.0;
+        let y = l.y + l.h - self.scrollbar_width - 2.0;
+        let w = l.w
+            - if self.scroll_y_enabled && self.content_height > l.h {
+                self.scrollbar_width + 4.0
+            } else {
+                4.0
+            };
+        (x, y, w, self.scrollbar_width)
+    }
+
+    fn h_thumb(&self) -> (f32, f32, f32, f32) {
+        let (tx, ty, tw, th) = self.h_track();
+        let ratio = (self.base.layout.w / self.content_width).min(1.0);
+        let thumb_w = (tw * ratio).max(SCROLLBAR_MIN_SIZE);
+        let thumb_x = tx + (tw - thumb_w) * (self.scroll_x / self.max_scroll_x().max(1.0));
+        (thumb_x, ty, thumb_w, th)
+    }
+
+    fn draw_scrollbar(
+        &self,
+        calls: &mut Vec<DrawCall>,
+        track: (f32, f32, f32, f32),
+        thumb: (f32, f32, f32, f32),
+        clip: Option<[f32; 4]>,
+        z: i32,
+        opacity: f32,
+        dragging: bool,
+    ) {
+        let r = self.scrollbar_width / 2.0;
+
+        let mut track_color = self.scrollbar_track_color.to_array();
+        track_color[3] *= opacity;
+        calls.push(DrawCall::Rect {
+            x: track.0,
+            y: track.1,
+            w: track.2,
+            h: track.3,
+            color: track_color,
+            radius: r,
+            border_color: [0.0; 4],
+            border_widths: [0.0; 4],
+            clip,
+            z_index: z + 1,
+        });
+
+        let thumb_base = if dragging {
+            Color::rgba(255, 255, 255, 130)
+        } else {
+            self.scrollbar_color
+        };
+        let mut thumb_color = thumb_base.to_array();
+        thumb_color[3] *= opacity;
+        calls.push(DrawCall::Rect {
+            x: thumb.0,
+            y: thumb.1,
+            w: thumb.2,
+            h: thumb.3,
+            color: thumb_color,
+            radius: r,
+            border_color: [0.0; 4],
+            border_widths: [0.0; 4],
+            clip,
+            z_index: z + 2,
+        });
     }
 }
 
@@ -172,43 +265,31 @@ impl Element for ScrollContainer {
             });
         }
 
-        if self.scrollbar_visible && self.scroll_y_enabled && self.content_height > l.h {
-            let (track_x, track_y, track_w, track_h) = self.track_geometry();
-            let mut track_color = self.scrollbar_track_color.to_array();
-            track_color[3] *= opacity;
-            calls.push(DrawCall::Rect {
-                x: track_x,
-                y: track_y,
-                w: track_w,
-                h: track_h,
-                color: track_color,
-                radius: self.scrollbar_width / 2.0,
-                border_color: [0.0; 4],
-                border_widths: [0.0; 4],
-                clip,
-                z_index: z + 1,
-            });
+        let show_v = self.scrollbar_visible && self.scroll_y_enabled && self.content_height > l.h;
+        let show_h = self.scrollbar_visible && self.scroll_x_enabled && self.content_width > l.w;
 
-            let (thumb_x, thumb_y, thumb_w, thumb_h) = self.thumb_geometry();
-            let thumb_base = if self.dragging {
-                Color::rgba(255, 255, 255, 130)
-            } else {
-                self.scrollbar_color
-            };
-            let mut thumb_color = thumb_base.to_array();
-            thumb_color[3] *= opacity;
-            calls.push(DrawCall::Rect {
-                x: thumb_x,
-                y: thumb_y,
-                w: thumb_w,
-                h: thumb_h,
-                color: thumb_color,
-                radius: self.scrollbar_width / 2.0,
-                border_color: [0.0; 4],
-                border_widths: [0.0; 4],
+        if show_v {
+            self.draw_scrollbar(
+                &mut calls,
+                self.v_track(),
+                self.v_thumb(),
                 clip,
-                z_index: z + 2,
-            });
+                z,
+                opacity,
+                self.dragging == Some(DragAxis::Vertical),
+            );
+        }
+
+        if show_h {
+            self.draw_scrollbar(
+                &mut calls,
+                self.h_track(),
+                self.h_thumb(),
+                clip,
+                z,
+                opacity,
+                self.dragging == Some(DragAxis::Horizontal),
+            );
         }
 
         calls
@@ -218,57 +299,92 @@ impl Element for ScrollContainer {
         if button != MouseButton::Left {
             return EventResult::Propagate;
         }
-        if !self.scrollbar_visible || !self.scroll_y_enabled {
-            return EventResult::Propagate;
-        }
-        if self.content_height <= self.base.layout.h {
+        if !self.scrollbar_visible {
             return EventResult::Propagate;
         }
 
-        let (thumb_x, thumb_y, thumb_w, thumb_h) = self.thumb_geometry();
-        if x >= thumb_x && x <= thumb_x + thumb_w && y >= thumb_y && y <= thumb_y + thumb_h {
-            self.dragging = true;
-            self.drag_offset = y - thumb_y;
-            self.base.dirty = true;
-            return EventResult::Handled;
+        let l = &self.base.layout;
+
+        // check vertical scrollbar
+        if self.scroll_y_enabled && self.content_height > l.h {
+            let (thumb_x, thumb_y, thumb_w, thumb_h) = self.v_thumb();
+            if x >= thumb_x && x <= thumb_x + thumb_w && y >= thumb_y && y <= thumb_y + thumb_h {
+                self.dragging = Some(DragAxis::Vertical);
+                self.drag_offset = y - thumb_y;
+                self.base.dirty = true;
+                return EventResult::Handled;
+            }
+            let (track_x, track_y, track_w, track_h) = self.v_track();
+            if x >= track_x && x <= track_x + track_w && y >= track_y && y <= track_y + track_h {
+                let ratio = (l.h / self.content_height).min(1.0);
+                let th = (track_h * ratio).max(SCROLLBAR_MIN_SIZE);
+                let target = y - track_y - th / 2.0;
+                self.scroll_y = (target / (track_h - th).max(1.0) * self.max_scroll_y())
+                    .clamp(0.0, self.max_scroll_y());
+                self.apply_transform();
+                return EventResult::Handled;
+            }
         }
 
-        let (track_x, track_y, track_w, track_h) = self.track_geometry();
-        if x >= track_x && x <= track_x + track_w && y >= track_y && y <= track_y + track_h {
-            let thumb_ratio = (self.base.layout.h / self.content_height).min(1.0);
-            let thumb_h = (track_h * thumb_ratio).max(SCROLLBAR_MIN_HEIGHT);
-            let target_y = y - track_y - thumb_h / 2.0;
-            let scroll_ratio = target_y / (track_h - thumb_h).max(1.0);
-            self.scroll_y = (scroll_ratio * self.max_scroll_y()).clamp(0.0, self.max_scroll_y());
-            self.apply_transform();
-            return EventResult::Handled;
+        // check horizontal scrollbar
+        if self.scroll_x_enabled && self.content_width > l.w {
+            let (thumb_x, thumb_y, thumb_w, thumb_h) = self.h_thumb();
+            if x >= thumb_x && x <= thumb_x + thumb_w && y >= thumb_y && y <= thumb_y + thumb_h {
+                self.dragging = Some(DragAxis::Horizontal);
+                self.drag_offset = x - thumb_x;
+                self.base.dirty = true;
+                return EventResult::Handled;
+            }
+            let (track_x, track_y, track_w, track_h) = self.h_track();
+            if x >= track_x && x <= track_x + track_w && y >= track_y && y <= track_y + track_h {
+                let ratio = (l.w / self.content_width).min(1.0);
+                let tw = (track_w * ratio).max(SCROLLBAR_MIN_SIZE);
+                let target = x - track_x - tw / 2.0;
+                self.scroll_x = (target / (track_w - tw).max(1.0) * self.max_scroll_x())
+                    .clamp(0.0, self.max_scroll_x());
+                self.apply_transform();
+                return EventResult::Handled;
+            }
         }
 
         EventResult::Propagate
     }
 
     fn on_mouse_release(&mut self, _x: f32, _y: f32, _button: MouseButton) -> EventResult {
-        if self.dragging {
-            self.dragging = false;
+        if self.dragging.is_some() {
+            self.dragging = None;
             self.base.dirty = true;
             return EventResult::Handled;
         }
         EventResult::Propagate
     }
 
-    fn on_mouse_move(&mut self, _x: f32, y: f32) -> EventResult {
-        if !self.dragging {
-            return EventResult::Propagate;
+    fn on_mouse_move(&mut self, x: f32, y: f32) -> EventResult {
+        match self.dragging {
+            Some(DragAxis::Vertical) => {
+                let (_, track_y, _, track_h) = self.v_track();
+                let ratio = (self.base.layout.h / self.content_height).min(1.0);
+                let thumb_h = (track_h * ratio).max(SCROLLBAR_MIN_SIZE);
+                let thumb_top = y - self.drag_offset;
+                let scroll_ratio = (thumb_top - track_y) / (track_h - thumb_h).max(1.0);
+                self.scroll_y =
+                    (scroll_ratio * self.max_scroll_y()).clamp(0.0, self.max_scroll_y());
+                self.apply_transform();
+                EventResult::Handled
+            }
+            Some(DragAxis::Horizontal) => {
+                let (track_x, _, track_w, _) = self.h_track();
+                let ratio = (self.base.layout.w / self.content_width).min(1.0);
+                let thumb_w = (track_w * ratio).max(SCROLLBAR_MIN_SIZE);
+                let thumb_left = x - self.drag_offset;
+                let scroll_ratio = (thumb_left - track_x) / (track_w - thumb_w).max(1.0);
+                self.scroll_x =
+                    (scroll_ratio * self.max_scroll_x()).clamp(0.0, self.max_scroll_x());
+                self.apply_transform();
+                EventResult::Handled
+            }
+            None => EventResult::Propagate,
         }
-
-        let (_, track_y, _, track_h) = self.track_geometry();
-        let thumb_ratio = (self.base.layout.h / self.content_height).min(1.0);
-        let thumb_h = (track_h * thumb_ratio).max(SCROLLBAR_MIN_HEIGHT);
-        let thumb_top = y - self.drag_offset;
-        let scroll_ratio = (thumb_top - track_y) / (track_h - thumb_h).max(1.0);
-        self.scroll_y = (scroll_ratio * self.max_scroll_y()).clamp(0.0, self.max_scroll_y());
-        self.apply_transform();
-        EventResult::Handled
     }
 
     fn on_mouse_scroll(&mut self, delta_x: f32, delta_y: f32) -> EventResult {
@@ -324,9 +440,9 @@ pub fn sync_scroll_containers(ui: &mut crate::ui::Ui) {
                 max_h = max_h.max(l.h);
             }
         }
-
         if let Some(el) = ui.get_any_mut(handle) {
             if let Some(sc) = el.as_any_mut().downcast_mut::<ScrollContainer>() {
+                println!("content size: {}x{}", max_w, max_h);
                 if sc.content_width != max_w || sc.content_height != max_h {
                     sc.content_width = max_w;
                     sc.content_height = max_h;

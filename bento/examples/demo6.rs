@@ -17,6 +17,7 @@ fn main() {
         .set_width(Size::Fixed(200.0))
         .set_height(Size::Percent(100.0))
         .set_bg_color(Some(Color::rgb(24, 24, 24)))
+        .set_flex_shrink(0.0)  // don't let taffy shrink it
         .set_padding([16.0, 0.0, 16.0, 0.0])
         .set_row_gap(4.0);
 
@@ -61,14 +62,16 @@ fn main() {
     ui.get_mut(scroll)
         .unwrap()
         .set_flex_grow(1.0)
-        .set_width(Size::Percent(100.0))
         .set_height(Size::Percent(100.0))
+        .set_overflow_x(Overflow::Scroll) // tells taffy children can be wider
+        .set_scroll_x_enabled(true)
         .set_bg_color(Some(Color::rgb(30, 30, 30)));
 
     let content = ui.add(Column::new());
     ui.get_mut(content)
         .unwrap()
-        .set_width(Size::Percent(100.0))
+        .set_width(Size::Fixed(1200.0)) // wider than viewport to trigger horizontal scroll
+        .set_flex_shrink(0.0)  // don't let taffy shrink it
         .set_padding([24.0, 24.0, 24.0, 24.0])
         .set_row_gap(16.0);
 
