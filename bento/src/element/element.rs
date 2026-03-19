@@ -1,4 +1,5 @@
 use crate::element::base::HasBase;
+use crate::element::handle::Handle;
 use crate::element::layout::Layout;
 use crate::fonts::Fonts;
 use crate::input::{Key, Modifiers, MouseButton};
@@ -42,42 +43,95 @@ pub trait Element: HasBase + AsAny + Any + 'static {
         false
     }
 
-    // event hooks
-    // return handled to stop propagation, propagate to continue
-    fn on_focus_gained(&mut self) {
+    // event hooks 
+    // ui and handle are provided so elements can emit events, scroll parents, etc
+    fn on_focus_gained(&mut self, _ui: &mut crate::ui::Ui, _handle: Handle<()>) {
         self.base_mut().focused = true;
         self.base_mut().dirty = true;
     }
-    fn on_focus_lost(&mut self) {
+    fn on_focus_lost(&mut self, _ui: &mut crate::ui::Ui, _handle: Handle<()>) {
         self.base_mut().focused = false;
         self.base_mut().dirty = true;
     }
-    fn on_key_press(&mut self, _key: Key, _mods: Modifiers, _text: Option<char>) -> EventResult {
+    fn on_key_press(
+        &mut self,
+        _ui: &mut crate::ui::Ui,
+        _handle: Handle<()>,
+        _key: Key,
+        _mods: Modifiers,
+        _text: Option<char>,
+    ) -> EventResult {
         EventResult::Propagate
     }
-    fn on_key_release(&mut self, _key: Key, _mods: Modifiers) -> EventResult {
+    fn on_key_release(
+        &mut self,
+        _ui: &mut crate::ui::Ui,
+        _handle: Handle<()>,
+        _key: Key,
+        _mods: Modifiers,
+    ) -> EventResult {
         EventResult::Propagate
     }
-    fn on_mouse_press(&mut self, _x: f32, _y: f32, _button: MouseButton) -> EventResult {
+    fn on_mouse_press(
+        &mut self,
+        _ui: &mut crate::ui::Ui,
+        _handle: Handle<()>,
+        _x: f32,
+        _y: f32,
+        _button: MouseButton,
+    ) -> EventResult {
         EventResult::Propagate
     }
-    fn on_mouse_release(&mut self, _x: f32, _y: f32, _button: MouseButton) -> EventResult {
+    fn on_mouse_release(
+        &mut self,
+        _ui: &mut crate::ui::Ui,
+        _handle: Handle<()>,
+        _x: f32,
+        _y: f32,
+        _button: MouseButton,
+    ) -> EventResult {
         EventResult::Propagate
     }
-    fn on_mouse_click(&mut self, _x: f32, _y: f32, _button: MouseButton) -> EventResult {
+    fn on_mouse_click(
+        &mut self,
+        _ui: &mut crate::ui::Ui,
+        _handle: Handle<()>,
+        _x: f32,
+        _y: f32,
+        _button: MouseButton,
+    ) -> EventResult {
         EventResult::Propagate
     }
-    fn on_mouse_double_click(&mut self, _x: f32, _y: f32, _button: MouseButton) -> EventResult {
+    fn on_mouse_double_click(
+        &mut self,
+        _ui: &mut crate::ui::Ui,
+        _handle: Handle<()>,
+        _x: f32,
+        _y: f32,
+        _button: MouseButton,
+    ) -> EventResult {
         EventResult::Propagate
     }
-    fn on_mouse_move(&mut self, _x: f32, _y: f32) -> EventResult {
+    fn on_mouse_move(
+        &mut self,
+        _ui: &mut crate::ui::Ui,
+        _handle: Handle<()>,
+        _x: f32,
+        _y: f32,
+    ) -> EventResult {
         EventResult::Propagate
     }
-    fn on_mouse_scroll(&mut self, _delta_x: f32, _delta_y: f32) -> EventResult {
+    fn on_mouse_scroll(
+        &mut self,
+        _ui: &mut crate::ui::Ui,
+        _handle: Handle<()>,
+        _delta_x: f32,
+        _delta_y: f32,
+    ) -> EventResult {
         EventResult::Propagate
     }
-    fn on_mouse_enter(&mut self) {}
-    fn on_mouse_leave(&mut self) {}
+    fn on_mouse_enter(&mut self, _ui: &mut crate::ui::Ui, _handle: Handle<()>) {}
+    fn on_mouse_leave(&mut self, _ui: &mut crate::ui::Ui, _handle: Handle<()>) {}
 }
 
 pub type AnyElement = Box<dyn Element>;

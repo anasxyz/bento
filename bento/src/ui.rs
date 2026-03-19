@@ -105,7 +105,7 @@ impl Ui {
         Handle::new(id, 0)
     }
 
-    // returns the concrete type directly
+    // returns the concrete type directly 
     pub fn get_mut<T: Element>(&mut self, handle: Handle<T>) -> Option<&mut T> {
         let slot = self.slots.get_mut(handle.id as usize)?.as_mut()?;
         if slot.generation != handle.generation {
@@ -328,6 +328,28 @@ impl Ui {
             }
         }
         region
+    }
+
+    // temporarily removes element from slot, calls f with (&mut dyn Element, &mut Ui),
+    // then puts it back
+    // this avoids borrow conflicts when hooks need &mut Ui
+    pub(crate) fn with_element<F>(&mut self, handle: Handle<()>, f: F)
+    where
+        F: FnOnce(&mut dyn Element, &mut Ui),
+    {
+        let slot = match self.slots.get_mut(handle.id as usize) {
+            Some(s) => s,
+            None => return,
+        };
+        let mut element = match slot.take() {
+            Some(s) => s,
+            None => return,
+        };
+        f(element.element.as_mut(), self);
+        // put it back
+        if let Some(slot) = self.slots.get_mut(handle.id as usize) {
+            *slot = Some(element);
+        }
     }
 
     pub fn mouse_x(&self) -> f32 {

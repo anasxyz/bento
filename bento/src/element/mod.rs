@@ -6,6 +6,8 @@ pub mod label;
 pub mod layout;
 pub mod rect;
 pub mod scroll;
+pub mod scrollbar;
+pub mod textarea;
 pub mod values;
 
 pub use base::HasBase;

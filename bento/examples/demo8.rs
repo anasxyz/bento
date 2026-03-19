@@ -3,28 +3,27 @@ use bento::*;
 fn main() {
     let mut ui = Ui::new();
 
-    let root = ui.add(Row::new());
+    let root = ui.add(Column::new());
     ui.get_mut(root)
         .unwrap()
         .set_width(Size::Percent(100.0))
         .set_height(Size::Percent(100.0))
-        .set_align_items(AlignItems::Start)
-        .set_justify_content(JustifyContent::Start)
-        .set_bg_color(Some(Color::rgb(10, 10, 10)));
+        .set_bg_color(Some(Color::rgb(20, 20, 20)));
 
-    let rect = ui.add(Container::new());
-    ui.get_mut(rect)
+    let editor = ui.add(TextArea::new());
+    ui.get_mut(editor)
         .unwrap()
-        .set_width(Size::Fixed(150.0))
+        .set_width(Size::Percent(100.0))
         .set_height(Size::Percent(100.0))
-        .set_border([0.0, 1.0, 0.0, 0.0])
-        .set_border_color(Some(Color::rgb(50, 50, 50)))
-        .set_bg_color(Some(Color::rgb(10, 10, 10)));
+        .set_bg_color(Some(Color::rgb(30, 30, 30)))
+        .set_text_color(Color::WHITE)
+        .set_font_size(14.0)
+        .set_padding([12.0, 16.0, 12.0, 16.0])
+        .set_placeholder("Start typing...");
 
-    let label = ui.add(Label::new("Salma"));
+    ui.connect(editor, |_ui, _event| {});
 
-    ui.append(root, rect);
-    ui.append(root, label);
+    ui.append(root, editor);
     ui.set_root(root);
 
     AppWindow::new(WindowConfig::default()).run(ui, |_ui| {});

@@ -25,6 +25,8 @@ pub use crate::element::{
     layout::Layout,
     rect::Rect,
     scroll::ScrollContainer,
+    scrollbar::Scrollbar,
+    textarea::TextArea,
     values::*,
 };
 

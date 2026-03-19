@@ -4,7 +4,6 @@ use crate::element::handle::Handle;
 use crate::input::MouseButton;
 use crate::ui::Ui;
 
-// builds hit chain from outermost to innermost for all elements under cursor
 fn hit_chain(ui: &Ui, handle: Handle<()>, mx: f32, my: f32, chain: &mut Vec<Handle<()>>) {
     let el = match ui.get_any(handle) {
         Some(e) => e,
@@ -26,8 +25,6 @@ fn hit_chain(ui: &Ui, handle: Handle<()>, mx: f32, my: f32, chain: &mut Vec<Hand
     }
 }
 
-// builds hit chain for connected elements only 
-// for event emission
 fn connected_chain(ui: &Ui, handle: Handle<()>, mx: f32, my: f32, chain: &mut Vec<Handle<()>>) {
     let el = match ui.get_any(handle) {
         Some(e) => e,
@@ -64,20 +61,31 @@ fn top_hit(ui: &Ui, chain: &[Handle<()>]) -> Option<Handle<()>> {
         .map(|(_, h)| h)
 }
 
-// walk chain innermost first, stop when Handled
+// call a hook on elements in chain innermost-first, stop when Handled
+// uses with_element to avoid borrow conflicts when hooks need &mut Ui
 macro_rules! propagate {
     ($chain:expr, $ui:expr, $method:ident ( $($arg:expr),* )) => {{
         let mut claimed: Option<Handle<()>> = None;
-        for handle in $chain.iter().rev() {
-            let result = $ui.get_any_mut(*handle)
-                .map(|e| e.$method($($arg),*))
-                .unwrap_or(EventResult::Propagate);
+        for &handle in $chain.iter().rev() {
+            let mut result = EventResult::Propagate;
+            $ui.with_element(handle, |el, ui| {
+                result = el.$method(ui, handle, $($arg),*);
+            });
             if result == EventResult::Handled {
-                claimed = Some(*handle);
+                claimed = Some(handle);
                 break;
             }
         }
         claimed
+    }};
+}
+
+macro_rules! call_hook {
+    ($ui:expr, $handle:expr, $method:ident ( $($arg:expr),* )) => {{
+        let handle = $handle;
+        $ui.with_element(handle, |el, ui| {
+            el.$method(ui, handle, $($arg),*);
+        });
     }};
 }
 
@@ -108,24 +116,19 @@ pub fn fire_events(ui: &mut Ui) {
 
     let global = ui.global();
 
-    // full chain (all elements)
-    // for hook propagation
     let mut chain: Vec<Handle<()>> = Vec::new();
     hit_chain(ui, root, mx, my, &mut chain);
 
-    // connected chain
-    // for event emission and hover tracking
     let mut conn_chain: Vec<Handle<()>> = Vec::new();
     connected_chain(ui, root, mx, my, &mut conn_chain);
     let new_hovered = top_hit(ui, &conn_chain);
 
-    // mouse move 
-    // on pressed element first (drag), then propagate through chain
+    // mouse move
     if let Some(pressed) = ui.interaction.pressed {
-        let result = ui
-            .get_any_mut(pressed)
-            .map(|e| e.on_mouse_move(mx, my))
-            .unwrap_or(EventResult::Propagate);
+        let mut result = EventResult::Propagate;
+        ui.with_element(pressed, |el, ui| {
+            result = el.on_mouse_move(ui, pressed, mx, my);
+        });
         if result == EventResult::Propagate {
             propagate!(chain, ui, on_mouse_move(mx, my));
         }
@@ -142,17 +145,17 @@ pub fn fire_events(ui: &mut Ui) {
     // hover enter/leave
     if ui.interaction.hovered != new_hovered {
         if let Some(prev) = ui.interaction.hovered {
-            ui.get_any_mut(prev).map(|e| e.on_mouse_leave());
+            call_hook!(ui, prev, on_mouse_leave());
             ui.emit_bubbling(prev, Event::HoverEnd);
         }
         if let Some(next) = new_hovered {
-            ui.get_any_mut(next).map(|e| e.on_mouse_enter());
+            call_hook!(ui, next, on_mouse_enter());
             ui.emit_bubbling(next, Event::Hover);
         }
         ui.interaction.hovered = new_hovered;
     }
 
-    // scroll — propagate innermost to outermost, stop when handled
+    // scroll
     if just_scrolled {
         let claimed = propagate!(chain, ui, on_mouse_scroll(scroll_dx, scroll_dy));
         let emit_target = claimed.or(chain.last().copied());
@@ -174,8 +177,7 @@ pub fn fire_events(ui: &mut Ui) {
 
         if double_clicked {
             if let Some(target) = ui.interaction.pressed {
-                ui.get_any_mut(target)
-                    .map(|e| e.on_mouse_double_click(lx, ly, MouseButton::Left));
+                call_hook!(ui, target, on_mouse_double_click(lx, ly, MouseButton::Left));
             }
         }
         if let Some(target) = new_hovered {
@@ -191,16 +193,14 @@ pub fn fire_events(ui: &mut Ui) {
     // left release
     if left_released {
         if let Some(pressed) = ui.interaction.pressed {
-            ui.get_any_mut(pressed)
-                .map(|e| e.on_mouse_release(lx, ly, MouseButton::Left));
+            call_hook!(ui, pressed, on_mouse_release(lx, ly, MouseButton::Left));
         } else {
             propagate!(chain, ui, on_mouse_release(lx, ly, MouseButton::Left));
         }
         if let Some(target) = new_hovered {
             ui.emit_bubbling(target, Event::Release { x: lx, y: ly });
             if ui.interaction.pressed == Some(target) {
-                ui.get_any_mut(target)
-                    .map(|e| e.on_mouse_click(lx, ly, MouseButton::Left));
+                call_hook!(ui, target, on_mouse_click(lx, ly, MouseButton::Left));
                 ui.emit_bubbling(target, Event::Click { x: lx, y: ly });
             }
         } else {
@@ -242,14 +242,16 @@ pub fn fire_events(ui: &mut Ui) {
         let new_focused = new_hovered;
         if ui.interaction.focused != new_focused {
             if let Some(prev) = ui.interaction.focused {
-                ui.get_any_mut(prev).map(|e| e.on_focus_lost());
+                call_hook!(ui, prev, on_focus_lost());
                 ui.emit_bubbling(prev, Event::FocusLost);
             }
             if let Some(next) = new_focused {
-                ui.get_any_mut(next).map(|e| e.on_focus_gained());
+                call_hook!(ui, next, on_focus_gained());
                 ui.emit_bubbling(next, Event::FocusGained);
             }
             ui.interaction.focused = new_focused;
         }
     }
+
+    // routed to focused element
 }
