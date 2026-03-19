@@ -39,16 +39,10 @@ impl DrawContext {
         self.text.resize(width, height, scale as f64);
     }
 
-    pub fn draw_rect(&mut self, x: f32, y: f32, w: f32, h: f32, p: RectParams) {
-        self.shapes.draw(x, y, w, h, p);
-    }
-
-    pub fn draw_text(&mut self, x: f32, y: f32, content: &str, p: TextParams) {
-        self.text.draw(&mut self.font_system, content, x, y, p);
-    }
-
+    // clear rect lives at slot 0, always written each frame
     pub fn draw_clear(&mut self, color: [f32; 4]) {
-        self.shapes.draw(
+        self.shapes.write_slot(
+            0,
             0.0,
             0.0,
             self.width,
@@ -61,6 +55,37 @@ impl DrawContext {
                 clip: None,
             },
         );
+    }
+
+    // element rect slots start at index 1 (0 is clear rect)
+    // renderer calls these with idx = 1-based z-sorted rect position
+    pub fn ensure_rect_slot(&mut self, idx: usize) {
+        // idx is 0-based within element rects, so actual slot is idx + 1
+        self.shapes.ensure_slot(idx + 1);
+    }
+
+    pub fn write_rect_slot(&mut self, idx: usize, x: f32, y: f32, w: f32, h: f32, p: RectParams) {
+        self.shapes.write_slot(idx + 1, x, y, w, h, p);
+    }
+
+    // called after all rects submitted
+    // frees slots beyond whats needed
+    pub fn truncate_rect_slots(&mut self, count: usize) {
+        // count element rects + 1 for clear rect
+        self.shapes.truncate(count + 1);
+    }
+
+    pub fn invalidate_rects(&mut self) {
+        self.shapes.invalidate();
+    }
+
+    pub fn draw_text(&mut self, x: f32, y: f32, content: &str, p: TextParams) {
+        self.text.draw(&mut self.font_system, content, x, y, p);
+    }
+
+    pub fn clear_text(&mut self) {
+        self.text.clear();
+        self.text.trim_atlas();
     }
 
     pub fn render<'pass>(
@@ -79,11 +104,5 @@ impl DrawContext {
             queue,
             pass,
         );
-    }
-
-    pub fn clear(&mut self) {
-        self.shapes.clear();
-        self.text.clear();
-        self.text.trim_atlas();
     }
 }

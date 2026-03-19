@@ -4,23 +4,53 @@ use wgpu;
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct Instance {
-    pos_size:      [f32; 4],
-    params:        [f32; 4],  // [radius, aa_width, 0, 0]
-    fill_color:    [f32; 4],
-    border_color:  [f32; 4],
-    clip:          [f32; 4],
-    screen_size:   [f32; 4],
-    border_widths: [f32; 4],  // top, right, bottom, left
+    pos_size: [f32; 4],
+    params: [f32; 4], // [radius, aa_width, 0, 0]
+    fill_color: [f32; 4],
+    border_color: [f32; 4],
+    clip: [f32; 4],
+    screen_size: [f32; 4],
+    border_widths: [f32; 4], // top, right, bottom, left
 }
 
+const INSTANCE_SIZE: usize = mem::size_of::<Instance>();
+
 const INSTANCE_ATTRS: &[wgpu::VertexAttribute] = &[
-    wgpu::VertexAttribute { offset: 0,  shader_location: 0, format: wgpu::VertexFormat::Float32x4 },
-    wgpu::VertexAttribute { offset: 16, shader_location: 1, format: wgpu::VertexFormat::Float32x4 },
-    wgpu::VertexAttribute { offset: 32, shader_location: 2, format: wgpu::VertexFormat::Float32x4 },
-    wgpu::VertexAttribute { offset: 48, shader_location: 3, format: wgpu::VertexFormat::Float32x4 },
-    wgpu::VertexAttribute { offset: 64, shader_location: 4, format: wgpu::VertexFormat::Float32x4 },
-    wgpu::VertexAttribute { offset: 80, shader_location: 5, format: wgpu::VertexFormat::Float32x4 },
-    wgpu::VertexAttribute { offset: 96, shader_location: 6, format: wgpu::VertexFormat::Float32x4 },
+    wgpu::VertexAttribute {
+        offset: 0,
+        shader_location: 0,
+        format: wgpu::VertexFormat::Float32x4,
+    },
+    wgpu::VertexAttribute {
+        offset: 16,
+        shader_location: 1,
+        format: wgpu::VertexFormat::Float32x4,
+    },
+    wgpu::VertexAttribute {
+        offset: 32,
+        shader_location: 2,
+        format: wgpu::VertexFormat::Float32x4,
+    },
+    wgpu::VertexAttribute {
+        offset: 48,
+        shader_location: 3,
+        format: wgpu::VertexFormat::Float32x4,
+    },
+    wgpu::VertexAttribute {
+        offset: 64,
+        shader_location: 4,
+        format: wgpu::VertexFormat::Float32x4,
+    },
+    wgpu::VertexAttribute {
+        offset: 80,
+        shader_location: 5,
+        format: wgpu::VertexFormat::Float32x4,
+    },
+    wgpu::VertexAttribute {
+        offset: 96,
+        shader_location: 6,
+        format: wgpu::VertexFormat::Float32x4,
+    },
 ];
 
 pub struct RectParams {
@@ -34,7 +64,11 @@ pub struct RectParams {
 pub struct ShapeRenderer {
     pipeline: wgpu::RenderPipeline,
     instance_buffer: wgpu::Buffer,
+    instance_buffer_cap: usize,
+    // slot 0 is reserved for the clear rect
+    // slots 1..n are z-sorted rect draw calls
     instances: Vec<Instance>,
+    dirty: Vec<bool>,
     screen_width: f32,
     screen_height: f32,
     scale: f32,
@@ -61,7 +95,7 @@ impl ShapeRenderer {
                 entry_point: Some("vs_main"),
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
                 buffers: &[wgpu::VertexBufferLayout {
-                    array_stride: mem::size_of::<Instance>() as wgpu::BufferAddress,
+                    array_stride: INSTANCE_SIZE as wgpu::BufferAddress,
                     step_mode: wgpu::VertexStepMode::Instance,
                     attributes: INSTANCE_ATTRS,
                 }],
@@ -81,7 +115,11 @@ impl ShapeRenderer {
                 ..Default::default()
             },
             depth_stencil: None,
-            multisample: wgpu::MultisampleState { count: 1, mask: !0, alpha_to_coverage_enabled: false },
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
             multiview: None,
             cache: None,
         });
@@ -89,33 +127,62 @@ impl ShapeRenderer {
         let cap = 1024;
         let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Shape Instance Buffer"),
-            size: (cap * mem::size_of::<Instance>()) as u64,
+            size: (cap * INSTANCE_SIZE) as u64,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
+        // pre-allocate slot 0 for the clear rect
+        let zero = Instance {
+            pos_size: [0.0; 4],
+            params: [0.0; 4],
+            fill_color: [0.0; 4],
+            border_color: [0.0; 4],
+            clip: [0.0; 4],
+            screen_size: [width * scale, height * scale, 0.0, 0.0],
+            border_widths: [0.0; 4],
+        };
+
         Self {
             pipeline,
             instance_buffer,
-            instances: Vec::with_capacity(cap),
+            instance_buffer_cap: cap,
+            instances: vec![zero],
+            dirty: vec![true],
             screen_width: width * scale,
             screen_height: height * scale,
             scale,
         }
     }
 
-    pub fn resize(&mut self, width: f32, height: f32) {
-        self.screen_width = width * self.scale;
-        self.screen_height = height * self.scale;
-    }
-
     pub fn set_scale(&mut self, scale: f32, width: f32, height: f32) {
         self.scale = scale;
         self.screen_width = width * scale;
         self.screen_height = height * scale;
+        for d in &mut self.dirty {
+            *d = true;
+        }
     }
 
-    pub fn draw(&mut self, x: f32, y: f32, w: f32, h: f32, p: RectParams) {
+    // ensure a slot exists at the given index (0 is reserved for clear rect, element
+    // rects start at index 1). extends the vec if needed.
+    pub fn ensure_slot(&mut self, idx: usize) {
+        while self.instances.len() <= idx {
+            self.instances.push(Instance {
+                pos_size: [0.0; 4],
+                params: [0.0; 4],
+                fill_color: [0.0; 4],
+                border_color: [0.0; 4],
+                clip: [0.0; 4],
+                screen_size: [self.screen_width, self.screen_height, 0.0, 0.0],
+                border_widths: [0.0; 4],
+            });
+            self.dirty.push(true);
+        }
+    }
+
+    // write data into a slot. only marks dirty if data changed.
+    pub fn write_slot(&mut self, idx: usize, x: f32, y: f32, w: f32, h: f32, p: RectParams) {
         let s = self.scale;
         let (px, py, pw, ph) = (x * s, y * s, w * s, h * s);
         let radius = (p.radius * s).min(pw * 0.5).min(ph * 0.5);
@@ -126,13 +193,10 @@ impl ShapeRenderer {
             p.border_widths[3] * s,
         ];
         let clip_arr = match p.clip {
-            Some([cx, cy, cx2, cy2]) => {
-                if x + w <= cx || y + h <= cy || x >= cx2 || y >= cy2 { return; }
-                [cx * s, cy * s, cx2 * s, cy2 * s]
-            }
+            Some([cx, cy, cx2, cy2]) => [cx * s, cy * s, cx2 * s, cy2 * s],
             None => [0.0; 4],
         };
-        self.instances.push(Instance {
+        let new_inst = Instance {
             pos_size: [px, py, pw, ph],
             params: [radius, 1.0, 0.0, 0.0],
             fill_color: p.color,
@@ -140,10 +204,44 @@ impl ShapeRenderer {
             clip: clip_arr,
             screen_size: [self.screen_width, self.screen_height, 0.0, 0.0],
             border_widths,
-        });
+        };
+        if bytemuck::bytes_of(&self.instances[idx]) != bytemuck::bytes_of(&new_inst) {
+            self.instances[idx] = new_inst;
+            self.dirty[idx] = true;
+        }
     }
 
-    pub fn clear(&mut self) { self.instances.clear(); }
+    // shrink the active slot count, zeroing released slots so they render as invisible
+    pub fn truncate(&mut self, len: usize) {
+        // len includes slot 0 (clear rect), so element slots are 1..len
+        // zero out any slots beyond len
+        for i in len..self.instances.len() {
+            let zero = Instance {
+                pos_size: [0.0; 4],
+                params: [0.0; 4],
+                fill_color: [0.0; 4],
+                border_color: [0.0; 4],
+                clip: [0.0; 4],
+                screen_size: [self.screen_width, self.screen_height, 0.0, 0.0],
+                border_widths: [0.0; 4],
+            };
+            if bytemuck::bytes_of(&self.instances[i]) != bytemuck::bytes_of(&zero) {
+                self.instances[i] = zero;
+                self.dirty[i] = true;
+            }
+        }
+        // actually truncate so dont draw degenerate instances unnecessarily
+        self.instances.truncate(len);
+        self.dirty.truncate(len);
+    }
+
+    // mark all slots dirty
+    // called when gpu buffer reallocated or scale changed
+    pub fn invalidate(&mut self) {
+        for d in &mut self.dirty {
+            *d = true;
+        }
+    }
 
     pub fn render<'pass>(
         &'pass mut self,
@@ -151,17 +249,58 @@ impl ShapeRenderer {
         queue: &wgpu::Queue,
         pass: &mut wgpu::RenderPass<'pass>,
     ) {
-        if self.instances.is_empty() { return; }
-        let data = bytemuck::cast_slice(&self.instances);
-        if data.len() as u64 > self.instance_buffer.size() {
+        if self.instances.is_empty() {
+            return;
+        }
+
+        // grow gpu buffer if needed, full upload after realloc
+        if self.instances.len() > self.instance_buffer_cap {
+            let new_cap = self.instances.len() * 2;
             self.instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("Shape Instance Buffer"),
-                size: (data.len() as u64 * 2).max(data.len() as u64),
+                size: (new_cap * INSTANCE_SIZE) as u64,
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
+            self.instance_buffer_cap = new_cap;
+            queue.write_buffer(
+                &self.instance_buffer,
+                0,
+                bytemuck::cast_slice(&self.instances),
+            );
+            for d in &mut self.dirty {
+                *d = false;
+            }
+        } else {
+            // upload only dirty slots, coalescing contiguous ranges
+            let mut ranges = 0u32;
+            let mut range_start: Option<usize> = None;
+            for i in 0..=self.instances.len() {
+                let is_dirty = i < self.instances.len() && self.dirty[i];
+                match (is_dirty, range_start) {
+                    (true, None) => range_start = Some(i),
+                    (false, Some(start)) => {
+                        queue.write_buffer(
+                            &self.instance_buffer,
+                            (start * INSTANCE_SIZE) as u64,
+                            bytemuck::cast_slice(&self.instances[start..i]),
+                        );
+                        ranges += 1;
+                        range_start = None;
+                    }
+                    _ => {}
+                }
+                if i < self.instances.len() {
+                    self.dirty[i] = false;
+                }
+            }
+            println!(
+                "shapes: uploaded {} ranges / {} slots total",
+                ranges,
+                self.instances.len()
+            );
         }
-        queue.write_buffer(&self.instance_buffer, 0, data);
+
         pass.set_pipeline(&self.pipeline);
         pass.set_vertex_buffer(0, self.instance_buffer.slice(..));
         pass.draw(0..6, 0..self.instances.len() as u32);

@@ -8,7 +8,7 @@ use crate::element::values::Position;
 use crate::ui::Ui;
 use wgpu;
 
-// DrawCall 
+// DrawCall
 
 #[derive(Clone)]
 pub enum DrawCall {
@@ -47,7 +47,7 @@ impl DrawCall {
     }
 }
 
-// DrawList 
+// DrawList
 
 struct ElementDrawData {
     calls: Vec<DrawCall>,
@@ -58,7 +58,11 @@ struct ElementDrawData {
 
 struct DrawList {
     elements: Vec<(Handle<()>, ElementDrawData)>,
+    // z-sorted draw calls rebuilt when sort_dirty
     sorted: Vec<DrawCall>,
+    sort_dirty: bool,
+    // any element rebuilt this frame (need to re-submit rects)
+    any_rebuilt: bool,
 }
 
 impl DrawList {
@@ -66,15 +70,19 @@ impl DrawList {
         Self {
             elements: Vec::new(),
             sorted: Vec::new(),
+            sort_dirty: true,
+            any_rebuilt: false,
         }
     }
     fn invalidate(&mut self) {
         self.elements.clear();
         self.sorted.clear();
+        self.sort_dirty = true;
+        self.any_rebuilt = true;
     }
 }
 
-// helpers 
+// helpers
 
 fn clip_intersect(a: Option<[f32; 4]>, b: Option<[f32; 4]>) -> Option<[f32; 4]> {
     match (a, b) {
@@ -182,14 +190,13 @@ fn traverse(
 
     let my_clip = Some([ex, ey, ex + layout.w, ey + layout.h]);
 
-    // check if completely outside clip
-    // if so, mark culled but preserve last offset
-    // so when it comes back into view, offset_changed will be true and it rebuilds
     if is_outside_clip(clip, ex, ey, layout.w, layout.h) {
         if let Some(entry) = draw_list.elements.iter_mut().find(|(h, _)| *h == handle) {
+            if !entry.1.culled {
+                draw_list.sort_dirty = true;
+                draw_list.any_rebuilt = true;
+            }
             entry.1.culled = true;
-            // intentionally do not update offset_x/offset_y here
-            // so coming back into view forces a rebuild
         } else {
             draw_list.elements.push((
                 handle,
@@ -201,7 +208,6 @@ fn traverse(
                 },
             ));
         }
-        // still recurse into children so they also get marked culled
         let children = ui.children(handle).to_vec();
         for child in children {
             let child_clip = match ui.get_any(child) {
@@ -223,20 +229,39 @@ fn traverse(
         return;
     }
 
-    // find existing entry and check if offset changed or was previously culled
     let existing = draw_list.elements.iter().find(|(h, _)| *h == handle);
     let offset_changed = existing
         .map(|(_, data)| data.culled || data.offset_x != offset_x || data.offset_y != offset_y)
-        .unwrap_or(true); // first time always builds
+        .unwrap_or(true);
 
     let should_rebuild = el.is_dirty() || parent_dirty || offset_changed;
 
     if should_rebuild {
-        let calls = el
+        let calls: Vec<DrawCall> = el
             .draw_calls(clip, z, opacity)
             .into_iter()
             .map(|c| offset_call(c, offset_x, offset_y))
             .collect();
+
+        // check if z-indices changed
+        // if so the sorted list needs rebuilding
+        let z_changed = existing
+            .map(|(_, data)| {
+                data.culled
+                    || data.calls.len() != calls.len()
+                    || data
+                        .calls
+                        .iter()
+                        .zip(calls.iter())
+                        .any(|(a, b)| a.z_index() != b.z_index())
+            })
+            .unwrap_or(true);
+
+        if z_changed {
+            draw_list.sort_dirty = true;
+        }
+
+        draw_list.any_rebuilt = true;
 
         if let Some(entry) = draw_list.elements.iter_mut().find(|(h, _)| *h == handle) {
             entry.1 = ElementDrawData {
@@ -255,9 +280,9 @@ fn traverse(
                     culled: false,
                 },
             ));
+            draw_list.sort_dirty = true;
         }
     } else {
-        // not rebuilding but make sure culled flag is cleared
         if let Some(entry) = draw_list.elements.iter_mut().find(|(h, _)| *h == handle) {
             entry.1.culled = false;
         }
@@ -293,7 +318,13 @@ fn rebuild_sorted(draw_list: &mut DrawList) {
     draw_list.sorted.sort_by_key(|c| c.z_index());
 }
 
+// submit rects and text from the sorted list into the draw context
+// rects go through the slot api (write_slot only uploads if data changed),
+// text goes through the text renderers own caching
+// slot_cursor tracks how many rect slots ive used this frame so slots
+// are reused in the same z-sorted positions across frames
 fn submit(draw_list: &DrawList, ctx: &mut DrawContext) {
+    let mut rect_idx = 0usize;
     for call in &draw_list.sorted {
         match call {
             DrawCall::Rect {
@@ -307,19 +338,25 @@ fn submit(draw_list: &DrawList, ctx: &mut DrawContext) {
                 border_widths,
                 clip,
                 ..
-            } => ctx.draw_rect(
-                *x,
-                *y,
-                *w,
-                *h,
-                RectParams {
-                    color: *color,
-                    radius: *radius,
-                    border_color: *border_color,
-                    border_widths: *border_widths,
-                    clip: *clip,
-                },
-            ),
+            } => {
+                // ensure slot exists at this index
+                ctx.ensure_rect_slot(rect_idx);
+                ctx.write_rect_slot(
+                    rect_idx,
+                    *x,
+                    *y,
+                    *w,
+                    *h,
+                    RectParams {
+                        color: *color,
+                        radius: *radius,
+                        border_color: *border_color,
+                        border_widths: *border_widths,
+                        clip: *clip,
+                    },
+                );
+                rect_idx += 1;
+            }
             DrawCall::Text {
                 x,
                 y,
@@ -332,25 +369,29 @@ fn submit(draw_list: &DrawList, ctx: &mut DrawContext) {
                 width,
                 clip,
                 ..
-            } => ctx.draw_text(
-                *x,
-                *y,
-                content,
-                TextParams {
-                    family: family.clone(),
-                    size: *size,
-                    weight: *weight,
-                    italic: *italic,
-                    color: Color::from_array(*color),
-                    width: *width,
-                    clip: *clip,
-                },
-            ),
+            } => {
+                ctx.draw_text(
+                    *x,
+                    *y,
+                    content,
+                    TextParams {
+                        family: family.clone(),
+                        size: *size,
+                        weight: *weight,
+                        italic: *italic,
+                        color: Color::from_array(*color),
+                        width: *width,
+                        clip: *clip,
+                    },
+                );
+            }
         }
     }
+    // free any slots beyond what we used this frame
+    ctx.truncate_rect_slots(rect_idx);
 }
 
-// Renderer 
+// Renderer
 
 pub struct Renderer {
     pub(super) ctx: DrawContext,
@@ -379,17 +420,34 @@ impl Renderer {
 
     pub fn invalidate(&mut self) {
         self.draw_list.invalidate();
+        self.ctx.invalidate_rects();
     }
 
     pub fn paint(&mut self, ui: &Ui, clear_color: [f32; 4]) {
-        self.ctx.clear();
+        self.ctx.clear_text();
         self.ctx.draw_clear(clear_color);
+
         let root = match ui.root() {
             Some(r) => r,
             None => return,
         };
+
         traverse(ui, root, None, 0, 1.0, false, 0.0, 0.0, &mut self.draw_list);
-        rebuild_sorted(&mut self.draw_list);
-        submit(&self.draw_list, &mut self.ctx);
+
+        if self.draw_list.any_rebuilt {
+            println!("renderer: rebuilt sort_dirty={}", self.draw_list.sort_dirty);
+            rebuild_sorted(&mut self.draw_list);
+            if self.draw_list.sort_dirty {
+                // z-order changed
+                // invalidate all rect slots so they get
+                // rewritten in the new sorted order
+                self.ctx.invalidate_rects();
+                self.draw_list.sort_dirty = false;
+            }
+            submit(&self.draw_list, &mut self.ctx);
+            self.draw_list.any_rebuilt = false;
+        } else {
+            println!("renderer: skipped");
+        }
     }
 }
