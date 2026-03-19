@@ -55,7 +55,7 @@ impl Scrollbar {
             viewport_height: 0.0,
             vertical: true,
             horizontal: false,
-            width: 6.0,
+            width: 12.0,
             color: Color::rgba(255, 255, 255, 80),
             track_color: Color::rgba(255, 255, 255, 20),
             visible: true,
@@ -91,16 +91,18 @@ impl Scrollbar {
         self.scroll_y = self.max_scroll_y();
     }
 
-    // geometry 
+    // geometry
 
     fn v_track(&self, rx: f32, ry: f32, rw: f32, rh: f32) -> (f32, f32, f32, f32) {
-        let x = rx + rw - self.width - 2.0;
-        let y = ry + 2.0;
+        // 2.0 is gap from right
+        let x = rx + rw - self.width - 0.0;
+        // 2.0 is gap from top
+        let y = ry + 0.0;
         let h = rh
             - if self.horizontal && self.content_width > self.viewport_width {
-                self.width + 4.0
+                self.width + 0.0 // 4.0 is gap from top + gap from bottom
             } else {
-                4.0
+                0.0
             };
         (x, y, self.width, h)
     }
@@ -114,7 +116,9 @@ impl Scrollbar {
     }
 
     fn h_track(&self, rx: f32, ry: f32, rw: f32, rh: f32) -> (f32, f32, f32, f32) {
+        // let x = rx + 2.0 (2.0 is gap from left)
         let x = rx + 2.0;
+        // let y = ry + rh - self.width - 2.0 (2.0 is gap from bottom)
         let y = ry + rh - self.width - 2.0;
         let w = rw
             - if self.vertical && self.content_height > self.viewport_height {
@@ -133,7 +137,7 @@ impl Scrollbar {
         (thumb_x, ty, thumb_w, th)
     }
 
-    // drawing 
+    // drawing
 
     // rect = (x, y, w, h) of the element that owns this scrollbar
     pub fn draw_calls(
@@ -148,7 +152,7 @@ impl Scrollbar {
         if !self.visible {
             return calls;
         }
-        let r = self.width / 2.0;
+        let r = 0.0;
 
         let show_v = self.vertical && self.content_height > self.viewport_height;
         let show_h = self.horizontal && self.content_width > self.viewport_width;
@@ -233,7 +237,7 @@ impl Scrollbar {
     }
 
     // input
-    // owner forwards mouse events here 
+    // owner forwards mouse events here
     // returns true if the event was consumed (owner should return Handled)
 
     pub fn on_mouse_press(&mut self, rect: (f32, f32, f32, f32), x: f32, y: f32) -> bool {
