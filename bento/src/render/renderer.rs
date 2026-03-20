@@ -6,9 +6,10 @@ use crate::element::element::Element;
 use crate::element::handle::Handle;
 use crate::element::values::Position;
 use crate::ui::Ui;
+use std::collections::HashMap;
 use wgpu;
 
-// DrawCall
+// DrawCall 
 
 #[derive(Clone)]
 pub enum DrawCall {
@@ -47,7 +48,7 @@ impl DrawCall {
     }
 }
 
-// DrawList
+// DrawList 
 
 struct ElementDrawData {
     calls: Vec<DrawCall>,
@@ -58,10 +59,9 @@ struct ElementDrawData {
 
 struct DrawList {
     elements: Vec<(Handle<()>, ElementDrawData)>,
-    // z-sorted draw calls rebuilt when sort_dirty
+    index: HashMap<Handle<()>, usize>,
     sorted: Vec<DrawCall>,
     sort_dirty: bool,
-    // any element rebuilt this frame (need to re-submit rects)
     any_rebuilt: bool,
 }
 
@@ -69,6 +69,7 @@ impl DrawList {
     fn new() -> Self {
         Self {
             elements: Vec::new(),
+            index: HashMap::new(),
             sorted: Vec::new(),
             sort_dirty: true,
             any_rebuilt: false,
@@ -76,13 +77,14 @@ impl DrawList {
     }
     fn invalidate(&mut self) {
         self.elements.clear();
+        self.index.clear();
         self.sorted.clear();
         self.sort_dirty = true;
         self.any_rebuilt = true;
     }
 }
 
-// helpers
+// helpers 
 
 fn clip_intersect(a: Option<[f32; 4]>, b: Option<[f32; 4]>) -> Option<[f32; 4]> {
     match (a, b) {
@@ -191,13 +193,14 @@ fn traverse(
     let my_clip = Some([ex, ey, ex + layout.w, ey + layout.h]);
 
     if is_outside_clip(clip, ex, ey, layout.w, layout.h) {
-        if let Some(entry) = draw_list.elements.iter_mut().find(|(h, _)| *h == handle) {
-            if !entry.1.culled {
+        if let Some(&i) = draw_list.index.get(&handle) {
+            if !draw_list.elements[i].1.culled {
                 draw_list.sort_dirty = true;
                 draw_list.any_rebuilt = true;
             }
-            entry.1.culled = true;
+            draw_list.elements[i].1.culled = true;
         } else {
+            let idx = draw_list.elements.len();
             draw_list.elements.push((
                 handle,
                 ElementDrawData {
@@ -207,6 +210,7 @@ fn traverse(
                     culled: true,
                 },
             ));
+            draw_list.index.insert(handle, idx);
         }
         let children = ui.children(handle).to_vec();
         for child in children {
@@ -229,10 +233,17 @@ fn traverse(
         return;
     }
 
-    let existing = draw_list.elements.iter().find(|(h, _)| *h == handle);
-    let offset_changed = existing
-        .map(|(_, data)| data.culled || data.offset_x != offset_x || data.offset_y != offset_y)
-        .unwrap_or(true);
+    let (offset_changed, is_new, z_changed_pre) = match draw_list
+        .index
+        .get(&handle)
+        .map(|&i| &draw_list.elements[i].1)
+    {
+        None => (true, true, true),
+        Some(data) => {
+            let oc = data.culled || data.offset_x != offset_x || data.offset_y != offset_y;
+            (oc, false, false) // z_changed_pre placeholder, computed after calls built
+        }
+    };
 
     let should_rebuild = el.is_dirty() || parent_dirty || offset_changed;
 
@@ -243,19 +254,26 @@ fn traverse(
             .map(|c| offset_call(c, offset_x, offset_y))
             .collect();
 
-        // check if z-indices changed
-        // if so the sorted list needs rebuilding
-        let z_changed = existing
-            .map(|(_, data)| {
-                data.culled
-                    || data.calls.len() != calls.len()
-                    || data
-                        .calls
-                        .iter()
-                        .zip(calls.iter())
-                        .any(|(a, b)| a.z_index() != b.z_index())
-            })
-            .unwrap_or(true);
+        // check z-indices changed
+        // compare against existing before insert
+        let z_changed = is_new || z_changed_pre || {
+            match draw_list
+                .index
+                .get(&handle)
+                .map(|&i| &draw_list.elements[i].1)
+            {
+                None => true,
+                Some(data) => {
+                    data.culled
+                        || data.calls.len() != calls.len()
+                        || data
+                            .calls
+                            .iter()
+                            .zip(calls.iter())
+                            .any(|(a, b)| a.z_index() != b.z_index())
+                }
+            }
+        };
 
         if z_changed {
             draw_list.sort_dirty = true;
@@ -263,14 +281,8 @@ fn traverse(
 
         draw_list.any_rebuilt = true;
 
-        if let Some(entry) = draw_list.elements.iter_mut().find(|(h, _)| *h == handle) {
-            entry.1 = ElementDrawData {
-                calls,
-                offset_x,
-                offset_y,
-                culled: false,
-            };
-        } else {
+        if is_new {
+            let idx = draw_list.elements.len();
             draw_list.elements.push((
                 handle,
                 ElementDrawData {
@@ -280,11 +292,20 @@ fn traverse(
                     culled: false,
                 },
             ));
+            draw_list.index.insert(handle, idx);
             draw_list.sort_dirty = true;
+        } else {
+            let &idx = draw_list.index.get(&handle).unwrap();
+            draw_list.elements[idx].1 = ElementDrawData {
+                calls,
+                offset_x,
+                offset_y,
+                culled: false,
+            };
         }
     } else {
-        if let Some(entry) = draw_list.elements.iter_mut().find(|(h, _)| *h == handle) {
-            entry.1.culled = false;
+        if let Some(&i) = draw_list.index.get(&handle) {
+            draw_list.elements[i].1.culled = false;
         }
     }
 
