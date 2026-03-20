@@ -137,7 +137,7 @@ impl TextArea {
     }
 
     fn line_height(&self) -> f32 {
-        self.font_size * 1.4
+        self.font_size * 1.2
     }
     fn lines(&self) -> Vec<&str> {
         self.text.split('\n').collect()
