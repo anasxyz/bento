@@ -6,7 +6,7 @@
 ## Features
 
 - Cross-platform, runs on Windows, macOS, and Linux
-- High performance, GPU-accelerated rendering with dirty tracking, incremental redraws, and partial GPU updates for low overhead at scale
+- Optimised, high performance, GPU-accelerated rendering with low overhead at scale
 - Extensible UI element system using `#[derive(Element)]` trait, make your own custom UI elements that integrate seamlessly
 - Comprehensive element/widget and styling library
 - Rich event system with builtin input handling, element lifecycle hooks using `connect()`, and custom event broadcasting using `emit()`
