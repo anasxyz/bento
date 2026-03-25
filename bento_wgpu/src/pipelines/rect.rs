@@ -51,12 +51,12 @@ impl RectPipeline {
         screen_h: f32,
     ) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("bento_render::rect shader"),
-            source: wgpu::ShaderSource::Wgsl(RECT_SHADER.into()),
+            label: Some("bento_wgpu::rect shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/rect.wgsl").into()),
         });
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("bento_render::rect pipeline"),
+            label: Some("bento_wgpu::rect pipeline"),
             layout: None,
             vertex: wgpu::VertexState {
                 module: &shader,
@@ -256,7 +256,7 @@ impl RectPipeline {
 
     fn make_buffer(device: &wgpu::Device, capacity: usize) -> wgpu::Buffer {
         device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("bento_render::rect instances"),
+            label: Some("bento_wgpu::rect instances"),
             size: (capacity * INSTANCE_SIZE) as u64,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
@@ -303,99 +303,3 @@ const INSTANCE_ATTRS: &[wgpu::VertexAttribute] = &[
         format: wgpu::VertexFormat::Float32x4,
     },
 ];
-
-// ── embedded WGSL shader ──────────────────────────────────────────────────────
-
-const RECT_SHADER: &str = r#"
-struct Instance {
-    @location(0) pos_size:      vec4<f32>,
-    @location(1) params:        vec4<f32>,
-    @location(2) fill_color:    vec4<f32>,
-    @location(3) border_color:  vec4<f32>,
-    @location(4) clip:          vec4<f32>,
-    @location(5) screen_size:   vec4<f32>,
-    @location(6) border_widths: vec4<f32>,
-}
-
-struct VertexOut {
-    @builtin(position) pos:       vec4<f32>,
-    @location(0)       uv:        vec2<f32>,
-    @location(1)       size:      vec2<f32>,
-    @location(2)       fill:      vec4<f32>,
-    @location(3)       border_c:  vec4<f32>,
-    @location(4)       params:    vec4<f32>,
-    @location(5)       clip:      vec4<f32>,
-    @location(6)       screen:    vec2<f32>,
-    @location(7)       borders:   vec4<f32>,
-}
-
-// Two triangles forming a quad, in clip space
-var<private> VERTS: array<vec2<f32>, 6> = array<vec2<f32>, 6>(
-    vec2<f32>(0.0, 0.0), vec2<f32>(1.0, 0.0), vec2<f32>(1.0, 1.0),
-    vec2<f32>(0.0, 0.0), vec2<f32>(1.0, 1.0), vec2<f32>(0.0, 1.0),
-);
-
-@vertex
-fn vs_main(@builtin(vertex_index) vi: u32, inst: Instance) -> VertexOut {
-    let uv = VERTS[vi];
-    let screen = inst.screen_size.xy;
-    let px = inst.pos_size.x + uv.x * inst.pos_size.z;
-    let py = inst.pos_size.y + uv.y * inst.pos_size.w;
-    let cx = (px / screen.x) * 2.0 - 1.0;
-    let cy = 1.0 - (py / screen.y) * 2.0;
-
-    var out: VertexOut;
-    out.pos      = vec4<f32>(cx, cy, 0.0, 1.0);
-    out.uv       = uv;
-    out.size     = inst.pos_size.zw;
-    out.fill     = inst.fill_color;
-    out.border_c = inst.border_color;
-    out.params   = inst.params;
-    out.clip     = inst.clip;
-    out.screen   = screen;
-    out.borders  = inst.border_widths;
-    return out;
-}
-
-fn sd_rounded_box(p: vec2<f32>, size: vec2<f32>, r: f32) -> f32 {
-    let q = abs(p) - size + vec2<f32>(r, r);
-    return length(max(q, vec2<f32>(0.0))) + min(max(q.x, q.y), 0.0) - r;
-}
-
-@fragment
-fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
-    // clip discard
-    let fx = in.pos.x;
-    let fy = in.pos.y;
-    let clip = in.clip;
-    if clip.z > 0.0 {
-        if fx < clip.x || fy < clip.y || fx > clip.z || fy > clip.w {
-            discard;
-        }
-    }
-
-    let radius = in.params.x;
-    let aa     = in.params.y;
-
-    // local coordinates centred at the rect centre
-    let p    = (in.uv - vec2<f32>(0.5)) * in.size;
-    let half = in.size * 0.5;
-    let dist = sd_rounded_box(p, half, radius);
-
-    // outer alpha
-    let outer_a = 1.0 - smoothstep(-aa, aa, dist);
-
-    // border
-    let max_b = max(max(in.borders.x, in.borders.y), max(in.borders.z, in.borders.w));
-    var color = in.fill;
-    if max_b > 0.0 {
-        let inner_dist = sd_rounded_box(p, half - vec2<f32>(max_b), max(radius - max_b, 0.0));
-        let border_a = (1.0 - smoothstep(-aa, aa, inner_dist)) * outer_a;
-        let fill_a   = outer_a - border_a;
-        color = in.fill * fill_a + in.border_c * border_a;
-        return vec4<f32>(color.rgb, color.a);
-    }
-
-    return vec4<f32>(in.fill.rgb, in.fill.a * outer_a);
-}
-"#;

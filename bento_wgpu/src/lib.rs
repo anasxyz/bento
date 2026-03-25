@@ -1,4 +1,4 @@
-// bento_render
+// bento_wgpu
 //
 // A standalone GPU rendering crate for 2D UI primitives.
 // No coupling to any UI framework, window system, or element model.

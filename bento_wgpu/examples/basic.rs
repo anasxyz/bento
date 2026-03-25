@@ -19,7 +19,7 @@ impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let window = Arc::new(
             event_loop.create_window(Window::default_attributes()
-                .with_title("bento_render test")
+                .with_title("bento_wgpu test")
                 .with_inner_size(winit::dpi::LogicalSize::new(800u32, 600u32)))
                 .unwrap()
         );
@@ -56,7 +56,7 @@ impl ApplicationHandler for App {
         // label
         let label = self.scene.add_text();
         self.scene.text_mut(label).set_pos(70.0, 70.0);
-        self.scene.text_mut(label).set_content("hello bento_render");
+        self.scene.text_mut(label).set_content("hello bento_wgpu");
         self.scene.text_mut(label).set_family("sans-serif");
         self.scene.text_mut(label).set_size(20.0);
         self.scene.text_mut(label).set_color([1.0, 1.0, 1.0, 1.0]);

@@ -40,12 +40,12 @@ impl ShadowPipeline {
         screen_h: f32,
     ) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("bento_render::shadow shader"),
-            source: wgpu::ShaderSource::Wgsl(SHADOW_SHADER.into()),
+            label: Some("bento_wgpu::shadow shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/shadow.wgsl").into()),
         });
 
         let screen_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("bento_render::shadow screen uniform"),
+            label: Some("bento_wgpu::shadow screen uniform"),
             size: 16,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
@@ -56,7 +56,7 @@ impl ShadowPipeline {
         );
 
         let bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("bento_render::shadow bgl"),
+            label: Some("bento_wgpu::shadow bgl"),
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
                 visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
@@ -69,7 +69,7 @@ impl ShadowPipeline {
             }],
         });
         let screen_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("bento_render::shadow bg"),
+            label: Some("bento_wgpu::shadow bg"),
             layout: &bgl,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
@@ -78,13 +78,13 @@ impl ShadowPipeline {
         });
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("bento_render::shadow layout"),
+            label: Some("bento_wgpu::shadow layout"),
             bind_group_layouts: &[&bgl],
             push_constant_ranges: &[],
         });
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("bento_render::shadow pipeline"),
+            label: Some("bento_wgpu::shadow pipeline"),
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
@@ -224,76 +224,10 @@ impl ShadowPipeline {
 
     fn make_buffer(device: &wgpu::Device, capacity: usize) -> wgpu::Buffer {
         device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("bento_render::shadow instances"),
+            label: Some("bento_wgpu::shadow instances"),
             size: (capacity * INSTANCE_SIZE) as u64,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         })
     }
 }
-
-const SHADOW_SHADER: &str = r#"
-struct Screen { size: vec2<f32>, _pad: vec2<f32> }
-@group(0) @binding(0) var<uniform> screen: Screen;
-
-struct Instance {
-    @location(0) rect:   vec4<f32>,
-    @location(1) color:  vec4<f32>,
-    @location(2) params: vec4<f32>,  // radius, blur, offset_x, offset_y
-}
-
-struct VertOut {
-    @builtin(position) pos:    vec4<f32>,
-    @location(0)       uv:     vec2<f32>,
-    @location(1)       size:   vec2<f32>,
-    @location(2)       color:  vec4<f32>,
-    @location(3)       params: vec4<f32>,
-}
-
-var<private> VERTS: array<vec2<f32>, 6> = array<vec2<f32>, 6>(
-    vec2(0.0,0.0), vec2(1.0,0.0), vec2(1.0,1.0),
-    vec2(0.0,0.0), vec2(1.0,1.0), vec2(0.0,1.0),
-);
-
-@vertex
-fn vs_main(@builtin(vertex_index) vi: u32, inst: Instance) -> VertOut {
-    let blur   = inst.params.y;
-    let expand = blur * 2.0;
-    let ox     = inst.params.z;
-    let oy     = inst.params.w;
-    // expand the quad by blur on all sides
-    let x = inst.rect.x + ox - expand;
-    let y = inst.rect.y + oy - expand;
-    let w = inst.rect.z + expand * 2.0;
-    let h = inst.rect.w + expand * 2.0;
-    let uv = VERTS[vi];
-    let px = x + uv.x * w;
-    let py = y + uv.y * h;
-    let cx = (px / screen.size.x) * 2.0 - 1.0;
-    let cy = 1.0 - (py / screen.size.y) * 2.0;
-    var out: VertOut;
-    out.pos    = vec4(cx, cy, 0.0, 1.0);
-    out.uv     = uv;
-    out.size   = vec2(w, h);
-    out.color  = inst.color;
-    out.params = inst.params;
-    return out;
-}
-
-fn sd_rounded_box(p: vec2<f32>, size: vec2<f32>, r: f32) -> f32 {
-    let q = abs(p) - size + vec2(r);
-    return length(max(q, vec2(0.0))) + min(max(q.x, q.y), 0.0) - r;
-}
-
-@fragment
-fn fs_main(in: VertOut) -> @location(0) vec4<f32> {
-    let radius = in.params.x;
-    let blur   = in.params.y;
-    // local coords centred on the shadow quad
-    let p      = (in.uv - vec2(0.5)) * in.size;
-    let half   = in.size * 0.5 - vec2(blur * 2.0);
-    let dist   = sd_rounded_box(p, half, radius);
-    let alpha  = 1.0 - smoothstep(-blur, blur, dist);
-    return vec4(in.color.rgb, in.color.a * alpha);
-}
-"#;

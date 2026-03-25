@@ -83,7 +83,7 @@ impl Renderer {
         };
         let frame_view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder = ctx.device.create_command_encoder(
-            &wgpu::CommandEncoderDescriptor { label: Some("bento_render frame") }
+            &wgpu::CommandEncoderDescriptor { label: Some("bento_wgpu frame") }
         );
 
         // ── sync dirty nodes to GPU ───────────────────────────────────────────
@@ -108,7 +108,7 @@ impl Renderer {
         {
             let [r, g, b, a] = clear_color;
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("bento_render pass"),
+                label: Some("bento_wgpu pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &frame_view,
                     resolve_target: None,

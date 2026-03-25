@@ -26,12 +26,12 @@ impl RenderContext {
                 force_fallback_adapter: false,
             })
             .await
-            .expect("bento_render: no suitable GPU adapter found");
+            .expect("bento_wgpu: no suitable GPU adapter found");
 
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor::default())
             .await
-            .expect("bento_render: failed to create GPU device");
+            .expect("bento_wgpu: failed to create GPU device");
 
         Self {
             instance,
@@ -55,12 +55,12 @@ impl RenderContext {
                 force_fallback_adapter: false,
             })
             .await
-            .expect("bento_render: no adapter compatible with the given surface");
+            .expect("bento_wgpu: no adapter compatible with the given surface");
 
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor::default())
             .await
-            .expect("bento_render: failed to create GPU device");
+            .expect("bento_wgpu: failed to create GPU device");
 
         Self {
             instance,
