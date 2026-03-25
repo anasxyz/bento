@@ -1,3 +1,7 @@
 [workspace]
-members = ["bento", "bento_derive"]
+members = [
+  "bento", 
+  "bento_derive",
+  "bento_wgpu"  
+]
 resolver = "2"
