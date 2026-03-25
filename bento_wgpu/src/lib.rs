@@ -36,6 +36,10 @@
 //   // render loop
 //   renderer.render(&ctx, &mut surface, &mut scene, [0.0, 0.0, 0.0, 1.0]);
 //   ```
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unused_imports)]
+#![allow(unused_mut)]
 
 mod allocator;
 mod context;
