@@ -85,7 +85,7 @@ impl ApplicationHandler for App {
                 let size  = window.inner_size();
                 let scale = window.scale_factor() as f32;
                 surface.resize(&self.ctx, size.width as f32 / scale, size.height as f32 / scale, scale);
-                renderer.resize(&self.ctx, surface);
+                renderer.resize(&self.ctx, &surface, &mut self.scene);
             }
             WindowEvent::CloseRequested => event_loop.exit(),
             _ => {}

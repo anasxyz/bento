@@ -40,10 +40,10 @@ impl<'window> Surface<'window> {
             format,
             width:    phys_w.max(1),
             height:   phys_h.max(1),
-            present_mode: wgpu::PresentMode::Fifo,
+            present_mode: wgpu::PresentMode::AutoVsync,
             alpha_mode,
             view_formats: vec![],
-            desired_maximum_frame_latency: 2,
+            desired_maximum_frame_latency: 1,
         };
         surface.configure(&ctx.device, &config);
 
