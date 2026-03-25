@@ -1,8 +1,7 @@
-// pipelines/shadow.rs
+// instanced box shadow pipeline
 //
-// Instanced box-shadow pipeline.
-// Same slot model as the rect pipeline — persistent slots, dirty-only uploads.
-// Shadows are drawn before rects (lower z) so they appear beneath UI chrome.
+// same slot model as the rect pipeline 
+// shadows are drawn before rects (lower z) so they appear beneath ui chrome
 
 use std::mem;
 use bytemuck::{Pod, Zeroable};

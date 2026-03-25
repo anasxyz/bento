@@ -1,17 +1,15 @@
-// pipelines/text.rs
+// text rendering via glyphon (cosmic-text + wgpu atlas)
 //
-// Text rendering via glyphon (cosmic-text + wgpu atlas).
+// unlike the rect pipeline, text has no persistent gpu slots
+// glyphon manages its own glyph atlas and buffer caching internally
 //
-// Unlike the rect pipeline, text has no persistent GPU slots.
-// Glyphon manages its own glyph atlas and buffer caching internally.
+// simplified flow of each frame:
+//   begin_frame() which resets submission cursor
+//   submit() per visible TextNode
+//   render() which makes glyphon prepare + draw
 //
-// Each frame:
-//   1. begin_frame()     — reset submission cursor
-//   2. submit() per visible TextNode
-//   3. render()          — glyphon prepare + draw
-//
-// Glyphon diffs internally and only re-rasterises changed glyphs.
-// Buffer reshaping only happens when layout params change.
+// glyphon diffs internally and only rerasterises changed glyphs
+// buffer reshaping only happens when layout params change
 
 use glyphon::{
     Attrs, Buffer, Cache, Color as GColor, Family, FontSystem, Metrics,
@@ -30,7 +28,8 @@ struct SubmitMeta {
 
 struct BufferEntry {
     buffer: Buffer,
-    // cached reshape params — only re-shape when these change
+    // cached reshape params
+    // only reshape when these change
     text:   String,
     family: String,
     size:   f32,

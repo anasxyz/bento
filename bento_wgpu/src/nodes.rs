@@ -1,36 +1,34 @@
-// nodes.rs
+// plain data structs for every drawable primitive
+// just cpu side data
 //
-// Plain data structs for every drawable primitive.
-// No GPU state, no wgpu types — just CPU-side data.
-//
-// Rules:
-//   - All setters compare before assigning. Only mark dirty if the value
-//     actually changed. This means sync_layout-style callers can call setters
-//     every frame cheaply without causing unnecessary GPU uploads.
-//   - `dirty` and `slot` are pub(crate). The SceneGraph and Renderer manage
-//     them — callers never touch them directly.
-//   - New primitive types follow the same pattern: add a struct here,
-//     add a Slab in SceneGraph, add a pipeline in pipelines/.
+// there ar e a few rules:
+//   - all setters compare before assigning. only mark dirty if the value
+//     actually changed. this means sync_layout style callers can call setters
+//     every frame cheaply without causing unnecessary gpu uploads
+//   - `dirty` and `slot` are pub(crate). tThe SceneGraph and Renderer manage
+//     them, callers never touch them directly
+//   - new primitive types follow the same pattern: add a struct here,
+//     add a Slab in SceneGraph, add a pipeline in pipelines/
 
-// ── Ids ───────────────────────────────────────────────────────────────────────
+// ids 
 
-/// Stable identifier for a RectNode. Returned by SceneGraph::add_rect().
-/// Remains valid until remove_rect() is called with it.
+/// stable identifier for a RectNode. returned by SceneGraph::add_rect()
+/// remains valid until remove_rect() is called with it
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RectId(pub(crate) usize);
 
-/// Stable identifier for a TextNode.
+/// stable identifier for a TextNode
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TextId(pub(crate) usize);
 
-/// Stable identifier for a ShadowNode.
+/// stable identifier for a ShadowNode
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ShadowId(pub(crate) usize);
 
-// ── RectNode ──────────────────────────────────────────────────────────────────
+// RectNode 
 
-/// A rounded rectangle with optional border and clip region.
-/// Covers buttons, panels, inputs, highlights — most UI chrome.
+/// a rounded rectangle with optional border and clip region
+/// covers buttons, panels, inputs, highlights, most ui chrome
 pub struct RectNode {
     // position and size in logical pixels
     pub x: f32,
@@ -39,18 +37,19 @@ pub struct RectNode {
     pub h: f32,
 
     // visuals
-    pub color: [f32; 4],           // RGBA, premultiplied alpha expected
+    pub color: [f32; 4],           // rgba, premultiplied alpha expected
     pub radius: f32,               // corner radius, logical pixels
     pub border_color: [f32; 4],
     pub border_widths: [f32; 4],   // [top, right, bottom, left]
     pub clip: Option<[f32; 4]>,    // scissor rect [x, y, x2, y2]
-    pub z: i32,                    // draw order — lower draws first
+    pub z: i32,                    // draw order, lower draws first
 
     pub visible: bool,
 
-    // renderer-managed — do not write from outside this crate
+    // renderer managed
+    // DO NOT write from outside this crate
     pub(crate) dirty: bool,
-    pub(crate) slot: u32,  // GPU instance buffer index, u32::MAX = unassigned
+    pub(crate) slot: u32,  // gpu instance buffer index, u32::MAX = unassigned
 }
 
 impl RectNode {
@@ -69,7 +68,7 @@ impl RectNode {
         }
     }
 
-    // ── setters — compare before assign ──────────────────────────────────────
+    // setters, compare before assign 
 
     pub fn set_pos(&mut self, x: f32, y: f32) {
         if self.x != x || self.y != y {
@@ -121,10 +120,10 @@ impl RectNode {
     }
 }
 
-// ── TextNode ──────────────────────────────────────────────────────────────────
+// TextNode 
 
-/// A text primitive rendered via glyphon/cosmic-text.
-/// Supports multiline, wrapping, font family/weight/style.
+/// a text primitive rendered via glyphon/cosmic-text
+/// supports multiline, wrapping, font family/weight/style
 pub struct TextNode {
     pub x: f32,
     pub y: f32,
@@ -140,9 +139,9 @@ pub struct TextNode {
     pub visible: bool,
 
     pub(crate) dirty: bool,
-    // Text has no GPU slot — glyphon manages its own atlas and buffers.
-    // The text pipeline rebuilds its submission list each frame from all
-    // visible dirty TextNodes.
+    // text has no gpu slot, glyphon manages its own atlas and buffers
+    // the text pipeline rebuilds its submission list each frame from all
+    // visible dirty TextNodes
 }
 
 impl TextNode {
@@ -219,9 +218,9 @@ impl TextNode {
     }
 }
 
-// ── ShadowNode ────────────────────────────────────────────────────────────────
+// ShadowNode 
 
-/// A soft box shadow drawn beneath a rectangle.
+/// a soft box shadow drawn beneath a rectangle
 pub struct ShadowNode {
     pub x: f32,
     pub y: f32,

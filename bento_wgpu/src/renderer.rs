@@ -1,20 +1,18 @@
-// renderer.rs
+// the Renderer is the only place that touches gpu state
+// it reads the SceneGraph each frame, assigns stable gpu slots to new nodes,
+// uploads only dirty nodes, and issues draw calls
 //
-// The Renderer is the only place that touches GPU state.
-// It reads the SceneGraph each frame, assigns stable GPU slots to new nodes,
-// uploads only dirty nodes, and issues draw calls.
+// the way it works is one Renderer per RenderContext (could be shared across windows)
+// each call to render() targets a specific surface
 //
-// One Renderer per RenderContext (shared across windows).
-// Each call to render() targets a specific Surface.
-//
-// Frame sequence:
-//   1. renderer.render(&ctx, &mut surface, &mut scene, clear_color)
-//      a. acquire surface texture
-//      b. begin_frame on text pipeline
-//      c. walk scene graph — assign slots, upload dirty rects/shadows
-//      d. submit visible text nodes
-//      e. begin render pass: draw shadows → rects → text
-//      f. present
+// simplifiedflow of each frame:
+//   - renderer.render(&ctx, &mut surface, &mut scene, clear_color)
+//      * acquire surface texture
+//      * begin_frame on text pipeline
+//      * walk scene graph, assign slots, upload dirty rects/shadows
+//      * submit visible text nodes
+//      * begin render pass: draw shadows, then rects, then text
+//      * present
 
 use wgpu;
 use crate::allocator::SlotAllocator;
@@ -48,7 +46,7 @@ impl Renderer {
         }
     }
 
-    /// Call when the surface is resized or rescaled.
+    /// call when the surface is resized or rescaled
     pub fn resize(&mut self, ctx: &RenderContext, surface: &Surface) {
         let sw = surface.physical_width()  as f32;
         let sh = surface.physical_height() as f32;
@@ -57,14 +55,15 @@ impl Renderer {
         self.text_pipeline.resize(surface.width, surface.height, surface.scale);
     }
 
-    /// Fully invalidate all GPU state — call when the SceneGraph is rebuilt
-    /// from scratch (e.g. after removing all elements).
+    /// fully invalidate all gpu state
+    /// this is to be called when the SceneGraph is rebuilt from scratch 
+    /// (an example would be after removing all elements)
     pub fn invalidate(&mut self) {
         self.rect_pipeline.invalidate();
         self.shadow_pipeline.invalidate();
     }
 
-    /// Render one frame to the given surface.
+    /// render one frame to the given surface
     pub fn render(
         &mut self,
         ctx:         &RenderContext,
@@ -72,7 +71,7 @@ impl Renderer {
         scene:       &mut SceneGraph,
         clear_color: [f32; 4],
     ) {
-        // ── acquire frame ─────────────────────────────────────────────────────
+        // acquire frame 
         let frame = match surface.surface.get_current_texture() {
             Ok(f) => f,
             Err(wgpu::SurfaceError::Outdated | wgpu::SurfaceError::Lost) => {
@@ -86,12 +85,12 @@ impl Renderer {
             &wgpu::CommandEncoderDescriptor { label: Some("bento_wgpu frame") }
         );
 
-        // ── sync dirty nodes to GPU ───────────────────────────────────────────
+        // sync dirty nodes to gpu 
         let scale = surface.scale;
         self.sync_rects(scene, scale);
         self.sync_shadows(scene, scale);
 
-        // ── text: begin frame + submit all visible nodes ──────────────────────
+        // text: begin frame + submit all visible nodes 
         self.text_pipeline.begin_frame();
         for (_, node) in &scene.texts {
             if node.visible && !node.content.is_empty() {
@@ -104,7 +103,7 @@ impl Renderer {
             }
         }
 
-        // ── render pass ───────────────────────────────────────────────────────
+        // render pass 
         {
             let [r, g, b, a] = clear_color;
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -136,7 +135,7 @@ impl Renderer {
         self.text_pipeline.trim_atlas();
     }
 
-    // ── internal sync helpers ─────────────────────────────────────────────────
+    // internal sync helpers 
 
     fn sync_rects(&mut self, scene: &mut SceneGraph, scale: f32) {
         for (_, node) in &mut scene.rects {
@@ -195,9 +194,9 @@ impl Renderer {
         }
     }
 
-    /// Reclaim the GPU slot for a rect node that has been removed from the scene.
-    /// Call this after SceneGraph::remove_rect() if you want to immediately reuse
-    /// the GPU slot. Otherwise the slot stays zeroed until the allocator wraps.
+    /// reclaim the gpu slot for a rect node that has been removed from the scene
+    /// call this after SceneGraph::remove_rect() if immediately reuse of the gpu slot is wanted,
+    /// but otherwise the slot stays zeroed until the allocator wraps
     pub fn free_rect_slot(&mut self, slot: u32) {
         if slot != u32::MAX {
             self.rect_pipeline.clear_slot(slot as usize);
@@ -212,7 +211,7 @@ impl Renderer {
         }
     }
 
-    /// Expose the font system for text measurement outside the render loop.
+    /// expose the font system for text measurement outside the render loop
     pub fn font_system(&mut self) -> &mut glyphon::FontSystem {
         &mut self.text_pipeline.font_system
     }

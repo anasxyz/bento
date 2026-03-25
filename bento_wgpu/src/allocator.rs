@@ -1,9 +1,8 @@
-// allocator.rs
+// free list slot allocator
 //
-// Free-list slot allocator.
-// Hands out stable u32 indices into GPU instance buffers.
-// When a node is removed its slot is returned here and reused.
-// This ensures the GPU buffer stays compact without shifting other slots.
+// hands out stable u32 indices into gpu instance buffers
+// when a node is removed its slot is returned here and reused
+// this ensures the gpu buffer stays compact without shifting other slots
 
 pub(crate) struct SlotAllocator {
     next: u32,
@@ -37,7 +36,8 @@ impl SlotAllocator {
         }
     }
 
-    /// Highest slot index ever issued. Used to size GPU buffers.
+    /// highest slot index ever issued
+    /// will use to size gpu buffers
     pub fn capacity(&self) -> u32 {
         self.next
     }

@@ -1,31 +1,26 @@
 // bento_wgpu
 //
-// A standalone GPU rendering crate for 2D UI primitives.
-// No coupling to any UI framework, window system, or element model.
+// standalone gpu rendering crate for 2d ui primitives
 //
 // ## Architecture
-//
-//   RenderContext   — owns wgpu Device + Queue. One per app.
-//   Surface         — wgpu surface for one window. One per window.
-//   SceneGraph      — owns all nodes (pure CPU). One per window or shared.
-//   Renderer        — reads SceneGraph, drives GPU. One per RenderContext.
+//   RenderContext     owns wgpu device + queue, one per app
+//   Surface           wgpu surface for one window, one per window
+//   SceneGraph        owns all nodes, one per window or shared
+//   Renderer          reads SceneGraph, drives gpu, one per RenderContext
 //
 // ## Primitive types
-//
-//   RectNode    — rounded rect with border and clip  (RectId)
-//   TextNode    — text via glyphon/cosmic-text        (TextId)
-//   ShadowNode  — soft box shadow                     (ShadowId)
+//   RectNode       rounded rect with border and clip   (RectId)
+//   TextNode       text via glyphon/cosmic-text        (TextId)
+//   ShadowNode     soft box shadow                     (ShadowId)
 //
 // ## Adding a new primitive type
-//
-//   1. Add the struct + Id type to nodes.rs
-//   2. Add Slab + CRUD methods to scene.rs
-//   3. Add pipelines/newtype.rs
-//   4. pub mod newtype in pipelines/mod.rs
-//   5. Add the pipeline field + sync logic to renderer.rs
+//   add the struct + id type to nodes.rs
+//   add slab + crud methods to scene.rs
+//   add pipelines/newtype.rs
+//   pub mod newtype in pipelines/mod.rs
+//   add the pipeline field + sync logic to renderer.rs
 //
 // ## Usage
-//
 //   ```rust
 //   let ctx  = RenderContext::new().await;
 //   let mut surface  = Surface::new(&ctx, &window, width, height, scale);
@@ -49,8 +44,6 @@ mod pipelines;
 mod renderer;
 mod scene;
 mod surface;
-
-// ── public re-exports ─────────────────────────────────────────────────────────
 
 pub use context::RenderContext;
 pub use surface::Surface;

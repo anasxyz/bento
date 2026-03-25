@@ -1,16 +1,22 @@
-// scene.rs
+// scenegraph owns all nodes
+// just data
 //
-// SceneGraph owns all nodes.
-// Pure CPU data — no wgpu types, no GPU state anywhere in here.
+// dirty tracking lives here, not on individual nodes
 //
-// The caller (your framework) creates nodes, gets stable IDs back,
-// and mutates nodes directly via rect_mut() / text_mut() / shadow_mut().
-// The Renderer reads the scene graph each frame and handles all GPU work.
+// *_mut() accessors push the id onto the dirty list the first time 
+// a node is mutated each frame
+//
+// the renderer drains those lists meaning zero iterations when nothing changed
 //
 // Adding a new primitive type:
-//   1. Add the struct + Id type to nodes.rs
-//   2. Add a Slab<NewNode> field here
-//   3. Add add_/remove_/get/get_mut methods following the same pattern
+//   1. Add struct + Id to nodes.rs
+//   2. Add Slab + dirty Vec + CRUD methods here following the same pattern
+//   3. Add pipeline in pipelines/, wire into renderer.rs
+//
+// to add a new primitive type you just:
+//   1. add a struct + Id to nodes.rs
+//   2. add a Slab + dirty Vec + crud methods here following the same pattern
+//   3. add a pipeline in pipelines/ dir then wire into renderer.rs
 
 use crate::nodes::{RectId, RectNode, ShadowId, ShadowNode, TextId, TextNode};
 use slab::Slab;
@@ -20,9 +26,11 @@ pub struct SceneGraph {
     pub(crate) texts: Slab<TextNode>,
     pub(crate) shadows: Slab<ShadowNode>,
 
-    dirty_rects: Vec<RectId>, // only nodes that changed this frame
-    dirty_texts: Vec<TextId>,
-    dirty_shadows: Vec<ShadowId>,
+    // ids of nodes that changed since the last render() call
+    // populated by *_mut() accessors, drained by the renderer
+    pub(crate) dirty_rects: Vec<RectId>,
+    pub(crate) dirty_texts: Vec<TextId>,
+    pub(crate) dirty_shadows: Vec<ShadowId>,
 }
 
 impl SceneGraph {
@@ -31,23 +39,24 @@ impl SceneGraph {
             rects: Slab::new(),
             texts: Slab::new(),
             shadows: Slab::new(),
-
             dirty_rects: Vec::new(),
             dirty_texts: Vec::new(),
             dirty_shadows: Vec::new(),
         }
     }
 
-    // ── rect ──────────────────────────────────────────────────────────────────
-
-    /// Allocate a new invisible rect node. Returns a stable ID.
+    /// allocate a new rect node
+    /// starts invisible and dirty so the renderer
+    /// assigns it a gpu slot on the first frame
     pub fn add_rect(&mut self) -> RectId {
         let id = RectId(self.rects.insert(RectNode::new()));
-        self.dirty_rects.push(id); // new nodes start dirty
+        self.dirty_rects.push(id);
         id
     }
 
-    /// Remove and reclaim the rect node. The ID becomes invalid.
+    /// remove the rect node
+    /// its gpu slot is reclaimed separately via renderer::free_rect_slot() if 
+    /// immediate reuse is wanted
     pub fn remove_rect(&mut self, id: RectId) {
         self.rects.remove(id.0);
         self.dirty_rects.retain(|r| *r != id);
@@ -57,20 +66,22 @@ impl SceneGraph {
         &self.rects[id.0]
     }
 
+    /// mutable access
+    ///
+    /// pushes id onto dirty_rects the first time each frame so the renderer 
+    /// knows to reupload this node
     pub fn rect_mut(&mut self, id: RectId) -> &mut RectNode {
         let node = &mut self.rects[id.0];
         if !node.dirty {
             node.dirty = true;
-            self.dirty_rects.push(id); // only added once even if called multiple times
+            self.dirty_rects.push(id);
         }
         node
     }
 
-    // ── text ──────────────────────────────────────────────────────────────────
-
     pub fn add_text(&mut self) -> TextId {
         let id = TextId(self.texts.insert(TextNode::new()));
-        self.dirty_texts.push(id); // new nodes start dirty
+        self.dirty_texts.push(id);
         id
     }
 
@@ -92,11 +103,9 @@ impl SceneGraph {
         node
     }
 
-    // ── shadow ────────────────────────────────────────────────────────────────
-
     pub fn add_shadow(&mut self) -> ShadowId {
         let id = ShadowId(self.shadows.insert(ShadowNode::new()));
-        self.dirty_shadows.push(id); // new nodes start dirty
+        self.dirty_shadows.push(id);
         id
     }
 
@@ -116,6 +125,14 @@ impl SceneGraph {
             self.dirty_shadows.push(id);
         }
         node
+    }
+
+    /// true if any node changed since the last render
+    /// useful for deciding whether to request a redraw from the windowing system
+    pub fn is_dirty(&self) -> bool {
+        !self.dirty_rects.is_empty()
+            || !self.dirty_texts.is_empty()
+            || !self.dirty_shadows.is_empty()
     }
 }
 

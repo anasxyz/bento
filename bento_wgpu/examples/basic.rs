@@ -29,7 +29,7 @@ impl ApplicationHandler for App {
         let w = size.width  as f32 / scale;
         let h = size.height as f32 / scale;
 
-        // SAFETY: window arc kept alive for the duration of surface
+        // window arc kept alive for the duration of surface
         let surface = Surface::new(
             &self.ctx,
             Arc::clone(&window),
@@ -37,7 +37,7 @@ impl ApplicationHandler for App {
         );
         let renderer = Renderer::new(&self.ctx, &surface);
 
-        // ── build scene ───────────────────────────────────────────────────────
+        // build scene 
 
         // background panel
         let bg = self.scene.add_rect();

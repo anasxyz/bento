@@ -1,8 +1,6 @@
-// context.rs
+// RenderContext owns the wgpu device and queue
 //
-// RenderContext owns the wgpu Device and Queue.
-// Create one per application. Share it across all windows/surfaces.
-// Pass &RenderContext wherever GPU operations are needed.
+// create one per application and shared across all windows/surfaces
 
 use wgpu;
 
@@ -14,8 +12,9 @@ pub struct RenderContext {
 }
 
 impl RenderContext {
-    /// Create a RenderContext. Async because wgpu adapter/device request is async.
-    /// Call with pollster::block_on or within an async runtime.
+    /// create a RenderContext
+    /// this is async because wgpu adapter/device request is async
+    /// call with pollster::block_on or within an async runtime
     pub async fn new() -> Self {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
 
@@ -26,12 +25,12 @@ impl RenderContext {
                 force_fallback_adapter: false,
             })
             .await
-            .expect("bento_wgpu: no suitable GPU adapter found");
+            .expect("bento_wgpu: no suitable gpu adapter found");
 
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor::default())
             .await
-            .expect("bento_wgpu: failed to create GPU device");
+            .expect("bento_wgpu: failed to create gpu device");
 
         Self {
             instance,
@@ -41,9 +40,9 @@ impl RenderContext {
         }
     }
 
-    /// Create a RenderContext compatible with a specific window surface.
-    /// Use this when you need to ensure the adapter supports the window's surface
-    /// (required on some platforms / drivers).
+    /// create a RenderContext compatible with a specific window surface
+    /// use this when you need to ensure the adapter supports the windows surface
+    /// (i beliebe this is required on some platforms / drivers)
     pub async fn new_for_surface(
         instance: wgpu::Instance,
         compatible_surface: &wgpu::Surface<'_>,
@@ -60,7 +59,7 @@ impl RenderContext {
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor::default())
             .await
-            .expect("bento_wgpu: failed to create GPU device");
+            .expect("bento_wgpu: failed to create gpu device");
 
         Self {
             instance,

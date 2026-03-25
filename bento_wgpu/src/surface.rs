@@ -1,8 +1,5 @@
-// surface.rs
-//
-// Wraps a wgpu Surface for a single window.
-// Multiple surfaces can share the same RenderContext.
-// No knowledge of nodes, scenes, or elements.
+// wraps a wgpu Surface for a single window
+// multiple surfaces can share the same RenderContext
 
 use wgpu;
 use crate::context::RenderContext;
@@ -28,7 +25,7 @@ impl<'window> Surface<'window> {
         let caps    = surface.get_capabilities(&ctx.adapter);
         let format  = caps.formats[0];
 
-        // prefer PreMultiplied if supported for correct compositing
+        // skould prefer PreMultiplied if supported for correct compositing
         let alpha_mode = if caps.alpha_modes.contains(&wgpu::CompositeAlphaMode::PreMultiplied) {
             wgpu::CompositeAlphaMode::PreMultiplied
         } else {
@@ -53,7 +50,7 @@ impl<'window> Surface<'window> {
         Self { surface, config, format, width, height, scale }
     }
 
-    /// Call when the window is resized or rescaled.
+    /// call when the window is resized or rescaled
     pub fn resize(&mut self, ctx: &RenderContext, width: f32, height: f32, scale: f32) {
         self.width  = width;
         self.height = height;
