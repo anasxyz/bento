@@ -123,6 +123,7 @@ name = "bento"
 version = "0.4.0"
 dependencies = [
  "bento_derive",
+ "bento_wgpu",
  "bytemuck",
  "glyphon",
  "pollster",
@@ -140,6 +141,18 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "bento_wgpu"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "glyphon",
+ "pollster",
+ "slab",
+ "wgpu",
+ "winit",
 ]
 
 [[package]]
