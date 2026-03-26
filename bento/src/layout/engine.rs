@@ -6,7 +6,7 @@ use taffy::prelude::{
 
 use super::layout::Layout;
 use super::values::*;
-use crate::widgets::Handle;
+use crate::widget::Handle;
 
 pub struct LayoutEngine {
     taffy: TaffyTree<Handle<()>>,

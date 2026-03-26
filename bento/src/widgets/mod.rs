@@ -1,7 +1,3 @@
-mod base;
-mod handle;
-mod widget;
+mod rect;
 
-pub use base::{Base, HasBase, LayoutExt};
-pub use handle::Handle;
-pub use widget::{AsAny, AnyWidget, Widget};
+pub use rect::Rect;
