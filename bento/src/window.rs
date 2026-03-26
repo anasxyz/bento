@@ -2,12 +2,14 @@ use bento_wgpu::{RenderContext, Renderer, Surface};
 use std::sync::Arc;
 use winit::{dpi::LogicalSize, event_loop::ActiveEventLoop, window::Window};
 
+use crate::input::InputState;
 use crate::settings::WindowConfig;
 use crate::ui::Ui;
 
 pub struct BentoWindow {
     pub config: WindowConfig,
     pub ui: Ui,
+    pub input: InputState,
     pub renderer: Renderer,
     pub surface: Surface<'static>,
     pub window: Arc<Window>,
@@ -47,6 +49,7 @@ impl BentoWindow {
             surface,
             renderer,
             ui,
+            input: InputState::new(),
             config,
         }
     }

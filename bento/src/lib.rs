@@ -13,6 +13,7 @@ mod ui;
 mod widget;
 mod widgets;
 mod window;
+mod input;
 
 pub use crate::widget::{AnyWidget, AsAny, Base, Handle, HasBase, LayoutExt, Widget};
 pub use app::{App, WindowHandle};
