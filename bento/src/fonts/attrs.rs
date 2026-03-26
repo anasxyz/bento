@@ -4,7 +4,7 @@ pub struct FontAttrs {
     pub size:        f32,
     pub weight:      u16,
     pub italic:      bool,
-    pub line_height: Option<f32>,  // None = auto (size * 1.4)
+    pub line_height: Option<f32>,  // none = auto (size * 1.4)
 }
 
 impl FontAttrs {

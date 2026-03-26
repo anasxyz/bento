@@ -1,5 +1,4 @@
-// measure.rs — text measurement via cosmic-text
-// Given a string and font attributes, returns (width, height) in logical pixels.
+// given a string and font attributes, returns (width, height) in logical pixels
 
 use glyphon::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping, Style, Weight};
 
@@ -36,7 +35,7 @@ pub fn measure_text(
     buffer.set_text(font_system, text, &gattrs, Shaping::Advanced);
     buffer.shape_until_scroll(font_system, false);
 
-    // measure the laid-out lines
+    // measure the laid out lines
     let mut w = 0.0f32;
     let mut h = 0.0f32;
     for run in buffer.layout_runs() {
