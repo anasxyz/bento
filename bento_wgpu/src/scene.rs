@@ -3,7 +3,7 @@
 //
 // dirty tracking lives here, not on individual nodes
 //
-// *_mut() accessors push the id onto the dirty list the first time 
+// *_mut() accessors push the id onto the dirty list the first time
 // a node is mutated each frame
 //
 // the renderer drains those lists meaning zero iterations when nothing changed
@@ -55,7 +55,7 @@ impl SceneGraph {
     }
 
     /// remove the rect node
-    /// its gpu slot is reclaimed separately via renderer::free_rect_slot() if 
+    /// its gpu slot is reclaimed separately via renderer::free_rect_slot() if
     /// immediate reuse is wanted
     pub fn remove_rect(&mut self, id: RectId) {
         self.rects.remove(id.0);
@@ -68,7 +68,7 @@ impl SceneGraph {
 
     /// mutable access
     ///
-    /// pushes id onto dirty_rects the first time each frame so the renderer 
+    /// pushes id onto dirty_rects the first time each frame so the renderer
     /// knows to reupload this node
     pub fn rect_mut(&mut self, id: RectId) -> &mut RectNode {
         let node = &mut self.rects[id.0];
@@ -133,6 +133,10 @@ impl SceneGraph {
         !self.dirty_rects.is_empty()
             || !self.dirty_texts.is_empty()
             || !self.dirty_shadows.is_empty()
+    }
+
+    pub fn dirty_count(&self) -> usize {
+        self.dirty_rects.len() + self.dirty_texts.len() + self.dirty_shadows.len()
     }
 }
 

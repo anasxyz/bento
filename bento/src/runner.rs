@@ -95,6 +95,8 @@ impl ApplicationHandler for Runner {
                 // update layout + sync scene graph
                 win.ui.update();
 
+                println!("dirty nodes this frame: {}", win.ui.scene.dirty_count());
+
                 // render
                 let clear = win.config.clear_color.to_array();
                 win.renderer
@@ -104,7 +106,7 @@ impl ApplicationHandler for Runner {
                 win.input.reset();
             }
 
-            // mouse 
+            // mouse
             WindowEvent::CursorMoved { position, .. } => {
                 let scale = win.window.scale_factor() as f32;
                 win.input
@@ -138,7 +140,7 @@ impl ApplicationHandler for Runner {
                 win.window.request_redraw();
             }
 
-            // keyboard 
+            // keyboard
             WindowEvent::KeyboardInput { event: ke, .. } => {
                 let key = match ke.physical_key {
                     PhysicalKey::Code(code) => Key::from(code),
@@ -162,7 +164,7 @@ impl ApplicationHandler for Runner {
                 };
             }
 
-            // window lifecycle 
+            // window lifecycle
             WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {
                 win.resize(&self.ctx);
             }

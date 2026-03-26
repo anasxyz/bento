@@ -26,8 +26,18 @@ fn main() {
         .set_color(Color::rgb(0, 100, 0))
         .set_radius(8.0);
 
-    ui.connect(rect3, |ui, event| {
-        println!("{:?}", event);
+    ui.connect(rect3, move |ui, event| match event {
+        Event::Hover => {
+            ui.get_mut(rect3)
+                .unwrap()
+                .set_color(Color::rgb(255, 100, 100));
+        }
+        Event::HoverEnd => {
+            ui.get_mut(rect3)
+                .unwrap()
+                .set_color(Color::rgb(100, 150, 255));
+        }
+        _ => {}
     });
 
     ui.append(rect, rect3);
