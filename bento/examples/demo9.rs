@@ -1,5 +1,10 @@
 use bento::*;
 
 fn main() {
-    AppWindow::new(WindowConfig::default()).run();
+    let mut app = App::new();
+
+    // 
+
+    let main_win = app.open_window(WindowConfig::default());
+    app.run();
 }

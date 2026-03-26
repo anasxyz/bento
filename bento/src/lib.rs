@@ -9,6 +9,6 @@ mod window;
 mod color;
 mod settings;
 
-pub use crate::app::AppWindow;
+pub use crate::app::App;
 pub use crate::color::{Color, hex, hsl, hsla, hwb, hwba, rgb, rgba};
 pub use crate::settings::WindowConfig;
