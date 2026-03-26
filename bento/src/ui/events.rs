@@ -1,8 +1,3 @@
-// events.rs
-//
-// Event enum, Connection, and the connect/disconnect/emit/drain_events API.
-// Connections are stored per-handle in a HashMap for O(1) lookup.
-
 use crate::widget::Handle;
 use std::collections::HashMap;
 
@@ -31,7 +26,7 @@ pub struct Connection {
 }
 
 pub struct EventSystem {
-    // handle → list of connections
+    // handle => list of connections
     pub(crate) connections: HashMap<Handle<()>, Vec<Connection>>,
     pub(crate) event_queue: Vec<(Handle<()>, Event)>,
     pub(crate) next_connection_id: u32,

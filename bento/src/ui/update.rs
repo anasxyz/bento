@@ -1,9 +1,7 @@
-// update.rs
-//
-// The per-frame update pass:
-//   1. Push current layout styles to taffy
-//   2. Run layout compute
-//   3. Call sync() on every widget with its computed position
+// per frame update pass
+//   push current layout styles to taffy
+//   run layout compute
+//   call sync() on every widget with its computed position
 
 use super::Ui;
 use crate::widget::{Handle, HasBase};
@@ -14,7 +12,7 @@ impl Ui {
         let w = self.window_width as f32;
         let h = self.window_height as f32;
 
-        // 1. sync all layout styles to taffy
+        // sync all layout styles to taffy
         let style_updates: Vec<(Handle<()>, crate::layout::Layout)> = self
             .slots
             .iter()
@@ -32,11 +30,11 @@ impl Ui {
             self.layout.set_layout(*handle, layout);
         }
 
-        // 2. compute layout
+        // compute layout
         self.layout
             .compute(root, w, h, |_handle, _max_w, _max_h| (0.0, 0.0));
 
-        // 3. sync computed rects to scene graph nodes
+        // sync computed rects to scene graph nodes
         let handles: Vec<Handle<()>> = self
             .slots
             .iter()

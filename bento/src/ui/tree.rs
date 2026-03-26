@@ -1,13 +1,9 @@
-// tree.rs
-//
-// Widget tree operations — add, remove, append, parent, children, get, get_mut.
-// All tree mutation is here. Ui delegates to these methods.
-
 use super::{Ui, slot::Slot};
 use crate::widget::{Handle, HasBase, Widget};
 
 impl Ui {
-    /// Add a widget to the tree. Returns a typed handle.
+    /// add a widget to the tree
+    /// returns a typed handle
     pub fn add<W: Widget>(&mut self, widget: W) -> Handle<W> {
         let layout = widget.base().layout.clone();
 
@@ -40,8 +36,9 @@ impl Ui {
         Handle::new(id, generation)
     }
 
-    /// Remove a widget. Increments generation so stale handles become invalid.
-    /// Also removes all connections and clears focus/hover if needed.
+    /// remove a widget
+    /// increments generation so stale handles become invalid
+    /// also removes all connections and clears focus/hover if needed
     pub fn remove<T>(&mut self, handle: Handle<T>) {
         let handle = handle.untyped();
 
@@ -81,7 +78,8 @@ impl Ui {
         }
     }
 
-    /// Set the root widget — the top of the layout tree.
+    /// set the root widget
+    /// the top of the layout tree
     pub fn set_root<W>(&mut self, handle: Handle<W>) {
         self.root = Some(handle.untyped());
     }
@@ -90,7 +88,7 @@ impl Ui {
         self.root
     }
 
-    /// Append child to parent in both the widget tree and layout engine.
+    /// append child to parent in both the widget tree and layout engine
     pub fn append<P, C>(&mut self, parent: Handle<P>, child: Handle<C>) {
         let parent = parent.untyped();
         let child = child.untyped();
@@ -120,7 +118,8 @@ impl Ui {
             .unwrap_or(&[])
     }
 
-    /// Get a typed reference to a widget. Returns None if handle is stale.
+    /// get a typed reference to a widget
+    /// returns none if handle is stale
     pub fn get<W: Widget>(&self, handle: Handle<W>) -> Option<&W> {
         let slot = self.slots.get(handle.id as usize)?.as_ref()?;
         if slot.generation != handle.generation {
@@ -129,7 +128,7 @@ impl Ui {
         slot.widget.as_any().downcast_ref::<W>()
     }
 
-    /// Get a typed mutable reference to a widget.
+    /// get a typed mutable reference to a widget
     pub fn get_mut<W: Widget>(&mut self, handle: Handle<W>) -> Option<&mut W> {
         let slot = self.slots.get_mut(handle.id as usize)?.as_mut()?;
         if slot.generation != handle.generation {
@@ -138,7 +137,8 @@ impl Ui {
         slot.widget.as_any_mut().downcast_mut::<W>()
     }
 
-    /// Get an untyped reference. Used internally by dispatch.
+    /// get an untyped reference
+    /// used internally by dispatch
     pub(crate) fn get_any(&self, handle: Handle<()>) -> Option<&dyn Widget> {
         let slot = self.slots.get(handle.id as usize)?.as_ref()?;
         if slot.generation != handle.generation {
@@ -147,8 +147,8 @@ impl Ui {
         Some(slot.widget.as_ref())
     }
 
-    /// Temporarily remove widget from slot, call f, put it back.
-    /// Avoids borrow conflicts when callbacks need &mut Ui.
+    /// temporarily remove widget from slot, call f, put it back
+    /// avoids borrow conflicts when callbacks need &mut Ui
     pub(crate) fn with_widget<F>(&mut self, handle: Handle<()>, f: F)
     where
         F: FnOnce(&mut dyn Widget, &mut Ui),

@@ -1,9 +1,3 @@
-// ui/mod.rs
-//
-// Ui owns the widget tree, layout engine, scene graph, and event system
-// for one window. The user builds their UI here and passes it to
-// app.open_window().
-
 mod events;
 mod slot;
 mod tree;
@@ -20,7 +14,7 @@ use slot::Slot;
 
 const GLOBAL_ID: u32 = u32::MAX;
 
-/// Tracks which widget currently has hover/press/focus.
+/// tracks which widget currently has hover/press/focus
 pub struct InteractionState {
     pub hovered: Option<Handle<()>>,
     pub pressed: Option<Handle<()>>,
@@ -66,7 +60,8 @@ impl Ui {
         Handle::new(GLOBAL_ID, 0)
     }
 
-    // ── event API (delegates to EventSystem) ─────────────────────────────────
+    // event api
+    // delegates to EventSystem
 
     pub fn connect<T>(
         &mut self,
@@ -115,7 +110,7 @@ impl Ui {
                 for conn in &mut conns {
                     (conn.callback)(self, &event);
                 }
-                // put connections back — merge in case new ones were added during callback
+                // put connections back, merge in case new ones were added during callback
                 let entry = self.events.connections.entry(handle).or_default();
                 // prepend existing conns back (callbacks added during drain go at end)
                 let new_conns = std::mem::take(entry);
@@ -124,8 +119,6 @@ impl Ui {
             }
         }
     }
-
-    // ── mouse helpers ─────────────────────────────────────────────────────────
 
     pub fn hovered(&self) -> Option<Handle<()>> {
         self.interaction.hovered
