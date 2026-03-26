@@ -10,6 +10,7 @@ mod color;
 mod settings;
 mod layout;
 mod widgets;
+mod fonts;
 
 pub use crate::app::App;
 pub use crate::color::{Color, hex, hsl, hsla, hwb, hwba, rgb, rgba};

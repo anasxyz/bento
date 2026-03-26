@@ -1,8 +1,3 @@
-/*
-* routes events to the correct BentoWindow
-* owns the shared RenderContext and the map of open windows
-*/
-
 use bento_wgpu::RenderContext;
 use std::collections::HashMap;
 use winit::{
@@ -19,12 +14,8 @@ use crate::window::BentoWindow;
 pub struct Runner {
     pub ctx: RenderContext,
     pub windows: HashMap<WindowId, BentoWindow>,
-    // configs queued before the event loop started, consumed on first resumed()
     pending: Vec<(WindowHandle, WindowConfig)>,
-    // pending close requests
-    // processed at the start of each event
     close_queue: Vec<WindowHandle>,
-    // mapping from user facing WindowHandle to winit WindowId
     handle_to_id: HashMap<WindowHandle, WindowId>,
 }
 
@@ -99,7 +90,7 @@ impl ApplicationHandler for Runner {
             WindowEvent::RedrawRequested => {
                 let clear = win.config.clear_color.to_array();
                 win.renderer
-                    .render(&self.ctx, &mut win.surface, &mut win.scene, clear);
+                    .render(&mut self.ctx, &mut win.surface, &mut win.scene, clear);
             }
 
             WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {

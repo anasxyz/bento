@@ -1,19 +1,3 @@
-// the Renderer is the only place that touches gpu state
-// it reads the SceneGraph each frame, assigns stable gpu slots to new nodes,
-// uploads only dirty nodes, and issues draw calls
-//
-// the way it works is one Renderer per RenderContext (could be shared across windows)
-// each call to render() targets a specific surface
-//
-// simplifiedflow of each frame:
-//   - renderer.render(&ctx, &mut surface, &mut scene, clear_color)
-//      * acquire surface texture
-//      * begin_frame on text pipeline
-//      * walk scene graph, assign slots, upload dirty rects/shadows
-//      * submit visible text nodes
-//      * begin render pass: draw shadows, then rects, then text
-//      * present
-
 use crate::allocator::SlotAllocator;
 use crate::context::RenderContext;
 use crate::pipelines::{rect::RectPipeline, shadow::ShadowPipeline, text::TextPipeline};
@@ -51,9 +35,6 @@ impl Renderer {
         }
     }
 
-    /// call when the surface is resized or rescaled
-    /// redirties all scene nodes so screen_size gets re-uploaded to the gpu
-    /// with the new dimensions
     pub fn resize(&mut self, ctx: &RenderContext, surface: &Surface, scene: &mut SceneGraph) {
         let sw = surface.physical_width() as f32;
         let sh = surface.physical_height() as f32;
@@ -62,9 +43,6 @@ impl Renderer {
         self.text_pipeline
             .resize(surface.width, surface.height, surface.scale);
 
-        // redirty all nodes
-        // their position/size data needs reuploading
-        // with the new scale and screen_size baked in
         let rect_ids: Vec<_> = scene
             .rects
             .iter()
@@ -91,14 +69,10 @@ impl Renderer {
         }
     }
 
-    /// fully invalidate all gpu state
-    /// this is to be called when the SceneGraph is rebuilt from scratch
-    /// (an example would be after removing all elements)
     pub fn invalidate(&mut self, scene: &mut SceneGraph) {
         self.rect_pipeline.invalidate();
         self.shadow_pipeline.invalidate();
-        // redirty all nodes by going through the public mut accessors,
-        // which handle dirty list population correctly
+
         let rect_ids: Vec<_> = scene
             .rects
             .iter()
@@ -125,16 +99,13 @@ impl Renderer {
         }
     }
 
-    /// render one frame to the given surface
-    /// only uploads nodes that changed since the last call
     pub fn render(
         &mut self,
-        ctx: &RenderContext,
+        ctx: &mut RenderContext,
         surface: &mut Surface,
         scene: &mut SceneGraph,
         clear_color: [f32; 4],
     ) {
-        // acquire frame
         let frame = match surface.surface.get_current_texture() {
             Ok(f) => f,
             Err(wgpu::SurfaceError::Outdated | wgpu::SurfaceError::Lost) => {
@@ -154,36 +125,49 @@ impl Renderer {
 
         let scale = surface.scale;
 
-        // drain dirty lists, zero iterations when nothing changed
         self.sync_rects(scene, scale);
         self.sync_shadows(scene, scale);
 
-        // text: always resubmit all visible nodes 
-        // glyphon clears its submission list each frame and diffs internally,
-        // so we always submit everything visible. the dirty list just clears
-        // the dirty flags, the reshape optimization is inside TextPipeline::submit()
         self.text_pipeline.begin_frame();
         for id in scene.dirty_texts.drain(..) {
             scene.texts[id.0].dirty = false;
         }
-        for (_, node) in &scene.texts {
-            if node.visible && !node.content.is_empty() {
-                self.text_pipeline.submit(
-                    node.x,
-                    node.y,
-                    &node.content,
-                    &node.family,
-                    node.size,
-                    node.weight,
-                    node.italic,
-                    node.color,
-                    node.width,
-                    node.clip,
-                );
-            }
+
+        let text_nodes: Vec<_> = scene
+            .texts
+            .iter()
+            .filter(|(_, n)| n.visible && !n.content.is_empty())
+            .map(|(_, n)| {
+                (
+                    n.x,
+                    n.y,
+                    n.content.clone(),
+                    n.family.clone(),
+                    n.size,
+                    n.weight,
+                    n.italic,
+                    n.color,
+                    n.width,
+                    n.clip,
+                )
+            })
+            .collect();
+        for (x, y, content, family, size, weight, italic, color, width, clip) in text_nodes {
+            self.text_pipeline.submit(
+                &mut ctx.font_system,
+                x,
+                y,
+                &content,
+                &family,
+                size,
+                weight,
+                italic,
+                color,
+                width,
+                clip,
+            );
         }
 
-        // render pass 
         {
             let [r, g, b, a] = clear_color;
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -206,13 +190,12 @@ impl Renderer {
                 occlusion_query_set: None,
             });
 
-            // draw order: shadows then rects then text
             self.shadow_pipeline
                 .render(&ctx.device, &ctx.queue, &mut pass);
             self.rect_pipeline
                 .render(&ctx.device, &ctx.queue, &mut pass);
             self.text_pipeline
-                .render(&ctx.device, &ctx.queue, &mut pass);
+                .render(&mut ctx.font_system, &ctx.device, &ctx.queue, &mut pass);
         }
 
         ctx.queue.submit(Some(encoder.finish()));
@@ -220,14 +203,11 @@ impl Renderer {
         self.text_pipeline.trim_atlas();
     }
 
-    // internal 
-
     fn sync_rects(&mut self, scene: &mut SceneGraph, scale: f32) {
         for id in scene.dirty_rects.drain(..) {
             let node = &mut scene.rects[id.0];
             node.dirty = false;
 
-            // assign a stable gpu slot on first encounter
             if node.slot == u32::MAX {
                 node.slot = self.rect_alloc.alloc();
             }
@@ -285,9 +265,6 @@ impl Renderer {
         }
     }
 
-    /// reclaim the gpu slot for a rect node that has been removed from the scene
-    /// call this after SceneGraph::remove_rect() if immediately reuse of the gpu slot is wanted,
-    /// but otherwise the slot stays zeroed until the allocator wraps
     pub fn free_rect_slot(&mut self, slot: u32) {
         if slot != u32::MAX {
             self.rect_pipeline.clear_slot(slot as usize);
@@ -295,16 +272,10 @@ impl Renderer {
         }
     }
 
-    /// reclaim the gpu slot for a removed shadow node
     pub fn free_shadow_slot(&mut self, slot: u32) {
         if slot != u32::MAX {
             self.shadow_pipeline.clear_slot(slot as usize);
             self.shadow_alloc.free(slot);
         }
-    }
-
-    /// expose the font system for text measurement outside the render loop
-    pub fn font_system(&mut self) -> &mut glyphon::FontSystem {
-        &mut self.text_pipeline.font_system
     }
 }

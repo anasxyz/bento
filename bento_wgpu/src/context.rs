@@ -1,7 +1,4 @@
-// RenderContext owns the wgpu device and queue
-//
-// create one per application and shared across all windows/surfaces
-
+use glyphon::FontSystem;
 use wgpu;
 
 pub struct RenderContext {
@@ -9,12 +6,10 @@ pub struct RenderContext {
     pub(crate) adapter: wgpu::Adapter,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
+    pub font_system: FontSystem,
 }
 
 impl RenderContext {
-    /// create a RenderContext
-    /// this is async because wgpu adapter/device request is async
-    /// call with pollster::block_on or within an async runtime
     pub async fn new() -> Self {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
 
@@ -37,12 +32,10 @@ impl RenderContext {
             adapter,
             device,
             queue,
+            font_system: FontSystem::new(),
         }
     }
 
-    /// create a RenderContext compatible with a specific window surface
-    /// use this when you need to ensure the adapter supports the windows surface
-    /// (i beliebe this is required on some platforms / drivers)
     pub async fn new_for_surface(
         instance: wgpu::Instance,
         compatible_surface: &wgpu::Surface<'_>,
@@ -66,19 +59,7 @@ impl RenderContext {
             adapter,
             device,
             queue,
+            font_system: FontSystem::new(),
         }
-    }
-
-    pub fn instance(&self) -> &wgpu::Instance {
-        &self.instance
-    }
-    pub fn adapter(&self) -> &wgpu::Adapter {
-        &self.adapter
-    }
-    pub fn device(&self) -> &wgpu::Device {
-        &self.device
-    }
-    pub fn queue(&self) -> &wgpu::Queue {
-        &self.queue
     }
 }
