@@ -1,18 +1,14 @@
-// per frame update pass
-//   push current layout styles to taffy
-//   run layout compute
-//   call sync() on every widget with its computed position
-
 use super::Ui;
+use crate::fonts::Fonts;
 use crate::widget::{Handle, HasBase};
 
 impl Ui {
-    pub fn update(&mut self) {
+    pub fn update(&mut self, fonts: &mut Fonts) {
         let Some(root) = self.root else { return };
         let w = self.window_width as f32;
         let h = self.window_height as f32;
 
-        // sync all layout styles to taffy
+        // 1. sync layout styles to taffy
         let style_updates: Vec<(Handle<()>, crate::layout::Layout)> = self
             .slots
             .iter()
@@ -30,11 +26,33 @@ impl Ui {
             self.layout.set_layout(*handle, layout);
         }
 
-        // compute layout
-        self.layout
-            .compute(root, w, h, |_handle, _max_w, _max_h| (0.0, 0.0));
+        // 2. compute layout — call measure() on widgets that need it
+        let measure_handles: Vec<Handle<()>> = self
+            .slots
+            .iter()
+            .enumerate()
+            .filter_map(|(i, s)| {
+                s.as_ref().and_then(|s| {
+                    if s.widget.has_measure() {
+                        Some(Handle::new(i as u32, s.generation))
+                    } else {
+                        None
+                    }
+                })
+            })
+            .collect();
 
-        // sync computed rects to scene graph nodes
+        self.layout.compute(root, w, h, |handle, max_w, _max_h| {
+            if !measure_handles.contains(&handle) {
+                return (0.0, 0.0);
+            }
+            if let Some(Some(slot)) = self.slots.get(handle.id as usize) {
+                return slot.widget.measure(fonts, max_w).unwrap_or((0.0, 0.0));
+            }
+            (0.0, 0.0)
+        });
+
+        // 3. sync computed rects to scene graph nodes
         let handles: Vec<Handle<()>> = self
             .slots
             .iter()

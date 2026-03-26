@@ -21,24 +21,32 @@ impl LayoutEngine {
         }
     }
 
+    /// add a widget to the layout tree
+    /// returns nothing
+    /// the nodeid is managed internally, keyed by handle
     pub fn add(&mut self, handle: Handle<()>, layout: &Layout) {
         let style = build_style(layout);
         let node = self.taffy.new_leaf(style).unwrap();
         self.nodes.insert(handle, node);
     }
 
+    /// add a widget that has intrinsic size (eg label with text measure)
+    /// the handle is stored as context so the caller can provide measure
+    /// functions during compute()
     pub fn add_with_measure(&mut self, handle: Handle<()>, layout: &Layout) {
         let style = build_style(layout);
         let node = self.taffy.new_leaf_with_context(style, handle).unwrap();
         self.nodes.insert(handle, node);
     }
 
+    /// remove a widget from the layout tree
     pub fn remove(&mut self, handle: Handle<()>) {
         if let Some(node) = self.nodes.remove(&handle) {
             self.taffy.remove(node).unwrap();
         }
     }
 
+    /// update a widgets layout properties
     pub fn set_layout(&mut self, handle: Handle<()>, layout: &Layout) {
         if let Some(&node) = self.nodes.get(&handle) {
             let style = build_style(layout);
@@ -46,6 +54,7 @@ impl LayoutEngine {
         }
     }
 
+    /// set the children of a widget in the layout tree
     pub fn set_children(&mut self, parent: Handle<()>, children: &[Handle<()>]) {
         let Some(&parent_node) = self.nodes.get(&parent) else {
             return;
@@ -57,12 +66,15 @@ impl LayoutEngine {
         self.taffy.set_children(parent_node, &child_nodes).unwrap();
     }
 
+    /// run the layout computation for the full tree
+    /// `measure` is called for any node added via add_with_measure
+    /// given the handle and available space, return (width, height)
     pub fn compute(
         &mut self,
         root: Handle<()>,
         width: f32,
         height: f32,
-        measure: impl Fn(Handle<()>, Option<f32>, Option<f32>) -> (f32, f32),
+        mut measure: impl FnMut(Handle<()>, Option<f32>, Option<f32>) -> (f32, f32),
     ) {
         let Some(&root_node) = self.nodes.get(&root) else {
             return;
@@ -96,8 +108,11 @@ impl LayoutEngine {
             .unwrap();
     }
 
+    /// get the computed position and size for a widget
+    /// returns (x, y, w, h) in logical pixels, absolute on screen
     pub fn get_rect(&self, handle: Handle<()>) -> Option<(f32, f32, f32, f32)> {
         let &node = self.nodes.get(&handle)?;
+        // walk up to accumulate absolute position
         let mut x = 0.0f32;
         let mut y = 0.0f32;
         let mut current = node;
@@ -114,6 +129,8 @@ impl LayoutEngine {
         Some((x, y, layout.size.width, layout.size.height))
     }
 
+    /// invalidate the entire tree
+    /// rebuilds from scratch next compute
     pub fn invalidate(&mut self) {
         self.taffy = TaffyTree::<Handle<()>>::new();
         self.nodes.clear();
@@ -125,6 +142,9 @@ impl Default for LayoutEngine {
         Self::new()
     }
 }
+
+// taffy style conversion 
+// all taffy imports are local to this file
 
 fn build_style(l: &Layout) -> Style {
     Style {

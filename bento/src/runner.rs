@@ -9,6 +9,7 @@ use winit::{
 };
 
 use crate::app::WindowHandle;
+use crate::fonts::Fonts;
 use crate::input::{Key, MouseButton};
 use crate::settings::WindowConfig;
 use crate::ui::Ui;
@@ -93,11 +94,8 @@ impl ApplicationHandler for Runner {
                 win.ui.drain_events();
 
                 // update layout + sync scene graph
-                win.ui.update();
-
-                // debug
-                // check if only changed nodes were uploaded to the gpu
-                // println!("rect uploads: {}", win.renderer.rect_uploads());
+                let mut fonts = Fonts::new(&mut self.ctx.font_system);
+                win.ui.update(&mut fonts);
 
                 // render
                 let clear = win.config.clear_color.to_array();

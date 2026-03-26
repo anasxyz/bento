@@ -6,13 +6,17 @@ impl Ui {
     /// returns a typed handle
     pub fn add<W: Widget>(&mut self, widget: W) -> Handle<W> {
         let layout = widget.base().layout.clone();
+        let has_measure = widget.has_measure();
 
-        // reuse a free slot if one exists
         for (i, slot) in self.slots.iter_mut().enumerate() {
             if slot.is_none() {
                 let generation = 0;
                 let h = Handle::<()>::new(i as u32, generation);
-                self.layout.add(h, &layout);
+                if has_measure {
+                    self.layout.add_with_measure(h, &layout);
+                } else {
+                    self.layout.add(h, &layout);
+                }
                 *slot = Some(Slot {
                     widget: Box::new(widget),
                     generation,
@@ -26,7 +30,11 @@ impl Ui {
         let id = self.slots.len() as u32;
         let generation = 0;
         let h = Handle::<()>::new(id, generation);
-        self.layout.add(h, &layout);
+        if has_measure {
+            self.layout.add_with_measure(h, &layout);
+        } else {
+            self.layout.add(h, &layout);
+        }
         self.slots.push(Some(Slot {
             widget: Box::new(widget),
             generation,
