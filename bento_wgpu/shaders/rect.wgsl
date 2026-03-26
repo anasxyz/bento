@@ -1,3 +1,8 @@
+struct Screen {
+    size: vec2f,
+}
+@group(0) @binding(0) var<uniform> screen: Screen;
+
 var<private> QUAD: array<vec2f, 6> = array<vec2f, 6>(
     vec2f(0.0, 0.0),
     vec2f(1.0, 0.0),
@@ -16,23 +21,22 @@ struct VertexOut {
     @location(4) fill_color        : vec4f,
     @location(5) border_color      : vec4f,
     @location(6) clip              : vec4f,
-    @location(7) border_widths     : vec4f, // top, right, bottom, left
+    @location(7) border_widths     : vec4f,
 }
 
 @vertex
 fn vs_main(
     @builtin(vertex_index) vi : u32,
     @location(0) pos_size     : vec4f,
-    @location(1) params       : vec4f,  // [radius, aa_width, 0, 0]
+    @location(1) params       : vec4f,
     @location(2) fill_color   : vec4f,
     @location(3) border_color : vec4f,
     @location(4) clip         : vec4f,
-    @location(5) screen_size  : vec4f,
-    @location(6) border_widths: vec4f,  // top, right, bottom, left
+    @location(5) border_widths: vec4f,
 ) -> VertexOut {
     let x  = pos_size.x;  let y  = pos_size.y;
     let w  = pos_size.z;  let h  = pos_size.w;
-    let sw = screen_size.x;  let sh = screen_size.y;
+    let sw = screen.size.x;  let sh = screen.size.y;
     let radius   = params.x;
     let aa_width = params.y;
     let b  = aa_width;
@@ -70,7 +74,6 @@ fn aa_coverage(d: f32) -> f32 {
 
 @fragment
 fn fs_main(in: VertexOut) -> @location(0) vec4f {
-    // clip
     let cl = in.clip;
     if cl.x != 0.0 || cl.y != 0.0 || cl.z != 0.0 || cl.w != 0.0 {
         if in.frag_coord.x < cl.x || in.frag_coord.y < cl.y ||
@@ -93,12 +96,10 @@ fn fs_main(in: VertexOut) -> @location(0) vec4f {
 
     var color: vec4f;
     if has_border {
-        // shrink the inner rect by the border widths per side
         let inner_half = vec2f(
             in.half_size.x - (bw_left + bw_right) * 0.5,
             in.half_size.y - (bw_top  + bw_bottom) * 0.5
         );
-        // offset center due to asymmetric borders
         let offset = vec2f(
             (bw_left - bw_right) * 0.5,
             (bw_top  - bw_bottom) * 0.5

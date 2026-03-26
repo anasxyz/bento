@@ -94,9 +94,13 @@ impl ApplicationHandler for Runner {
         match event {
             WindowEvent::RedrawRequested => {
                 crate::dispatch::dispatch(&mut win.ui, &win.input);
+
                 win.ui.drain_events();
+
                 win.ui.update(&mut self.fonts);
+
                 let clear = win.config.clear_color.to_array();
+
                 win.renderer.render(
                     &mut self.ctx,
                     &mut self.fonts.font_system,
@@ -104,6 +108,15 @@ impl ApplicationHandler for Runner {
                     &mut win.ui.scene,
                     clear,
                 );
+
+                /* debug stuff
+                                let s = &win.renderer.stats;
+                                println!(
+                                    "uploads: {} | rects culled: {} | texts culled: {}",
+                                    s.rect_uploads, s.rects_culled, s.texts_culled
+                                );
+                */
+
                 win.input.reset();
             }
 

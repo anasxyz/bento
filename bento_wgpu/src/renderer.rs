@@ -5,13 +5,19 @@ use crate::scene::SceneGraph;
 use crate::surface::Surface;
 use wgpu;
 
+pub struct RendererStats {
+    pub rect_uploads: u32,
+    pub rects_culled: u32,
+    pub texts_culled: u32,
+}
+
 pub struct Renderer {
     rect_pipeline: RectPipeline,
     text_pipeline: TextPipeline,
     shadow_pipeline: ShadowPipeline,
-
     rect_alloc: SlotAllocator,
     shadow_alloc: SlotAllocator,
+    pub stats: RendererStats,
 }
 
 impl Renderer {
@@ -19,7 +25,7 @@ impl Renderer {
         let fmt = surface.format;
         let sw = surface.physical_width() as f32;
         let sh = surface.physical_height() as f32;
-        Self {
+        let mut r = Self {
             rect_pipeline: RectPipeline::new(&ctx.device, fmt, sw, sh),
             shadow_pipeline: ShadowPipeline::new(&ctx.device, &ctx.queue, fmt, sw, sh),
             text_pipeline: TextPipeline::new(
@@ -32,13 +38,20 @@ impl Renderer {
             ),
             rect_alloc: SlotAllocator::new(),
             shadow_alloc: SlotAllocator::new(),
-        }
+            stats: RendererStats {
+                rect_uploads: 0,
+                rects_culled: 0,
+                texts_culled: 0,
+            },
+        };
+        r.rect_pipeline.resize(&ctx.queue, sw, sh);
+        r
     }
 
     pub fn resize(&mut self, ctx: &RenderContext, surface: &Surface, scene: &mut SceneGraph) {
         let sw = surface.physical_width() as f32;
         let sh = surface.physical_height() as f32;
-        self.rect_pipeline.resize(sw, sh);
+        self.rect_pipeline.resize(&ctx.queue, sw, sh);
         self.shadow_pipeline.resize(&ctx.queue, sw, sh);
         self.text_pipeline
             .resize(surface.width, surface.height, surface.scale);
@@ -88,15 +101,34 @@ impl Renderer {
             });
 
         let scale = surface.scale;
+        let screen_w = surface.width;
+        let screen_h = surface.height;
 
-        self.sync_rects(scene, scale);
-        self.sync_shadows(scene, scale);
+        self.stats.rect_uploads = 0;
+        self.stats.rects_culled = 0;
+        self.stats.texts_culled = 0;
+
+        self.sync_rects(scene, scale, screen_w, screen_h);
+        self.sync_shadows(scene, scale, screen_w, screen_h);
 
         self.text_pipeline.begin_frame();
+        let mut texts_culled = 0u32;
         let text_nodes: Vec<_> = scene
             .texts
             .iter()
-            .filter(|(_, n)| n.visible && !n.content.is_empty())
+            .filter(|(_, n)| {
+                if !n.visible || n.content.is_empty() {
+                    return false;
+                }
+                let on_screen = n.x < screen_w
+                    && n.y < screen_h
+                    && n.x + n.width > 0.0
+                    && n.y + n.size * 20.0 > 0.0;
+                if !on_screen {
+                    texts_culled += 1;
+                }
+                on_screen
+            })
             .map(|(_, n)| {
                 (
                     n.x,
@@ -112,6 +144,7 @@ impl Renderer {
                 )
             })
             .collect();
+        self.stats.texts_culled = texts_culled;
         for (x, y, content, family, size, weight, italic, color, width, clip) in text_nodes {
             self.text_pipeline.submit(
                 font_system,
@@ -161,9 +194,11 @@ impl Renderer {
         ctx.queue.submit(Some(encoder.finish()));
         frame.present();
         self.text_pipeline.trim_atlas();
+        self.stats.rect_uploads = self.rect_pipeline.upload_count;
     }
 
-    fn sync_rects(&mut self, scene: &mut SceneGraph, scale: f32) {
+    fn sync_rects(&mut self, scene: &mut SceneGraph, scale: f32, screen_w: f32, screen_h: f32) {
+        let mut culled = 0u32;
         for (_, node) in &mut scene.rects {
             if node.slot == u32::MAX {
                 node.slot = self.rect_alloc.alloc();
@@ -171,7 +206,12 @@ impl Renderer {
             let slot = node.slot as usize;
             self.rect_pipeline.ensure_slot(slot);
 
-            if node.visible {
+            let on_screen = node.x < screen_w
+                && node.y < screen_h
+                && node.x + node.w > 0.0
+                && node.y + node.h > 0.0;
+
+            if node.visible && on_screen {
                 self.rect_pipeline.write_slot(
                     slot,
                     node.x,
@@ -186,12 +226,16 @@ impl Renderer {
                     scale,
                 );
             } else {
+                if node.visible && !on_screen {
+                    culled += 1;
+                }
                 self.rect_pipeline.clear_slot(slot);
             }
         }
+        self.stats.rects_culled = culled;
     }
 
-    fn sync_shadows(&mut self, scene: &mut SceneGraph, scale: f32) {
+    fn sync_shadows(&mut self, scene: &mut SceneGraph, scale: f32, screen_w: f32, screen_h: f32) {
         for (_, node) in &mut scene.shadows {
             if node.slot == u32::MAX {
                 node.slot = self.shadow_alloc.alloc();
@@ -199,7 +243,12 @@ impl Renderer {
             let slot = node.slot as usize;
             self.shadow_pipeline.ensure_slot(slot);
 
-            if node.visible {
+            let on_screen = node.x < screen_w
+                && node.y < screen_h
+                && node.x + node.w > 0.0
+                && node.y + node.h > 0.0;
+
+            if node.visible && on_screen {
                 self.shadow_pipeline.write_slot(
                     slot,
                     node.x,
@@ -231,9 +280,5 @@ impl Renderer {
             self.shadow_pipeline.clear_slot(slot as usize);
             self.shadow_alloc.free(slot);
         }
-    }
-
-    pub fn rect_uploads(&self) -> u32 {
-        self.rect_pipeline.upload_count
     }
 }

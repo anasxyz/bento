@@ -13,17 +13,22 @@ use bytemuck::{Pod, Zeroable};
 use std::mem;
 use wgpu;
 
-/// gpu instance layout
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 struct Instance {
-    pos_size: [f32; 4], // x, y, w, h  (physical pixels)
-    params: [f32; 4],   // radius, aa_width, 0, 0
+    pos_size: [f32; 4],
+    params: [f32; 4],
     fill_color: [f32; 4],
     border_color: [f32; 4],
-    clip: [f32; 4],          // x, y, x2, y2 (physical pixels); [0,0,0,0] = no clip
-    screen_size: [f32; 4],   // w, h, 0, 0
-    border_widths: [f32; 4], // top, right, bottom, left (physical pixels)
+    clip: [f32; 4],
+    border_widths: [f32; 4],
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Pod, Zeroable)]
+struct ScreenUniform {
+    size: [f32; 2],
+    _pad: [f32; 2],
 }
 
 const INSTANCE_SIZE: usize = mem::size_of::<Instance>();
@@ -33,9 +38,11 @@ pub struct RectPipeline {
     pipeline: wgpu::RenderPipeline,
     instance_buffer: wgpu::Buffer,
     instance_cap: usize,
-    instances: Vec<Instance>, // cpu mirror of gpu buffer, indexed by slot
+    instances: Vec<Instance>,
     dirty: Vec<bool>,
-    screen_w: f32, // physical pixels
+    screen_uniform: wgpu::Buffer,
+    bind_group: wgpu::BindGroup,
+    screen_w: f32,
     screen_h: f32,
     pub upload_count: u32,
 }
@@ -52,9 +59,45 @@ impl RectPipeline {
             source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/rect.wgsl").into()),
         });
 
+        let screen_uniform = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("bento_wgpu::rect screen uniform"),
+            size: mem::size_of::<ScreenUniform>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("bento_wgpu::rect bind group layout"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        });
+
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("bento_wgpu::rect bind group"),
+            layout: &bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: screen_uniform.as_entire_binding(),
+            }],
+        });
+
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("bento_wgpu::rect pipeline layout"),
+            bind_group_layouts: &[&bind_group_layout],
+            push_constant_ranges: &[],
+        });
+
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("bento_wgpu::rect pipeline"),
-            layout: None,
+            layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: Some("vs_main"),
@@ -87,19 +130,24 @@ impl RectPipeline {
 
         let instance_buffer = Self::make_buffer(device, INITIAL_CAPACITY);
 
-        Self {
+        let mut s = Self {
             pipeline,
             instance_buffer,
             instance_cap: INITIAL_CAPACITY,
             instances: Vec::new(),
             dirty: Vec::new(),
+            screen_uniform,
+            bind_group,
             screen_w,
             screen_h,
             upload_count: 0,
-        }
-    }
+        };
 
-    // called by Renderer
+        // write initial screen size
+        s.screen_w = screen_w;
+        s.screen_h = screen_h;
+        s
+    }
 
     pub fn ensure_slot(&mut self, slot: usize) {
         while self.instances.len() <= slot {
@@ -109,7 +157,6 @@ impl RectPipeline {
                 fill_color: [0.0; 4],
                 border_color: [0.0; 4],
                 clip: [0.0; 4],
-                screen_size: [self.screen_w, self.screen_h, 0.0, 0.0],
                 border_widths: [0.0; 4],
             });
             self.dirty.push(true);
@@ -142,7 +189,6 @@ impl RectPipeline {
             fill_color: color,
             border_color,
             clip: clip_arr,
-            screen_size: [self.screen_w, self.screen_h, 0.0, 0.0],
             border_widths: [
                 border_widths[0] * s,
                 border_widths[1] * s,
@@ -166,7 +212,6 @@ impl RectPipeline {
             fill_color: [0.0; 4],
             border_color: [0.0; 4],
             clip: [0.0; 4],
-            screen_size: [self.screen_w, self.screen_h, 0.0, 0.0],
             border_widths: [0.0; 4],
         };
         if bytemuck::bytes_of(&self.instances[slot]) != bytemuck::bytes_of(&zero) {
@@ -175,12 +220,17 @@ impl RectPipeline {
         }
     }
 
-    pub fn resize(&mut self, screen_w: f32, screen_h: f32) {
+    pub fn resize(&mut self, queue: &wgpu::Queue, screen_w: f32, screen_h: f32) {
         self.screen_w = screen_w;
         self.screen_h = screen_h;
-        for d in &mut self.dirty {
-            *d = true;
-        }
+        queue.write_buffer(
+            &self.screen_uniform,
+            0,
+            bytemuck::bytes_of(&ScreenUniform {
+                size: [screen_w, screen_h],
+                _pad: [0.0; 2],
+            }),
+        );
     }
 
     pub fn invalidate(&mut self) {
@@ -237,6 +287,7 @@ impl RectPipeline {
         }
 
         pass.set_pipeline(&self.pipeline);
+        pass.set_bind_group(0, &self.bind_group, &[]);
         pass.set_vertex_buffer(0, self.instance_buffer.slice(..));
         pass.draw(0..6, 0..self.instances.len() as u32);
     }
@@ -280,11 +331,6 @@ const INSTANCE_ATTRS: &[wgpu::VertexAttribute] = &[
     wgpu::VertexAttribute {
         offset: 80,
         shader_location: 5,
-        format: wgpu::VertexFormat::Float32x4,
-    },
-    wgpu::VertexAttribute {
-        offset: 96,
-        shader_location: 6,
         format: wgpu::VertexFormat::Float32x4,
     },
 ];
