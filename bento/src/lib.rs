@@ -8,6 +8,7 @@ mod runner;
 mod window;
 mod color;
 mod settings;
+mod layout;
 
 pub use crate::app::App;
 pub use crate::color::{Color, hex, hsl, hsla, hwb, hwba, rgb, rgba};
