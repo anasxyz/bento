@@ -6,10 +6,28 @@ fn main() {
     let rect = ui.add(Rect::new());
     ui.get_mut(rect)
         .unwrap()
+        .set_width(Size::Percent(100.0))
+        .set_height(Size::Percent(100.0))
+        .set_color(Color::rgb(100, 150, 255));
+
+    let rect2 = ui.add(Rect::new());
+    ui.get_mut(rect2)
+        .unwrap()
         .set_width(Size::Fixed(300.0))
         .set_height(Size::Fixed(200.0))
-        .set_color(Color::rgb(100, 150, 255))
+        .set_color(Color::rgb(100, 0, 0))
         .set_radius(8.0);
+
+    let rect3 = ui.add(Rect::new());
+    ui.get_mut(rect3)
+        .unwrap()
+        .set_width(Size::Fixed(300.0))
+        .set_height(Size::Fixed(200.0))
+        .set_color(Color::rgb(0, 100, 0))
+        .set_radius(8.0);
+
+    ui.append(rect, rect3);
+    ui.append(rect, rect2);
     ui.set_root(rect);
 
     let mut app = App::new();

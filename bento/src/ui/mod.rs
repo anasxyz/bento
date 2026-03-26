@@ -1,28 +1,49 @@
 // ui/mod.rs
 //
-// Ui owns the widget tree and scene graph for one window.
-// The user builds their UI here, then passes it to app.open_window().
+// Ui owns the widget tree, layout engine, scene graph, and event system
+// for one window. The user builds their UI here and passes it to
+// app.open_window().
 
-use bento_wgpu::SceneGraph;
-use std::collections::HashMap;
+mod events;
+mod slot;
+mod tree;
+mod update;
+
+pub use events::Event;
 
 use crate::layout::LayoutEngine;
-use crate::widget::{AnyWidget, Handle, HasBase, Widget};
+use crate::widget::Handle;
+use bento_wgpu::SceneGraph;
+
+use events::EventSystem;
+use slot::Slot;
 
 const GLOBAL_ID: u32 = u32::MAX;
 
-pub struct Slot {
-    pub(crate) widget: AnyWidget,
-    pub(crate) generation: u32,
-    pub(crate) children: Vec<Handle<()>>,
-    pub(crate) parent: Option<Handle<()>>,
+/// Tracks which widget currently has hover/press/focus.
+pub struct InteractionState {
+    pub hovered: Option<Handle<()>>,
+    pub pressed: Option<Handle<()>>,
+    pub focused: Option<Handle<()>>,
+}
+
+impl InteractionState {
+    fn new() -> Self {
+        Self {
+            hovered: None,
+            pressed: None,
+            focused: None,
+        }
+    }
 }
 
 pub struct Ui {
     pub(crate) slots: Vec<Option<Slot>>,
     pub(crate) layout: LayoutEngine,
     pub(crate) scene: SceneGraph,
-    root: Option<Handle<()>>,
+    pub(crate) events: EventSystem,
+    pub(crate) interaction: InteractionState,
+    pub(crate) root: Option<Handle<()>>,
     pub window_width: u32,
     pub window_height: u32,
 }
@@ -33,6 +54,8 @@ impl Ui {
             slots: Vec::new(),
             layout: LayoutEngine::new(),
             scene: SceneGraph::new(),
+            events: EventSystem::new(),
+            interaction: InteractionState::new(),
             root: None,
             window_width: 0,
             window_height: 0,
@@ -43,132 +66,75 @@ impl Ui {
         Handle::new(GLOBAL_ID, 0)
     }
 
-    /// Add a widget. Returns a typed handle.
-    pub fn add<W: Widget>(&mut self, widget: W) -> Handle<W> {
-        let layout = widget.base().layout.clone();
+    // ── event API (delegates to EventSystem) ─────────────────────────────────
 
-        for (i, slot) in self.slots.iter_mut().enumerate() {
-            if slot.is_none() {
-                let generation = 0;
-                let h = Handle::<()>::new(i as u32, generation);
-                self.layout.add(h, &layout);
-                *slot = Some(Slot {
-                    widget: Box::new(widget),
-                    generation,
-                    children: Vec::new(),
-                    parent: None,
-                });
-                return Handle::new(i as u32, generation);
-            }
+    pub fn connect<T>(
+        &mut self,
+        handle: Handle<T>,
+        callback: impl FnMut(&mut Ui, &Event) + 'static,
+    ) -> u32 {
+        self.events.connect(handle, callback)
+    }
+
+    pub fn disconnect(&mut self, connection_id: u32) {
+        self.events.disconnect(connection_id);
+    }
+
+    pub fn has_connections(&self, handle: Handle<()>) -> bool {
+        self.events.has_connections(handle)
+    }
+
+    pub fn emit<T>(&mut self, handle: Handle<T>, event: Event) {
+        self.events.emit(handle, event);
+    }
+
+    pub fn emit_bubbling<T>(&mut self, handle: Handle<T>, event: Event) {
+        let global = self.global();
+        let handle = handle.untyped();
+        // build ancestor chain first to avoid borrow conflict
+        let mut chain = vec![handle];
+        let mut current = self.parent(handle);
+        while let Some(p) = current {
+            chain.push(p);
+            current = self.parent(p);
         }
-        let id = self.slots.len() as u32;
-        let generation = 0;
-        let h = Handle::<()>::new(id, generation);
-        self.layout.add(h, &layout);
-        self.slots.push(Some(Slot {
-            widget: Box::new(widget),
-            generation,
-            children: Vec::new(),
-            parent: None,
-        }));
-        Handle::new(id, generation)
-    }
-
-    pub fn set_root<W>(&mut self, handle: Handle<W>) {
-        self.root = Some(handle.untyped());
-    }
-
-    pub fn root(&self) -> Option<Handle<()>> {
-        self.root
-    }
-
-    pub fn append<P, C>(&mut self, parent: Handle<P>, child: Handle<C>) {
-        let parent = parent.untyped();
-        let child = child.untyped();
-        if let Some(Some(slot)) = self.slots.get_mut(child.id as usize) {
-            slot.parent = Some(parent);
+        chain.push(global);
+        for ancestor in chain {
+            self.events.event_queue.push((ancestor, event.clone()));
         }
-        if let Some(Some(slot)) = self.slots.get_mut(parent.id as usize) {
-            slot.children.push(child);
-        }
-        // update layout children
-        let children: Vec<Handle<()>> = self
-            .slots
-            .get(parent.id as usize)
-            .and_then(|s| s.as_ref())
-            .map(|s| s.children.clone())
-            .unwrap_or_default();
-        self.layout.set_children(parent, &children);
     }
 
-    pub fn get<W: Widget>(&self, handle: Handle<W>) -> Option<&W> {
-        let slot = self.slots.get(handle.id as usize)?.as_ref()?;
-        if slot.generation != handle.generation {
-            return None;
-        }
-        slot.widget.as_any().downcast_ref::<W>()
-    }
-
-    pub fn get_mut<W: Widget>(&mut self, handle: Handle<W>) -> Option<&mut W> {
-        let slot = self.slots.get_mut(handle.id as usize)?.as_mut()?;
-        if slot.generation != handle.generation {
-            return None;
-        }
-        slot.widget.as_any_mut().downcast_mut::<W>()
-    }
-
-    pub fn children(&self, handle: Handle<()>) -> &[Handle<()>] {
-        self.slots
-            .get(handle.id as usize)
-            .and_then(|s| s.as_ref())
-            .map(|s| s.children.as_slice())
-            .unwrap_or(&[])
-    }
-
-    /// Run layout and sync all widgets to the scene graph.
-    pub fn update(&mut self) {
-        let Some(root) = self.root else { return };
-        let w = self.window_width as f32;
-        let h = self.window_height as f32;
-
-        // push current layout styles into taffy before computing
-        let handles: Vec<(Handle<()>, crate::layout::Layout)> = self
-            .slots
-            .iter()
-            .enumerate()
-            .filter_map(|(i, s)| {
-                s.as_ref().map(|s| {
-                    (
-                        Handle::new(i as u32, s.generation),
-                        s.widget.base().layout.clone(),
-                    )
-                })
-            })
-            .collect();
-        for (handle, layout) in &handles {
-            self.layout.set_layout(*handle, layout);
-        }
-
-        // compute layout
-        self.layout
-            .compute(root, w, h, |_handle, _max_w, _max_h| (0.0, 0.0));
-
-        // sync each widget's computed rect to its scene nodes
-        let handles: Vec<Handle<()>> = self
-            .slots
-            .iter()
-            .enumerate()
-            .filter_map(|(i, s)| s.as_ref().map(|s| Handle::new(i as u32, s.generation)))
-            .collect();
-
-        for handle in handles {
-            if let Some((x, y, w, h)) = self.layout.get_rect(handle) {
-                // temporarily take the widget out to avoid borrow conflict
-                if let Some(Some(slot)) = self.slots.get_mut(handle.id as usize) {
-                    slot.widget.sync(&mut self.scene, x, y, w, h);
+    pub fn drain_events(&mut self) {
+        while !self.events.event_queue.is_empty() {
+            let queue = std::mem::take(&mut self.events.event_queue);
+            for (handle, event) in queue {
+                // take connections for this handle out to avoid borrow conflict
+                let Some(mut conns) = self.events.connections.remove(&handle) else {
+                    continue;
+                };
+                for conn in &mut conns {
+                    (conn.callback)(self, &event);
                 }
+                // put connections back — merge in case new ones were added during callback
+                let entry = self.events.connections.entry(handle).or_default();
+                // prepend existing conns back (callbacks added during drain go at end)
+                let new_conns = std::mem::take(entry);
+                *entry = conns;
+                entry.extend(new_conns);
             }
         }
+    }
+
+    // ── mouse helpers ─────────────────────────────────────────────────────────
+
+    pub fn hovered(&self) -> Option<Handle<()>> {
+        self.interaction.hovered
+    }
+    pub fn pressed(&self) -> Option<Handle<()>> {
+        self.interaction.pressed
+    }
+    pub fn focused(&self) -> Option<Handle<()>> {
+        self.interaction.focused
     }
 }
 
