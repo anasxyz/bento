@@ -26,6 +26,10 @@ fn main() {
         .set_color(Color::rgb(0, 100, 0))
         .set_radius(8.0);
 
+    ui.connect(rect3, |ui, event| {
+        println!("{:?}", event);
+    });
+
     ui.append(rect, rect3);
     ui.append(rect, rect2);
     ui.set_root(rect);

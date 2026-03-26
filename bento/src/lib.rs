@@ -14,6 +14,7 @@ mod widget;
 mod widgets;
 mod window;
 mod input;
+mod dispatch;
 
 pub use crate::widget::{AnyWidget, AsAny, Base, Handle, HasBase, LayoutExt, Widget};
 pub use app::{App, WindowHandle};

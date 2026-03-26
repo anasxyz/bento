@@ -86,6 +86,12 @@ impl ApplicationHandler for Runner {
 
         match event {
             WindowEvent::RedrawRequested => {
+                // dispatch input events
+                crate::dispatch::dispatch(&mut win.ui, &win.input);
+
+                // drain event callbacks
+                win.ui.drain_events();
+
                 // update layout + sync scene graph
                 win.ui.update();
 
@@ -156,7 +162,7 @@ impl ApplicationHandler for Runner {
                 };
             }
 
-            // window lifecycle
+            // window lifecycle 
             WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {
                 win.resize(&self.ctx);
             }

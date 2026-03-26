@@ -1,4 +1,5 @@
 use crate::fonts::Fonts;
+use crate::input::{Key, Modifiers, MouseButton};
 use crate::widget::base::HasBase;
 use bento_wgpu::SceneGraph;
 use std::any::Any;
@@ -9,8 +10,6 @@ pub trait AsAny {
 }
 
 pub trait Widget: HasBase + AsAny + Any + 'static {
-    /// push computed position/size into scene graph nodes
-    /// called every frame after layout resolves
     fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, h: f32);
 
     fn measure(&self, _fonts: &mut Fonts, _max_width: Option<f32>) -> Option<(f32, f32)> {
@@ -20,6 +19,7 @@ pub trait Widget: HasBase + AsAny + Any + 'static {
         false
     }
 
+    // focus
     fn on_focus_gained(&mut self) {
         self.base_mut().focused = true;
     }
@@ -27,8 +27,15 @@ pub trait Widget: HasBase + AsAny + Any + 'static {
         self.base_mut().focused = false;
     }
 
-    // event hooks
-    // input types will be added when input module exists
+    // keyboard
+    fn on_key_press(&mut self, _key: Key, _mods: Modifiers, _text: Option<char>) {}
+    fn on_key_release(&mut self, _key: Key, _mods: Modifiers) {}
+
+    // mouse
+    fn on_mouse_press(&mut self, _x: f32, _y: f32, _button: MouseButton) {}
+    fn on_mouse_release(&mut self, _x: f32, _y: f32, _button: MouseButton) {}
+    fn on_mouse_click(&mut self, _x: f32, _y: f32, _button: MouseButton) {}
+    fn on_mouse_double_click(&mut self, _x: f32, _y: f32, _button: MouseButton) {}
     fn on_mouse_move(&mut self, _x: f32, _y: f32) {}
     fn on_mouse_scroll(&mut self, _dx: f32, _dy: f32) {}
     fn on_mouse_enter(&mut self) {}
