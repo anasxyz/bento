@@ -7,9 +7,9 @@
 
 - Cross-platform, runs on Windows, macOS, and Linux
 - Optimised, high performance, GPU-accelerated rendering with low overhead at scale
-- Extensible UI element system using `#[derive(Element)]` trait, make your own custom UI elements that integrate seamlessly
-- Comprehensive element/widget and styling library
-- Rich event system with builtin input handling, element lifecycle hooks using `connect()`, and custom event broadcasting using `emit()`
+- Extensible UI widget system using `#[derive(Widget)]` trait, make your own custom UI widgets that integrate seamlessly
+- Comprehensive built-in widget and styling library
+- Rich event system with builtin input handling, widget lifecycle hooks using `connect()`, and custom event broadcasting using `emit()`
 - Flexbox layout engine
 - ~~Async task support~~
 - ~~Font loading and management~~
