@@ -31,9 +31,15 @@ fn main() {
             ui.get_mut(rect3)
                 .unwrap()
                 .set_color(Color::rgb(255, 100, 100));
+            ui.get_mut(rect2)
+                .unwrap()
+                .set_color(Color::rgb(255, 100, 100));
         }
         Event::HoverEnd => {
             ui.get_mut(rect3)
+                .unwrap()
+                .set_color(Color::rgb(100, 150, 255));
+            ui.get_mut(rect2)
                 .unwrap()
                 .set_color(Color::rgb(100, 150, 255));
         }

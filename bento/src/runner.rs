@@ -95,7 +95,9 @@ impl ApplicationHandler for Runner {
                 // update layout + sync scene graph
                 win.ui.update();
 
-                println!("dirty nodes this frame: {}", win.ui.scene.dirty_count());
+                // debug
+                // check if only changed nodes were uploaded to the gpu
+                // println!("rect uploads: {}", win.renderer.rect_uploads());
 
                 // render
                 let clear = win.config.clear_color.to_array();

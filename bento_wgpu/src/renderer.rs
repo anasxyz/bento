@@ -35,6 +35,8 @@ impl Renderer {
         }
     }
 
+    /// call when the surface is resized or rescaled
+    /// resets all gpu slots so everything reuploads with new dimensions
     pub fn resize(&mut self, ctx: &RenderContext, surface: &Surface, scene: &mut SceneGraph) {
         let sw = surface.physical_width() as f32;
         let sh = surface.physical_height() as f32;
@@ -43,62 +45,30 @@ impl Renderer {
         self.text_pipeline
             .resize(surface.width, surface.height, surface.scale);
 
-        let rect_ids: Vec<_> = scene
-            .rects
-            .iter()
-            .map(|(i, _)| crate::nodes::RectId(i))
-            .collect();
-        let shadow_ids: Vec<_> = scene
-            .shadows
-            .iter()
-            .map(|(i, _)| crate::nodes::ShadowId(i))
-            .collect();
-        let text_ids: Vec<_> = scene
-            .texts
-            .iter()
-            .map(|(i, _)| crate::nodes::TextId(i))
-            .collect();
-        for id in rect_ids {
-            scene.rect_mut(id);
+        // reset all gpu slots so write_slot reuploads everything with new scale
+        for (_, node) in &mut scene.rects {
+            node.slot = u32::MAX;
         }
-        for id in shadow_ids {
-            scene.shadow_mut(id);
-        }
-        for id in text_ids {
-            scene.text_mut(id);
+        for (_, node) in &mut scene.shadows {
+            node.slot = u32::MAX;
         }
     }
 
+    /// fully invalidate
+    /// resets all gpu slots so everything reuploads next frame:w
     pub fn invalidate(&mut self, scene: &mut SceneGraph) {
         self.rect_pipeline.invalidate();
         self.shadow_pipeline.invalidate();
-
-        let rect_ids: Vec<_> = scene
-            .rects
-            .iter()
-            .map(|(i, _)| crate::nodes::RectId(i))
-            .collect();
-        let shadow_ids: Vec<_> = scene
-            .shadows
-            .iter()
-            .map(|(i, _)| crate::nodes::ShadowId(i))
-            .collect();
-        let text_ids: Vec<_> = scene
-            .texts
-            .iter()
-            .map(|(i, _)| crate::nodes::TextId(i))
-            .collect();
-        for id in rect_ids {
-            scene.rect_mut(id);
+        for (_, node) in &mut scene.rects {
+            node.slot = u32::MAX;
         }
-        for id in shadow_ids {
-            scene.shadow_mut(id);
-        }
-        for id in text_ids {
-            scene.text_mut(id);
+        for (_, node) in &mut scene.shadows {
+            node.slot = u32::MAX;
         }
     }
 
+    /// render one frame to the given surface
+    /// only uploads nodes that changed since the last call
     pub fn render(
         &mut self,
         ctx: &mut RenderContext,
@@ -106,6 +76,7 @@ impl Renderer {
         scene: &mut SceneGraph,
         clear_color: [f32; 4],
     ) {
+        // acquire frame 
         let frame = match surface.surface.get_current_texture() {
             Ok(f) => f,
             Err(wgpu::SurfaceError::Outdated | wgpu::SurfaceError::Lost) => {
@@ -125,14 +96,13 @@ impl Renderer {
 
         let scale = surface.scale;
 
+        // sync nodes
+        // iterate all, write_slot does byte comparison 
         self.sync_rects(scene, scale);
         self.sync_shadows(scene, scale);
 
+        // text: submit all visible nodes 
         self.text_pipeline.begin_frame();
-        for id in scene.dirty_texts.drain(..) {
-            scene.texts[id.0].dirty = false;
-        }
-
         let text_nodes: Vec<_> = scene
             .texts
             .iter()
@@ -168,6 +138,7 @@ impl Renderer {
             );
         }
 
+        // render pass 
         {
             let [r, g, b, a] = clear_color;
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -190,6 +161,7 @@ impl Renderer {
                 occlusion_query_set: None,
             });
 
+            // draw order: shadows, then rects, then text
             self.shadow_pipeline
                 .render(&ctx.device, &ctx.queue, &mut pass);
             self.rect_pipeline
@@ -203,11 +175,10 @@ impl Renderer {
         self.text_pipeline.trim_atlas();
     }
 
-    fn sync_rects(&mut self, scene: &mut SceneGraph, scale: f32) {
-        for id in scene.dirty_rects.drain(..) {
-            let node = &mut scene.rects[id.0];
-            node.dirty = false;
+    // internal 
 
+    fn sync_rects(&mut self, scene: &mut SceneGraph, scale: f32) {
+        for (_, node) in &mut scene.rects {
             if node.slot == u32::MAX {
                 node.slot = self.rect_alloc.alloc();
             }
@@ -235,10 +206,7 @@ impl Renderer {
     }
 
     fn sync_shadows(&mut self, scene: &mut SceneGraph, scale: f32) {
-        for id in scene.dirty_shadows.drain(..) {
-            let node = &mut scene.shadows[id.0];
-            node.dirty = false;
-
+        for (_, node) in &mut scene.shadows {
             if node.slot == u32::MAX {
                 node.slot = self.shadow_alloc.alloc();
             }
@@ -265,6 +233,8 @@ impl Renderer {
         }
     }
 
+    /// reclaim the gpu slot for a removed rect node so it can be reused
+    /// call after SceneGraph::remove_rect()
     pub fn free_rect_slot(&mut self, slot: u32) {
         if slot != u32::MAX {
             self.rect_pipeline.clear_slot(slot as usize);
@@ -272,10 +242,18 @@ impl Renderer {
         }
     }
 
+    /// reclaim the gpu slot for a removed shadow node
     pub fn free_shadow_slot(&mut self, slot: u32) {
         if slot != u32::MAX {
             self.shadow_pipeline.clear_slot(slot as usize);
             self.shadow_alloc.free(slot);
         }
+    }
+
+    /// for debugging
+    /// how many rect slots were actually uploaded to the gpu last frame
+    /// should be 0 when nothing changed, 1 when one rect changed
+    pub fn rect_uploads(&self) -> u32 {
+        self.rect_pipeline.upload_count
     }
 }

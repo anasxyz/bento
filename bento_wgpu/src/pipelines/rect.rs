@@ -6,14 +6,14 @@
 //
 // slots are assigned by the Renderer via the SlotAllocator and written
 // into RectNode::slot
-// 
+//
 // this pipeline just owns the gpu buffer and draws
 
 use bytemuck::{Pod, Zeroable};
 use std::mem;
 use wgpu;
 
-/// gpu instance layout 
+/// gpu instance layout
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 struct Instance {
@@ -37,6 +37,7 @@ pub struct RectPipeline {
     dirty: Vec<bool>,
     screen_w: f32, // physical pixels
     screen_h: f32,
+    pub upload_count: u32,
 }
 
 impl RectPipeline {
@@ -94,13 +95,12 @@ impl RectPipeline {
             dirty: Vec::new(),
             screen_w,
             screen_h,
+            upload_count: 0,
         }
     }
 
-    // called by Renderer 
+    // called by Renderer
 
-    /// ensure the cpu side slot vec is large enough and mark it dirty
-    /// called when the renderer assigns a new slot to a node
     pub fn ensure_slot(&mut self, slot: usize) {
         while self.instances.len() <= slot {
             self.instances.push(Instance {
@@ -116,9 +116,6 @@ impl RectPipeline {
         }
     }
 
-    /// write a rect node into its slot
-    /// compares bytes and only marks dirty if the instance 
-    /// data actually changed
     pub fn write_slot(
         &mut self,
         slot: usize,
@@ -159,8 +156,6 @@ impl RectPipeline {
         }
     }
 
-    /// zero out a slot so it renders as invisible
-    /// called when a node is hidden or removed
     pub fn clear_slot(&mut self, slot: usize) {
         if slot >= self.instances.len() {
             return;
@@ -180,8 +175,6 @@ impl RectPipeline {
         }
     }
 
-    /// update physical screen dimensions
-    /// marks all slots dirty so screen_size uniforms embedded in each instance get reuploaded
     pub fn resize(&mut self, screen_w: f32, screen_h: f32) {
         self.screen_w = screen_w;
         self.screen_h = screen_h;
@@ -190,16 +183,12 @@ impl RectPipeline {
         }
     }
 
-    /// mark all slots dirty
-    /// called when the gpu buffer is reallocated or after a full invalidation
     pub fn invalidate(&mut self) {
         for d in &mut self.dirty {
             *d = true;
         }
     }
 
-    /// upload dirty slots to the gpu and issue the draw call
-    /// coalesces contiguous dirty ranges into single write_buffer calls
     pub fn render<'pass>(
         &'pass mut self,
         device: &wgpu::Device,
@@ -209,8 +198,8 @@ impl RectPipeline {
         if self.instances.is_empty() {
             return;
         }
+        self.upload_count = 0;
 
-        // grow gpu buffer if needed, full upload after realloc
         if self.instances.len() > self.instance_cap {
             let new_cap = self.instances.len().next_power_of_two();
             self.instance_buffer = Self::make_buffer(device, new_cap);
@@ -220,11 +209,11 @@ impl RectPipeline {
                 0,
                 bytemuck::cast_slice(&self.instances),
             );
+            self.upload_count = self.instances.len() as u32;
             for d in &mut self.dirty {
                 *d = false;
             }
         } else {
-            // partial upload, oalesce contiguous dirty slots
             let mut range_start: Option<usize> = None;
             for i in 0..=self.instances.len() {
                 let is_dirty = i < self.instances.len() && self.dirty[i];
@@ -236,6 +225,7 @@ impl RectPipeline {
                             (start * INSTANCE_SIZE) as u64,
                             bytemuck::cast_slice(&self.instances[start..i]),
                         );
+                        self.upload_count += (i - start) as u32;
                         range_start = None;
                     }
                     _ => {}
@@ -260,8 +250,6 @@ impl RectPipeline {
         })
     }
 }
-
-// vertex attribute layout 
 
 const INSTANCE_ATTRS: &[wgpu::VertexAttribute] = &[
     wgpu::VertexAttribute {
