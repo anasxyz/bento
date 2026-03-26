@@ -8,18 +8,15 @@ fn main() {
         .unwrap()
         .set_width(Size::Percent(100.0))
         .set_height(Size::Percent(100.0))
-        .set_color(Color::rgb(30, 30, 30))
-        .set_flex_direction(FlexDirection::Row)
-        .set_padding([16.0, 16.0, 16.0, 16.0])
-        .set_row_gap(8.0);
+        .set_flex_wrap(FlexWrap::Wrap);
     ui.set_root(root);
 
-    for i in 0..1000 {
-        let label = ui.add(Label::new(&format!("Item {}", i)));
+    for i in 0..5000 {
+        let label = ui.add(Label::new(&format!("item {}", i)));
         ui.get_mut(label)
             .unwrap()
-            .set_size(14.0)
-            .set_color(Color::WHITE);
+            .set_size(12.0)
+            .set_margin([2.0, 2.0, 2.0, 2.0]);
         ui.append(root, label);
     }
 
@@ -27,4 +24,3 @@ fn main() {
     app.open_window(WindowConfig::default(), ui);
     app.run();
 }
-

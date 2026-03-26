@@ -23,7 +23,7 @@ impl LayoutEngine {
 
     /// add a widget to the layout tree
     /// returns nothing
-    /// the nodeid is managed internally, keyed by handle
+    /// the NodeId is managed internally, keyed by Handle
     pub fn add(&mut self, handle: Handle<()>, layout: &Layout) {
         let style = build_style(layout);
         let node = self.taffy.new_leaf(style).unwrap();
@@ -40,6 +40,12 @@ impl LayoutEngine {
     }
 
     /// remove a widget from the layout tree
+    pub fn mark_dirty(&mut self, handle: Handle<()>) {
+        if let Some(&node) = self.nodes.get(&handle) {
+            self.taffy.mark_dirty(node).unwrap();
+        }
+    }
+
     pub fn remove(&mut self, handle: Handle<()>) {
         if let Some(node) = self.nodes.remove(&handle) {
             self.taffy.remove(node).unwrap();
