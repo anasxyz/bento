@@ -1,6 +1,7 @@
 use bento_wgpu::RenderContext;
 use winit::event_loop::EventLoop;
 
+use crate::fonts::Fonts;
 use crate::runner::Runner;
 use crate::settings::WindowConfig;
 use crate::ui::Ui;
@@ -10,6 +11,7 @@ pub struct WindowHandle(pub(crate) u32);
 
 pub struct App {
     pending: Vec<(WindowHandle, WindowConfig, Ui)>,
+    pub fonts: Fonts,
     next_handle: u32,
 }
 
@@ -17,6 +19,7 @@ impl App {
     pub fn new() -> Self {
         Self {
             pending: Vec::new(),
+            fonts: Fonts::new(),
             next_handle: 0,
         }
     }
@@ -33,7 +36,7 @@ impl App {
         let ctx = rt.block_on(RenderContext::new());
         let event_loop = EventLoop::new().unwrap();
         event_loop
-            .run_app(&mut Runner::new(ctx, self.pending))
+            .run_app(&mut Runner::new(ctx, self.fonts, self.pending))
             .unwrap();
     }
 }

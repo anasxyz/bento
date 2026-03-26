@@ -8,7 +8,6 @@ impl Ui {
         let w = self.window_width as f32;
         let h = self.window_height as f32;
 
-        // 1. sync layout styles to taffy
         let style_updates: Vec<(Handle<()>, crate::layout::Layout)> = self
             .slots
             .iter()
@@ -26,7 +25,6 @@ impl Ui {
             self.layout.set_layout(*handle, layout);
         }
 
-        // 2. compute layout — call measure() on widgets that need it
         let measure_handles: Vec<Handle<()>> = self
             .slots
             .iter()
@@ -52,7 +50,6 @@ impl Ui {
             (0.0, 0.0)
         });
 
-        // 3. sync computed rects to scene graph nodes
         let handles: Vec<Handle<()>> = self
             .slots
             .iter()

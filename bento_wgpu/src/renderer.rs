@@ -35,8 +35,6 @@ impl Renderer {
         }
     }
 
-    /// call when the surface is resized or rescaled
-    /// resets all gpu slots so everything reuploads with new dimensions
     pub fn resize(&mut self, ctx: &RenderContext, surface: &Surface, scene: &mut SceneGraph) {
         let sw = surface.physical_width() as f32;
         let sh = surface.physical_height() as f32;
@@ -45,7 +43,6 @@ impl Renderer {
         self.text_pipeline
             .resize(surface.width, surface.height, surface.scale);
 
-        // reset all gpu slots so write_slot reuploads everything with new scale
         for (_, node) in &mut scene.rects {
             node.slot = u32::MAX;
         }
@@ -54,8 +51,6 @@ impl Renderer {
         }
     }
 
-    /// fully invalidate
-    /// resets all gpu slots so everything reuploads next frame:w
     pub fn invalidate(&mut self, scene: &mut SceneGraph) {
         self.rect_pipeline.invalidate();
         self.shadow_pipeline.invalidate();
@@ -67,16 +62,14 @@ impl Renderer {
         }
     }
 
-    /// render one frame to the given surface
-    /// only uploads nodes that changed since the last call
     pub fn render(
         &mut self,
         ctx: &mut RenderContext,
+        font_system: &mut glyphon::FontSystem,
         surface: &mut Surface,
         scene: &mut SceneGraph,
         clear_color: [f32; 4],
     ) {
-        // acquire frame 
         let frame = match surface.surface.get_current_texture() {
             Ok(f) => f,
             Err(wgpu::SurfaceError::Outdated | wgpu::SurfaceError::Lost) => {
@@ -96,12 +89,9 @@ impl Renderer {
 
         let scale = surface.scale;
 
-        // sync nodes
-        // iterate all, write_slot does byte comparison 
         self.sync_rects(scene, scale);
         self.sync_shadows(scene, scale);
 
-        // text: submit all visible nodes 
         self.text_pipeline.begin_frame();
         let text_nodes: Vec<_> = scene
             .texts
@@ -124,7 +114,7 @@ impl Renderer {
             .collect();
         for (x, y, content, family, size, weight, italic, color, width, clip) in text_nodes {
             self.text_pipeline.submit(
-                &mut ctx.font_system,
+                font_system,
                 x,
                 y,
                 &content,
@@ -138,7 +128,6 @@ impl Renderer {
             );
         }
 
-        // render pass 
         {
             let [r, g, b, a] = clear_color;
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -161,21 +150,18 @@ impl Renderer {
                 occlusion_query_set: None,
             });
 
-            // draw order: shadows, then rects, then text
             self.shadow_pipeline
                 .render(&ctx.device, &ctx.queue, &mut pass);
             self.rect_pipeline
                 .render(&ctx.device, &ctx.queue, &mut pass);
             self.text_pipeline
-                .render(&mut ctx.font_system, &ctx.device, &ctx.queue, &mut pass);
+                .render(font_system, &ctx.device, &ctx.queue, &mut pass);
         }
 
         ctx.queue.submit(Some(encoder.finish()));
         frame.present();
         self.text_pipeline.trim_atlas();
     }
-
-    // internal 
 
     fn sync_rects(&mut self, scene: &mut SceneGraph, scale: f32) {
         for (_, node) in &mut scene.rects {
@@ -233,8 +219,6 @@ impl Renderer {
         }
     }
 
-    /// reclaim the gpu slot for a removed rect node so it can be reused
-    /// call after SceneGraph::remove_rect()
     pub fn free_rect_slot(&mut self, slot: u32) {
         if slot != u32::MAX {
             self.rect_pipeline.clear_slot(slot as usize);
@@ -242,7 +226,6 @@ impl Renderer {
         }
     }
 
-    /// reclaim the gpu slot for a removed shadow node
     pub fn free_shadow_slot(&mut self, slot: u32) {
         if slot != u32::MAX {
             self.shadow_pipeline.clear_slot(slot as usize);
@@ -250,9 +233,6 @@ impl Renderer {
         }
     }
 
-    /// for debugging
-    /// how many rect slots were actually uploaded to the gpu last frame
-    /// should be 0 when nothing changed, 1 when one rect changed
     pub fn rect_uploads(&self) -> u32 {
         self.rect_pipeline.upload_count
     }

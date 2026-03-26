@@ -1,4 +1,3 @@
-use glyphon::FontSystem;
 use wgpu;
 
 pub struct RenderContext {
@@ -6,7 +5,6 @@ pub struct RenderContext {
     pub(crate) adapter: wgpu::Adapter,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
-    pub font_system: FontSystem,
 }
 
 impl RenderContext {
@@ -20,19 +18,18 @@ impl RenderContext {
                 force_fallback_adapter: false,
             })
             .await
-            .expect("bento_wgpu: no suitable gpu adapter found");
+            .expect("bento_wgpu: no suitable GPU adapter found");
 
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor::default())
             .await
-            .expect("bento_wgpu: failed to create gpu device");
+            .expect("bento_wgpu: failed to create GPU device");
 
         Self {
             instance,
             adapter,
             device,
             queue,
-            font_system: FontSystem::new(),
         }
     }
 
@@ -52,14 +49,13 @@ impl RenderContext {
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor::default())
             .await
-            .expect("bento_wgpu: failed to create gpu device");
+            .expect("bento_wgpu: failed to create GPU device");
 
         Self {
             instance,
             adapter,
             device,
             queue,
-            font_system: FontSystem::new(),
         }
     }
 }

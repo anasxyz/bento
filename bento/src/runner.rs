@@ -17,6 +17,7 @@ use crate::window::BentoWindow;
 
 pub struct Runner {
     pub ctx: RenderContext,
+    pub fonts: Fonts,
     pub windows: HashMap<WindowId, BentoWindow>,
     pending: Vec<(WindowHandle, WindowConfig, Ui)>,
     close_queue: Vec<WindowHandle>,
@@ -24,9 +25,14 @@ pub struct Runner {
 }
 
 impl Runner {
-    pub fn new(ctx: RenderContext, pending: Vec<(WindowHandle, WindowConfig, Ui)>) -> Self {
+    pub fn new(
+        ctx: RenderContext,
+        fonts: Fonts,
+        pending: Vec<(WindowHandle, WindowConfig, Ui)>,
+    ) -> Self {
         Self {
             ctx,
+            fonts,
             windows: HashMap::new(),
             pending,
             close_queue: Vec::new(),
@@ -87,26 +93,20 @@ impl ApplicationHandler for Runner {
 
         match event {
             WindowEvent::RedrawRequested => {
-                // dispatch input events
                 crate::dispatch::dispatch(&mut win.ui, &win.input);
-
-                // drain event callbacks
                 win.ui.drain_events();
-
-                // update layout + sync scene graph
-                let mut fonts = Fonts::new(&mut self.ctx.font_system);
-                win.ui.update(&mut fonts);
-
-                // render
+                win.ui.update(&mut self.fonts);
                 let clear = win.config.clear_color.to_array();
-                win.renderer
-                    .render(&mut self.ctx, &mut win.surface, &mut win.ui.scene, clear);
-
-                // reset per frame input flags
+                win.renderer.render(
+                    &mut self.ctx,
+                    &mut self.fonts.font_system,
+                    &mut win.surface,
+                    &mut win.ui.scene,
+                    clear,
+                );
                 win.input.reset();
             }
 
-            // mouse
             WindowEvent::CursorMoved { position, .. } => {
                 let scale = win.window.scale_factor() as f32;
                 win.input
@@ -140,7 +140,6 @@ impl ApplicationHandler for Runner {
                 win.window.request_redraw();
             }
 
-            // keyboard
             WindowEvent::KeyboardInput { event: ke, .. } => {
                 let key = match ke.physical_key {
                     PhysicalKey::Code(code) => Key::from(code),
@@ -164,7 +163,6 @@ impl ApplicationHandler for Runner {
                 };
             }
 
-            // window lifecycle
             WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {
                 win.resize(&self.ctx);
             }

@@ -9,7 +9,7 @@ fn main() {
         .set_width(Size::Percent(100.0))
         .set_height(Size::Percent(100.0))
         .set_color(Color::rgb(30, 30, 30))
-        .set_flex_direction(FlexDirection::Col)
+        .set_flex_direction(FlexDirection::Row)
         .set_padding([16.0, 16.0, 16.0, 16.0])
         .set_row_gap(8.0);
     ui.set_root(root);
