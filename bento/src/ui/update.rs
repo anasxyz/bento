@@ -54,14 +54,16 @@ impl Ui {
 
         // compute layout
         self.layout.compute(root, w, h, |handle, max_w, _max_h| {
+            let natural = measured.get(&handle).copied().unwrap_or((0.0, 0.0));
             if let Some(mw) = max_w {
-                if measured.contains_key(&handle) {
+                if mw < natural.0 {
                     if let Some(Some(slot)) = self.slots.get(handle.id as usize) {
-                        return slot.widget.measure(fonts, Some(mw)).unwrap_or((0.0, 0.0));
+                        let (w, h) = slot.widget.measure(fonts, Some(mw)).unwrap_or((0.0, 0.0));
+                        return (w + 1.0, h);
                     }
                 }
             }
-            measured.get(&handle).copied().unwrap_or((0.0, 0.0))
+            (natural.0 + 1.0, natural.1)
         });
 
         // sync computed rects to scene graph nodes
