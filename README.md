@@ -9,6 +9,7 @@
 - Optimised, high performance, GPU-accelerated rendering with low overhead at scale
 - Extensible UI widget system using `#[derive(Widget)]` trait, make your own custom UI widgets that integrate seamlessly
 - Comprehensive built-in widget and styling library
+- Support for multiple windows
 - Rich event system with builtin input handling, widget lifecycle hooks using `connect()`, and custom event broadcasting using `emit()`
 - Flexbox layout engine
 - Font loading and management
