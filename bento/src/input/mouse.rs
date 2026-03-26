@@ -1,3 +1,7 @@
+use std::time::Instant;
+
+const DOUBLE_CLICK_MS: u128 = 300;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum MouseButton {
     Left,
@@ -5,154 +9,133 @@ pub enum MouseButton {
     Middle,
 }
 
-const DOUBLE_CLICK_MS: u128 = 300;
+/// state for a single mouse button
+#[derive(Debug)]
+pub struct ButtonState {
+    pub pressed: bool,
+    pub just_pressed: bool,
+    pub just_released: bool,
+    pub just_double_clicked: bool,
+    pub click_x: f32,
+    pub click_y: f32,
+    click_count: u32,
+    last_click: Instant,
+}
 
+impl ButtonState {
+    fn new() -> Self {
+        Self {
+            pressed: false,
+            just_pressed: false,
+            just_released: false,
+            just_double_clicked: false,
+            click_x: 0.0,
+            click_y: 0.0,
+            click_count: 0,
+            last_click: Instant::now(),
+        }
+    }
+
+    pub(crate) fn on_press(&mut self, x: f32, y: f32) {
+        self.pressed = true;
+        self.just_pressed = true;
+        self.click_x = x;
+        self.click_y = y;
+
+        let now = Instant::now();
+        if now.duration_since(self.last_click).as_millis() < DOUBLE_CLICK_MS {
+            self.click_count += 1;
+        } else {
+            self.click_count = 1;
+        }
+        self.just_double_clicked = self.click_count >= 2;
+        if self.just_double_clicked {
+            self.click_count = 0;
+        }
+        self.last_click = now;
+    }
+
+    pub(crate) fn on_release(&mut self) {
+        self.pressed = false;
+        self.just_released = true;
+    }
+
+    pub(crate) fn reset(&mut self) {
+        self.just_pressed = false;
+        self.just_released = false;
+        self.just_double_clicked = false;
+    }
+}
+
+/// full mouse state for one frame
 #[derive(Debug)]
 pub struct MouseState {
     pub x: f32,
     pub y: f32,
-
-    pub left_pressed: bool,
-    pub left_just_pressed: bool,
-    pub left_just_released: bool,
-    pub left_just_double_clicked: bool,
-
-    pub right_pressed: bool,
-    pub right_just_pressed: bool,
-    pub right_just_released: bool,
-
-    pub middle_pressed: bool,
-    pub middle_just_pressed: bool,
-    pub middle_just_released: bool,
-
-    pub is_dragging: bool,
-    pub drag_start_x: f32,
-    pub drag_start_y: f32,
-
-    pub left_click_x: f32,
-    pub left_click_y: f32,
-    pub right_click_x: f32,
-    pub right_click_y: f32,
-    pub middle_click_x: f32,
-    pub middle_click_y: f32,
-
-    // scroll delta for current frame
-    pub scroll_delta_x: f32,
-    pub scroll_delta_y: f32,
+    pub left: ButtonState,
+    pub right: ButtonState,
+    pub middle: ButtonState,
+    pub scroll_x: f32,
+    pub scroll_y: f32,
     pub just_scrolled: bool,
+}
 
-    left_click_count: u32,
-    left_last_click: std::time::Instant,
-    right_click_count: u32,
-    right_last_click: std::time::Instant,
+impl MouseState {
+    pub fn new() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            left: ButtonState::new(),
+            right: ButtonState::new(),
+            middle: ButtonState::new(),
+            scroll_x: 0.0,
+            scroll_y: 0.0,
+            just_scrolled: false,
+        }
+    }
+
+    pub(crate) fn on_move(&mut self, x: f32, y: f32) {
+        self.x = x;
+        self.y = y;
+    }
+
+    pub(crate) fn on_press(&mut self, button: &MouseButton) {
+        let (x, y) = (self.x, self.y);
+        match button {
+            MouseButton::Left => self.left.on_press(x, y),
+            MouseButton::Right => self.right.on_press(x, y),
+            MouseButton::Middle => self.middle.on_press(x, y),
+        }
+    }
+
+    pub(crate) fn on_release(&mut self, button: &MouseButton) {
+        match button {
+            MouseButton::Left => self.left.on_release(),
+            MouseButton::Right => self.right.on_release(),
+            MouseButton::Middle => self.middle.on_release(),
+        }
+    }
+
+    pub(crate) fn on_scroll(&mut self, x: f32, y: f32) {
+        self.scroll_x = x;
+        self.scroll_y = y;
+        self.just_scrolled = true;
+    }
+
+    /// reset per frame flags
+    /// call at the end of each frame
+    pub(crate) fn reset(&mut self) {
+        self.left.reset();
+        self.right.reset();
+        self.middle.reset();
+        self.scroll_x = 0.0;
+        self.scroll_y = 0.0;
+        self.just_scrolled = false;
+    }
 }
 
 impl Default for MouseState {
     fn default() -> Self {
-        Self {
-            x: 0.0,
-            y: 0.0,
-            left_pressed: false,
-            left_just_pressed: false,
-            left_just_released: false,
-            left_just_double_clicked: false,
-            right_pressed: false,
-            right_just_pressed: false,
-            right_just_released: false,
-            middle_pressed: false,
-            middle_just_pressed: false,
-            middle_just_released: false,
-            is_dragging: false,
-            drag_start_x: 0.0,
-            drag_start_y: 0.0,
-            left_click_x: 0.0,
-            left_click_y: 0.0,
-            right_click_x: 0.0,
-            right_click_y: 0.0,
-            middle_click_x: 0.0,
-            middle_click_y: 0.0,
-            scroll_delta_x: 0.0,
-            scroll_delta_y: 0.0,
-            just_scrolled: false,
-            left_click_count: 0,
-            left_last_click: std::time::Instant::now(),
-            right_click_count: 0,
-            right_last_click: std::time::Instant::now(),
-        }
-    }
-}
-
-impl MouseState {
-    pub fn on_left_press(&mut self) {
-        self.left_pressed = true;
-        self.left_just_pressed = true;
-        self.left_click_x = self.x;
-        self.left_click_y = self.y;
-        let now = std::time::Instant::now();
-        if now.duration_since(self.left_last_click).as_millis() < DOUBLE_CLICK_MS {
-            self.left_click_count += 1;
-        } else {
-            self.left_click_count = 1;
-        }
-        self.left_just_double_clicked = self.left_click_count >= 2;
-        if self.left_just_double_clicked {
-            self.left_click_count = 0;
-        }
-        self.left_last_click = now;
-    }
-
-    pub fn on_left_release(&mut self) {
-        self.left_pressed = false;
-        self.left_just_released = true;
-    }
-
-    pub fn on_right_press(&mut self) {
-        self.right_pressed = true;
-        self.right_just_pressed = true;
-        self.right_click_x = self.x;
-        self.right_click_y = self.y;
-        let now = std::time::Instant::now();
-        if now.duration_since(self.right_last_click).as_millis() < DOUBLE_CLICK_MS {
-            self.right_click_count += 1;
-        } else {
-            self.right_click_count = 1;
-        }
-        self.right_last_click = now;
-    }
-
-    pub fn on_right_release(&mut self) {
-        self.right_pressed = false;
-        self.right_just_released = true;
-    }
-
-    pub fn on_middle_press(&mut self) {
-        self.middle_pressed = true;
-        self.middle_just_pressed = true;
-        self.middle_click_x = self.x;
-        self.middle_click_y = self.y;
-    }
-
-    pub fn on_middle_release(&mut self) {
-        self.middle_pressed = false;
-        self.middle_just_released = true;
-    }
-
-    pub fn on_scroll(&mut self, delta_x: f32, delta_y: f32) {
-        self.scroll_delta_x = delta_x;
-        self.scroll_delta_y = delta_y;
-        self.just_scrolled = true;
-    }
-
-    pub fn reset(&mut self) {
-        self.left_just_pressed = false;
-        self.left_just_released = false;
-        self.left_just_double_clicked = false;
-        self.right_just_pressed = false;
-        self.right_just_released = false;
-        self.middle_just_pressed = false;
-        self.middle_just_released = false;
-        self.scroll_delta_x = 0.0;
-        self.scroll_delta_y = 0.0;
-        self.just_scrolled = false;
+        Self::new()
     }
 }

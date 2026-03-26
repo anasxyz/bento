@@ -3,7 +3,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{DeriveInput, parse_macro_input};
 
-/// generates hasbase for your element struct, which unlocks:
+/// generates hasbase for your widget struct, which unlocks:
 /// - all layout setters (set_width, set_padding, set_align_items, etc.)
 /// - all dirty tracking (is_dirty, set_dirty)
 /// - layout() and layout_mut_internal() forwarded from base
@@ -11,23 +11,23 @@ use syn::{DeriveInput, parse_macro_input};
 ///
 /// requires a field named `base: base` on the struct
 ///
-/// after deriving, implement element with only what's specific to your element:
+/// after deriving, implement widget with only what's specific to your widget:
 ///
 /// ```ignore
-/// #[derive(Element)]
-/// pub struct MyElement {
+/// #[derive(Widget)]
+/// pub struct MyWidget {
 ///     base: Base,
 ///     value: f32,
 /// }
 ///
-/// impl Element for MyElement {
+/// impl Widget for MyWidget {
 ///     fn draw_calls(&self, clip: Option<[f32; 4]>, z: i32, opacity: f32) -> Vec<DrawCall> {
 ///         vec![]
 ///     }
 /// }
 /// ```
-#[proc_macro_derive(Element)]
-pub fn derive_element(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(Widget)]
+pub fn derive_widget(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = &input.ident;
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
@@ -43,7 +43,7 @@ pub fn derive_element(input: TokenStream) -> TokenStream {
     if !has_base_field {
         return syn::Error::new_spanned(
             &input.ident,
-            "#[derive(Element)] requires a field named `base: Base`",
+            "#[derive(Widget)] requires a field named `base: Base`",
         )
         .to_compile_error()
         .into();

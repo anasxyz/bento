@@ -2,15 +2,55 @@ use bento::*;
 
 fn main() {
     let mut ui = Ui::new();
-    let btn = ui.add(rect().bg(rgb(100, 0, 0)).w(px(100.0)).h(px(40.0)));
-    let root = ui.add(col().w(pct(100.0)).h(pct(100.0)));
 
-    ui.append(root, btn);
-    ui.set_root(root);
+    let rect = ui.add(Rect::new());
+    ui.get_mut(rect)
+        .unwrap()
+        .set_width(Size::Percent(100.0))
+        .set_height(Size::Percent(100.0))
+        .set_color(Color::rgb(100, 150, 255));
 
-    AppWindow::new(WindowConfig::default()).run(ui, |ui| {
-        // mutate directly each frame
-        let color = ui[btn].style.fill;
-        // ui[btn].style.fill = rgb(0, 200, 0);
+    let rect2 = ui.add(Rect::new());
+    ui.get_mut(rect2)
+        .unwrap()
+        .set_width(Size::Fixed(300.0))
+        .set_height(Size::Fixed(200.0))
+        .set_color(Color::rgb(100, 0, 0))
+        .set_radius(8.0);
+
+    let rect3 = ui.add(Rect::new());
+    ui.get_mut(rect3)
+        .unwrap()
+        .set_width(Size::Fixed(300.0))
+        .set_height(Size::Fixed(200.0))
+        .set_color(Color::rgb(0, 100, 0))
+        .set_radius(8.0);
+
+    ui.connect(rect3, move |ui, event| match event {
+        Event::Hover => {
+            ui.get_mut(rect3)
+                .unwrap()
+                .set_color(Color::rgb(255, 100, 100));
+            ui.get_mut(rect2)
+                .unwrap()
+                .set_color(Color::rgb(255, 100, 100));
+        }
+        Event::HoverEnd => {
+            ui.get_mut(rect3)
+                .unwrap()
+                .set_color(Color::rgb(100, 150, 255));
+            ui.get_mut(rect2)
+                .unwrap()
+                .set_color(Color::rgb(100, 150, 255));
+        }
+        _ => {}
     });
+
+    ui.append(rect, rect3);
+    ui.append(rect, rect2);
+    ui.set_root(rect);
+
+    let mut app = App::new();
+    app.open_window(WindowConfig::default(), ui);
+    app.run();
 }

@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Key {
     // letters
@@ -40,9 +42,9 @@ pub enum Key {
 
 #[derive(Debug, Clone, Default)]
 pub struct Modifiers {
-    pub shift: bool,
-    pub ctrl: bool,
-    pub alt: bool,
+    pub shift:     bool,
+    pub ctrl:      bool,
+    pub alt:       bool,
     pub super_key: bool,
 }
 
@@ -52,7 +54,46 @@ impl Modifiers {
     }
 }
 
-// convert from winit KeyCode
+/// keyboard state
+#[derive(Debug, Default)]
+pub struct KeyState {
+    pub modifiers:      Modifiers,
+    held:               HashSet<Key>,
+    just_pressed:       Vec<(Key, Option<char>)>,
+    just_released:      Vec<Key>,
+}
+
+impl KeyState {
+    pub fn new() -> Self { Self::default() }
+
+    pub fn is_held(&self, key: &Key) -> bool {
+        self.held.contains(key)
+    }
+
+    pub fn just_pressed(&self) -> &[(Key, Option<char>)] {
+        &self.just_pressed
+    }
+
+    pub fn just_released(&self) -> &[Key] {
+        &self.just_released
+    }
+
+    pub(crate) fn on_press(&mut self, key: Key, text: Option<char>) {
+        self.held.insert(key.clone());
+        self.just_pressed.push((key, text));
+    }
+
+    pub(crate) fn on_release(&mut self, key: Key) {
+        self.held.remove(&key);
+        self.just_released.push(key);
+    }
+
+    pub(crate) fn reset(&mut self) {
+        self.just_pressed.clear();
+        self.just_released.clear();
+    }
+}
+
 impl From<winit::keyboard::KeyCode> for Key {
     fn from(k: winit::keyboard::KeyCode) -> Self {
         use winit::keyboard::KeyCode::*;
@@ -70,33 +111,35 @@ impl From<winit::keyboard::KeyCode> for Key {
             Digit6 => Key::Num6, Digit7 => Key::Num7, Digit8 => Key::Num8,
             Digit9 => Key::Num9,
 
-            F1 => Key::F1, F2 => Key::F2, F3 => Key::F3, F4 => Key::F4,
-            F5 => Key::F5, F6 => Key::F6, F7 => Key::F7, F8 => Key::F8,
-            F9 => Key::F9, F10 => Key::F10, F11 => Key::F11, F12 => Key::F12,
+            F1 => Key::F1,   F2 => Key::F2,   F3 => Key::F3,  F4 => Key::F4,
+            F5 => Key::F5,   F6 => Key::F6,   F7 => Key::F7,  F8 => Key::F8,
+            F9 => Key::F9,   F10 => Key::F10, F11 => Key::F11, F12 => Key::F12,
 
-            ArrowUp => Key::Up, ArrowDown => Key::Down,
-            ArrowLeft => Key::Left, ArrowRight => Key::Right,
-            Home => Key::Home, End => Key::End,
-            PageUp => Key::PageUp, PageDown => Key::PageDown,
+            ArrowUp    => Key::Up,     ArrowDown  => Key::Down,
+            ArrowLeft  => Key::Left,   ArrowRight => Key::Right,
+            Home       => Key::Home,   End        => Key::End,
+            PageUp     => Key::PageUp, PageDown   => Key::PageDown,
 
-            Enter => Key::Enter, Backspace => Key::Backspace,
-            Delete => Key::Delete, Tab => Key::Tab, Escape => Key::Escape,
-            Insert => Key::Insert, Space => Key::Space,
+            Enter     => Key::Enter,     Backspace => Key::Backspace,
+            Delete    => Key::Delete,    Tab       => Key::Tab,
+            Escape    => Key::Escape,    Insert    => Key::Insert,
+            Space     => Key::Space,
 
-            ShiftLeft => Key::LShift, ShiftRight => Key::RShift,
-            ControlLeft => Key::LCtrl, ControlRight => Key::RCtrl,
-            AltLeft => Key::LAlt, AltRight => Key::RAlt,
-            SuperLeft => Key::LSuper, SuperRight => Key::RSuper,
+            ShiftLeft    => Key::LShift,  ShiftRight   => Key::RShift,
+            ControlLeft  => Key::LCtrl,   ControlRight => Key::RCtrl,
+            AltLeft      => Key::LAlt,    AltRight     => Key::RAlt,
+            SuperLeft    => Key::LSuper,  SuperRight   => Key::RSuper,
 
-            Minus => Key::Minus, Equal => Key::Equals,
-            BracketLeft => Key::LeftBracket, BracketRight => Key::RightBracket,
-            Backslash => Key::Backslash, Semicolon => Key::Semicolon,
-            Quote => Key::Apostrophe, Backquote => Key::Grave,
-            Comma => Key::Comma, Period => Key::Period, Slash => Key::Slash,
+            Minus       => Key::Minus,        Equal       => Key::Equals,
+            BracketLeft => Key::LeftBracket,  BracketRight => Key::RightBracket,
+            Backslash   => Key::Backslash,    Semicolon   => Key::Semicolon,
+            Quote       => Key::Apostrophe,   Backquote   => Key::Grave,
+            Comma       => Key::Comma,        Period      => Key::Period,
+            Slash       => Key::Slash,
 
-            CapsLock => Key::CapsLock, ScrollLock => Key::ScrollLock,
-            NumLock => Key::NumLock, PrintScreen => Key::PrintScreen,
-            Pause => Key::Pause,
+            CapsLock    => Key::CapsLock,   ScrollLock => Key::ScrollLock,
+            NumLock     => Key::NumLock,    PrintScreen => Key::PrintScreen,
+            Pause       => Key::Pause,
 
             _ => Key::Unknown,
         }
