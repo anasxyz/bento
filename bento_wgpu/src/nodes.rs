@@ -1,11 +1,25 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct RectId(pub(crate) usize);
+use slab::Slab;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TextId(pub(crate) usize);
+pub struct SceneNodeId(pub usize);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ShadowId(pub(crate) usize);
+pub struct RectId(pub usize);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TextId(pub usize);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ShadowId(pub usize);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ClipId(pub usize);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TransformId(pub usize);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct OpacityId(pub usize);
 
 pub struct RectNode {
     pub x: f32,
@@ -16,14 +30,13 @@ pub struct RectNode {
     pub radius: f32,
     pub border_color: [f32; 4],
     pub border_widths: [f32; 4],
-    pub clip: Option<[f32; 4]>,
     pub z: i32,
     pub visible: bool,
     pub(crate) slot: u32,
 }
 
 impl RectNode {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             x: 0.0,
             y: 0.0,
@@ -33,7 +46,6 @@ impl RectNode {
             radius: 0.0,
             border_color: [0.0; 4],
             border_widths: [0.0; 4],
-            clip: None,
             z: 0,
             visible: false,
             slot: u32::MAX,
@@ -66,9 +78,6 @@ impl RectNode {
     pub fn set_border_widths(&mut self, w: [f32; 4]) {
         self.border_widths = w;
     }
-    pub fn set_clip(&mut self, clip: Option<[f32; 4]>) {
-        self.clip = clip;
-    }
     pub fn set_z(&mut self, z: i32) {
         self.z = z;
     }
@@ -87,13 +96,12 @@ pub struct TextNode {
     pub italic: bool,
     pub color: [f32; 4],
     pub width: f32,
-    pub clip: Option<[f32; 4]>,
     pub z: i32,
     pub visible: bool,
 }
 
 impl TextNode {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             x: 0.0,
             y: 0.0,
@@ -104,7 +112,6 @@ impl TextNode {
             italic: false,
             color: [1.0, 1.0, 1.0, 1.0],
             width: f32::MAX,
-            clip: None,
             z: 0,
             visible: false,
         }
@@ -137,9 +144,6 @@ impl TextNode {
     pub fn set_width(&mut self, w: f32) {
         self.width = w;
     }
-    pub fn set_clip(&mut self, clip: Option<[f32; 4]>) {
-        self.clip = clip;
-    }
     pub fn set_z(&mut self, z: i32) {
         self.z = z;
     }
@@ -164,7 +168,7 @@ pub struct ShadowNode {
 }
 
 impl ShadowNode {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             x: 0.0,
             y: 0.0,
@@ -205,5 +209,108 @@ impl ShadowNode {
     }
     pub fn set_z(&mut self, z: i32) {
         self.z = z;
+    }
+}
+
+pub struct ClipNode {
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+    pub children: Vec<SceneNodeId>,
+}
+
+impl ClipNode {
+    pub fn new() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            w: 0.0,
+            h: 0.0,
+            children: Vec::new(),
+        }
+    }
+    pub fn set_rect(&mut self, x: f32, y: f32, w: f32, h: f32) {
+        self.x = x;
+        self.y = y;
+        self.w = w;
+        self.h = h;
+    }
+}
+
+pub struct TransformNode {
+    pub offset_x: f32,
+    pub offset_y: f32,
+    pub children: Vec<SceneNodeId>,
+}
+
+impl TransformNode {
+    pub fn new() -> Self {
+        Self {
+            offset_x: 0.0,
+            offset_y: 0.0,
+            children: Vec::new(),
+        }
+    }
+    pub fn set_offset(&mut self, x: f32, y: f32) {
+        self.offset_x = x;
+        self.offset_y = y;
+    }
+}
+
+pub struct OpacityNode {
+    pub opacity: f32,
+    pub children: Vec<SceneNodeId>,
+}
+
+impl OpacityNode {
+    pub fn new() -> Self {
+        Self {
+            opacity: 1.0,
+            children: Vec::new(),
+        }
+    }
+    pub fn set_opacity(&mut self, v: f32) {
+        self.opacity = v;
+    }
+}
+
+pub enum SceneNode {
+    Rect(RectNode),
+    Text(TextNode),
+    Shadow(ShadowNode),
+    Clip(ClipNode),
+    Transform(TransformNode),
+    Opacity(OpacityNode),
+}
+
+impl RectId {
+    pub fn to_scene(self) -> SceneNodeId {
+        SceneNodeId(self.0)
+    }
+}
+impl TextId {
+    pub fn to_scene(self) -> SceneNodeId {
+        SceneNodeId(self.0)
+    }
+}
+impl ShadowId {
+    pub fn to_scene(self) -> SceneNodeId {
+        SceneNodeId(self.0)
+    }
+}
+impl ClipId {
+    pub fn to_scene(self) -> SceneNodeId {
+        SceneNodeId(self.0)
+    }
+}
+impl TransformId {
+    pub fn to_scene(self) -> SceneNodeId {
+        SceneNodeId(self.0)
+    }
+}
+impl OpacityId {
+    pub fn to_scene(self) -> SceneNodeId {
+        SceneNodeId(self.0)
     }
 }

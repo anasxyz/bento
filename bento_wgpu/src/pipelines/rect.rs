@@ -15,7 +15,7 @@ use wgpu;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
-struct Instance {
+pub struct Instance {
     pos_size: [f32; 4],
     params: [f32; 4],
     fill_color: [f32; 4],
@@ -38,7 +38,7 @@ pub struct RectPipeline {
     pipeline: wgpu::RenderPipeline,
     instance_buffer: wgpu::Buffer,
     instance_cap: usize,
-    instances: Vec<Instance>,
+    pub instances: Vec<Instance>,
     dirty: Vec<bool>,
     screen_uniform: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
