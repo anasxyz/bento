@@ -1,11 +1,6 @@
-// reads inputstate, does hit testing, fires widget hooks and emits events
-// called once per frame after update(), before drain_events()
-
 use crate::input::{InputState, MouseButton};
 use crate::ui::{Event, Ui};
 use crate::widget::Handle;
-
-// hit testing 
 
 /// walk the widget tree and collect all widgets that contain (mx, my),
 /// innermost last
@@ -50,6 +45,12 @@ pub fn dispatch(ui: &mut Ui, input: &InputState) {
 
     // mouse move 
     {
+        // always send move to pressed widget first (for dragging outside bounds)
+        if let Some(pressed) = ui.interaction.pressed {
+            if !chain.contains(&pressed) {
+                ui.with_widget(pressed, |w, _| w.on_mouse_move(mx, my));
+            }
+        }
         let targets = chain.clone();
         for handle in targets.iter().rev() {
             ui.with_widget(*handle, |w, _| w.on_mouse_move(mx, my));
@@ -197,7 +198,7 @@ pub fn dispatch(ui: &mut Ui, input: &InputState) {
         }
     }
 
-    // keyboard 
+    // keyboard
     // routed to focused widget 
     if let Some(focused) = ui.interaction.focused {
         let mods = input.keyboard.modifiers.clone();
