@@ -53,7 +53,8 @@ pub fn measure_text(
     let result = (w, h.max(line_height));
     cache.insert(key, result);
 
-    println!("measured '{}' -> ({}, {})", text, result.0, result.1);
+    // DEBUG
+    // println!("measured '{}' -> ({}, {})", text, result.0, result.1);
 
     result
 }

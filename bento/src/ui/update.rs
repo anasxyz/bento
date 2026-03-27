@@ -64,7 +64,7 @@ impl Ui {
         });
 
         // DEBUG
-        println!("dirty_updates: {}", dirty_updates.len());
+        // println!("dirty_updates: {}", dirty_updates.len());
 
         // collect handles
         let handles: Vec<Handle<()>> = self

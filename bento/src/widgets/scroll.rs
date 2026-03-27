@@ -248,6 +248,10 @@ impl Widget for ScrollContainer {
         self.transform_id.map(|id| SceneNodeId(id.0))
     }
 
+    fn is_interactive(&self) -> bool {
+        true
+    }
+
     fn on_mouse_press(&mut self, mx: f32, my: f32, button: MouseButton) {
         if button != MouseButton::Left {
             return;
@@ -265,7 +269,8 @@ impl Widget for ScrollContainer {
             return;
         }
 
-        // click on vertical track, jump to position
+        // click on vertical track
+        // jump to position
         if mx >= self.v_track_x
             && mx <= self.v_track_x + SCROLLBAR_SIZE
             && my >= self.v_track_y
@@ -289,7 +294,8 @@ impl Widget for ScrollContainer {
             return;
         }
 
-        // click on horizontal track, jump to position
+        // click on horizontal track
+        // jump to position
         if my >= self.h_track_y
             && my <= self.h_track_y + SCROLLBAR_SIZE
             && mx >= self.h_track_x

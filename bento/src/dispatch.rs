@@ -2,6 +2,8 @@ use crate::input::{InputState, MouseButton};
 use crate::ui::{Event, Ui};
 use crate::widget::Handle;
 
+// hit testing 
+
 /// walk the widget tree and collect all widgets that contain (mx, my),
 /// innermost last
 fn hit_chain(ui: &Ui, handle: Handle<()>, mx: f32, my: f32, chain: &mut Vec<Handle<()>>) {
@@ -23,8 +25,15 @@ fn hit_chain(ui: &Ui, handle: Handle<()>, mx: f32, my: f32, chain: &mut Vec<Hand
 }
 
 /// topmost hit
-/// innermost widget under the cursor
-fn top_hit(chain: &[Handle<()>]) -> Option<Handle<()>> {
+/// innermost interactive widget, or innermost widget if none are interactive
+fn top_hit(ui: &Ui, chain: &[Handle<()>]) -> Option<Handle<()>> {
+    for &handle in chain.iter().rev() {
+        if let Some(w) = ui.get_any(handle) {
+            if w.is_interactive() {
+                return Some(handle);
+            }
+        }
+    }
     chain.last().copied()
 }
 
@@ -40,7 +49,7 @@ pub fn dispatch(ui: &mut Ui, input: &InputState) {
     let mut chain: Vec<Handle<()>> = Vec::new();
     hit_chain(ui, root, mx, my, &mut chain);
 
-    let new_hovered = top_hit(&chain);
+    let new_hovered = top_hit(ui, &chain);
     let global = ui.global();
 
     // mouse move 
@@ -198,7 +207,7 @@ pub fn dispatch(ui: &mut Ui, input: &InputState) {
         }
     }
 
-    // keyboard
+    // keyboard 
     // routed to focused widget 
     if let Some(focused) = ui.interaction.focused {
         let mods = input.keyboard.modifiers.clone();

@@ -45,7 +45,7 @@ impl Default for Layout {
             flex_direction: FlexDirection::Row,
             flex_wrap: FlexWrap::NoWrap,
             flex_grow: 0.0,
-            flex_shrink: 1.0,
+            flex_shrink: 0.0,
             flex_basis: Size::Auto,
             align_items: AlignItems::Stretch,
             align_self: AlignSelf::Auto,

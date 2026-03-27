@@ -20,7 +20,7 @@ impl Ui {
             .collect();
 
         // find which new nodes are already children of another new node
-        // those are internal nodes and should NOT be attached to root
+        // those are internal nodes and should not be attached to root
         let mut child_nodes: std::collections::HashSet<usize> = std::collections::HashSet::new();
         for &node_id in &all_new {
             match &self.scene.nodes[node_id.0] {
@@ -43,7 +43,7 @@ impl Ui {
             }
         }
 
-        // only top level nodes, that are not already someones child, attach to root
+        // only top level nodes (not already someones child) attach to root
         let scene_nodes: Vec<bento_wgpu::SceneNodeId> = all_new
             .iter()
             .filter(|id| !child_nodes.contains(&id.0))
@@ -174,13 +174,13 @@ impl Ui {
         for node_id in child_nodes {
             // remove from scene root
             self.scene.remove_child(self.scene.root, node_id);
-            // attach to parents attachment node
+            // attach to parent's attachment node
             self.scene.add_child(attachment, node_id);
         }
     }
 
     /// get the scene node that children of this widget should attach to
-    /// uses children_attachment_node() if provided, otherwise the widgets first scene node,
+    /// uses children_attachment_node() if provided, otherwise the widget's first scene node,
     /// otherwise the scene root
     pub(crate) fn get_attachment_node(&self, handle: Handle<()>) -> SceneNodeId {
         if let Some(Some(slot)) = self.slots.get(handle.id as usize) {

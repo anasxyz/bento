@@ -102,7 +102,7 @@ impl ApplicationHandler for Runner {
                 let clear = win.config.clear_color.to_array();
 
                 // DEBUG
-                println!("nodes: {}", win.ui.scene.nodes.len());
+                // println!("nodes: {}", win.ui.scene.nodes.len());
 
                 win.renderer.render(
                     &mut self.ctx,
@@ -113,12 +113,14 @@ impl ApplicationHandler for Runner {
                 );
 
                 // DEBUG
+                /*
                 println!(
                     "uploads: {} culled_texts: {} culled_rects: {}",
                     win.renderer.stats.rect_uploads,
                     win.renderer.stats.texts_culled,
                     win.renderer.stats.rects_culled
                 );
+                */
 
                 win.input.reset();
             }

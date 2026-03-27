@@ -14,6 +14,7 @@ fn main() {
     ui.set_root(root);
 
     let scroll = ui.add(ScrollContainer::new());
+    println!("scroll handle id={}", scroll.id);
     ui.get_mut(scroll)
         .unwrap()
         .set_flex_direction(FlexDirection::Col)

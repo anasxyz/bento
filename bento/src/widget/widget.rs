@@ -25,6 +25,12 @@ pub trait Widget: HasBase + AsAny + Any + 'static {
         None
     }
 
+    /// returns true if this widget captures press/release events
+    /// non interactive widgets (label, plain rect) wont become interaction.pressed
+    fn is_interactive(&self) -> bool {
+        false
+    }
+
     fn measure(&self, _fonts: &mut Fonts, _max_width: Option<f32>) -> Option<(f32, f32)> {
         None
     }
