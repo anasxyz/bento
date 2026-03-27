@@ -19,7 +19,15 @@ fn main() {
         .set_flex_direction(FlexDirection::Col)
         .set_width(Size::Percent(100.0))
         .set_height(Size::Fixed(450.0))
-        .set_color(Color::rgb(20, 20, 20));
+        .set_color(Color::rgb(20, 20, 20))
+        .set_scroll_y_enabled(true)
+        .set_scroll_x_enabled(false)
+        .set_scrollbar_width(12.0)
+        .set_scroll_speed(30.0)
+        .set_track_color(Color::rgb(20, 20, 20))
+        .set_thumb_color(Color::rgb(80, 80, 80))
+        .set_thumb_active_color(Color::rgb(120, 120, 120))
+        .set_thumb_radius(6.0);
     ui.append(root, scroll);
 
     for i in 0..100 {

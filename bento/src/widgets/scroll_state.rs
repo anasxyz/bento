@@ -1,18 +1,30 @@
+use crate::color::Color;
 use crate::input::MouseButton;
 use bento_wgpu::{ClipId, RectId, SceneGraph, TransformId};
 
-const SCROLLBAR_SIZE: f32 = 8.0;
-const THUMB_MIN_SIZE: f32 = 20.0;
-const TRACK_COLOR: [f32; 4] = [0.15, 0.15, 0.15, 1.0];
-const THUMB_COLOR: [f32; 4] = [0.45, 0.45, 0.45, 1.0];
-const THUMB_ACTIVE: [f32; 4] = [0.65, 0.65, 0.65, 1.0];
+const DEFAULT_SCROLLBAR_WIDTH: f32 = 8.0;
+const DEFAULT_THUMB_MIN_SIZE: f32 = 20.0;
+const DEFAULT_SCROLL_SPEED: f32 = 20.0;
+const DEFAULT_TRACK_COLOR: Color = Color::new(0.15, 0.15, 0.15, 1.0);
+const DEFAULT_THUMB_COLOR: Color = Color::new(0.45, 0.45, 0.45, 1.0);
+const DEFAULT_THUMB_ACTIVE: Color = Color::new(0.65, 0.65, 0.65, 1.0);
+const DEFAULT_THUMB_RADIUS: f32 = 3.0;
 
 pub struct ScrollState {
     pub scroll_x: f32,
     pub scroll_y: f32,
 
+    // config
+    pub scroll_x_enabled: bool,
+    pub scroll_y_enabled: bool,
+    pub scrollbar_width: f32,
+    pub scroll_speed: f32,
+    pub track_color: Color,
+    pub thumb_color: Color,
+    pub thumb_active_color: Color,
+    pub thumb_radius: f32,
+
     // own dimensions
-    // set in sync
     width: f32,
     height: f32,
 
@@ -27,7 +39,6 @@ pub struct ScrollState {
     drag_start_scroll_x: f32,
 
     // computed in sync
-    // used by event hooks
     v_track_x: f32,
     v_track_y: f32,
     v_track_h: f32,
@@ -46,6 +57,16 @@ impl ScrollState {
         Self {
             scroll_x: 0.0,
             scroll_y: 0.0,
+
+            scroll_x_enabled: true,
+            scroll_y_enabled: true,
+            scrollbar_width: DEFAULT_SCROLLBAR_WIDTH,
+            scroll_speed: DEFAULT_SCROLL_SPEED,
+            track_color: DEFAULT_TRACK_COLOR,
+            thumb_color: DEFAULT_THUMB_COLOR,
+            thumb_active_color: DEFAULT_THUMB_ACTIVE,
+            thumb_radius: DEFAULT_THUMB_RADIUS,
+
             width: 0.0,
             height: 0.0,
 
@@ -70,14 +91,55 @@ impl ScrollState {
         }
     }
 
+    // config setters 
+
+    pub fn set_scroll_x_enabled(&mut self, v: bool) -> &mut Self {
+        self.scroll_x_enabled = v;
+        self
+    }
+    pub fn set_scroll_y_enabled(&mut self, v: bool) -> &mut Self {
+        self.scroll_y_enabled = v;
+        self
+    }
+    pub fn set_scrollbar_width(&mut self, v: f32) -> &mut Self {
+        self.scrollbar_width = v;
+        self
+    }
+    pub fn set_scroll_speed(&mut self, v: f32) -> &mut Self {
+        self.scroll_speed = v;
+        self
+    }
+    pub fn set_track_color(&mut self, c: Color) -> &mut Self {
+        self.track_color = c;
+        self
+    }
+    pub fn set_thumb_color(&mut self, c: Color) -> &mut Self {
+        self.thumb_color = c;
+        self
+    }
+    pub fn set_thumb_active_color(&mut self, c: Color) -> &mut Self {
+        self.thumb_active_color = c;
+        self
+    }
+    pub fn set_thumb_radius(&mut self, v: f32) -> &mut Self {
+        self.thumb_radius = v;
+        self
+    }
+
+    // event handlers 
+
     pub fn on_scroll(&mut self, dx: f32, dy: f32, content_w: f32, content_h: f32) {
-        let max_y = (content_h - self.height).max(0.0);
-        let max_x = (content_w - self.width).max(0.0);
-        if max_y > 0.0 {
-            self.scroll_y = (self.scroll_y + dy * 20.0).clamp(0.0, max_y);
+        if self.scroll_y_enabled {
+            let max_y = (content_h - self.height).max(0.0);
+            if max_y > 0.0 {
+                self.scroll_y = (self.scroll_y + dy * self.scroll_speed).clamp(0.0, max_y);
+            }
         }
-        if max_x > 0.0 {
-            self.scroll_x = (self.scroll_x + dx * 20.0).clamp(0.0, max_x);
+        if self.scroll_x_enabled {
+            let max_x = (content_w - self.width).max(0.0);
+            if max_x > 0.0 {
+                self.scroll_x = (self.scroll_x + dx * self.scroll_speed).clamp(0.0, max_x);
+            }
         }
     }
 
@@ -93,48 +155,53 @@ impl ScrollState {
             return;
         }
 
-        // vertical thumb drag
-        if mx >= self.v_track_x
-            && mx <= self.v_track_x + SCROLLBAR_SIZE
-            && my >= self.v_thumb_y
-            && my <= self.v_thumb_y + self.v_thumb_h
-        {
-            self.dragging_v = true;
-            self.drag_start_y = my;
-            self.drag_start_scroll_y = self.scroll_y;
-            return;
+        if self.scroll_y_enabled {
+            // vertical thumb drag
+            if mx >= self.v_track_x
+                && mx <= self.v_track_x + self.scrollbar_width
+                && my >= self.v_thumb_y
+                && my <= self.v_thumb_y + self.v_thumb_h
+            {
+                self.dragging_v = true;
+                self.drag_start_y = my;
+                self.drag_start_scroll_y = self.scroll_y;
+                return;
+            }
+            // vertical track click
+            if mx >= self.v_track_x
+                && mx <= self.v_track_x + self.scrollbar_width
+                && my >= self.v_track_y
+                && my <= self.v_track_y + self.v_track_h
+            {
+                let max_scroll = (content_h - self.height).max(0.0);
+                let ratio = (my - self.v_track_y) / self.v_track_h;
+                self.scroll_y = (ratio * max_scroll).clamp(0.0, max_scroll);
+                return;
+            }
         }
-        // vertical track click
-        if mx >= self.v_track_x
-            && mx <= self.v_track_x + SCROLLBAR_SIZE
-            && my >= self.v_track_y
-            && my <= self.v_track_y + self.v_track_h
-        {
-            let max_scroll = (content_h - self.height).max(0.0);
-            let ratio = (my - self.v_track_y) / self.v_track_h;
-            self.scroll_y = (ratio * max_scroll).clamp(0.0, max_scroll);
-            return;
-        }
-        // horizontal thumb drag
-        if my >= self.h_track_y
-            && my <= self.h_track_y + SCROLLBAR_SIZE
-            && mx >= self.h_thumb_x
-            && mx <= self.h_thumb_x + self.h_thumb_w
-        {
-            self.dragging_h = true;
-            self.drag_start_x = mx;
-            self.drag_start_scroll_x = self.scroll_x;
-            return;
-        }
-        // horizontal track click
-        if my >= self.h_track_y
-            && my <= self.h_track_y + SCROLLBAR_SIZE
-            && mx >= self.h_track_x
-            && mx <= self.h_track_x + self.h_track_w
-        {
-            let max_scroll = (content_w - self.width).max(0.0);
-            let ratio = (mx - self.h_track_x) / self.h_track_w;
-            self.scroll_x = (ratio * max_scroll).clamp(0.0, max_scroll);
+
+        if self.scroll_x_enabled {
+            // horizontal thumb drag
+            if my >= self.h_track_y
+                && my <= self.h_track_y + self.scrollbar_width
+                && mx >= self.h_thumb_x
+                && mx <= self.h_thumb_x + self.h_thumb_w
+            {
+                self.dragging_h = true;
+                self.drag_start_x = mx;
+                self.drag_start_scroll_x = self.scroll_x;
+                return;
+            }
+            // horizontal track click
+            if my >= self.h_track_y
+                && my <= self.h_track_y + self.scrollbar_width
+                && mx >= self.h_track_x
+                && mx <= self.h_track_x + self.h_track_w
+            {
+                let max_scroll = (content_w - self.width).max(0.0);
+                let ratio = (mx - self.h_track_x) / self.h_track_w;
+                self.scroll_x = (ratio * max_scroll).clamp(0.0, max_scroll);
+            }
         }
     }
 
@@ -164,9 +231,8 @@ impl ScrollState {
         self.dragging_h = false;
     }
 
-    /// sync clip, transform, and scrollbar rects
-    /// returns (inner_w, inner_h)
-    /// the visible content area after scrollbar space
+    // sync
+
     pub fn sync(
         &mut self,
         scene: &mut SceneGraph,
@@ -186,10 +252,11 @@ impl ScrollState {
         self.width = w;
         self.height = h;
 
-        let show_v = content_h > h;
-        let show_h = content_w > w;
-        let inner_w = if show_v { w - SCROLLBAR_SIZE } else { w };
-        let inner_h = if show_h { h - SCROLLBAR_SIZE } else { h };
+        let sw = self.scrollbar_width;
+        let show_v = self.scroll_y_enabled && content_h > h;
+        let show_h = self.scroll_x_enabled && content_w > w;
+        let inner_w = if show_v { w - sw } else { w };
+        let inner_h = if show_h { h - sw } else { h };
 
         let max_y = (content_h - inner_h).max(0.0);
         let max_x = (content_w - inner_w).max(0.0);
@@ -204,32 +271,32 @@ impl ScrollState {
         // vertical scrollbar
         if show_v {
             let track_h = inner_h;
-            let thumb_h = (inner_h / content_h * track_h).max(THUMB_MIN_SIZE);
+            let thumb_h = (inner_h / content_h * track_h).max(DEFAULT_THUMB_MIN_SIZE);
             let thumb_y = if max_y > 0.0 {
                 y + (self.scroll_y / max_y) * (track_h - thumb_h)
             } else {
                 y
             };
 
-            self.v_track_x = x + w - SCROLLBAR_SIZE;
+            self.v_track_x = x + w - sw;
             self.v_track_y = y;
             self.v_track_h = track_h;
             self.v_thumb_y = thumb_y;
             self.v_thumb_h = thumb_h;
 
             let n = scene.rect_mut(v_track_id);
-            n.set_rect(self.v_track_x, y, SCROLLBAR_SIZE, track_h);
-            n.set_color(TRACK_COLOR);
+            n.set_rect(self.v_track_x, y, sw, track_h);
+            n.set_color(self.track_color.to_array());
             n.set_visible(true);
 
             let n = scene.rect_mut(v_thumb_id);
-            n.set_rect(self.v_track_x + 1.0, thumb_y, SCROLLBAR_SIZE - 2.0, thumb_h);
+            n.set_rect(self.v_track_x + 1.0, thumb_y, sw - 2.0, thumb_h);
             n.set_color(if self.dragging_v {
-                THUMB_ACTIVE
+                self.thumb_active_color.to_array()
             } else {
-                THUMB_COLOR
+                self.thumb_color.to_array()
             });
-            n.set_radius(3.0);
+            n.set_radius(self.thumb_radius);
             n.set_visible(true);
         } else {
             scene.rect_mut(v_track_id).set_visible(false);
@@ -239,7 +306,7 @@ impl ScrollState {
         // horizontal scrollbar
         if show_h {
             let track_w = inner_w;
-            let thumb_w = (inner_w / content_w * track_w).max(THUMB_MIN_SIZE);
+            let thumb_w = (inner_w / content_w * track_w).max(DEFAULT_THUMB_MIN_SIZE);
             let thumb_x = if max_x > 0.0 {
                 x + (self.scroll_x / max_x) * (track_w - thumb_w)
             } else {
@@ -247,24 +314,24 @@ impl ScrollState {
             };
 
             self.h_track_x = x;
-            self.h_track_y = y + h - SCROLLBAR_SIZE;
+            self.h_track_y = y + h - sw;
             self.h_track_w = track_w;
             self.h_thumb_x = thumb_x;
             self.h_thumb_w = thumb_w;
 
             let n = scene.rect_mut(h_track_id);
-            n.set_rect(x, self.h_track_y, track_w, SCROLLBAR_SIZE);
-            n.set_color(TRACK_COLOR);
+            n.set_rect(x, self.h_track_y, track_w, sw);
+            n.set_color(self.track_color.to_array());
             n.set_visible(true);
 
             let n = scene.rect_mut(h_thumb_id);
-            n.set_rect(thumb_x, self.h_track_y + 1.0, thumb_w, SCROLLBAR_SIZE - 2.0);
+            n.set_rect(thumb_x, self.h_track_y + 1.0, thumb_w, sw - 2.0);
             n.set_color(if self.dragging_h {
-                THUMB_ACTIVE
+                self.thumb_active_color.to_array()
             } else {
-                THUMB_COLOR
+                self.thumb_color.to_array()
             });
-            n.set_radius(3.0);
+            n.set_radius(self.thumb_radius);
             n.set_visible(true);
         } else {
             scene.rect_mut(h_track_id).set_visible(false);

@@ -40,6 +40,39 @@ impl ScrollContainer {
         self.color = c;
         self
     }
+
+    pub fn set_scroll_x_enabled(&mut self, v: bool) -> &mut Self {
+        self.scroll.set_scroll_x_enabled(v);
+        self
+    }
+    pub fn set_scroll_y_enabled(&mut self, v: bool) -> &mut Self {
+        self.scroll.set_scroll_y_enabled(v);
+        self
+    }
+    pub fn set_scrollbar_width(&mut self, v: f32) -> &mut Self {
+        self.scroll.set_scrollbar_width(v);
+        self
+    }
+    pub fn set_scroll_speed(&mut self, v: f32) -> &mut Self {
+        self.scroll.set_scroll_speed(v);
+        self
+    }
+    pub fn set_track_color(&mut self, c: Color) -> &mut Self {
+        self.scroll.set_track_color(c);
+        self
+    }
+    pub fn set_thumb_color(&mut self, c: Color) -> &mut Self {
+        self.scroll.set_thumb_color(c);
+        self
+    }
+    pub fn set_thumb_active_color(&mut self, c: Color) -> &mut Self {
+        self.scroll.set_thumb_active_color(c);
+        self
+    }
+    pub fn set_thumb_radius(&mut self, v: f32) -> &mut Self {
+        self.scroll.set_thumb_radius(v);
+        self
+    }
 }
 
 impl Default for ScrollContainer {
