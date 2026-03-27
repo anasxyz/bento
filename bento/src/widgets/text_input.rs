@@ -14,6 +14,7 @@ pub struct TextInput {
     background_color: Color,
     text_color: Color,
     cursor_color: Color,
+    selection_color: Color,
     border_color: Color,
     border_width: f32,
     radius: f32,
@@ -23,9 +24,16 @@ pub struct TextInput {
     font_weight: u16,
 
     // state
-    pub cursor_pos: usize,    // byte index into value
-    pub cursor_offset_x: f32, // pixel offset of cursor, this is set by update.rs
-    scroll_x: f32,            // horizontal scroll offset
+    pub cursor_pos: usize,
+    pub cursor_offset_x: f32,
+    scroll_x: f32,
+    selecting: bool,
+    selection_anchor: usize, // where selection started
+    selection_start: usize,  // min(anchor, cursor)
+    selection_end: usize,    // max(anchor, cursor)
+
+    // computed char x offsets for click to cursor (set by update.rs)
+    pub char_offsets: Vec<(usize, f32)>, // (byte_index, x_offset)
 
     // computed in sync
     text_x: f32,
@@ -35,6 +43,7 @@ pub struct TextInput {
 
     // scene nodes
     bg_id: Option<RectId>,
+    selection_id: Option<RectId>,
     clip_id: Option<ClipId>,
     transform_id: Option<TransformId>,
     text_id: Option<TextId>,
@@ -49,6 +58,7 @@ impl TextInput {
             background_color: Color::rgb(40, 40, 40),
             text_color: Color::WHITE,
             cursor_color: Color::WHITE,
+            selection_color: Color::rgba(100, 150, 255, 80),
             border_color: Color::rgb(80, 80, 80),
             border_width: 1.0,
             radius: 4.0,
@@ -59,11 +69,17 @@ impl TextInput {
             cursor_pos: 0,
             cursor_offset_x: 0.0,
             scroll_x: 0.0,
+            selecting: false,
+            selection_anchor: 0,
+            selection_start: 0,
+            selection_end: 0,
+            char_offsets: Vec::new(),
             text_x: 0.0,
             text_y: 0.0,
             width: 0.0,
             height: 0.0,
             bg_id: None,
+            selection_id: None,
             clip_id: None,
             transform_id: None,
             text_id: None,
@@ -74,6 +90,8 @@ impl TextInput {
     pub fn set_value(&mut self, s: &str) -> &mut Self {
         self.value = s.to_string();
         self.cursor_pos = self.value.len();
+        self.selection_start = 0;
+        self.selection_end = 0;
         self
     }
     pub fn set_background_color(&mut self, c: Color) -> &mut Self {
@@ -86,6 +104,10 @@ impl TextInput {
     }
     pub fn set_cursor_color(&mut self, c: Color) -> &mut Self {
         self.cursor_color = c;
+        self
+    }
+    pub fn set_selection_color(&mut self, c: Color) -> &mut Self {
+        self.selection_color = c;
         self
     }
     pub fn set_border_color(&mut self, c: Color) -> &mut Self {
@@ -117,14 +139,50 @@ impl TextInput {
         self
     }
 
-    /// measure cursor x offset
-    /// called by update.rs which has access to fonts
-    pub fn update_cursor_offset(&mut self, fonts: &mut Fonts) {
-        let before = &self.value[..self.cursor_pos];
-        if before.is_empty() {
-            self.cursor_offset_x = 0.0;
-            return;
+    pub fn has_selection(&self) -> bool {
+        self.selection_start < self.selection_end
+    }
+
+    fn clear_selection(&mut self) {
+        self.selection_start = 0;
+        self.selection_end = 0;
+    }
+
+    fn update_selection(&mut self) {
+        self.selection_start = self.selection_anchor.min(self.cursor_pos);
+        self.selection_end = self.selection_anchor.max(self.cursor_pos);
+    }
+
+    fn delete_selection(&mut self) {
+        if self.has_selection() {
+            self.value.drain(self.selection_start..self.selection_end);
+            self.cursor_pos = self.selection_start;
+            self.clear_selection();
         }
+    }
+
+    /// find the char byte index closest to a given x offset within the text
+    fn x_to_cursor(&self, x_in_text: f32) -> usize {
+        if self.char_offsets.is_empty() {
+            return 0;
+        }
+
+        let mut best_idx = 0;
+        let mut best_dist = f32::MAX;
+
+        for &(byte_idx, offset) in &self.char_offsets {
+            let dist = (offset - x_in_text).abs();
+            if dist < best_dist {
+                best_dist = dist;
+                best_idx = byte_idx;
+            }
+        }
+        best_idx
+    }
+
+    /// called by update.rs 
+    /// computes x offset for every char boundary
+    pub fn update_cursor_offset(&mut self, fonts: &mut Fonts) {
         let attrs = FontAttrs {
             family: self.font_family.clone(),
             size: self.font_size,
@@ -132,16 +190,29 @@ impl TextInput {
             italic: false,
             line_height: None,
         };
-        self.cursor_offset_x = fonts.measure(before, &attrs, None).0;
-    }
 
-    fn clamp_cursor(&self, pos: usize) -> usize {
-        let pos = pos.min(self.value.len());
-        let mut p = pos;
-        while p > 0 && !self.value.is_char_boundary(p) {
-            p -= 1;
+        // build char_offsets: one entry per char boundary including end
+        self.char_offsets.clear();
+        let mut i = 0;
+        while i <= self.value.len() {
+            if self.value.is_char_boundary(i) {
+                let offset = if i == 0 {
+                    0.0
+                } else {
+                    fonts.measure(&self.value[..i], &attrs, None).0
+                };
+                self.char_offsets.push((i, offset));
+            }
+            i += 1;
         }
-        p
+
+        // set cursor_offset_x from cursor_pos
+        self.cursor_offset_x = self
+            .char_offsets
+            .iter()
+            .find(|&&(idx, _)| idx == self.cursor_pos)
+            .map(|&(_, x)| x)
+            .unwrap_or(0.0);
     }
 
     fn prev_char_boundary(&self, pos: usize) -> usize {
@@ -176,16 +247,18 @@ impl Widget for TextInput {
         self.bg_id = Some(scene.add_rect());
         self.clip_id = Some(scene.add_clip());
         self.transform_id = Some(scene.add_transform());
+        self.selection_id = Some(scene.add_rect());
         self.text_id = Some(scene.add_text());
         self.cursor_id = Some(scene.add_rect());
 
         let clip = self.clip_id.unwrap();
         let transform = self.transform_id.unwrap();
+        let selection = self.selection_id.unwrap();
         let text = self.text_id.unwrap();
         let cursor = self.cursor_id.unwrap();
 
-        // clip contains transform, transform contains text and cursor
         scene.add_child(SceneNodeId(clip.0), SceneNodeId(transform.0));
+        scene.add_child(SceneNodeId(transform.0), SceneNodeId(selection.0));
         scene.add_child(SceneNodeId(transform.0), SceneNodeId(text.0));
         scene.add_child(SceneNodeId(transform.0), SceneNodeId(cursor.0));
     }
@@ -200,11 +273,10 @@ impl Widget for TextInput {
         self.text_y = text_y;
 
         // scroll to keep cursor visible
-        let cursor_x = self.cursor_offset_x;
-        if cursor_x - self.scroll_x > inner_w {
-            self.scroll_x = cursor_x - inner_w + 4.0;
-        } else if cursor_x < self.scroll_x {
-            self.scroll_x = (cursor_x - 4.0).max(0.0);
+        if self.cursor_offset_x - self.scroll_x > inner_w {
+            self.scroll_x = self.cursor_offset_x - inner_w + 4.0;
+        } else if self.cursor_offset_x < self.scroll_x {
+            self.scroll_x = (self.cursor_offset_x - 4.0).max(0.0);
         }
 
         // background
@@ -218,7 +290,7 @@ impl Widget for TextInput {
             n.set_visible(true);
         }
 
-        // clip to text area
+        // clip
         if let Some(id) = self.clip_id {
             scene
                 .clip_mut(id)
@@ -230,7 +302,36 @@ impl Widget for TextInput {
             scene.transform_mut(id).set_offset(-self.scroll_x, 0.0);
         }
 
-        // text node
+        // selection highlight
+        if let Some(id) = self.selection_id {
+            let n = scene.rect_mut(id);
+            if self.has_selection() {
+                let sel_x1 = self
+                    .char_offsets
+                    .iter()
+                    .find(|&&(i, _)| i == self.selection_start)
+                    .map(|&(_, x)| x)
+                    .unwrap_or(0.0);
+                let sel_x2 = self
+                    .char_offsets
+                    .iter()
+                    .find(|&&(i, _)| i == self.selection_end)
+                    .map(|&(_, x)| x)
+                    .unwrap_or(0.0);
+                n.set_rect(
+                    self.text_x + sel_x1,
+                    text_y - 1.0,
+                    sel_x2 - sel_x1,
+                    self.font_size * 1.4,
+                );
+                n.set_color(self.selection_color.to_array());
+                n.set_visible(true);
+            } else {
+                n.set_visible(false);
+            }
+        }
+
+        // text
         if let Some(id) = self.text_id {
             let n = scene.text_mut(id);
             n.set_pos(self.text_x, text_y);
@@ -243,13 +344,12 @@ impl Widget for TextInput {
             n.set_visible(true);
         }
 
-        // cursor rect 
-        // inside transform so position is unscrolled
+        // cursor
         if let Some(id) = self.cursor_id {
             let n = scene.rect_mut(id);
             if self.base.focused {
                 let cursor_x = self.text_x + self.cursor_offset_x;
-                n.set_rect(cursor_x, text_y - 1.0, 2.0, self.font_size * 1.4); // cursor taller than text
+                n.set_rect(cursor_x, text_y - 1.0, 2.0, self.font_size * 1.4);
                 n.set_color(self.cursor_color.to_array());
                 n.set_visible(true);
             } else {
@@ -287,48 +387,134 @@ impl Widget for TextInput {
 
     fn on_focus_lost(&mut self) {
         self.base.focused = false;
+        self.selecting = false;
+        self.clear_selection();
         self.set_border_color(Color::rgb(80, 80, 80));
     }
 
-    fn on_key_press(&mut self, key: Key, _mods: Modifiers, text: Option<char>) {
+    fn on_mouse_press(&mut self, mx: f32, _my: f32, button: MouseButton) {
+        if button != MouseButton::Left {
+            return;
+        }
+        let x_in_text = mx - self.text_x + self.scroll_x;
+        self.cursor_pos = self.x_to_cursor(x_in_text);
+        self.selection_anchor = self.cursor_pos;
+        self.clear_selection();
+        self.selecting = true;
+    }
+
+    fn on_mouse_move(&mut self, mx: f32, _my: f32) {
+        if !self.selecting {
+            return;
+        }
+        let x_in_text = mx - self.text_x + self.scroll_x;
+        self.cursor_pos = self.x_to_cursor(x_in_text);
+        self.update_selection();
+    }
+
+    fn on_mouse_release(&mut self, _mx: f32, _my: f32, _button: MouseButton) {
+        self.selecting = false;
+    }
+
+    fn on_key_press(&mut self, key: Key, mods: Modifiers, text: Option<char>) {
         if !self.base.focused {
             return;
         }
+
+        let shift = mods.shift;
+
         match key {
             Key::Backspace => {
-                if self.cursor_pos > 0 {
+                if self.has_selection() {
+                    self.delete_selection();
+                } else if self.cursor_pos > 0 {
                     let new_pos = self.prev_char_boundary(self.cursor_pos);
                     self.value.drain(new_pos..self.cursor_pos);
                     self.cursor_pos = new_pos;
                 }
             }
             Key::Delete => {
-                if self.cursor_pos < self.value.len() {
+                if self.has_selection() {
+                    self.delete_selection();
+                } else if self.cursor_pos < self.value.len() {
                     let next = self.next_char_boundary(self.cursor_pos);
                     self.value.drain(self.cursor_pos..next);
                 }
             }
             Key::Left => {
-                if self.cursor_pos > 0 {
-                    self.cursor_pos = self.prev_char_boundary(self.cursor_pos);
+                if shift {
+                    if !self.has_selection() {
+                        self.selection_anchor = self.cursor_pos;
+                    }
+                    if self.cursor_pos > 0 {
+                        self.cursor_pos = self.prev_char_boundary(self.cursor_pos);
+                    }
+                    self.update_selection();
+                } else {
+                    if self.has_selection() {
+                        self.cursor_pos = self.selection_start;
+                    } else if self.cursor_pos > 0 {
+                        self.cursor_pos = self.prev_char_boundary(self.cursor_pos);
+                    }
+                    self.clear_selection();
                 }
             }
             Key::Right => {
-                if self.cursor_pos < self.value.len() {
-                    self.cursor_pos = self.next_char_boundary(self.cursor_pos);
+                if shift {
+                    if !self.has_selection() {
+                        self.selection_anchor = self.cursor_pos;
+                    }
+                    if self.cursor_pos < self.value.len() {
+                        self.cursor_pos = self.next_char_boundary(self.cursor_pos);
+                    }
+                    self.update_selection();
+                } else {
+                    if self.has_selection() {
+                        self.cursor_pos = self.selection_end;
+                    } else if self.cursor_pos < self.value.len() {
+                        self.cursor_pos = self.next_char_boundary(self.cursor_pos);
+                    }
+                    self.clear_selection();
                 }
             }
             Key::Home => {
-                self.cursor_pos = 0;
+                if shift {
+                    if !self.has_selection() {
+                        self.selection_anchor = self.cursor_pos;
+                    }
+                    self.cursor_pos = 0;
+                    self.update_selection();
+                } else {
+                    self.cursor_pos = 0;
+                    self.clear_selection();
+                }
             }
             Key::End => {
+                if shift {
+                    if !self.has_selection() {
+                        self.selection_anchor = self.cursor_pos;
+                    }
+                    self.cursor_pos = self.value.len();
+                    self.update_selection();
+                } else {
+                    self.cursor_pos = self.value.len();
+                    self.clear_selection();
+                }
+            }
+            Key::A if mods.ctrl || mods.cmd => {
+                self.selection_anchor = 0;
                 self.cursor_pos = self.value.len();
+                self.update_selection();
             }
             _ => {
                 if let Some(c) = text {
                     if !c.is_control() {
+                        if self.has_selection() {
+                            self.delete_selection();
+                        }
                         self.value.insert(self.cursor_pos, c);
                         self.cursor_pos += c.len_utf8();
+                        self.clear_selection();
                     }
                 }
             }
