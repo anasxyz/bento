@@ -25,7 +25,7 @@ fn main() {
         .set_scrollbar_width(12.0)
         .set_scroll_speed(30.0)
         .set_track_color(Color::rgb(20, 20, 20))
-        .set_thumb_color(Color::rgb(80, 80, 80))
+        .set_thumb_color(Color::rgb(10, 100, 80))
         .set_thumb_radius(6.0);
     ui.append(root, scroll);
 

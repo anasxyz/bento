@@ -125,6 +125,8 @@ impl ScrollState {
     }
     pub fn set_thumb_color(&mut self, c: Color) -> &mut Self {
         self.thumb_color = c;
+        self.thumb_hover_color = c.lighten(0.1);
+        self.thumb_active_color = c.lighten(0.2);
         self
     }
     pub fn set_thumb_hover_color(&mut self, c: Color) -> &mut Self {
