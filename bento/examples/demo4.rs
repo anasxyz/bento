@@ -20,6 +20,7 @@ fn main() {
     let input = ui.add(TextInput::new());
     ui.get_mut(input).unwrap()
         .set_width(Size::Fixed(300.0))
+        .set_placeholder("Enter your name")
         .set_font_size(16.0)
         .set_border_width(2.0)
         .set_border_radius(4.0);

@@ -44,13 +44,14 @@ pub enum Key {
 pub struct Modifiers {
     pub shift:     bool,
     pub ctrl:      bool,
+    pub alt:       bool,
     pub cmd:       bool,
     pub super_key: bool,
 }
 
 impl Modifiers {
     pub fn none(&self) -> bool {
-        !self.shift && !self.ctrl && !self.cmd && !self.super_key
+        !self.shift && !self.ctrl && !self.cmd && !self.alt && !self.super_key
     }
 }
 

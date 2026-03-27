@@ -176,7 +176,8 @@ impl ApplicationHandler for Runner {
                 win.input.keyboard.modifiers = crate::input::Modifiers {
                     shift: s.shift_key(),
                     ctrl: s.control_key(),
-                    cmd: s.alt_key(),
+                    cmd: s.control_key(),
+                    alt: s.alt_key(),
                     super_key: s.super_key(),
                 };
             }
