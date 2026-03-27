@@ -29,6 +29,7 @@ pub struct TextInput {
     pub cursor_pos: usize,
     pub cursor_offset_x: f32,
     scroll_x: f32,
+    cursor_visible: bool,
     selecting: bool,
     selection_anchor: usize,
     selection_start: usize,
@@ -75,6 +76,7 @@ impl TextInput {
             cursor_pos: 0,
             cursor_offset_x: 0.0,
             scroll_x: 0.0,
+            cursor_visible: true,
             selecting: false,
             selection_anchor: 0,
             selection_start: 0,
@@ -196,7 +198,7 @@ impl TextInput {
         best_idx
     }
 
-    /// called by update.rs
+    /// called by update.rs 
     /// computes x offset for every char boundary
     pub fn update_cursor_offset(&mut self, fonts: &mut Fonts) {
         let attrs = FontAttrs {
@@ -231,9 +233,13 @@ impl TextInput {
             .unwrap_or(0.0);
     }
 
+    pub fn toggle_blink(&mut self) {
+        self.cursor_visible = !self.cursor_visible;
+    }
+
     fn word_start(&self, pos: usize) -> usize {
         let mut p = pos.min(self.value.len());
-        // skip non-alphanumeric going left
+        // skip non alphanumeric going left
         while p > 0 {
             let prev = self.prev_char_boundary(p);
             let c = self.value[prev..p].chars().next().unwrap_or(' ');
@@ -377,12 +383,7 @@ impl Widget for TextInput {
                     .find(|&&(i, _)| i == self.selection_end)
                     .map(|&(_, x)| x)
                     .unwrap_or(0.0);
-                n.set_rect(
-                    self.text_x + sel_x1,
-                    text_y - 1.0,
-                    sel_x2 - sel_x1,
-                    self.font_size * 1.4,
-                );
+                n.set_rect(self.text_x + sel_x1, y + 2.0, sel_x2 - sel_x1, h - 4.0);
                 n.set_color(self.selection_color.to_array());
                 n.set_visible(true);
             } else {
@@ -390,7 +391,8 @@ impl Widget for TextInput {
             }
         }
 
-        // text — show placeholder if empty
+        // text
+        // show placeholder if empty
         if let Some(id) = self.text_id {
             let n = scene.text_mut(id);
             n.set_pos(self.text_x, text_y);
@@ -411,7 +413,7 @@ impl Widget for TextInput {
         // cursor
         if let Some(id) = self.cursor_id {
             let n = scene.rect_mut(id);
-            if self.base.focused {
+            if self.base.focused && self.cursor_visible {
                 let cursor_x = self.text_x + self.cursor_offset_x;
                 n.set_rect(cursor_x, text_y - 1.0, 2.0, self.font_size * 1.4);
                 n.set_color(self.cursor_color.to_array());
@@ -446,6 +448,7 @@ impl Widget for TextInput {
 
     fn on_focus_gained(&mut self) {
         self.base.focused = true;
+        self.cursor_visible = true;
         self.set_border_color(Color::rgb(10, 80, 80));
     }
 
@@ -517,6 +520,7 @@ impl Widget for TextInput {
         if !self.base.focused {
             return;
         }
+        self.cursor_visible = true; // reset blink on any keypress
 
         let shift = mods.shift;
 

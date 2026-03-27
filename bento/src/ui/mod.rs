@@ -60,8 +60,34 @@ impl Ui {
         Handle::new(GLOBAL_ID, 0)
     }
 
-    // event api
-    // delegates to EventSystem
+    pub fn has_focused_text_input(&self) -> bool {
+        if let Some(focused) = self.interaction.focused {
+            if let Some(Some(slot)) = self.slots.get(focused.id as usize) {
+                return slot
+                    .widget
+                    .as_any()
+                    .downcast_ref::<crate::widgets::TextInput>()
+                    .is_some();
+            }
+        }
+        false
+    }
+
+    pub fn toggle_cursor_blink(&mut self) {
+        if let Some(focused) = self.interaction.focused {
+            if let Some(Some(slot)) = self.slots.get_mut(focused.id as usize) {
+                if let Some(input) = slot
+                    .widget
+                    .as_any_mut()
+                    .downcast_mut::<crate::widgets::TextInput>()
+                {
+                    input.toggle_blink();
+                }
+            }
+        }
+    }
+
+    // ── event API (delegates to EventSystem) ─────────────────────────────────
 
     pub fn connect<T>(
         &mut self,
@@ -110,7 +136,7 @@ impl Ui {
                 for conn in &mut conns {
                     (conn.callback)(self, &event);
                 }
-                // put connections back, merge in case new ones were added during callback
+                // put connections back — merge in case new ones were added during callback
                 let entry = self.events.connections.entry(handle).or_default();
                 // prepend existing conns back (callbacks added during drain go at end)
                 let new_conns = std::mem::take(entry);
@@ -119,6 +145,8 @@ impl Ui {
             }
         }
     }
+
+    // ── mouse helpers ─────────────────────────────────────────────────────────
 
     pub fn hovered(&self) -> Option<Handle<()>> {
         self.interaction.hovered

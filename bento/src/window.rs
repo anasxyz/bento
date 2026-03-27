@@ -1,5 +1,6 @@
 use bento_wgpu::{RenderContext, Renderer, Surface};
 use std::sync::Arc;
+use std::time::Instant;
 use winit::{dpi::LogicalSize, event_loop::ActiveEventLoop, window::Window};
 
 use crate::input::InputState;
@@ -13,6 +14,7 @@ pub struct BentoWindow {
     pub renderer: Renderer,
     pub surface: Surface<'static>,
     pub window: Arc<Window>,
+    pub blink_deadline: Option<Instant>,
 }
 
 impl BentoWindow {
@@ -51,6 +53,7 @@ impl BentoWindow {
             ui,
             input: InputState::new(),
             config,
+            blink_deadline: None,
         }
     }
 

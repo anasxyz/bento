@@ -1,5 +1,6 @@
 use bento_wgpu::RenderContext;
 use std::collections::HashMap;
+use std::time::{Duration, Instant};
 use winit::{
     application::ApplicationHandler,
     event::{ElementState, MouseScrollDelta, WindowEvent},
@@ -99,6 +100,7 @@ impl ApplicationHandler for Runner {
 
                 win.ui.update(&mut self.fonts);
 
+
                 let clear = win.config.clear_color.to_array();
 
                 // DEBUG
@@ -123,6 +125,18 @@ impl ApplicationHandler for Runner {
                 */
 
                 win.input.reset();
+
+                // schedule cursor blink if text input is focused
+                if win.ui.has_focused_text_input() {
+                    if win.blink_deadline.is_none() {
+                        win.blink_deadline = Some(Instant::now() + Duration::from_millis(500));
+                    }
+                    event_loop
+                        .set_control_flow(ControlFlow::WaitUntil(win.blink_deadline.unwrap()));
+                } else {
+                    win.blink_deadline = None;
+                    event_loop.set_control_flow(ControlFlow::Wait);
+                }
             }
 
             WindowEvent::CursorMoved { position, .. } => {
@@ -144,6 +158,9 @@ impl ApplicationHandler for Runner {
                     ElementState::Pressed => win.input.mouse.on_press(&btn),
                     ElementState::Released => win.input.mouse.on_release(&btn),
                 }
+                crate::dispatch::dispatch(&mut win.ui, &win.input);
+                win.ui.drain_events();
+                win.input.reset();
                 win.window.request_redraw();
             }
 
@@ -205,6 +222,21 @@ impl ApplicationHandler for Runner {
             }
 
             _ => {}
+        }
+    }
+
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        let now = Instant::now();
+        for (_, win) in &mut self.windows {
+            if let Some(deadline) = win.blink_deadline {
+                if now >= deadline {
+                    win.ui.toggle_cursor_blink();
+                    win.window.request_redraw();
+                    let next = Instant::now() + Duration::from_millis(500);
+                    win.blink_deadline = Some(next);
+                    event_loop.set_control_flow(ControlFlow::WaitUntil(next));
+                }
+            }
         }
     }
 }
