@@ -20,3 +20,5 @@ Bento is built on top of:
 * **[`glyphon`](https://github.com/grovesNL/glyphon)** for text rendering
 * **[`Taffy`](https://github.com/DioxusLabs/taffy)** for layout
 * **[`Tokio`](https://github.com/tokio-rs/tokio)** for async task runtime
+
+<img width="795" height="598" alt="image" src="https://github.com/user-attachments/assets/755ca1bb-91bb-470b-b2dd-b6d37eeb9382" />
