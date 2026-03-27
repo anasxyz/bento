@@ -34,7 +34,7 @@ impl Label {
         self.text = s.to_string();
         self
     }
-    pub fn set_family(&mut self, s: &str) -> &mut Self {
+    pub fn set_font_family(&mut self, s: &str) -> &mut Self {
         self.family = s.to_string();
         self
     }

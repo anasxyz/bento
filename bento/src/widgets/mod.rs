@@ -1,8 +1,11 @@
 mod label;
 mod rect;
 mod scroll;
-mod scroll_state;
+pub(crate) mod scroll_state;
+mod text_input;
 
 pub use label::Label;
 pub use rect::Rect;
 pub use scroll::ScrollContainer;
+pub use text_input::TextInput;
+

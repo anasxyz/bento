@@ -37,7 +37,7 @@ impl Ui {
             }
         }
 
-        // premeasure widgets that need it
+        // pre-measure widgets that need it
         let mut measured: HashMap<Handle<()>, (f32, f32)> = HashMap::new();
         for (i, slot) in self.slots.iter().enumerate() {
             let Some(slot) = slot.as_ref() else { continue };
@@ -62,9 +62,6 @@ impl Ui {
             }
             (natural.0 + 1.0, natural.1)
         });
-
-        // DEBUG
-        // println!("dirty_updates: {}", dirty_updates.len());
 
         // collect handles
         let handles: Vec<Handle<()>> = self
@@ -95,6 +92,19 @@ impl Ui {
             if let Some(Some(slot)) = self.slots.get_mut(handle.id as usize) {
                 slot.widget.base_mut().content_width = max_right - own.0;
                 slot.widget.base_mut().content_height = max_bottom - own.1;
+            }
+        }
+
+        // update cursor offset for text inputs
+        for &handle in &handles {
+            if let Some(Some(slot)) = self.slots.get_mut(handle.id as usize) {
+                if let Some(input) = slot
+                    .widget
+                    .as_any_mut()
+                    .downcast_mut::<crate::widgets::TextInput>()
+                {
+                    input.update_cursor_offset(fonts);
+                }
             }
         }
 

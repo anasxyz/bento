@@ -47,7 +47,7 @@ impl Default for Layout {
             flex_grow: 0.0,
             flex_shrink: 0.0,
             flex_basis: Size::Auto,
-            align_items: AlignItems::Stretch,
+            align_items: AlignItems::Start,
             align_self: AlignSelf::Auto,
             justify_content: JustifyContent::Start,
             padding: [0.0; 4],
