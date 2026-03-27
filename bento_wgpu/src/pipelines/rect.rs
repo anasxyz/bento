@@ -178,22 +178,32 @@ impl RectPipeline {
         scale: f32,
     ) {
         let s = scale;
-        let radius = (radius * s).min(w * s * 0.5).min(h * s * 0.5);
+        let px = (x * s).round();
+        let py = (y * s).round();
+        let pw = (w * s).round();
+        let ph = (h * s).round();
+        let radius = (radius * s).round().min(pw * 0.5).min(ph * 0.5);
         let clip_arr = match clip {
-            Some([cx, cy, cx2, cy2]) => [cx * s, cy * s, cx2 * s, cy2 * s],
+            Some([cx, cy, cx2, cy2]) => [
+                (cx * s).round(),
+                (cy * s).round(),
+                (cx2 * s).round(),
+                (cy2 * s).round(),
+            ],
             None => [0.0; 4],
         };
+        let aa = if pw <= 2.0 { 0.0 } else { 1.0 };
         let new_inst = Instance {
-            pos_size: [x * s, y * s, w * s, h * s],
-            params: [radius, 1.0, 0.0, 0.0],
+            pos_size: [px, py, pw, ph],
+            params: [radius, aa, 0.0, 0.0],
             fill_color: color,
             border_color,
             clip: clip_arr,
             border_widths: [
-                border_widths[0] * s,
-                border_widths[1] * s,
-                border_widths[2] * s,
-                border_widths[3] * s,
+                (border_widths[0] * s).round(),
+                (border_widths[1] * s).round(),
+                (border_widths[2] * s).round(),
+                (border_widths[3] * s).round(),
             ],
         };
         if bytemuck::bytes_of(&self.instances[slot]) != bytemuck::bytes_of(&new_inst) {

@@ -60,7 +60,7 @@ impl TextInput {
         Self {
             base: Base::new(),
             value: String::new(),
-            background_color: Color::rgb(40, 40, 40),
+            background_color: Color::rgba(10, 10, 10, 0),
             text_color: Color::WHITE,
             placeholder_color: Color::rgba(255, 255, 255, 80),
             cursor_color: Color::WHITE,
@@ -68,7 +68,7 @@ impl TextInput {
             border_color: Color::rgb(80, 80, 80),
             border_width: 1.0,
             radius: 4.0,
-            padding_x: 8.0,
+            padding_x: 6.0,
             font_family: "sans-serif".to_string(),
             font_size: 14.0,
             font_weight: 400,
@@ -385,9 +385,9 @@ impl Widget for TextInput {
                     .unwrap_or(0.0);
                 n.set_rect(
                     self.text_x + sel_x1,
-                    text_y - 2.0,
+                    text_y - 1.0,
                     sel_x2 - sel_x1,
-                    self.font_size * 1.5,
+                    self.font_size * 1.4,
                 );
                 n.set_color(self.selection_color.to_array());
                 n.set_visible(true);
@@ -420,7 +420,7 @@ impl Widget for TextInput {
             let n = scene.rect_mut(id);
             if self.base.focused && self.cursor_visible {
                 let cursor_x = self.text_x + self.cursor_offset_x;
-                n.set_rect(cursor_x, text_y - 2.0, 2.0, self.font_size * 1.5);
+                n.set_rect(cursor_x, text_y - 1.0, 2.0, self.font_size * 1.4);
                 n.set_color(self.cursor_color.to_array());
                 n.set_visible(true);
             } else {
@@ -442,7 +442,7 @@ impl Widget for TextInput {
     }
 
     fn on_mouse_enter(&mut self) {
-        self.set_border_color(Color::rgb(10, 80, 80));
+        self.set_border_color(Color::rgb(230, 230, 230));
     }
 
     fn on_mouse_leave(&mut self) {
@@ -454,7 +454,7 @@ impl Widget for TextInput {
     fn on_focus_gained(&mut self) {
         self.base.focused = true;
         self.cursor_visible = true;
-        self.set_border_color(Color::rgb(10, 80, 80));
+        self.set_border_color(Color::rgb(230, 230, 230));
     }
 
     fn on_focus_lost(&mut self) {

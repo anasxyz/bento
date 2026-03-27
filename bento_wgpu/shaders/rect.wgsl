@@ -43,8 +43,8 @@ fn vs_main(
     let qx = x - b;  let qy = y - b;
     let qw = w + b * 2.0;  let qh = h + b * 2.0;
     let c  = QUAD[vi];
-    let px = qx + c.x * qw;
-    let py = qy + c.y * qh;
+    let px = floor(qx + c.x * qw + 0.5);
+    let py = floor(qy + c.y * qh + 0.5);
     let ndcx =  px / sw * 2.0 - 1.0;
     let ndcy = -(py / sh * 2.0 - 1.0);
     let cx = x + w * 0.5;
