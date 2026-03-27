@@ -86,7 +86,6 @@ impl ApplicationHandler for Runner {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
-        event_loop.set_control_flow(ControlFlow::Wait);
         self.process_close_queue(event_loop);
         let Some(win) = self.windows.get_mut(&id) else {
             return;
@@ -94,18 +93,13 @@ impl ApplicationHandler for Runner {
 
         match event {
             WindowEvent::RedrawRequested => {
-                crate::dispatch::dispatch(&mut win.ui, &win.input);
-
-                win.ui.drain_events();
-
                 win.ui.update(&mut self.fonts);
-
 
                 let clear = win.config.clear_color.to_array();
 
                 // DEBUG
                 // println!("nodes: {}", win.ui.scene.nodes.len());
-
+                
                 win.renderer.render(
                     &mut self.ctx,
                     &mut self.fonts.font_system,
@@ -124,9 +118,7 @@ impl ApplicationHandler for Runner {
                 );
                 */
 
-                win.input.reset();
-
-                // schedule cursor blink if text input is focused
+                // schedule cursor blink
                 if win.ui.has_focused_text_input() {
                     if win.blink_deadline.is_none() {
                         win.blink_deadline = Some(Instant::now() + Duration::from_millis(500));
@@ -144,7 +136,15 @@ impl ApplicationHandler for Runner {
                 win.input
                     .mouse
                     .on_move(position.x as f32 / scale, position.y as f32 / scale);
-                win.window.request_redraw();
+                let old_hovered = win.ui.interaction.hovered;
+                let old_pressed = win.ui.interaction.pressed;
+                crate::dispatch::dispatch(&mut win.ui, &win.input);
+                win.ui.drain_events();
+                win.input.reset();
+                // only redraw if hover changed or something is being dragged
+                if win.ui.interaction.hovered != old_hovered || old_pressed.is_some() {
+                    win.window.request_redraw();
+                }
             }
 
             WindowEvent::MouseInput { button, state, .. } => {
@@ -172,6 +172,9 @@ impl ApplicationHandler for Runner {
                     }
                 };
                 win.input.mouse.on_scroll(dx, dy);
+                crate::dispatch::dispatch(&mut win.ui, &win.input);
+                win.ui.drain_events();
+                win.input.reset();
                 win.window.request_redraw();
             }
 
@@ -185,6 +188,11 @@ impl ApplicationHandler for Runner {
                     ElementState::Pressed => win.input.keyboard.on_press(key, text),
                     ElementState::Released => win.input.keyboard.on_release(key),
                 }
+                crate::dispatch::dispatch(&mut win.ui, &win.input);
+                win.ui.drain_events();
+                win.input.reset();
+                // reset blink deadline so cursor stays visible while typing
+                win.blink_deadline = None;
                 win.window.request_redraw();
             }
 

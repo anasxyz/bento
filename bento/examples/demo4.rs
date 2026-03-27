@@ -27,6 +27,16 @@ fn main() {
         // .set_font_family("ZedMono Nerd Font Mono");
     ui.append(root, input);
 
+    let input2 = ui.add(TextInput::new());
+    ui.get_mut(input2).unwrap()
+        .set_width(Size::Fixed(300.0))
+        .set_placeholder("Enter your name")
+        .set_font_size(16.0)
+        .set_border_width(2.0)
+        .set_border_radius(4.0);
+        // .set_font_family("ZedMono Nerd Font Mono");
+    ui.append(root, input2);
+
     let mut app = App::new();
     app.open_window(WindowConfig::default(), ui);
     app.run();

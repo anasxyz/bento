@@ -64,7 +64,7 @@ impl TextInput {
             text_color: Color::WHITE,
             placeholder_color: Color::rgba(255, 255, 255, 80),
             cursor_color: Color::WHITE,
-            selection_color: Color::rgba(100, 150, 255, 80),
+            selection_color: Color::rgba(68, 152, 227, 80),
             border_color: Color::rgb(80, 80, 80),
             border_width: 1.0,
             radius: 4.0,
@@ -198,7 +198,7 @@ impl TextInput {
         best_idx
     }
 
-    /// called by update.rs 
+    /// called by update.rs
     /// computes x offset for every char boundary
     pub fn update_cursor_offset(&mut self, fonts: &mut Fonts) {
         let attrs = FontAttrs {
@@ -383,7 +383,12 @@ impl Widget for TextInput {
                     .find(|&&(i, _)| i == self.selection_end)
                     .map(|&(_, x)| x)
                     .unwrap_or(0.0);
-                n.set_rect(self.text_x + sel_x1, y + 2.0, sel_x2 - sel_x1, h - 4.0);
+                n.set_rect(
+                    self.text_x + sel_x1,
+                    text_y - 2.0,
+                    sel_x2 - sel_x1,
+                    self.font_size * 1.5,
+                );
                 n.set_color(self.selection_color.to_array());
                 n.set_visible(true);
             } else {
@@ -415,7 +420,7 @@ impl Widget for TextInput {
             let n = scene.rect_mut(id);
             if self.base.focused && self.cursor_visible {
                 let cursor_x = self.text_x + self.cursor_offset_x;
-                n.set_rect(cursor_x, text_y - 1.0, 2.0, self.font_size * 1.4);
+                n.set_rect(cursor_x, text_y - 2.0, 2.0, self.font_size * 1.5);
                 n.set_color(self.cursor_color.to_array());
                 n.set_visible(true);
             } else {
