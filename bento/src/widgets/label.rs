@@ -57,18 +57,23 @@ impl Label {
 }
 
 impl Widget for Label {
+    fn build(&mut self, scene: &mut SceneGraph) {
+        self.text_id = Some(scene.add_text());
+    }
+
     fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, _h: f32) {
-        let id = *self.text_id.get_or_insert_with(|| scene.add_text());
-        let node = scene.text_mut(id);
-        node.set_pos(x, y);
-        node.set_content(&self.text);
-        node.set_family(&self.family);
-        node.set_size(self.size);
-        node.set_weight(self.weight);
-        node.set_italic(self.italic);
-        node.set_color(self.color.to_array());
-        node.set_width(w);
-        node.set_visible(true);
+        if let Some(id) = self.text_id {
+            let node = scene.text_mut(id);
+            node.set_pos(x, y);
+            node.set_content(&self.text);
+            node.set_family(&self.family);
+            node.set_size(self.size);
+            node.set_weight(self.weight);
+            node.set_italic(self.italic);
+            node.set_color(self.color.to_array());
+            node.set_width(w);
+            node.set_visible(true);
+        }
     }
 
     fn measure(&self, fonts: &mut Fonts, max_width: Option<f32>) -> Option<(f32, f32)> {

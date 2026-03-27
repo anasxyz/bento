@@ -26,6 +26,10 @@ impl FontCache {
     }
 
     pub fn insert(&mut self, key: MeasureKey, value: (f32, f32)) {
+        // bounded this so it doesnt cause the thing to lag
+        if self.entries.len() > 10_000 {
+            self.entries.clear();
+        }
         self.entries.insert(key, value);
     }
 

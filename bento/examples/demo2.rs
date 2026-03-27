@@ -11,17 +11,14 @@ fn main() {
         .set_flex_wrap(FlexWrap::Wrap);
     ui.set_root(root);
 
-    let label = ui.add(Label::new("hello"));
-    ui.get_mut(label)
+    let rect = ui.add(Rect::new());
+    ui.get_mut(rect)
         .unwrap()
-        .set_size(14.0);
-    ui.append(root, label);
-
-    let label2 = ui.add(Label::new("hello2"));
-    ui.get_mut(label2)
-        .unwrap()
-        .set_size(14.0);
-    ui.append(root, label2);
+        .set_width(Size::Fixed(400.0))
+        .set_height(Size::Fixed(400.0))
+        .set_color(Color::rgb(30, 30, 30))
+        .set_padding([16.0, 16.0, 16.0, 16.0]);
+    ui.append(root, rect);
 
     let mut app = App::new();
     app.open_window(WindowConfig::default(), ui);

@@ -51,14 +51,19 @@ impl Default for Rect {
 }
 
 impl Widget for Rect {
+    fn build(&mut self, scene: &mut SceneGraph) {
+        self.rect_id = Some(scene.add_rect());
+    }
+
     fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, h: f32) {
-        let id = *self.rect_id.get_or_insert_with(|| scene.add_rect());
-        let node = scene.rect_mut(id);
-        node.set_rect(x, y, w, h);
-        node.set_color(self.color.to_array());
-        node.set_radius(self.radius);
-        node.set_border_color(self.border_color.to_array());
-        node.set_border_widths(self.border_widths);
-        node.set_visible(true);
+        if let Some(id) = self.rect_id {
+            let node = scene.rect_mut(id);
+            node.set_rect(x, y, w, h);
+            node.set_color(self.color.to_array());
+            node.set_radius(self.radius);
+            node.set_border_color(self.border_color.to_array());
+            node.set_border_widths(self.border_widths);
+            node.set_visible(true);
+        }
     }
 }
