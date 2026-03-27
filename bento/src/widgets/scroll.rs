@@ -65,8 +65,8 @@ impl ScrollContainer {
         self.scroll.set_thumb_color(c);
         self
     }
-    pub fn set_thumb_active_color(&mut self, c: Color) -> &mut Self {
-        self.scroll.set_thumb_active_color(c);
+    pub fn set_thumb_hover_color(&mut self, c: Color) -> &mut Self {
+        self.scroll.set_thumb_hover_color(c);
         self
     }
     pub fn set_thumb_radius(&mut self, v: f32) -> &mut Self {
@@ -141,6 +141,10 @@ impl Widget for ScrollContainer {
             self.base.content_width,
             self.base.content_height,
         );
+    }
+
+    fn on_mouse_leave(&mut self) {
+        self.scroll.on_leave();
     }
 
     fn on_mouse_move(&mut self, mx: f32, my: f32) {

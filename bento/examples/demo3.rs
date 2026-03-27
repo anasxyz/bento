@@ -26,7 +26,6 @@ fn main() {
         .set_scroll_speed(30.0)
         .set_track_color(Color::rgb(20, 20, 20))
         .set_thumb_color(Color::rgb(80, 80, 80))
-        .set_thumb_active_color(Color::rgb(120, 120, 120))
         .set_thumb_radius(6.0);
     ui.append(root, scroll);
 

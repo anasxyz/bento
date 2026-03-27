@@ -8,6 +8,7 @@ const DEFAULT_SCROLL_SPEED: f32 = 20.0;
 const DEFAULT_TRACK_COLOR: Color = Color::new(0.15, 0.15, 0.15, 1.0);
 const DEFAULT_THUMB_COLOR: Color = Color::new(0.45, 0.45, 0.45, 1.0);
 const DEFAULT_THUMB_ACTIVE: Color = Color::new(0.65, 0.65, 0.65, 1.0);
+const DEFAULT_THUMB_HOVER: Color = Color::new(0.55, 0.55, 0.55, 1.0);
 const DEFAULT_THUMB_RADIUS: f32 = 3.0;
 
 pub struct ScrollState {
@@ -22,11 +23,16 @@ pub struct ScrollState {
     pub track_color: Color,
     pub thumb_color: Color,
     pub thumb_active_color: Color,
+    pub thumb_hover_color: Color,
     pub thumb_radius: f32,
 
     // own dimensions
     width: f32,
     height: f32,
+
+    // hover state
+    hovering_v: bool,
+    hovering_h: bool,
 
     // vertical drag
     dragging_v: bool,
@@ -65,10 +71,14 @@ impl ScrollState {
             track_color: DEFAULT_TRACK_COLOR,
             thumb_color: DEFAULT_THUMB_COLOR,
             thumb_active_color: DEFAULT_THUMB_ACTIVE,
+            thumb_hover_color: DEFAULT_THUMB_HOVER,
             thumb_radius: DEFAULT_THUMB_RADIUS,
 
             width: 0.0,
             height: 0.0,
+
+            hovering_v: false,
+            hovering_h: false,
 
             dragging_v: false,
             drag_start_y: 0.0,
@@ -115,6 +125,10 @@ impl ScrollState {
     }
     pub fn set_thumb_color(&mut self, c: Color) -> &mut Self {
         self.thumb_color = c;
+        self
+    }
+    pub fn set_thumb_hover_color(&mut self, c: Color) -> &mut Self {
+        self.thumb_hover_color = c;
         self
     }
     pub fn set_thumb_active_color(&mut self, c: Color) -> &mut Self {
@@ -224,6 +238,22 @@ impl ScrollState {
                 self.scroll_x = (self.drag_start_scroll_x + scroll_delta).clamp(0.0, max_scroll);
             }
         }
+
+        // update hover state
+        let sw = self.scrollbar_width;
+        self.hovering_v = mx >= self.v_track_x
+            && mx <= self.v_track_x + sw
+            && my >= self.v_thumb_y
+            && my <= self.v_thumb_y + self.v_thumb_h;
+        self.hovering_h = my >= self.h_track_y
+            && my <= self.h_track_y + sw
+            && mx >= self.h_thumb_x
+            && mx <= self.h_thumb_x + self.h_thumb_w;
+    }
+
+    pub fn on_leave(&mut self) {
+        self.hovering_v = false;
+        self.hovering_h = false;
     }
 
     pub fn on_release(&mut self) {
@@ -231,7 +261,7 @@ impl ScrollState {
         self.dragging_h = false;
     }
 
-    // sync
+    // sync 
 
     pub fn sync(
         &mut self,
@@ -293,6 +323,8 @@ impl ScrollState {
             n.set_rect(self.v_track_x + 1.0, thumb_y, sw - 2.0, thumb_h);
             n.set_color(if self.dragging_v {
                 self.thumb_active_color.to_array()
+            } else if self.hovering_v {
+                self.thumb_hover_color.to_array()
             } else {
                 self.thumb_color.to_array()
             });
@@ -328,6 +360,8 @@ impl ScrollState {
             n.set_rect(thumb_x, self.h_track_y + 1.0, thumb_w, sw - 2.0);
             n.set_color(if self.dragging_h {
                 self.thumb_active_color.to_array()
+            } else if self.hovering_h {
+                self.thumb_hover_color.to_array()
             } else {
                 self.thumb_color.to_array()
             });
