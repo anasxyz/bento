@@ -9,7 +9,6 @@ fn main() {
         .set_width(Size::Percent(100.0))
         .set_height(Size::Percent(100.0))
         .set_color(Color::rgb(30, 30, 30))
-        .set_align_items(AlignItems::Center)
         .set_flex_direction(FlexDirection::Row);
     ui.set_root(root);
 
@@ -23,8 +22,8 @@ fn main() {
         .set_width(Size::Fixed(300.0))
         .set_font_size(16.0)
         .set_border_width(2.0)
-        .set_border_radius(4.0)
-        .set_font_family("ZedMono Nerd Font Mono");
+        .set_border_radius(4.0);
+        // .set_font_family("ZedMono Nerd Font Mono");
     ui.append(root, input);
 
     let mut app = App::new();

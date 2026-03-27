@@ -13,6 +13,7 @@ pub struct TextInput {
     // style
     background_color: Color,
     text_color: Color,
+    placeholder_color: Color,
     cursor_color: Color,
     selection_color: Color,
     border_color: Color,
@@ -22,15 +23,18 @@ pub struct TextInput {
     font_family: String,
     font_size: f32,
     font_weight: u16,
+    placeholder: String,
 
     // state
     pub cursor_pos: usize,
     pub cursor_offset_x: f32,
     scroll_x: f32,
     selecting: bool,
-    selection_anchor: usize, // where selection started
-    selection_start: usize,  // min(anchor, cursor)
-    selection_end: usize,    // max(anchor, cursor)
+    selection_anchor: usize,
+    selection_start: usize,
+    selection_end: usize,
+    click_count: u32,
+    last_click_x: f32,
 
     // computed char x offsets for click to cursor (set by update.rs)
     pub char_offsets: Vec<(usize, f32)>, // (byte_index, x_offset)
@@ -57,6 +61,7 @@ impl TextInput {
             value: String::new(),
             background_color: Color::rgb(40, 40, 40),
             text_color: Color::WHITE,
+            placeholder_color: Color::rgba(255, 255, 255, 80),
             cursor_color: Color::WHITE,
             selection_color: Color::rgba(100, 150, 255, 80),
             border_color: Color::rgb(80, 80, 80),
@@ -66,6 +71,7 @@ impl TextInput {
             font_family: "sans-serif".to_string(),
             font_size: 14.0,
             font_weight: 400,
+            placeholder: String::new(),
             cursor_pos: 0,
             cursor_offset_x: 0.0,
             scroll_x: 0.0,
@@ -73,6 +79,8 @@ impl TextInput {
             selection_anchor: 0,
             selection_start: 0,
             selection_end: 0,
+            click_count: 0,
+            last_click_x: 0.0,
             char_offsets: Vec::new(),
             text_x: 0.0,
             text_y: 0.0,
@@ -92,6 +100,14 @@ impl TextInput {
         self.cursor_pos = self.value.len();
         self.selection_start = 0;
         self.selection_end = 0;
+        self
+    }
+    pub fn set_placeholder(&mut self, s: &str) -> &mut Self {
+        self.placeholder = s.to_string();
+        self
+    }
+    pub fn set_placeholder_color(&mut self, c: Color) -> &mut Self {
+        self.placeholder_color = c;
         self
     }
     pub fn set_background_color(&mut self, c: Color) -> &mut Self {
@@ -180,7 +196,7 @@ impl TextInput {
         best_idx
     }
 
-    /// called by update.rs 
+    /// called by update.rs
     /// computes x offset for every char boundary
     pub fn update_cursor_offset(&mut self, fonts: &mut Fonts) {
         let attrs = FontAttrs {
@@ -213,6 +229,49 @@ impl TextInput {
             .find(|&&(idx, _)| idx == self.cursor_pos)
             .map(|&(_, x)| x)
             .unwrap_or(0.0);
+    }
+
+    fn word_start(&self, pos: usize) -> usize {
+        let mut p = pos.min(self.value.len());
+        // skip non-alphanumeric going left
+        while p > 0 {
+            let prev = self.prev_char_boundary(p);
+            let c = self.value[prev..p].chars().next().unwrap_or(' ');
+            if c.is_alphanumeric() || c == '_' {
+                p = prev;
+            } else {
+                break;
+            }
+        }
+        p
+    }
+
+    fn word_end(&self, pos: usize) -> usize {
+        let mut p = pos;
+        while p < self.value.len() {
+            let next = self.next_char_boundary(p);
+            let c = self.value[p..next].chars().next().unwrap_or(' ');
+            if c.is_alphanumeric() || c == '_' {
+                p = next;
+            } else {
+                break;
+            }
+        }
+        p
+    }
+
+    fn select_word_at(&mut self, pos: usize) {
+        let start = self.word_start(pos);
+        let end = self.word_end(pos);
+        // if no word found, select the char
+        if start == end {
+            self.selection_anchor = pos;
+            self.cursor_pos = self.next_char_boundary(pos).min(self.value.len());
+        } else {
+            self.selection_anchor = start;
+            self.cursor_pos = end;
+        }
+        self.update_selection();
     }
 
     fn prev_char_boundary(&self, pos: usize) -> usize {
@@ -331,15 +390,20 @@ impl Widget for TextInput {
             }
         }
 
-        // text
+        // text — show placeholder if empty
         if let Some(id) = self.text_id {
             let n = scene.text_mut(id);
             n.set_pos(self.text_x, text_y);
-            n.set_content(&self.value);
+            if self.value.is_empty() && !self.placeholder.is_empty() {
+                n.set_content(&self.placeholder);
+                n.set_color(self.placeholder_color.to_array());
+            } else {
+                n.set_content(&self.value);
+                n.set_color(self.text_color.to_array());
+            }
             n.set_family(&self.font_family);
             n.set_size(self.font_size);
             n.set_weight(self.font_weight);
-            n.set_color(self.text_color.to_array());
             n.set_width(f32::MAX);
             n.set_visible(true);
         }
@@ -388,6 +452,7 @@ impl Widget for TextInput {
     fn on_focus_lost(&mut self) {
         self.base.focused = false;
         self.selecting = false;
+        self.click_count = 0;
         self.clear_selection();
         self.set_border_color(Color::rgb(80, 80, 80));
     }
@@ -396,11 +461,43 @@ impl Widget for TextInput {
         if button != MouseButton::Left {
             return;
         }
+
         let x_in_text = mx - self.text_x + self.scroll_x;
-        self.cursor_pos = self.x_to_cursor(x_in_text);
-        self.selection_anchor = self.cursor_pos;
-        self.clear_selection();
-        self.selecting = true;
+        let pos = self.x_to_cursor(x_in_text);
+
+        // increment click count if clicking near same spot
+        if (mx - self.last_click_x).abs() < 4.0 {
+            self.click_count += 1;
+        } else {
+            self.click_count = 1;
+        }
+        self.last_click_x = mx;
+
+        match self.click_count {
+            1 => {
+                // single click
+                // position cursor
+                self.cursor_pos = pos;
+                self.selection_anchor = pos;
+                self.clear_selection();
+                self.selecting = true;
+            }
+            2 => {
+                // double click
+                // select word
+                self.select_word_at(pos);
+                self.selecting = false;
+            }
+            _ => {
+                // triple click
+                // select all
+                self.selection_anchor = 0;
+                self.cursor_pos = self.value.len();
+                self.update_selection();
+                self.selecting = false;
+                self.click_count = 0;
+            }
+        }
     }
 
     fn on_mouse_move(&mut self, mx: f32, _my: f32) {
