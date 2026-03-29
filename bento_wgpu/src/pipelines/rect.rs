@@ -180,8 +180,10 @@ impl RectPipeline {
         let s = scale;
         let px = (x * s).round();
         let py = (y * s).round();
-        let pw = (w * s).round();
-        let ph = (h * s).round();
+        let px2 = ((x + w) * s).round();
+        let py2 = ((y + h) * s).round();
+        let pw = px2 - px;
+        let ph = py2 - py;
         let radius = (radius * s).round().min(pw * 0.5).min(ph * 0.5);
         let clip_arr = match clip {
             Some([cx, cy, cx2, cy2]) => [
