@@ -3,10 +3,14 @@ mod slot;
 mod tree;
 mod update;
 
-pub use events::Event;
+pub use events::{
+    BlurEvent, ChangeEvent, ClickEvent, DoubleClickEvent, Event, FocusEvent, HoverEndEvent,
+    HoverEvent, KeyPressEvent, KeyReleaseEvent, MouseMoveEvent, PressEvent, ReleaseEvent,
+    RightClickEvent, ScrollEvent,
+};
 
 use crate::layout::LayoutEngine;
-use crate::widget::Handle;
+use crate::widget::{Handle, Widget};
 use bento_wgpu::SceneGraph;
 
 use events::EventSystem;
@@ -14,7 +18,6 @@ use slot::Slot;
 
 const GLOBAL_ID: u32 = u32::MAX;
 
-/// tracks which widget currently has hover/press/focus
 pub struct InteractionState {
     pub hovered: Option<Handle<()>>,
     pub pressed: Option<Handle<()>>,
@@ -38,6 +41,7 @@ pub struct Ui {
     pub(crate) events: EventSystem,
     pub(crate) interaction: InteractionState,
     pub(crate) root: Option<Handle<()>>,
+    pub(crate) registering: bool,
     pub window_width: u32,
     pub window_height: u32,
 }
@@ -51,6 +55,7 @@ impl Ui {
             events: EventSystem::new(),
             interaction: InteractionState::new(),
             root: None,
+            registering: false,
             window_width: 0,
             window_height: 0,
         }
@@ -87,14 +92,16 @@ impl Ui {
         }
     }
 
-    // ── event API (delegates to EventSystem) ─────────────────────────────────
+    // raw connect 
+    // TODO: remove in the future
 
     pub fn connect<T>(
         &mut self,
         handle: Handle<T>,
-        callback: impl FnMut(&mut Ui, &Event) + 'static,
+        callback: impl FnMut(&mut Ui, &mut Event) + 'static,
     ) -> u32 {
-        self.events.connect(handle, callback)
+        // raw connect always goes to external
+        self.events.connect_external(handle, callback)
     }
 
     pub fn disconnect(&mut self, connection_id: u32) {
@@ -105,6 +112,377 @@ impl Ui {
         self.events.has_connections(handle)
     }
 
+    // typed on_* methods 
+    // when called during register() they go to internal list
+    // otherwise they go to external list
+    // no priority concept exposed to callers
+
+    pub fn on_click<W: Widget>(
+        &mut self,
+        handle: Handle<W>,
+        mut callback: impl FnMut(&mut Ui, &mut W, &mut ClickEvent) + 'static,
+    ) -> u32 {
+        let h = handle.untyped();
+        let cb = move |ui: &mut Ui, event: &mut Event| {
+            if let Event::Click(e) = event {
+                let Some(mut slot) = ui.slots.get_mut(h.id as usize).and_then(|s| s.take()) else {
+                    return;
+                };
+                if let Some(w) = slot.widget.as_any_mut().downcast_mut::<W>() {
+                    callback(ui, w, e);
+                }
+                if let Some(s) = ui.slots.get_mut(h.id as usize) {
+                    *s = Some(slot);
+                }
+            }
+        };
+        if self.registering {
+            self.events.connect_internal(handle, cb)
+        } else {
+            self.events.connect_external(handle, cb)
+        }
+    }
+
+    pub fn on_right_click<W: Widget>(
+        &mut self,
+        handle: Handle<W>,
+        mut callback: impl FnMut(&mut Ui, &mut W, &mut RightClickEvent) + 'static,
+    ) -> u32 {
+        let h = handle.untyped();
+        let cb = move |ui: &mut Ui, event: &mut Event| {
+            if let Event::RightClick(e) = event {
+                let Some(mut slot) = ui.slots.get_mut(h.id as usize).and_then(|s| s.take()) else {
+                    return;
+                };
+                if let Some(w) = slot.widget.as_any_mut().downcast_mut::<W>() {
+                    callback(ui, w, e);
+                }
+                if let Some(s) = ui.slots.get_mut(h.id as usize) {
+                    *s = Some(slot);
+                }
+            }
+        };
+        if self.registering {
+            self.events.connect_internal(handle, cb)
+        } else {
+            self.events.connect_external(handle, cb)
+        }
+    }
+
+    pub fn on_double_click<W: Widget>(
+        &mut self,
+        handle: Handle<W>,
+        mut callback: impl FnMut(&mut Ui, &mut W, &mut DoubleClickEvent) + 'static,
+    ) -> u32 {
+        let h = handle.untyped();
+        let cb = move |ui: &mut Ui, event: &mut Event| {
+            if let Event::DoubleClick(e) = event {
+                let Some(mut slot) = ui.slots.get_mut(h.id as usize).and_then(|s| s.take()) else {
+                    return;
+                };
+                if let Some(w) = slot.widget.as_any_mut().downcast_mut::<W>() {
+                    callback(ui, w, e);
+                }
+                if let Some(s) = ui.slots.get_mut(h.id as usize) {
+                    *s = Some(slot);
+                }
+            }
+        };
+        if self.registering {
+            self.events.connect_internal(handle, cb)
+        } else {
+            self.events.connect_external(handle, cb)
+        }
+    }
+
+    pub fn on_press<W: Widget>(
+        &mut self,
+        handle: Handle<W>,
+        mut callback: impl FnMut(&mut Ui, &mut W, &mut PressEvent) + 'static,
+    ) -> u32 {
+        let h = handle.untyped();
+        let cb = move |ui: &mut Ui, event: &mut Event| {
+            if let Event::Press(e) = event {
+                let Some(mut slot) = ui.slots.get_mut(h.id as usize).and_then(|s| s.take()) else {
+                    return;
+                };
+                if let Some(w) = slot.widget.as_any_mut().downcast_mut::<W>() {
+                    callback(ui, w, e);
+                }
+                if let Some(s) = ui.slots.get_mut(h.id as usize) {
+                    *s = Some(slot);
+                }
+            }
+        };
+        if self.registering {
+            self.events.connect_internal(handle, cb)
+        } else {
+            self.events.connect_external(handle, cb)
+        }
+    }
+
+    pub fn on_release<W: Widget>(
+        &mut self,
+        handle: Handle<W>,
+        mut callback: impl FnMut(&mut Ui, &mut W, &mut ReleaseEvent) + 'static,
+    ) -> u32 {
+        let h = handle.untyped();
+        let cb = move |ui: &mut Ui, event: &mut Event| {
+            if let Event::Release(e) = event {
+                let Some(mut slot) = ui.slots.get_mut(h.id as usize).and_then(|s| s.take()) else {
+                    return;
+                };
+                if let Some(w) = slot.widget.as_any_mut().downcast_mut::<W>() {
+                    callback(ui, w, e);
+                }
+                if let Some(s) = ui.slots.get_mut(h.id as usize) {
+                    *s = Some(slot);
+                }
+            }
+        };
+        if self.registering {
+            self.events.connect_internal(handle, cb)
+        } else {
+            self.events.connect_external(handle, cb)
+        }
+    }
+
+    pub fn on_hover<W: Widget>(
+        &mut self,
+        handle: Handle<W>,
+        mut callback: impl FnMut(&mut Ui, &mut W, &mut HoverEvent) + 'static,
+    ) -> u32 {
+        let h = handle.untyped();
+        let cb = move |ui: &mut Ui, event: &mut Event| {
+            if let Event::Hover(e) = event {
+                let Some(mut slot) = ui.slots.get_mut(h.id as usize).and_then(|s| s.take()) else {
+                    return;
+                };
+                if let Some(w) = slot.widget.as_any_mut().downcast_mut::<W>() {
+                    callback(ui, w, e);
+                }
+                if let Some(s) = ui.slots.get_mut(h.id as usize) {
+                    *s = Some(slot);
+                }
+            }
+        };
+        if self.registering {
+            self.events.connect_internal(handle, cb)
+        } else {
+            self.events.connect_external(handle, cb)
+        }
+    }
+
+    pub fn on_hover_end<W: Widget>(
+        &mut self,
+        handle: Handle<W>,
+        mut callback: impl FnMut(&mut Ui, &mut W, &mut HoverEndEvent) + 'static,
+    ) -> u32 {
+        let h = handle.untyped();
+        let cb = move |ui: &mut Ui, event: &mut Event| {
+            if let Event::HoverEnd(e) = event {
+                let Some(mut slot) = ui.slots.get_mut(h.id as usize).and_then(|s| s.take()) else {
+                    return;
+                };
+                if let Some(w) = slot.widget.as_any_mut().downcast_mut::<W>() {
+                    callback(ui, w, e);
+                }
+                if let Some(s) = ui.slots.get_mut(h.id as usize) {
+                    *s = Some(slot);
+                }
+            }
+        };
+        if self.registering {
+            self.events.connect_internal(handle, cb)
+        } else {
+            self.events.connect_external(handle, cb)
+        }
+    }
+
+    pub fn on_focus<W: Widget>(
+        &mut self,
+        handle: Handle<W>,
+        mut callback: impl FnMut(&mut Ui, &mut W, &mut FocusEvent) + 'static,
+    ) -> u32 {
+        let h = handle.untyped();
+        let cb = move |ui: &mut Ui, event: &mut Event| {
+            if let Event::Focus(e) = event {
+                let Some(mut slot) = ui.slots.get_mut(h.id as usize).and_then(|s| s.take()) else {
+                    return;
+                };
+                if let Some(w) = slot.widget.as_any_mut().downcast_mut::<W>() {
+                    callback(ui, w, e);
+                }
+                if let Some(s) = ui.slots.get_mut(h.id as usize) {
+                    *s = Some(slot);
+                }
+            }
+        };
+        if self.registering {
+            self.events.connect_internal(handle, cb)
+        } else {
+            self.events.connect_external(handle, cb)
+        }
+    }
+
+    pub fn on_blur<W: Widget>(
+        &mut self,
+        handle: Handle<W>,
+        mut callback: impl FnMut(&mut Ui, &mut W, &mut BlurEvent) + 'static,
+    ) -> u32 {
+        let h = handle.untyped();
+        let cb = move |ui: &mut Ui, event: &mut Event| {
+            if let Event::Blur(e) = event {
+                let Some(mut slot) = ui.slots.get_mut(h.id as usize).and_then(|s| s.take()) else {
+                    return;
+                };
+                if let Some(w) = slot.widget.as_any_mut().downcast_mut::<W>() {
+                    callback(ui, w, e);
+                }
+                if let Some(s) = ui.slots.get_mut(h.id as usize) {
+                    *s = Some(slot);
+                }
+            }
+        };
+        if self.registering {
+            self.events.connect_internal(handle, cb)
+        } else {
+            self.events.connect_external(handle, cb)
+        }
+    }
+
+    pub fn on_key_press<W: Widget>(
+        &mut self,
+        handle: Handle<W>,
+        mut callback: impl FnMut(&mut Ui, &mut W, &mut KeyPressEvent) + 'static,
+    ) -> u32 {
+        let h = handle.untyped();
+        let cb = move |ui: &mut Ui, event: &mut Event| {
+            if let Event::KeyPress(e) = event {
+                let Some(mut slot) = ui.slots.get_mut(h.id as usize).and_then(|s| s.take()) else {
+                    return;
+                };
+                if let Some(w) = slot.widget.as_any_mut().downcast_mut::<W>() {
+                    callback(ui, w, e);
+                }
+                if let Some(s) = ui.slots.get_mut(h.id as usize) {
+                    *s = Some(slot);
+                }
+            }
+        };
+        if self.registering {
+            self.events.connect_internal(handle, cb)
+        } else {
+            self.events.connect_external(handle, cb)
+        }
+    }
+
+    pub fn on_key_release<W: Widget>(
+        &mut self,
+        handle: Handle<W>,
+        mut callback: impl FnMut(&mut Ui, &mut W, &mut KeyReleaseEvent) + 'static,
+    ) -> u32 {
+        let h = handle.untyped();
+        let cb = move |ui: &mut Ui, event: &mut Event| {
+            if let Event::KeyRelease(e) = event {
+                let Some(mut slot) = ui.slots.get_mut(h.id as usize).and_then(|s| s.take()) else {
+                    return;
+                };
+                if let Some(w) = slot.widget.as_any_mut().downcast_mut::<W>() {
+                    callback(ui, w, e);
+                }
+                if let Some(s) = ui.slots.get_mut(h.id as usize) {
+                    *s = Some(slot);
+                }
+            }
+        };
+        if self.registering {
+            self.events.connect_internal(handle, cb)
+        } else {
+            self.events.connect_external(handle, cb)
+        }
+    }
+
+    pub fn on_change<W: Widget>(
+        &mut self,
+        handle: Handle<W>,
+        mut callback: impl FnMut(&mut Ui, &mut W, &mut ChangeEvent) + 'static,
+    ) -> u32 {
+        let h = handle.untyped();
+        let cb = move |ui: &mut Ui, event: &mut Event| {
+            if let Event::Change(e) = event {
+                let Some(mut slot) = ui.slots.get_mut(h.id as usize).and_then(|s| s.take()) else {
+                    return;
+                };
+                if let Some(w) = slot.widget.as_any_mut().downcast_mut::<W>() {
+                    callback(ui, w, e);
+                }
+                if let Some(s) = ui.slots.get_mut(h.id as usize) {
+                    *s = Some(slot);
+                }
+            }
+        };
+        if self.registering {
+            self.events.connect_internal(handle, cb)
+        } else {
+            self.events.connect_external(handle, cb)
+        }
+    }
+
+    pub fn on_scroll<W: Widget>(
+        &mut self,
+        handle: Handle<W>,
+        mut callback: impl FnMut(&mut Ui, &mut W, &mut ScrollEvent) + 'static,
+    ) -> u32 {
+        let h = handle.untyped();
+        let cb = move |ui: &mut Ui, event: &mut Event| {
+            if let Event::Scroll(e) = event {
+                let Some(mut slot) = ui.slots.get_mut(h.id as usize).and_then(|s| s.take()) else {
+                    return;
+                };
+                if let Some(w) = slot.widget.as_any_mut().downcast_mut::<W>() {
+                    callback(ui, w, e);
+                }
+                if let Some(s) = ui.slots.get_mut(h.id as usize) {
+                    *s = Some(slot);
+                }
+            }
+        };
+        if self.registering {
+            self.events.connect_internal(handle, cb)
+        } else {
+            self.events.connect_external(handle, cb)
+        }
+    }
+
+    pub fn on_mouse_move<W: Widget>(
+        &mut self,
+        handle: Handle<W>,
+        mut callback: impl FnMut(&mut Ui, &mut W, &mut MouseMoveEvent) + 'static,
+    ) -> u32 {
+        let h = handle.untyped();
+        let cb = move |ui: &mut Ui, event: &mut Event| {
+            if let Event::MouseMove(e) = event {
+                let Some(mut slot) = ui.slots.get_mut(h.id as usize).and_then(|s| s.take()) else {
+                    return;
+                };
+                if let Some(w) = slot.widget.as_any_mut().downcast_mut::<W>() {
+                    callback(ui, w, e);
+                }
+                if let Some(s) = ui.slots.get_mut(h.id as usize) {
+                    *s = Some(slot);
+                }
+            }
+        };
+        if self.registering {
+            self.events.connect_internal(handle, cb)
+        } else {
+            self.events.connect_external(handle, cb)
+        }
+    }
+
+    // event emission 
+
     pub fn emit<T>(&mut self, handle: Handle<T>, event: Event) {
         self.events.emit(handle, event);
     }
@@ -112,7 +490,6 @@ impl Ui {
     pub fn emit_bubbling<T>(&mut self, handle: Handle<T>, event: Event) {
         let global = self.global();
         let handle = handle.untyped();
-        // build ancestor chain first to avoid borrow conflict
         let mut chain = vec![handle];
         let mut current = self.parent(handle);
         while let Some(p) = current {
@@ -128,25 +505,95 @@ impl Ui {
     pub fn drain_events(&mut self) {
         while !self.events.event_queue.is_empty() {
             let queue = std::mem::take(&mut self.events.event_queue);
-            for (handle, event) in queue {
-                // take connections for this handle out to avoid borrow conflict
-                let Some(mut conns) = self.events.connections.remove(&handle) else {
+            for (handle, mut event) in queue {
+                let Some(mut list) = self.events.connections.remove(&handle) else {
                     continue;
                 };
-                for conn in &mut conns {
-                    (conn.callback)(self, &event);
+
+                // drain external connections first
+                for conn in &mut list.external {
+                    let propagation_stopped = match &event {
+                        Event::Click(e) => e.is_propagation_stopped(),
+                        Event::RightClick(e) => e.is_propagation_stopped(),
+                        Event::DoubleClick(e) => e.is_propagation_stopped(),
+                        Event::Press(e) => e.is_propagation_stopped(),
+                        Event::Release(e) => e.is_propagation_stopped(),
+                        Event::MouseMove(e) => e.is_propagation_stopped(),
+                        Event::Scroll(e) => e.is_propagation_stopped(),
+                        Event::Hover(e) => e.is_propagation_stopped(),
+                        Event::HoverEnd(e) => e.is_propagation_stopped(),
+                        Event::Focus(e) => e.is_propagation_stopped(),
+                        Event::Blur(e) => e.is_propagation_stopped(),
+                        Event::KeyPress(e) => e.is_propagation_stopped(),
+                        Event::KeyRelease(e) => e.is_propagation_stopped(),
+                        Event::Change(e) => e.is_propagation_stopped(),
+                        Event::Custom(_) => false,
+                    };
+                    if propagation_stopped {
+                        break;
+                    }
+                    (conn.callback)(self, &mut event);
                 }
-                // put connections back — merge in case new ones were added during callback
-                let entry = self.events.connections.entry(handle).or_default();
-                // prepend existing conns back (callbacks added during drain go at end)
-                let new_conns = std::mem::take(entry);
-                *entry = conns;
-                entry.extend(new_conns);
+
+                // drain internal connections only if default not stopped
+                let default_stopped = match &event {
+                    Event::Click(e) => e.is_default_stopped(),
+                    Event::RightClick(e) => e.is_default_stopped(),
+                    Event::DoubleClick(e) => e.is_default_stopped(),
+                    Event::Press(e) => e.is_default_stopped(),
+                    Event::Release(e) => e.is_default_stopped(),
+                    Event::MouseMove(e) => e.is_default_stopped(),
+                    Event::Scroll(e) => e.is_default_stopped(),
+                    Event::Hover(e) => e.is_default_stopped(),
+                    Event::HoverEnd(e) => e.is_default_stopped(),
+                    Event::Focus(e) => e.is_default_stopped(),
+                    Event::Blur(e) => e.is_default_stopped(),
+                    Event::KeyPress(e) => e.is_default_stopped(),
+                    Event::KeyRelease(e) => e.is_default_stopped(),
+                    Event::Change(e) => e.is_default_stopped(),
+                    Event::Custom(_) => false,
+                };
+
+                if !default_stopped {
+                    for conn in &mut list.internal {
+                        let propagation_stopped = match &event {
+                            Event::Click(e) => e.is_propagation_stopped(),
+                            Event::RightClick(e) => e.is_propagation_stopped(),
+                            Event::DoubleClick(e) => e.is_propagation_stopped(),
+                            Event::Press(e) => e.is_propagation_stopped(),
+                            Event::Release(e) => e.is_propagation_stopped(),
+                            Event::MouseMove(e) => e.is_propagation_stopped(),
+                            Event::Scroll(e) => e.is_propagation_stopped(),
+                            Event::Hover(e) => e.is_propagation_stopped(),
+                            Event::HoverEnd(e) => e.is_propagation_stopped(),
+                            Event::Focus(e) => e.is_propagation_stopped(),
+                            Event::Blur(e) => e.is_propagation_stopped(),
+                            Event::KeyPress(e) => e.is_propagation_stopped(),
+                            Event::KeyRelease(e) => e.is_propagation_stopped(),
+                            Event::Change(e) => e.is_propagation_stopped(),
+                            Event::Custom(_) => false,
+                        };
+                        if propagation_stopped {
+                            break;
+                        }
+                        (conn.callback)(self, &mut event);
+                    }
+                }
+
+                // put list back, merging any new connections added during drain
+                let entry = self
+                    .events
+                    .connections
+                    .entry(handle)
+                    .or_insert_with(|| events::ConnectionList::new());
+                let new_list = std::mem::replace(entry, list);
+                entry.external.extend(new_list.external);
+                entry.internal.extend(new_list.internal);
             }
         }
     }
 
-    // ── mouse helpers ─────────────────────────────────────────────────────────
+    // interaction helpers 
 
     pub fn hovered(&self) -> Option<Handle<()>> {
         self.interaction.hovered

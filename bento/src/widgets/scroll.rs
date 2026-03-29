@@ -1,7 +1,7 @@
 use super::scroll_state::ScrollState;
 use crate::color::Color;
-use crate::input::MouseButton;
-use crate::widget::{AsAny, Base, HasBase, Widget};
+use crate::ui::Ui;
+use crate::widget::{AsAny, Base, Handle, HasBase, Widget};
 use bento_derive::Widget;
 use bento_wgpu::{ClipId, RectId, SceneGraph, SceneNodeId, TransformId};
 
@@ -41,7 +41,6 @@ impl ScrollContainer {
         self.base.render_dirty = true;
         self
     }
-
     pub fn set_scroll_x_enabled(&mut self, v: bool) -> &mut Self {
         self.scroll.set_scroll_x_enabled(v);
         self.base.render_dirty = true;
@@ -105,6 +104,46 @@ impl Widget for ScrollContainer {
         scene.add_child(SceneNodeId(clip.0), SceneNodeId(transform.0));
     }
 
+    fn register(&mut self, handle: Handle<()>, ui: &mut Ui) {
+        let h = Handle::<ScrollContainer>::new(handle.id, handle.generation);
+
+        ui.on_scroll(h, |ui, this, e| {
+            this.scroll
+                .on_scroll(e.x, e.y, this.base.content_width, this.base.content_height);
+            this.base.render_dirty = true;
+        });
+
+        ui.on_press(h, |ui, this, e| {
+            this.scroll.on_press(
+                e.x,
+                e.y,
+                crate::input::MouseButton::Left,
+                this.base.content_width,
+                this.base.content_height,
+            );
+            this.base.render_dirty = true;
+        });
+
+        ui.on_release(h, |ui, this, e| {
+            this.scroll.on_release();
+            this.base.render_dirty = true;
+        });
+
+        ui.on_hover_end(h, |ui, this, e| {
+            this.scroll.on_leave();
+            this.base.render_dirty = true;
+        });
+
+        ui.on_mouse_move(h, |ui, this, e| {
+            let hover_changed =
+                this.scroll
+                    .on_move(e.x, e.y, this.base.content_width, this.base.content_height);
+            if hover_changed || this.scroll.is_dragging() {
+                this.base.render_dirty = true;
+            }
+        });
+    }
+
     fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, h: f32) {
         if let Some(id) = self.rect_id {
             let n = scene.rect_mut(id);
@@ -135,41 +174,5 @@ impl Widget for ScrollContainer {
 
     fn children_attachment_node(&self) -> Option<SceneNodeId> {
         self.transform_id.map(|id| SceneNodeId(id.0))
-    }
-
-    fn on_mouse_scroll(&mut self, dx: f32, dy: f32) {
-        self.scroll
-            .on_scroll(dx, dy, self.base.content_width, self.base.content_height);
-        self.base.render_dirty = true;
-    }
-
-    fn on_mouse_press(&mut self, mx: f32, my: f32, button: MouseButton) {
-        self.scroll.on_press(
-            mx,
-            my,
-            button,
-            self.base.content_width,
-            self.base.content_height,
-        );
-        self.base.render_dirty = true;
-    }
-
-    fn on_mouse_leave(&mut self) {
-        self.scroll.on_leave();
-        self.base.render_dirty = true;
-    }
-
-    fn on_mouse_move(&mut self, mx: f32, my: f32) {
-        let hover_changed =
-            self.scroll
-                .on_move(mx, my, self.base.content_width, self.base.content_height);
-        if hover_changed || self.scroll.is_dragging() {
-            self.base.render_dirty = true;
-        }
-    }
-
-    fn on_mouse_release(&mut self, _mx: f32, _my: f32, _button: MouseButton) {
-        self.scroll.on_release();
-        self.base.render_dirty = true;
     }
 }

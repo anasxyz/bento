@@ -15,37 +15,44 @@ fn main() {
         .set_row_gap(12.0);
     ui.set_root(root);
 
-    let btn1 = ui.add(Button::new("Click me"));
-    ui.get_mut(btn1)
+    let input = ui.add_to(root, TextInput::new());
+    ui.get_mut(input)
         .unwrap()
-        .set_width(Size::Fixed(100.0))
-        .set_height(Size::Fixed(40.0))
-        .set_color(Color::rgb(99, 102, 241))
-        .set_hover_color(Color::rgb(118, 120, 255))
-        .set_pressed_color(Color::rgb(79, 82, 200))
-        .set_radius(20.0)
-        .set_font_size(14.0)
-        .set_font_weight(600);
-    ui.append(root, btn1);
+        .set_width(Size::Fixed(280.0))
+        .set_placeholder("Type something...");
 
-    let btn2 = ui.add(Button::new("Disabled"));
-    ui.get_mut(btn2)
+    let label = ui.add_to(root, Label::new(""));
+    ui.get_mut(label)
         .unwrap()
-        .set_width(Size::Fixed(160.0))
-        .set_color(Color::rgb(99, 102, 241))
-        .set_hover_color(Color::rgb(118, 120, 255))
-        .set_pressed_color(Color::rgb(79, 82, 200))
-        .set_disabled_color(Color::rgb(50, 52, 100))
-        .set_radius(8.0)
-        .set_font_size(14.0)
-        .set_font_weight(600)
-        .set_disabled(true);
-    ui.append(root, btn2);
+        .set_width(Size::Fixed(280.0))
+        .set_size(13.0)
+        .set_color(Color::rgb(140, 140, 140));
+
+    let btn = ui.add_to(root, Button::new("Submit"));
+    ui.get_mut(btn)
+        .unwrap()
+        .set_width(Size::Fixed(280.0))
+        .set_color(Color::rgb(99, 102, 241));
+
+    ui.on_change(input, move |ui, this, e| {
+        if let Some(lbl) = ui.get_mut(label) {
+            lbl.set_text(&format!("{} chars", e.value.len()));
+        }
+    });
+
+    ui.on_click(btn, move |ui, this, e| {
+        if let Some(inp) = ui.get_mut(input) {
+            inp.set_value("");
+        }
+        if let Some(lbl) = ui.get_mut(label) {
+            lbl.set_text("Cleared!");
+        }
+    });
 
     let mut app = App::new();
     app.open_window(
         WindowConfig {
-            title: "Button demo".to_string(),
+            title: "demo".to_string(),
             width: 400,
             height: 300,
             clear_color: Color::rgb(18, 18, 18),
