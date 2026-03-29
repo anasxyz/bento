@@ -82,7 +82,7 @@ impl Widget for Label {
         }
     }
 
-    fn measure(&self, fonts: &mut Fonts, max_width: Option<f32>) -> Option<(f32, f32)> {
+    fn measure(&mut self, fonts: &mut Fonts, max_width: Option<f32>) -> Option<(f32, f32)> {
         let attrs = FontAttrs {
             family: self.family.clone(),
             size: self.size,

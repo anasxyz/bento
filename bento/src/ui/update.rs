@@ -41,8 +41,8 @@ impl Ui {
 
             // pre-measure widgets that need it
             let mut measured: HashMap<Handle<()>, (f32, f32)> = HashMap::new();
-            for (i, slot) in self.slots.iter().enumerate() {
-                let Some(slot) = slot.as_ref() else { continue };
+            for (i, slot) in self.slots.iter_mut().enumerate() {
+                let Some(slot) = slot.as_mut() else { continue };
                 if !slot.widget.has_measure() {
                     continue;
                 }
@@ -56,7 +56,7 @@ impl Ui {
                 let natural = measured.get(&handle).copied().unwrap_or((0.0, 0.0));
                 if let Some(mw) = max_w {
                     if mw < natural.0 {
-                        if let Some(Some(slot)) = self.slots.get(handle.id as usize) {
+                        if let Some(Some(slot)) = self.slots.get_mut(handle.id as usize) {
                             let (w, h) = slot.widget.measure(fonts, Some(mw)).unwrap_or((0.0, 0.0));
                             return (w + 1.0, h);
                         }

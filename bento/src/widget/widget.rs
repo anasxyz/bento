@@ -31,7 +31,7 @@ pub trait Widget: HasBase + AsAny + Any + 'static {
         false
     }
 
-    fn measure(&self, _fonts: &mut Fonts, _max_width: Option<f32>) -> Option<(f32, f32)> {
+    fn measure(&mut self, _fonts: &mut Fonts, _max_width: Option<f32>) -> Option<(f32, f32)> {
         None
     }
     fn has_measure(&self) -> bool {

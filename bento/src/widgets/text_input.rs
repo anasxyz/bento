@@ -467,7 +467,7 @@ impl Widget for TextInput {
         true
     }
 
-    fn measure(&self, _fonts: &mut Fonts, _max_width: Option<f32>) -> Option<(f32, f32)> {
+    fn measure(&mut self, _fonts: &mut Fonts, _max_width: Option<f32>) -> Option<(f32, f32)> {
         Some((200.0, self.font_size * 1.6 + self.padding_x))
     }
 

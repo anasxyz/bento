@@ -18,11 +18,12 @@ fn main() {
     let btn1 = ui.add(Button::new("Click me"));
     ui.get_mut(btn1)
         .unwrap()
-        .set_width(Size::Fixed(160.0))
+        .set_width(Size::Fixed(100.0))
+        .set_height(Size::Fixed(40.0))
         .set_color(Color::rgb(99, 102, 241))
         .set_hover_color(Color::rgb(118, 120, 255))
         .set_pressed_color(Color::rgb(79, 82, 200))
-        .set_radius(8.0)
+        .set_radius(20.0)
         .set_font_size(14.0)
         .set_font_weight(600);
     ui.append(root, btn1);

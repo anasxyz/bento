@@ -29,6 +29,9 @@ pub struct Button {
     pressed: bool,
     disabled: bool,
 
+    // cached measured text width for centering
+    text_width: f32,
+
     // scene nodes
     rect_id: Option<RectId>,
     transform_id: Option<TransformId>,
@@ -55,6 +58,7 @@ impl Button {
             hovered: false,
             pressed: false,
             disabled: false,
+            text_width: 0.0,
             rect_id: None,
             transform_id: None,
             text_id: None,
@@ -190,7 +194,11 @@ impl Widget for Button {
 
         if let Some(id) = self.text_id {
             let n = scene.text_mut(id);
-            let text_x = x + w / 2.0;
+            let text_x = if self.text_width > 0.0 {
+                x + (w - self.text_width).max(0.0) / 2.0
+            } else {
+                x
+            };
             let text_y = y + (h - self.font_size) / 2.0 - self.font_size * 0.15;
             n.set_pos(text_x, text_y);
             n.set_content(&self.label);
@@ -211,7 +219,7 @@ impl Widget for Button {
         !self.disabled
     }
 
-    fn measure(&self, fonts: &mut Fonts, max_width: Option<f32>) -> Option<(f32, f32)> {
+    fn measure(&mut self, fonts: &mut Fonts, _max_width: Option<f32>) -> Option<(f32, f32)> {
         let attrs = FontAttrs {
             family: self.font_family.clone(),
             size: self.font_size,
@@ -219,7 +227,8 @@ impl Widget for Button {
             italic: false,
             line_height: None,
         };
-        let (tw, _) = fonts.measure(&self.label, &attrs, max_width);
+        let (tw, _) = fonts.measure(&self.label, &attrs, None);
+        self.text_width = tw;
         Some((tw + 24.0, self.font_size * 1.6 + 8.0))
     }
 
@@ -228,7 +237,9 @@ impl Widget for Button {
     }
 
     fn on_mouse_enter(&mut self) {
-        if self.disabled { return; }
+        if self.disabled {
+            return;
+        }
         self.hovered = true;
         self.base.cursor = crate::input::Cursor::Pointer;
         self.base.render_dirty = true;
@@ -242,7 +253,9 @@ impl Widget for Button {
     }
 
     fn on_mouse_press(&mut self, _x: f32, _y: f32, button: MouseButton) {
-        if self.disabled { return; }
+        if self.disabled {
+            return;
+        }
         if button == MouseButton::Left {
             self.pressed = true;
             self.base.render_dirty = true;
