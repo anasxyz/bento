@@ -160,6 +160,7 @@ impl ApplicationHandler for Runner {
                     .mouse
                     .on_move(position.x as f32 / scale, position.y as f32 / scale);
                 let old_hovered = win.ui.interaction.hovered;
+                let old_pressed = win.ui.interaction.pressed;
                 crate::dispatch::dispatch(&mut win.ui, &win.input);
                 if win.ui.interaction.pressed.is_some() {
                     reset_blink(win);
@@ -171,7 +172,7 @@ impl ApplicationHandler for Runner {
                         .map(|s| s.widget.base().render_dirty)
                         .unwrap_or(false)
                 });
-                if win.ui.interaction.hovered != old_hovered || any_dirty {
+                if win.ui.interaction.hovered != old_hovered || old_pressed.is_some() || any_dirty {
                     win.window.request_redraw();
                 }
                 win.sync_cursor();

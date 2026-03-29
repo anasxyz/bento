@@ -101,7 +101,7 @@ impl ScrollState {
         }
     }
 
-    // config setters 
+    // config setters
 
     pub fn set_scroll_x_enabled(&mut self, v: bool) -> &mut Self {
         self.scroll_x_enabled = v;
@@ -142,7 +142,7 @@ impl ScrollState {
         self
     }
 
-    // event handlers 
+    // event handlers
 
     pub fn on_scroll(&mut self, dx: f32, dy: f32, content_w: f32, content_h: f32) {
         if self.scroll_y_enabled {
@@ -221,7 +221,10 @@ impl ScrollState {
         }
     }
 
-    pub fn on_move(&mut self, mx: f32, my: f32, content_w: f32, content_h: f32) {
+    pub fn on_move(&mut self, mx: f32, my: f32, content_w: f32, content_h: f32) -> bool {
+        let prev_v = self.hovering_v;
+        let prev_h = self.hovering_h;
+
         if self.dragging_v {
             let track_h = self.v_track_h - self.v_thumb_h;
             let max_scroll = (content_h - self.height).max(0.0);
@@ -251,6 +254,8 @@ impl ScrollState {
             && my <= self.h_track_y + sw
             && mx >= self.h_thumb_x
             && mx <= self.h_thumb_x + self.h_thumb_w;
+
+        prev_v != self.hovering_v || prev_h != self.hovering_h
     }
 
     pub fn on_leave(&mut self) {
@@ -263,7 +268,7 @@ impl ScrollState {
         self.dragging_h = false;
     }
 
-    // sync 
+    // sync
 
     pub fn sync(
         &mut self,

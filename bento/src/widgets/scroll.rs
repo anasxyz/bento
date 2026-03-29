@@ -160,9 +160,12 @@ impl Widget for ScrollContainer {
     }
 
     fn on_mouse_move(&mut self, mx: f32, my: f32) {
-        self.scroll
-            .on_move(mx, my, self.base.content_width, self.base.content_height);
-        self.base.render_dirty = true;
+        let hover_changed =
+            self.scroll
+                .on_move(mx, my, self.base.content_width, self.base.content_height);
+        if hover_changed {
+            self.base.render_dirty = true;
+        }
     }
 
     fn on_mouse_release(&mut self, _mx: f32, _my: f32, _button: MouseButton) {
