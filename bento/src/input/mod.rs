@@ -1,8 +1,8 @@
-mod cursor;
+pub(crate) mod cursor;
 mod keyboard;
 mod mouse;
 
-pub use cursor::Cursor;
+pub use cursor::{Cursor, map_cursor};
 pub use keyboard::{Key, KeyState, Modifiers};
 pub use mouse::{MouseButton, MouseState};
 

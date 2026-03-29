@@ -1,11 +1,12 @@
-use crate::layout::{
+use crate::{Cursor, layout::{
     AlignItems, AlignSelf, FlexDirection, FlexWrap, JustifyContent, Layout, Overflow, Position,
     Size,
-};
+}};
 
 pub struct Base {
     pub layout: Layout,
     pub focused: bool,
+    pub cursor: Cursor, 
     pub(crate) layout_dirty: bool,
     pub(crate) render_dirty: bool,
     pub(crate) content_height: f32,
@@ -17,6 +18,7 @@ impl Base {
         Self {
             layout: Layout::default(),
             focused: false,
+            cursor: Cursor::Default,
             layout_dirty: true,
             render_dirty: true,
             content_height: 0.0,

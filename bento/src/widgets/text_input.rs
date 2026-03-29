@@ -1,3 +1,4 @@
+use crate::Cursor;
 use crate::color::Color;
 use crate::fonts::{FontAttrs, Fonts};
 use crate::input::{Key, Modifiers, MouseButton};
@@ -9,6 +10,7 @@ use bento_wgpu::{ClipId, RectId, SceneGraph, SceneNodeId, TextId, TransformId};
 pub struct TextInput {
     pub base: Base,
     pub value: String,
+    pub value_dirty: bool,
 
     // style
     background_color: Color,
@@ -60,6 +62,7 @@ impl TextInput {
         Self {
             base: Base::new(),
             value: String::new(),
+            value_dirty: true,
             background_color: Color::rgba(10, 10, 10, 0),
             text_color: Color::WHITE,
             placeholder_color: Color::rgba(255, 255, 255, 80),
@@ -103,6 +106,7 @@ impl TextInput {
         self.selection_start = 0;
         self.selection_end = 0;
         self.base.render_dirty = true;
+        self.value_dirty = true;
         self
     }
     pub fn set_placeholder(&mut self, s: &str) -> &mut Self {
@@ -170,6 +174,11 @@ impl TextInput {
         self.base.render_dirty = true;
         self
     }
+    pub fn set_cursor(&mut self, c: Cursor) -> &mut Self {
+        self.base.cursor = c;
+        self.base.render_dirty = true;
+        self
+    }
 
     pub fn has_selection(&self) -> bool {
         self.selection_start < self.selection_end
@@ -189,6 +198,7 @@ impl TextInput {
         if self.has_selection() {
             self.value.drain(self.selection_start..self.selection_end);
             self.cursor_pos = self.selection_start;
+            self.value_dirty = true;
             self.clear_selection();
         }
     }
@@ -458,10 +468,12 @@ impl Widget for TextInput {
     }
 
     fn on_mouse_enter(&mut self) {
+        self.set_cursor(Cursor::Text);
         self.set_border_color(Color::rgb(230, 230, 230));
     }
 
     fn on_mouse_leave(&mut self) {
+        self.set_cursor(Cursor::Default);
         if !self.base.focused {
             self.set_border_color(Color::rgb(80, 80, 80));
         }
@@ -533,6 +545,7 @@ impl Widget for TextInput {
         let x_in_text = mx - self.text_x + self.scroll_x;
         self.cursor_pos = self.x_to_cursor(x_in_text);
         self.update_selection();
+        self.base.render_dirty = true;
     }
 
     fn on_mouse_release(&mut self, _mx: f32, _my: f32, _button: MouseButton) {
@@ -541,6 +554,7 @@ impl Widget for TextInput {
 
     fn on_key_press(&mut self, key: Key, mods: Modifiers, text: Option<char>) {
         self.base.render_dirty = true;
+        self.value_dirty = true;
 
         if !self.base.focused {
             return;
@@ -557,6 +571,7 @@ impl Widget for TextInput {
                     let new_pos = self.prev_char_boundary(self.cursor_pos);
                     self.value.drain(new_pos..self.cursor_pos);
                     self.cursor_pos = new_pos;
+                    self.value_dirty = true;
                 }
             }
             Key::Delete => {
@@ -565,6 +580,7 @@ impl Widget for TextInput {
                 } else if self.cursor_pos < self.value.len() {
                     let next = self.next_char_boundary(self.cursor_pos);
                     self.value.drain(self.cursor_pos..next);
+                    self.value_dirty = true;
                 }
             }
             Key::Left => {
@@ -641,6 +657,7 @@ impl Widget for TextInput {
                         self.value.insert(self.cursor_pos, c);
                         self.cursor_pos += c.len_utf8();
                         self.clear_selection();
+                        self.value_dirty = true;
                     }
                 }
             }

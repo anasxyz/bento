@@ -11,6 +11,7 @@ use winit::{
 
 use crate::app::WindowHandle;
 use crate::fonts::Fonts;
+use crate::input::cursor::{Cursor, map_cursor};
 use crate::input::{Key, MouseButton};
 use crate::settings::WindowConfig;
 use crate::ui::Ui;
@@ -99,7 +100,7 @@ impl ApplicationHandler for Runner {
 
                 // DEBUG
                 // println!("nodes: {}", win.ui.scene.nodes.len());
-                
+
                 win.renderer.render(
                     &mut self.ctx,
                     &mut self.fonts.font_system,
@@ -141,6 +142,7 @@ impl ApplicationHandler for Runner {
                 crate::dispatch::dispatch(&mut win.ui, &win.input);
                 win.ui.drain_events();
                 win.input.reset();
+                win.sync_cursor();
                 // only redraw if hover changed or something is being dragged
                 if win.ui.interaction.hovered != old_hovered || old_pressed.is_some() {
                     win.window.request_redraw();
@@ -161,6 +163,7 @@ impl ApplicationHandler for Runner {
                 crate::dispatch::dispatch(&mut win.ui, &win.input);
                 win.ui.drain_events();
                 win.input.reset();
+                win.sync_cursor();
                 win.window.request_redraw();
             }
 
@@ -175,6 +178,7 @@ impl ApplicationHandler for Runner {
                 crate::dispatch::dispatch(&mut win.ui, &win.input);
                 win.ui.drain_events();
                 win.input.reset();
+                win.sync_cursor();
                 win.window.request_redraw();
             }
 
@@ -191,6 +195,7 @@ impl ApplicationHandler for Runner {
                 crate::dispatch::dispatch(&mut win.ui, &win.input);
                 win.ui.drain_events();
                 win.input.reset();
+                win.sync_cursor();
                 // reset blink deadline so cursor stays visible while typing
                 win.blink_deadline = None;
                 win.window.request_redraw();

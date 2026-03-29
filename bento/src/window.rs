@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use winit::{dpi::LogicalSize, event_loop::ActiveEventLoop, window::Window};
 
-use crate::input::InputState;
+use crate::input::{InputState, map_cursor};
 use crate::settings::WindowConfig;
 use crate::ui::Ui;
 
@@ -76,6 +76,18 @@ impl BentoWindow {
             slot.widget.base_mut().render_dirty = true;
         }
         self.window.request_redraw();
+    }
+
+    pub fn sync_cursor(&self) {
+        let cursor = self
+            .ui
+            .interaction
+            .hovered
+            .and_then(|h| self.ui.slots.get(h.id as usize))
+            .and_then(|s| s.as_ref())
+            .map(|s| map_cursor(&s.widget.base().cursor))
+            .unwrap_or(winit::window::CursorIcon::Default);
+        self.window.set_cursor(cursor);
     }
 
     pub fn id(&self) -> winit::window::WindowId {
