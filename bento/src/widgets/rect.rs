@@ -2,7 +2,7 @@ use crate::color::Color;
 use crate::fonts::Fonts;
 use crate::widget::{AsAny, Base, HasBase, Widget};
 use bento_derive::Widget;
-use bento_wgpu::{RectId, SceneGraph};
+use bento_wgpu::{RectId, SceneGraph, SceneNodeId, TransformId};
 
 #[derive(Widget)]
 pub struct Rect {
@@ -12,6 +12,7 @@ pub struct Rect {
     border_color: Color,
     border_widths: [f32; 4],
     rect_id: Option<RectId>,
+    transform_id: Option<TransformId>,
 }
 
 impl Rect {
@@ -23,6 +24,7 @@ impl Rect {
             border_color: Color::TRANSPARENT,
             border_widths: [0.0; 4],
             rect_id: None,
+            transform_id: None,
         }
     }
 
@@ -56,7 +58,15 @@ impl Default for Rect {
 
 impl Widget for Rect {
     fn build(&mut self, scene: &mut SceneGraph) {
+        self.transform_id = Some(scene.add_transform());
         self.rect_id = Some(scene.add_rect());
+        let t = self.transform_id.unwrap();
+        let r = self.rect_id.unwrap();
+        scene.add_child(SceneNodeId(t.0), SceneNodeId(r.0));
+    }
+
+    fn children_attachment_node(&self) -> Option<SceneNodeId> {
+        self.transform_id.map(|id| SceneNodeId(id.0))
     }
 
     fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, h: f32) {

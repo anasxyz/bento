@@ -187,14 +187,16 @@ impl SceneGraph {
         self.nodes.remove(id.0);
     }
 
+    /// traverse the scene tree, calling f for each leaf node
+    /// f receives the node, its slab index, and the accumulated traversal state
     pub fn traverse<F>(&self, node_id: SceneNodeId, state: TraversalState, f: &mut F)
     where
-        F: FnMut(&SceneNode, &TraversalState),
+        F: FnMut(&SceneNode, usize, &TraversalState),
     {
         let node = &self.nodes[node_id.0];
         match node {
             SceneNode::Rect(_) | SceneNode::Text(_) | SceneNode::Shadow(_) => {
-                f(node, &state);
+                f(node, node_id.0, &state);
             }
             SceneNode::Transform(n) => {
                 let new_state = state.add_offset(n.offset_x, n.offset_y);

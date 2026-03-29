@@ -96,9 +96,6 @@ impl Renderer {
         self.shadow_pipeline.resize(&ctx.queue, sw, sh);
         self.text_pipeline
             .resize(surface.width, surface.height, surface.scale);
-        // dont reset slots
-        // rect_pipeline.resize() already handles
-        // reuploading with new screen size via the uniform buffer
     }
 
     pub fn invalidate(&mut self, scene: &mut SceneGraph) {
@@ -138,8 +135,9 @@ impl Renderer {
         self.stats.rects_culled = 0;
         self.stats.texts_culled = 0;
 
-        // traverse
-        // collect draw calls with node indices for slot lookup
+        // traverse scene tree
+        // collect calls with their slab indices
+        // order here is guaranteed to match the order we upload below
         let mut rect_calls: Vec<RectCall> = Vec::new();
         let mut shadow_calls: Vec<ShadowCall> = Vec::new();
         let mut text_calls: Vec<TextCall> = Vec::new();
@@ -147,140 +145,148 @@ impl Renderer {
         let mut culled_texts = 0u32;
 
         let root = scene.root;
-        scene.traverse(root, TraversalState::new(), &mut |node, state| match node {
-            SceneNode::Rect(n) if n.visible => {
-                let x = n.x + state.offset_x;
-                let y = n.y + state.offset_y;
-                let in_window = x < screen_w && y < screen_h && x + n.w > 0.0 && y + n.h > 0.0;
-                let in_clip = state.clip.map_or(true, |[cx, cy, cx2, cy2]| {
-                    x < cx2 && y < cy2 && x + n.w > cx && y + n.h > cy
-                });
-                if in_window && in_clip {
-                    rect_calls.push(RectCall {
-                        node_idx: 0,
-                        x,
-                        y,
-                        w: n.w,
-                        h: n.h,
-                        color: apply_opacity(n.color, state.opacity),
-                        radius: n.radius,
-                        border_color: apply_opacity(n.border_color, state.opacity),
-                        border_widths: n.border_widths,
-                        clip: state.clip,
+        scene.traverse(
+            root,
+            TraversalState::new(),
+            &mut |node, node_idx, state| match node {
+                SceneNode::Rect(n) if n.visible => {
+                    let x = n.x + state.offset_x;
+                    let y = n.y + state.offset_y;
+                    let in_window = x < screen_w && y < screen_h && x + n.w > 0.0 && y + n.h > 0.0;
+                    let in_clip = state.clip.map_or(true, |[cx, cy, cx2, cy2]| {
+                        x < cx2 && y < cy2 && x + n.w > cx && y + n.h > cy
                     });
-                } else {
-                    culled_rects += 1;
+                    if in_window && in_clip {
+                        rect_calls.push(RectCall {
+                            node_idx,
+                            x,
+                            y,
+                            w: n.w,
+                            h: n.h,
+                            color: apply_opacity(n.color, state.opacity),
+                            radius: n.radius,
+                            border_color: apply_opacity(n.border_color, state.opacity),
+                            border_widths: n.border_widths,
+                            clip: state.clip,
+                        });
+                    } else {
+                        culled_rects += 1;
+                    }
                 }
-            }
-            SceneNode::Shadow(n) if n.visible => {
-                let x = n.x + state.offset_x;
-                let y = n.y + state.offset_y;
-                let in_window = x < screen_w && y < screen_h && x + n.w > 0.0 && y + n.h > 0.0;
-                let in_clip = state.clip.map_or(true, |[cx, cy, cx2, cy2]| {
-                    x < cx2 && y < cy2 && x + n.w > cx && y + n.h > cy
-                });
-                if in_window && in_clip {
-                    shadow_calls.push(ShadowCall {
-                        node_idx: 0,
-                        x,
-                        y,
-                        w: n.w,
-                        h: n.h,
-                        color: apply_opacity(n.color, state.opacity),
-                        blur: n.blur,
-                        radius: n.radius,
-                        offset_x: n.offset_x,
-                        offset_y: n.offset_y,
-                        clip: state.clip,
+                SceneNode::Shadow(n) if n.visible => {
+                    let x = n.x + state.offset_x;
+                    let y = n.y + state.offset_y;
+                    let in_window = x < screen_w && y < screen_h && x + n.w > 0.0 && y + n.h > 0.0;
+                    let in_clip = state.clip.map_or(true, |[cx, cy, cx2, cy2]| {
+                        x < cx2 && y < cy2 && x + n.w > cx && y + n.h > cy
                     });
+                    if in_window && in_clip {
+                        shadow_calls.push(ShadowCall {
+                            node_idx,
+                            x,
+                            y,
+                            w: n.w,
+                            h: n.h,
+                            color: apply_opacity(n.color, state.opacity),
+                            blur: n.blur,
+                            radius: n.radius,
+                            offset_x: n.offset_x,
+                            offset_y: n.offset_y,
+                            clip: state.clip,
+                        });
+                    }
                 }
-            }
-            SceneNode::Text(n) if n.visible && !n.content.is_empty() => {
-                let x = n.x + state.offset_x;
-                let y = n.y + state.offset_y;
-                let in_window =
-                    x < screen_w && y < screen_h && x + n.width > 0.0 && y + n.size * 20.0 > 0.0;
-                let in_clip = state.clip.map_or(true, |[cx, cy, cx2, cy2]| {
-                    x < cx2 && y < cy2 && x + n.width > cx && y + n.size * 20.0 > cy
-                });
-                if in_window && in_clip {
-                    text_calls.push(TextCall {
-                        x,
-                        y,
-                        content: n.content.clone(),
-                        family: n.family.clone(),
-                        size: n.size,
-                        weight: n.weight,
-                        italic: n.italic,
-                        color: apply_opacity(n.color, state.opacity),
-                        width: n.width,
-                        clip: state.clip,
+                SceneNode::Text(n) if n.visible && !n.content.is_empty() => {
+                    let x = n.x + state.offset_x;
+                    let y = n.y + state.offset_y;
+                    let in_window = x < screen_w
+                        && y < screen_h
+                        && x + n.width > 0.0
+                        && y + n.size * 20.0 > 0.0;
+                    let in_clip = state.clip.map_or(true, |[cx, cy, cx2, cy2]| {
+                        x < cx2 && y < cy2 && x + n.width > cx && y + n.size * 20.0 > cy
                     });
-                } else {
-                    culled_texts += 1;
+                    if in_window && in_clip {
+                        text_calls.push(TextCall {
+                            x,
+                            y,
+                            content: n.content.clone(),
+                            family: n.family.clone(),
+                            size: n.size,
+                            weight: n.weight,
+                            italic: n.italic,
+                            color: apply_opacity(n.color, state.opacity),
+                            width: n.width,
+                            clip: state.clip,
+                        });
+                    } else {
+                        culled_texts += 1;
+                    }
                 }
-            }
-            _ => {}
-        });
+                _ => {}
+            },
+        );
 
         self.stats.rects_culled = culled_rects;
         self.stats.texts_culled = culled_texts;
 
-        // assign slots and upload
-        // iterate nodes directly
-        let mut rect_call_idx = 0usize;
-        let mut shadow_call_idx = 0usize;
+        // assign slots and upload using the node_idx stored on each call
+        // this guarantees the call data matches the correct node
+        for c in &rect_calls {
+            let n = match &mut scene.nodes[c.node_idx] {
+                SceneNode::Rect(n) => n,
+                _ => continue,
+            };
+            if n.slot == u32::MAX {
+                n.slot = self.rect_alloc.alloc();
+            }
+            let slot = n.slot as usize;
+            self.rect_pipeline.ensure_slot(slot);
+            self.rect_pipeline.write_slot(
+                slot,
+                c.x,
+                c.y,
+                c.w,
+                c.h,
+                c.color,
+                c.radius,
+                c.border_color,
+                c.border_widths,
+                c.clip,
+                scale,
+            );
+        }
 
+        // clear slots for invisible rects
         for (_, node) in &mut scene.nodes {
-            match node {
-                SceneNode::Rect(n) => {
-                    if n.visible {
-                        if n.slot == u32::MAX {
-                            n.slot = self.rect_alloc.alloc();
-                        }
-                        let slot = n.slot as usize;
-                        self.rect_pipeline.ensure_slot(slot);
-                        if rect_call_idx < rect_calls.len() {
-                            let c = &rect_calls[rect_call_idx];
-                            self.rect_pipeline.write_slot(
-                                slot,
-                                c.x,
-                                c.y,
-                                c.w,
-                                c.h,
-                                c.color,
-                                c.radius,
-                                c.border_color,
-                                c.border_widths,
-                                c.clip,
-                                scale,
-                            );
-                            rect_call_idx += 1;
-                        }
-                    } else if n.slot != u32::MAX {
-                        self.rect_pipeline.clear_slot(n.slot as usize);
-                    }
+            if let SceneNode::Rect(n) = node {
+                if !n.visible && n.slot != u32::MAX {
+                    self.rect_pipeline.clear_slot(n.slot as usize);
                 }
-                SceneNode::Shadow(n) => {
-                    if n.visible {
-                        if n.slot == u32::MAX {
-                            n.slot = self.shadow_alloc.alloc();
-                        }
-                        let slot = n.slot as usize;
-                        self.shadow_pipeline.ensure_slot(slot);
-                        if shadow_call_idx < shadow_calls.len() {
-                            let c = &shadow_calls[shadow_call_idx];
-                            self.shadow_pipeline.write_slot(
-                                slot, c.x, c.y, c.w, c.h, c.color, c.blur, c.radius, c.offset_x,
-                                c.offset_y, scale,
-                            );
-                            shadow_call_idx += 1;
-                        }
-                    } else if n.slot != u32::MAX {
-                        self.shadow_pipeline.clear_slot(n.slot as usize);
-                    }
+            }
+        }
+
+        for c in &shadow_calls {
+            let n = match &mut scene.nodes[c.node_idx] {
+                SceneNode::Shadow(n) => n,
+                _ => continue,
+            };
+            if n.slot == u32::MAX {
+                n.slot = self.shadow_alloc.alloc();
+            }
+            let slot = n.slot as usize;
+            self.shadow_pipeline.ensure_slot(slot);
+            self.shadow_pipeline.write_slot(
+                slot, c.x, c.y, c.w, c.h, c.color, c.blur, c.radius, c.offset_x, c.offset_y, scale,
+            );
+        }
+
+        // clear slots for invisible shadows
+        for (_, node) in &mut scene.nodes {
+            if let SceneNode::Shadow(n) = node {
+                if !n.visible && n.slot != u32::MAX {
+                    self.shadow_pipeline.clear_slot(n.slot as usize);
                 }
-                _ => {}
             }
         }
 

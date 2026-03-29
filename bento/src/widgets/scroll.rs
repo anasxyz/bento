@@ -140,6 +140,7 @@ impl Widget for ScrollContainer {
     fn on_mouse_scroll(&mut self, dx: f32, dy: f32) {
         self.scroll
             .on_scroll(dx, dy, self.base.content_width, self.base.content_height);
+        self.base.render_dirty = true;
     }
 
     fn on_mouse_press(&mut self, mx: f32, my: f32, button: MouseButton) {
@@ -150,18 +151,22 @@ impl Widget for ScrollContainer {
             self.base.content_width,
             self.base.content_height,
         );
+        self.base.render_dirty = true;
     }
 
     fn on_mouse_leave(&mut self) {
         self.scroll.on_leave();
+        self.base.render_dirty = true;
     }
 
     fn on_mouse_move(&mut self, mx: f32, my: f32) {
         self.scroll
             .on_move(mx, my, self.base.content_width, self.base.content_height);
+        self.base.render_dirty = true;
     }
 
     fn on_mouse_release(&mut self, _mx: f32, _my: f32, _button: MouseButton) {
         self.scroll.on_release();
+        self.base.render_dirty = true;
     }
 }

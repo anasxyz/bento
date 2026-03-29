@@ -141,6 +141,16 @@ impl ApplicationHandler for Runner {
                     clear,
                 );
 
+                // DEBUG
+                /*
+                                println!(
+                                    "uploads: {} culled_texts: {} culled_rects: {}",
+                                    win.renderer.stats.rect_uploads,
+                                    win.renderer.stats.texts_culled,
+                                    win.renderer.stats.rects_culled
+                                );
+                */
+
                 schedule_blink(win, event_loop);
             }
 
