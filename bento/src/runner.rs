@@ -142,11 +142,15 @@ impl ApplicationHandler for Runner {
                 crate::dispatch::dispatch(&mut win.ui, &win.input);
                 win.ui.drain_events();
                 win.input.reset();
-                win.sync_cursor();
-                // only redraw if hover changed or something is being dragged
-                if win.ui.interaction.hovered != old_hovered || old_pressed.is_some() {
+                let any_dirty = win.ui.slots.iter().any(|s| {
+                    s.as_ref()
+                        .map(|s| s.widget.base().render_dirty)
+                        .unwrap_or(false)
+                });
+                if win.ui.interaction.hovered != old_hovered || any_dirty {
                     win.window.request_redraw();
                 }
+                win.sync_cursor();
             }
 
             WindowEvent::MouseInput { button, state, .. } => {

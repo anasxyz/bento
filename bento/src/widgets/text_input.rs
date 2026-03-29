@@ -324,6 +324,15 @@ impl TextInput {
         }
         p.min(self.value.len())
     }
+
+    pub fn update_cursor_x(&mut self) {
+        self.cursor_offset_x = self
+            .char_offsets
+            .iter()
+            .find(|&&(idx, _)| idx == self.cursor_pos)
+            .map(|&(_, x)| x)
+            .unwrap_or(0.0);
+    }
 }
 
 impl Default for TextInput {
@@ -354,7 +363,6 @@ impl Widget for TextInput {
     }
 
     fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, h: f32) {
-        println!("sync textinput");
         self.width = w;
         self.height = h;
 
