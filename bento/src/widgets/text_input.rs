@@ -419,7 +419,7 @@ impl Widget for TextInput {
                     .unwrap_or(0.0);
                 n.set_rect(
                     self.text_x + sel_x1,
-                    text_y - 0.0,
+                    text_y - 1.0,
                     sel_x2 - sel_x1,
                     self.font_size * 1.4,
                 );
@@ -454,7 +454,7 @@ impl Widget for TextInput {
             let n = scene.rect_mut(id);
             if self.base.focused && self.cursor_visible {
                 let cursor_x = self.text_x + self.cursor_offset_x;
-                n.set_rect(cursor_x, text_y - 0.0, 1.0, self.font_size * 1.4);
+                n.set_rect(cursor_x, text_y - 1.0, 1.0, self.font_size * 1.4);
                 n.set_color(self.cursor_color.to_array());
                 n.set_visible(true);
             } else {

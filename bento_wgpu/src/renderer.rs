@@ -141,6 +141,7 @@ impl Renderer {
         let mut rect_calls: Vec<RectCall> = Vec::new();
         let mut shadow_calls: Vec<ShadowCall> = Vec::new();
         let mut text_calls: Vec<TextCall> = Vec::new();
+        let mut culled_rect_nodes: Vec<usize> = Vec::new();
         let mut culled_rects = 0u32;
         let mut culled_texts = 0u32;
 
@@ -171,6 +172,7 @@ impl Renderer {
                         });
                     } else {
                         culled_rects += 1;
+                        culled_rect_nodes.push(node_idx);
                     }
                 }
                 SceneNode::Shadow(n) if n.visible => {
@@ -257,10 +259,17 @@ impl Renderer {
             );
         }
 
-        // clear slots for invisible rects
+        // clear slots for invisible or culled rects
         for (_, node) in &mut scene.nodes {
             if let SceneNode::Rect(n) = node {
                 if !n.visible && n.slot != u32::MAX {
+                    self.rect_pipeline.clear_slot(n.slot as usize);
+                }
+            }
+        }
+        for node_idx in culled_rect_nodes {
+            if let SceneNode::Rect(n) = &mut scene.nodes[node_idx] {
+                if n.slot != u32::MAX {
                     self.rect_pipeline.clear_slot(n.slot as usize);
                 }
             }
