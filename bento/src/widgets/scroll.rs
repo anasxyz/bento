@@ -163,7 +163,7 @@ impl Widget for ScrollContainer {
         let hover_changed =
             self.scroll
                 .on_move(mx, my, self.base.content_width, self.base.content_height);
-        if hover_changed {
+        if hover_changed || self.scroll.is_dragging() {
             self.base.render_dirty = true;
         }
     }

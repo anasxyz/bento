@@ -268,6 +268,10 @@ impl ScrollState {
         self.dragging_h = false;
     }
 
+    pub fn is_dragging(&self) -> bool {
+        self.dragging_v || self.dragging_h
+    }
+
     // sync
 
     pub fn sync(
