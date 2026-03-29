@@ -34,13 +34,13 @@ fn main() {
         .set_width(Size::Fixed(280.0))
         .set_color(Color::rgb(99, 102, 241));
 
-    ui.on_change(input, move |ui, this, e| {
+    ui.on::<TextInput, Change>(input, move |ui, _, e| {
         if let Some(lbl) = ui.get_mut(label) {
             lbl.set_text(&format!("{} chars", e.value.len()));
         }
     });
 
-    ui.on_click(btn, move |ui, this, e| {
+    ui.on::<Button, Click>(btn, move |ui, _, _| {
         if let Some(inp) = ui.get_mut(input) {
             inp.set_value("");
         }

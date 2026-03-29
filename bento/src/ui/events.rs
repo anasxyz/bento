@@ -1,151 +1,82 @@
-use crate::input::Key;
 use crate::widget::Handle;
+use std::any::Any;
 use std::collections::HashMap;
 
-// typed event structs
+// Event trait 
 
-#[derive(Clone, Debug)]
-pub struct ClickEvent {
-    pub x: f32,
-    pub y: f32,
-    pub(crate) propagation_stopped: bool,
-    pub(crate) default_stopped: bool,
+pub trait Event: Any + 'static {
+    fn stop_propagation(&mut self);
+    fn stop_default(&mut self);
+    fn is_propagation_stopped(&self) -> bool;
+    fn is_default_stopped(&self) -> bool;
+
+    /// whether this event bubbles up the tree by default
+    fn bubbles() -> bool
+    where
+        Self: Sized,
+    {
+        true
+    }
+
+    fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
-#[derive(Clone, Debug)]
-pub struct RightClickEvent {
-    pub x: f32,
-    pub y: f32,
-    pub(crate) propagation_stopped: bool,
-    pub(crate) default_stopped: bool,
-}
-
-#[derive(Clone, Debug)]
-pub struct DoubleClickEvent {
-    pub x: f32,
-    pub y: f32,
-    pub(crate) propagation_stopped: bool,
-    pub(crate) default_stopped: bool,
-}
-
-#[derive(Clone, Debug)]
-pub struct PressEvent {
-    pub x: f32,
-    pub y: f32,
-    pub(crate) propagation_stopped: bool,
-    pub(crate) default_stopped: bool,
-}
-
-#[derive(Clone, Debug)]
-pub struct ReleaseEvent {
-    pub x: f32,
-    pub y: f32,
-    pub(crate) propagation_stopped: bool,
-    pub(crate) default_stopped: bool,
-}
-
-#[derive(Clone, Debug)]
-pub struct MouseMoveEvent {
-    pub x: f32,
-    pub y: f32,
-    pub(crate) propagation_stopped: bool,
-    pub(crate) default_stopped: bool,
-}
-
-#[derive(Clone, Debug)]
-pub struct ScrollEvent {
-    pub x: f32,
-    pub y: f32,
-    pub(crate) propagation_stopped: bool,
-    pub(crate) default_stopped: bool,
-}
-
-#[derive(Clone, Debug)]
-pub struct HoverEvent {
-    pub(crate) propagation_stopped: bool,
-    pub(crate) default_stopped: bool,
-}
-
-#[derive(Clone, Debug)]
-pub struct HoverEndEvent {
-    pub(crate) propagation_stopped: bool,
-    pub(crate) default_stopped: bool,
-}
-
-#[derive(Clone, Debug)]
-pub struct FocusEvent {
-    pub(crate) propagation_stopped: bool,
-    pub(crate) default_stopped: bool,
-}
-
-#[derive(Clone, Debug)]
-pub struct BlurEvent {
-    pub(crate) propagation_stopped: bool,
-    pub(crate) default_stopped: bool,
-}
-
-#[derive(Clone, Debug)]
-pub struct KeyPressEvent {
-    pub key: Key,
-    pub text: Option<char>,
-    pub modifiers: crate::input::Modifiers,
-    pub(crate) propagation_stopped: bool,
-    pub(crate) default_stopped: bool,
-}
-
-#[derive(Clone, Debug)]
-pub struct KeyReleaseEvent {
-    pub key: Key,
-    pub(crate) propagation_stopped: bool,
-    pub(crate) default_stopped: bool,
-}
-
-#[derive(Clone, Debug)]
-pub struct ChangeEvent {
-    pub value: String,
-    pub(crate) propagation_stopped: bool,
-    pub(crate) default_stopped: bool,
-}
-
-// propagation control — implemented on all event structs via macro
-
+/// macro to implement Event on a struct that has propagation_stopped and default_stopped fields
 macro_rules! impl_event {
     ($t:ty) => {
-        impl $t {
-            pub fn stop_propagation(&mut self) {
+        impl Event for $t {
+            fn stop_propagation(&mut self) {
                 self.propagation_stopped = true;
             }
-            pub fn stop_default(&mut self) {
+            fn stop_default(&mut self) {
                 self.default_stopped = true;
             }
-            pub fn is_propagation_stopped(&self) -> bool {
+            fn is_propagation_stopped(&self) -> bool {
                 self.propagation_stopped
             }
-            pub fn is_default_stopped(&self) -> bool {
+            fn is_default_stopped(&self) -> bool {
                 self.default_stopped
+            }
+            fn as_any(&self) -> &dyn Any {
+                self
+            }
+            fn as_any_mut(&mut self) -> &mut dyn Any {
+                self
             }
         }
     };
 }
 
-impl_event!(ClickEvent);
-impl_event!(RightClickEvent);
-impl_event!(DoubleClickEvent);
-impl_event!(PressEvent);
-impl_event!(ReleaseEvent);
-impl_event!(MouseMoveEvent);
-impl_event!(ScrollEvent);
-impl_event!(HoverEvent);
-impl_event!(HoverEndEvent);
-impl_event!(FocusEvent);
-impl_event!(BlurEvent);
-impl_event!(KeyPressEvent);
-impl_event!(KeyReleaseEvent);
-impl_event!(ChangeEvent);
+// built in event types 
 
-// constructors
+#[derive(Clone, Debug)]
+pub struct Click {
+    pub x: f32,
+    pub y: f32,
+    propagation_stopped: bool,
+    default_stopped: bool,
+}
+impl Click {
+    pub fn new(x: f32, y: f32) -> Self {
+        Self {
+            x,
+            y,
+            propagation_stopped: false,
+            default_stopped: false,
+        }
+    }
+}
+impl_event!(Click);
 
-impl ClickEvent {
+#[derive(Clone, Debug)]
+pub struct RightClick {
+    pub x: f32,
+    pub y: f32,
+    propagation_stopped: bool,
+    default_stopped: bool,
+}
+impl RightClick {
     pub fn new(x: f32, y: f32) -> Self {
         Self {
             x,
@@ -155,7 +86,16 @@ impl ClickEvent {
         }
     }
 }
-impl RightClickEvent {
+impl_event!(RightClick);
+
+#[derive(Clone, Debug)]
+pub struct DoubleClick {
+    pub x: f32,
+    pub y: f32,
+    propagation_stopped: bool,
+    default_stopped: bool,
+}
+impl DoubleClick {
     pub fn new(x: f32, y: f32) -> Self {
         Self {
             x,
@@ -165,7 +105,16 @@ impl RightClickEvent {
         }
     }
 }
-impl DoubleClickEvent {
+impl_event!(DoubleClick);
+
+#[derive(Clone, Debug)]
+pub struct Press {
+    pub x: f32,
+    pub y: f32,
+    propagation_stopped: bool,
+    default_stopped: bool,
+}
+impl Press {
     pub fn new(x: f32, y: f32) -> Self {
         Self {
             x,
@@ -175,7 +124,16 @@ impl DoubleClickEvent {
         }
     }
 }
-impl PressEvent {
+impl_event!(Press);
+
+#[derive(Clone, Debug)]
+pub struct Release {
+    pub x: f32,
+    pub y: f32,
+    propagation_stopped: bool,
+    default_stopped: bool,
+}
+impl Release {
     pub fn new(x: f32, y: f32) -> Self {
         Self {
             x,
@@ -185,7 +143,16 @@ impl PressEvent {
         }
     }
 }
-impl ReleaseEvent {
+impl_event!(Release);
+
+#[derive(Clone, Debug)]
+pub struct MouseMove {
+    pub x: f32,
+    pub y: f32,
+    propagation_stopped: bool,
+    default_stopped: bool,
+}
+impl MouseMove {
     pub fn new(x: f32, y: f32) -> Self {
         Self {
             x,
@@ -195,7 +162,16 @@ impl ReleaseEvent {
         }
     }
 }
-impl MouseMoveEvent {
+impl_event!(MouseMove);
+
+#[derive(Clone, Debug)]
+pub struct Scroll {
+    pub x: f32,
+    pub y: f32,
+    propagation_stopped: bool,
+    default_stopped: bool,
+}
+impl Scroll {
     pub fn new(x: f32, y: f32) -> Self {
         Self {
             x,
@@ -205,17 +181,14 @@ impl MouseMoveEvent {
         }
     }
 }
-impl ScrollEvent {
-    pub fn new(x: f32, y: f32) -> Self {
-        Self {
-            x,
-            y,
-            propagation_stopped: false,
-            default_stopped: false,
-        }
-    }
+impl_event!(Scroll);
+
+#[derive(Clone, Debug)]
+pub struct Hover {
+    propagation_stopped: bool,
+    default_stopped: bool,
 }
-impl HoverEvent {
+impl Hover {
     pub fn new() -> Self {
         Self {
             propagation_stopped: false,
@@ -223,7 +196,14 @@ impl HoverEvent {
         }
     }
 }
-impl HoverEndEvent {
+impl_event!(Hover);
+
+#[derive(Clone, Debug)]
+pub struct HoverEnd {
+    propagation_stopped: bool,
+    default_stopped: bool,
+}
+impl HoverEnd {
     pub fn new() -> Self {
         Self {
             propagation_stopped: false,
@@ -231,7 +211,14 @@ impl HoverEndEvent {
         }
     }
 }
-impl FocusEvent {
+impl_event!(HoverEnd);
+
+#[derive(Clone, Debug)]
+pub struct Focus {
+    propagation_stopped: bool,
+    default_stopped: bool,
+}
+impl Focus {
     pub fn new() -> Self {
         Self {
             propagation_stopped: false,
@@ -239,7 +226,14 @@ impl FocusEvent {
         }
     }
 }
-impl BlurEvent {
+impl_event!(Focus);
+
+#[derive(Clone, Debug)]
+pub struct Blur {
+    propagation_stopped: bool,
+    default_stopped: bool,
+}
+impl Blur {
     pub fn new() -> Self {
         Self {
             propagation_stopped: false,
@@ -247,8 +241,22 @@ impl BlurEvent {
         }
     }
 }
-impl KeyPressEvent {
-    pub fn new(key: Key, text: Option<char>, modifiers: crate::input::Modifiers) -> Self {
+impl_event!(Blur);
+
+#[derive(Clone, Debug)]
+pub struct KeyPress {
+    pub key: crate::input::Key,
+    pub text: Option<char>,
+    pub modifiers: crate::input::Modifiers,
+    propagation_stopped: bool,
+    default_stopped: bool,
+}
+impl KeyPress {
+    pub fn new(
+        key: crate::input::Key,
+        text: Option<char>,
+        modifiers: crate::input::Modifiers,
+    ) -> Self {
         Self {
             key,
             text,
@@ -258,8 +266,16 @@ impl KeyPressEvent {
         }
     }
 }
-impl KeyReleaseEvent {
-    pub fn new(key: Key) -> Self {
+impl_event!(KeyPress);
+
+#[derive(Clone, Debug)]
+pub struct KeyRelease {
+    pub key: crate::input::Key,
+    propagation_stopped: bool,
+    default_stopped: bool,
+}
+impl KeyRelease {
+    pub fn new(key: crate::input::Key) -> Self {
         Self {
             key,
             propagation_stopped: false,
@@ -267,7 +283,15 @@ impl KeyReleaseEvent {
         }
     }
 }
-impl ChangeEvent {
+impl_event!(KeyRelease);
+
+#[derive(Clone, Debug)]
+pub struct Change {
+    pub value: String,
+    propagation_stopped: bool,
+    default_stopped: bool,
+}
+impl Change {
     pub fn new(value: String) -> Self {
         Self {
             value,
@@ -276,34 +300,16 @@ impl ChangeEvent {
         }
     }
 }
+impl_event!(Change);
 
-// the raw Event enum kept for internal use and connect() 
+// connection storage 
 
-#[derive(Clone, Debug)]
-pub enum Event {
-    Click(ClickEvent),
-    RightClick(RightClickEvent),
-    DoubleClick(DoubleClickEvent),
-    Press(PressEvent),
-    Release(ReleaseEvent),
-    MouseMove(MouseMoveEvent),
-    Scroll(ScrollEvent),
-    Hover(HoverEvent),
-    HoverEnd(HoverEndEvent),
-    Focus(FocusEvent),
-    Blur(BlurEvent),
-    KeyPress(KeyPressEvent),
-    KeyRelease(KeyReleaseEvent),
-    Change(ChangeEvent),
-    Custom(u32),
-}
-
-pub struct Connection {
+pub(crate) struct Connection {
     pub id: u32,
-    pub callback: Box<dyn FnMut(&mut super::Ui, &mut Event)>,
+    pub callback: Box<dyn FnMut(&mut super::Ui, &mut dyn Event)>,
 }
 
-pub struct ConnectionList {
+pub(crate) struct ConnectionList {
     pub external: Vec<Connection>,
     pub internal: Vec<Connection>,
 }
@@ -315,15 +321,23 @@ impl ConnectionList {
             internal: Vec::new(),
         }
     }
-
-    fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.external.is_empty() && self.internal.is_empty()
     }
 }
 
+// event queue 
+
+pub(crate) struct QueuedEvent {
+    pub handle: Handle<()>,
+    pub event: Box<dyn Event>,
+}
+
+// event system 
+
 pub struct EventSystem {
     pub(crate) connections: HashMap<Handle<()>, ConnectionList>,
-    pub(crate) event_queue: Vec<(Handle<()>, Event)>,
+    pub(crate) event_queue: Vec<QueuedEvent>,
     pub(crate) next_connection_id: u32,
 }
 
@@ -336,10 +350,10 @@ impl EventSystem {
         }
     }
 
-    pub fn connect_external<T>(
+    pub(crate) fn connect_external<T>(
         &mut self,
         handle: Handle<T>,
-        callback: impl FnMut(&mut super::Ui, &mut Event) + 'static,
+        callback: impl FnMut(&mut super::Ui, &mut dyn Event) + 'static,
     ) -> u32 {
         let id = self.next_connection_id;
         self.next_connection_id += 1;
@@ -354,10 +368,10 @@ impl EventSystem {
         id
     }
 
-    pub fn connect_internal<T>(
+    pub(crate) fn connect_internal<T>(
         &mut self,
         handle: Handle<T>,
-        callback: impl FnMut(&mut super::Ui, &mut Event) + 'static,
+        callback: impl FnMut(&mut super::Ui, &mut dyn Event) + 'static,
     ) -> u32 {
         let id = self.next_connection_id;
         self.next_connection_id += 1;
@@ -386,7 +400,10 @@ impl EventSystem {
             .unwrap_or(false)
     }
 
-    pub fn emit<T>(&mut self, handle: Handle<T>, event: Event) {
-        self.event_queue.push((handle.untyped(), event));
+    pub fn emit<E: Event>(&mut self, handle: Handle<()>, event: E) {
+        self.event_queue.push(QueuedEvent {
+            handle,
+            event: Box::new(event),
+        });
     }
 }

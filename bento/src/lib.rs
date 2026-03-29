@@ -26,9 +26,8 @@ pub use layout::{
 };
 pub use settings::WindowConfig;
 pub use ui::{
-    BlurEvent, ChangeEvent, ClickEvent, DoubleClickEvent, Event, FocusEvent, HoverEndEvent,
-    HoverEvent, KeyPressEvent, KeyReleaseEvent, MouseMoveEvent, PressEvent, ReleaseEvent,
-    RightClickEvent, ScrollEvent, Ui,
+    Blur, Change, Click, DoubleClick, Event, Focus, Hover, HoverEnd, KeyPress, KeyRelease,
+    MouseMove, Press, Release, RightClick, Scroll, Ui,
 };
 pub use widget::{AnyWidget, AsAny, Base, Handle, HasBase, LayoutExt, Widget};
 pub use widgets::{Button, Label, Rect, ScrollContainer, TextInput};

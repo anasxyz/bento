@@ -134,7 +134,7 @@ impl Ui {
 
         self.layout.remove(handle);
         self.events.connections.remove(&handle);
-        self.events.event_queue.retain(|(h, _)| *h != handle);
+        self.events.event_queue.retain(|q| q.handle != handle);
 
         if self.interaction.hovered == Some(handle) {
             self.interaction.hovered = None;

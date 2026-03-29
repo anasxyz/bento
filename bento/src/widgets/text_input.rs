@@ -1,7 +1,7 @@
 use crate::color::Color;
 use crate::fonts::{FontAttrs, Fonts};
 use crate::input::{Cursor, Key, Modifiers};
-use crate::ui::{ChangeEvent, Event, Ui};
+use crate::ui::{Blur, Change, Focus, Hover, HoverEnd, KeyPress, MouseMove, Press, Release, Ui};
 use crate::widget::{AsAny, Base, Handle, HasBase, Widget};
 use bento_derive::Widget;
 use bento_wgpu::{ClipId, RectId, SceneGraph, SceneNodeId, TextId, TransformId};
@@ -503,13 +503,13 @@ impl Widget for TextInput {
     fn register(&mut self, handle: Handle<()>, ui: &mut Ui) {
         let h = Handle::<TextInput>::new(handle.id, handle.generation);
 
-        ui.on_hover(h, |ui, this, e| {
+        ui.on::<TextInput, Hover>(h, |ui, this, e| {
             this.set_border_color(Color::rgb(230, 230, 230));
             this.base.cursor = Cursor::Text;
             this.base.render_dirty = true;
         });
 
-        ui.on_hover_end(h, |ui, this, e| {
+        ui.on::<TextInput, HoverEnd>(h, |ui, this, e| {
             if !this.base.focused {
                 this.set_border_color(Color::rgb(80, 80, 80));
             }
@@ -517,14 +517,14 @@ impl Widget for TextInput {
             this.base.render_dirty = true;
         });
 
-        ui.on_focus(h, |ui, this, e| {
+        ui.on::<TextInput, Focus>(h, |ui, this, e| {
             this.base.focused = true;
             this.cursor_visible = true;
             this.set_border_color(Color::rgb(230, 230, 230));
             this.base.render_dirty = true;
         });
 
-        ui.on_blur(h, |ui, this, e| {
+        ui.on::<TextInput, Blur>(h, |ui, this, e| {
             this.base.focused = false;
             this.selecting = false;
             this.click_count = 0;
@@ -533,16 +533,16 @@ impl Widget for TextInput {
             this.base.render_dirty = true;
         });
 
-        ui.on_press(h, |ui, this, e| {
+        ui.on::<TextInput, Press>(h, |ui, this, e| {
             this.handle_press(e.x);
         });
 
-        ui.on_release(h, |ui, this, e| {
+        ui.on::<TextInput, Release>(h, |ui, this, e| {
             this.selecting = false;
             this.cursor_visible = true;
         });
 
-        ui.on_mouse_move(h, |ui, this, e| {
+        ui.on::<TextInput, MouseMove>(h, |ui, this, e| {
             if !this.selecting {
                 return;
             }
@@ -553,7 +553,7 @@ impl Widget for TextInput {
             this.base.render_dirty = true;
         });
 
-        ui.on_key_press(h, move |ui, this, e| {
+        ui.on::<TextInput, KeyPress>(h, move |ui, this, e| {
             if !this.base.focused {
                 return;
             }
@@ -564,7 +564,7 @@ impl Widget for TextInput {
             this.handle_key(key, &mods, text);
             if this.value != value_before {
                 let change_value = this.value.clone();
-                ui.emit(handle, Event::Change(ChangeEvent::new(change_value)));
+                ui.emit(handle, Change::new(change_value));
             }
         });
     }

@@ -1,13 +1,10 @@
 use crate::input::InputState;
 use crate::ui::Ui;
 use crate::ui::{
-    BlurEvent, ClickEvent, DoubleClickEvent, Event, FocusEvent, HoverEndEvent, HoverEvent,
-    KeyPressEvent, KeyReleaseEvent, MouseMoveEvent, PressEvent, ReleaseEvent, RightClickEvent,
-    ScrollEvent,
+    Blur, Click, DoubleClick, Focus, Hover, HoverEnd, KeyPress, KeyRelease, MouseMove, Press,
+    Release, RightClick, Scroll,
 };
 use crate::widget::Handle;
-
-// hit testing
 
 fn hit_chain(ui: &Ui, handle: Handle<()>, mx: f32, my: f32, chain: &mut Vec<Handle<()>>) {
     let Some(rect) = ui.layout.get_rect(handle) else {
@@ -35,11 +32,6 @@ fn top_hit(ui: &Ui, chain: &[Handle<()>]) -> Option<Handle<()>> {
     chain.last().copied()
 }
 
-// main dispatch
-// no longer calls hardcoded widget methods
-// just emits typed events into the queue
-// connections (internal and external) handle everything
-
 pub fn dispatch(ui: &mut Ui, input: &InputState) {
     let Some(root) = ui.root() else { return };
 
@@ -56,12 +48,12 @@ pub fn dispatch(ui: &mut Ui, input: &InputState) {
     {
         if let Some(pressed) = ui.interaction.pressed {
             if !chain.contains(&pressed) {
-                ui.emit(pressed, Event::MouseMove(MouseMoveEvent::new(mx, my)));
+                ui.emit(pressed, MouseMove::new(mx, my));
             }
         }
         match new_hovered {
-            Some(h) => ui.emit_bubbling(h, Event::MouseMove(MouseMoveEvent::new(mx, my))),
-            None => ui.emit(global, Event::MouseMove(MouseMoveEvent::new(mx, my))),
+            Some(h) => ui.emit_bubbling(h, MouseMove::new(mx, my)),
+            None => ui.emit(global, MouseMove::new(mx, my)),
         }
     }
 
@@ -69,10 +61,10 @@ pub fn dispatch(ui: &mut Ui, input: &InputState) {
     let prev_hovered = ui.interaction.hovered;
     if prev_hovered != new_hovered {
         if let Some(prev) = prev_hovered {
-            ui.emit_bubbling(prev, Event::HoverEnd(HoverEndEvent::new()));
+            ui.emit_bubbling(prev, HoverEnd::new());
         }
         if let Some(next) = new_hovered {
-            ui.emit_bubbling(next, Event::Hover(HoverEvent::new()));
+            ui.emit_bubbling(next, Hover::new());
         }
         ui.interaction.hovered = new_hovered;
     }
@@ -82,8 +74,8 @@ pub fn dispatch(ui: &mut Ui, input: &InputState) {
         let dx = input.mouse.scroll_x;
         let dy = input.mouse.scroll_y;
         match new_hovered {
-            Some(h) => ui.emit_bubbling(h, Event::Scroll(ScrollEvent::new(dx, dy))),
-            None => ui.emit(global, Event::Scroll(ScrollEvent::new(dx, dy))),
+            Some(h) => ui.emit_bubbling(h, Scroll::new(dx, dy)),
+            None => ui.emit(global, Scroll::new(dx, dy)),
         }
     }
 
@@ -94,23 +86,23 @@ pub fn dispatch(ui: &mut Ui, input: &InputState) {
 
         if input.mouse.left.just_double_clicked {
             if let Some(target) = ui.interaction.pressed {
-                ui.emit_bubbling(target, Event::DoubleClick(DoubleClickEvent::new(lx, ly)));
+                ui.emit_bubbling(target, DoubleClick::new(lx, ly));
             }
         }
 
         match new_hovered {
-            Some(h) => ui.emit_bubbling(h, Event::Press(PressEvent::new(lx, ly))),
-            None => ui.emit(global, Event::Press(PressEvent::new(lx, ly))),
+            Some(h) => ui.emit_bubbling(h, Press::new(lx, ly)),
+            None => ui.emit(global, Press::new(lx, ly)),
         }
 
         // focus
         let new_focused = new_hovered;
         if ui.interaction.focused != new_focused {
             if let Some(prev) = ui.interaction.focused {
-                ui.emit_bubbling(prev, Event::Blur(BlurEvent::new()));
+                ui.emit_bubbling(prev, Blur::new());
             }
             if let Some(next) = new_focused {
-                ui.emit_bubbling(next, Event::Focus(FocusEvent::new()));
+                ui.emit_bubbling(next, Focus::new());
             }
             ui.interaction.focused = new_focused;
         }
@@ -123,13 +115,13 @@ pub fn dispatch(ui: &mut Ui, input: &InputState) {
 
         if let Some(p) = pressed {
             if new_hovered == Some(p) {
-                ui.emit_bubbling(p, Event::Click(ClickEvent::new(lx, ly)));
+                ui.emit_bubbling(p, Click::new(lx, ly));
             }
         }
 
         match new_hovered {
-            Some(h) => ui.emit_bubbling(h, Event::Release(ReleaseEvent::new(lx, ly))),
-            None => ui.emit(global, Event::Release(ReleaseEvent::new(lx, ly))),
+            Some(h) => ui.emit_bubbling(h, Release::new(lx, ly)),
+            None => ui.emit(global, Release::new(lx, ly)),
         }
 
         ui.interaction.pressed = None;
@@ -139,30 +131,26 @@ pub fn dispatch(ui: &mut Ui, input: &InputState) {
     if input.mouse.right.just_pressed {
         let (rx, ry) = (input.mouse.right.click_x, input.mouse.right.click_y);
         match new_hovered {
-            Some(h) => ui.emit_bubbling(h, Event::Press(PressEvent::new(rx, ry))),
-            None => ui.emit(global, Event::Press(PressEvent::new(rx, ry))),
+            Some(h) => ui.emit_bubbling(h, Press::new(rx, ry)),
+            None => ui.emit(global, Press::new(rx, ry)),
         }
     }
 
     if input.mouse.right.just_released {
         let (rx, ry) = (input.mouse.right.click_x, input.mouse.right.click_y);
         if let Some(h) = new_hovered {
-            ui.emit_bubbling(h, Event::RightClick(RightClickEvent::new(rx, ry)));
+            ui.emit_bubbling(h, RightClick::new(rx, ry));
         }
     }
 
     // keyboard
-    // routed to focused widget
     if let Some(focused) = ui.interaction.focused {
         let mods = input.keyboard.modifiers.clone();
         for (key, text) in input.keyboard.just_pressed().to_vec() {
-            ui.emit_bubbling(
-                focused,
-                Event::KeyPress(KeyPressEvent::new(key, text, mods.clone())),
-            );
+            ui.emit_bubbling(focused, KeyPress::new(key, text, mods.clone()));
         }
         for key in input.keyboard.just_released().to_vec() {
-            ui.emit_bubbling(focused, Event::KeyRelease(KeyReleaseEvent::new(key)));
+            ui.emit_bubbling(focused, KeyRelease::new(key));
         }
     }
 }

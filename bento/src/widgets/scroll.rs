@@ -1,6 +1,6 @@
 use super::scroll_state::ScrollState;
 use crate::color::Color;
-use crate::ui::Ui;
+use crate::ui::{HoverEnd, MouseMove, Press, Release, Scroll, Ui};
 use crate::widget::{AsAny, Base, Handle, HasBase, Widget};
 use bento_derive::Widget;
 use bento_wgpu::{ClipId, RectId, SceneGraph, SceneNodeId, TransformId};
@@ -107,13 +107,13 @@ impl Widget for ScrollContainer {
     fn register(&mut self, handle: Handle<()>, ui: &mut Ui) {
         let h = Handle::<ScrollContainer>::new(handle.id, handle.generation);
 
-        ui.on_scroll(h, |ui, this, e| {
+        ui.on::<ScrollContainer, Scroll>(h, |ui, this, e| {
             this.scroll
                 .on_scroll(e.x, e.y, this.base.content_width, this.base.content_height);
             this.base.render_dirty = true;
         });
 
-        ui.on_press(h, |ui, this, e| {
+        ui.on::<ScrollContainer, Press>(h, |ui, this, e| {
             this.scroll.on_press(
                 e.x,
                 e.y,
@@ -124,17 +124,17 @@ impl Widget for ScrollContainer {
             this.base.render_dirty = true;
         });
 
-        ui.on_release(h, |ui, this, e| {
+        ui.on::<ScrollContainer, Release>(h, |ui, this, e| {
             this.scroll.on_release();
             this.base.render_dirty = true;
         });
 
-        ui.on_hover_end(h, |ui, this, e| {
+        ui.on::<ScrollContainer, HoverEnd>(h, |ui, this, e| {
             this.scroll.on_leave();
             this.base.render_dirty = true;
         });
 
-        ui.on_mouse_move(h, |ui, this, e| {
+        ui.on::<ScrollContainer, MouseMove>(h, |ui, this, e| {
             let hover_changed =
                 this.scroll
                     .on_move(e.x, e.y, this.base.content_width, this.base.content_height);

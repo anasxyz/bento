@@ -1,6 +1,6 @@
 use crate::color::Color;
 use crate::fonts::{FontAttrs, Fonts};
-use crate::ui::{ChangeEvent, Event, Ui};
+use crate::ui::{Hover, HoverEnd, Press, Release, Ui};
 use crate::widget::{AsAny, Base, Handle, HasBase, Widget};
 use bento_derive::Widget;
 use bento_wgpu::{RectId, SceneGraph, SceneNodeId, TextId, TransformId};
@@ -187,7 +187,7 @@ impl Widget for Button {
     fn register(&mut self, handle: Handle<()>, ui: &mut Ui) {
         let h = Handle::<Button>::new(handle.id, handle.generation);
 
-        ui.on_hover(h, |ui, this, e| {
+        ui.on::<Button, Hover>(h, |ui, this, e| {
             if this.disabled {
                 return;
             }
@@ -196,14 +196,14 @@ impl Widget for Button {
             this.base.render_dirty = true;
         });
 
-        ui.on_hover_end(h, |ui, this, e| {
+        ui.on::<Button, HoverEnd>(h, |ui, this, e| {
             this.hovered = false;
             this.pressed = false;
             this.base.cursor = crate::input::Cursor::Default;
             this.base.render_dirty = true;
         });
 
-        ui.on_press(h, |ui, this, e| {
+        ui.on::<Button, Press>(h, |ui, this, e| {
             if this.disabled {
                 return;
             }
@@ -211,7 +211,7 @@ impl Widget for Button {
             this.base.render_dirty = true;
         });
 
-        ui.on_release(h, |ui, this, e| {
+        ui.on::<Button, Release>(h, |ui, this, e| {
             this.pressed = false;
             this.base.render_dirty = true;
         });
