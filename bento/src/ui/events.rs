@@ -48,7 +48,7 @@ macro_rules! impl_event {
     };
 }
 
-// built in event types 
+// builtin event types 
 
 #[derive(Clone, Debug)]
 pub struct Click {
@@ -331,6 +331,7 @@ impl ConnectionList {
 pub(crate) struct QueuedEvent {
     pub handle: Handle<()>,
     pub event: Box<dyn Event>,
+    pub remaining_chain: Vec<Handle<()>>,
 }
 
 // event system 
@@ -404,6 +405,20 @@ impl EventSystem {
         self.event_queue.push(QueuedEvent {
             handle,
             event: Box::new(event),
+            remaining_chain: Vec::new(),
+        });
+    }
+
+    pub fn emit_bubbling<E: Event>(&mut self, event: E, chain: Vec<Handle<()>>) {
+        if chain.is_empty() {
+            return;
+        }
+        let mut remaining = chain;
+        let first = remaining.remove(0);
+        self.event_queue.push(QueuedEvent {
+            handle: first,
+            event: Box::new(event),
+            remaining_chain: remaining,
         });
     }
 }

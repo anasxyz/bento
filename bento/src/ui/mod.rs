@@ -139,7 +139,7 @@ impl Ui {
         self.events.emit(handle.untyped(), event);
     }
 
-    pub fn emit_bubbling<T, E: Event + Clone>(&mut self, handle: Handle<T>, event: E) {
+    pub fn emit_bubbling<T, E: Event>(&mut self, handle: Handle<T>, event: E) {
         let global = self.global();
         let handle = handle.untyped();
         let mut chain = vec![handle];
@@ -149,14 +149,7 @@ impl Ui {
             current = self.parent(p);
         }
         chain.push(global);
-        for (i, ancestor) in chain.iter().enumerate() {
-            // clone for all but last
-            if i < chain.len() - 1 {
-                self.events.emit(*ancestor, event.clone());
-            } else {
-                self.events.emit(*ancestor, event.clone());
-            }
-        }
+        self.events.emit_bubbling(event, chain);
     }
 
     // drain 
@@ -169,6 +162,15 @@ impl Ui {
                 let event = &mut *queued.event;
 
                 let Some(mut list) = self.events.connections.remove(&handle) else {
+                    // no connections here but still need to bubble
+                    if !event.is_propagation_stopped() && !queued.remaining_chain.is_empty() {
+                        let next = queued.remaining_chain.remove(0);
+                        self.events.event_queue.push(events::QueuedEvent {
+                            handle: next,
+                            event: queued.event,
+                            remaining_chain: queued.remaining_chain,
+                        });
+                    }
                     continue;
                 };
 
@@ -199,6 +201,16 @@ impl Ui {
                 let new_list = std::mem::replace(entry, list);
                 entry.external.extend(new_list.external);
                 entry.internal.extend(new_list.internal);
+
+                // continue bubbling to next ancestor if propagation not stopped
+                if !queued.event.is_propagation_stopped() && !queued.remaining_chain.is_empty() {
+                    let next = queued.remaining_chain.remove(0);
+                    self.events.event_queue.push(events::QueuedEvent {
+                        handle: next,
+                        event: queued.event,
+                        remaining_chain: queued.remaining_chain,
+                    });
+                }
             }
         }
     }
