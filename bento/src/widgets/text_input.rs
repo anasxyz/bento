@@ -419,7 +419,7 @@ impl Widget for TextInput {
                     .unwrap_or(0.0);
                 n.set_rect(
                     self.text_x + sel_x1,
-                    text_y - 1.0,
+                    text_y - 0.0,
                     sel_x2 - sel_x1,
                     self.font_size * 1.4,
                 );
@@ -553,11 +553,13 @@ impl Widget for TextInput {
         let x_in_text = mx - self.text_x + self.scroll_x;
         self.cursor_pos = self.x_to_cursor(x_in_text);
         self.update_selection();
+        self.cursor_visible = true;
         self.base.render_dirty = true;
     }
 
     fn on_mouse_release(&mut self, _mx: f32, _my: f32, _button: MouseButton) {
         self.selecting = false;
+        self.cursor_visible = true;
     }
 
     fn on_key_press(&mut self, key: Key, mods: Modifiers, text: Option<char>) {

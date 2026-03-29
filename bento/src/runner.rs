@@ -17,6 +17,42 @@ use crate::settings::WindowConfig;
 use crate::ui::Ui;
 use crate::window::BentoWindow;
 
+const BLINK_MS: u64 = 500;
+
+fn schedule_blink(win: &mut BentoWindow, event_loop: &ActiveEventLoop) {
+    if win.ui.has_focused_text_input() {
+        if win.blink_deadline.is_none() {
+            win.blink_deadline = Some(Instant::now() + Duration::from_millis(BLINK_MS));
+        }
+        event_loop.set_control_flow(ControlFlow::WaitUntil(win.blink_deadline.unwrap()));
+    } else {
+        win.blink_deadline = None;
+        event_loop.set_control_flow(ControlFlow::Wait);
+    }
+}
+
+fn reset_blink(win: &mut BentoWindow) {
+    win.blink_deadline = Some(Instant::now() + Duration::from_millis(BLINK_MS));
+}
+
+fn stop_blink(win: &mut BentoWindow) {
+    win.blink_deadline = None;
+}
+
+fn tick_blink(win: &mut BentoWindow, event_loop: &ActiveEventLoop, now: Instant) {
+    if let Some(deadline) = win.blink_deadline {
+        if now >= deadline {
+            win.ui.toggle_cursor_blink();
+            win.window.request_redraw();
+            let next = Instant::now() + Duration::from_millis(BLINK_MS);
+            win.blink_deadline = Some(next);
+            event_loop.set_control_flow(ControlFlow::WaitUntil(next));
+        }
+    }
+}
+
+// runner
+
 pub struct Runner {
     pub ctx: RenderContext,
     pub fonts: Fonts,
@@ -97,10 +133,6 @@ impl ApplicationHandler for Runner {
                 win.ui.update(&mut self.fonts);
 
                 let clear = win.config.clear_color.to_array();
-
-                // DEBUG
-                // println!("nodes: {}", win.ui.scene.nodes.len());
-
                 win.renderer.render(
                     &mut self.ctx,
                     &mut self.fonts.font_system,
@@ -109,27 +141,7 @@ impl ApplicationHandler for Runner {
                     clear,
                 );
 
-                // DEBUG
-                /*
-                println!(
-                    "uploads: {} culled_texts: {} culled_rects: {}",
-                    win.renderer.stats.rect_uploads,
-                    win.renderer.stats.texts_culled,
-                    win.renderer.stats.rects_culled
-                );
-                */
-
-                // schedule cursor blink
-                if win.ui.has_focused_text_input() {
-                    if win.blink_deadline.is_none() {
-                        win.blink_deadline = Some(Instant::now() + Duration::from_millis(500));
-                    }
-                    event_loop
-                        .set_control_flow(ControlFlow::WaitUntil(win.blink_deadline.unwrap()));
-                } else {
-                    win.blink_deadline = None;
-                    event_loop.set_control_flow(ControlFlow::Wait);
-                }
+                schedule_blink(win, event_loop);
             }
 
             WindowEvent::CursorMoved { position, .. } => {
@@ -138,8 +150,10 @@ impl ApplicationHandler for Runner {
                     .mouse
                     .on_move(position.x as f32 / scale, position.y as f32 / scale);
                 let old_hovered = win.ui.interaction.hovered;
-                let old_pressed = win.ui.interaction.pressed;
                 crate::dispatch::dispatch(&mut win.ui, &win.input);
+                if win.ui.interaction.pressed.is_some() {
+                    reset_blink(win);
+                }
                 win.ui.drain_events();
                 win.input.reset();
                 let any_dirty = win.ui.slots.iter().any(|s| {
@@ -165,6 +179,9 @@ impl ApplicationHandler for Runner {
                     ElementState::Released => win.input.mouse.on_release(&btn),
                 }
                 crate::dispatch::dispatch(&mut win.ui, &win.input);
+                if win.ui.interaction.pressed.is_some() {
+                    reset_blink(win);
+                }
                 win.ui.drain_events();
                 win.input.reset();
                 win.sync_cursor();
@@ -200,8 +217,7 @@ impl ApplicationHandler for Runner {
                 win.ui.drain_events();
                 win.input.reset();
                 win.sync_cursor();
-                // reset blink deadline so cursor stays visible while typing
-                win.blink_deadline = None;
+                stop_blink(win);
                 win.window.request_redraw();
             }
 
@@ -245,15 +261,7 @@ impl ApplicationHandler for Runner {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         let now = Instant::now();
         for (_, win) in &mut self.windows {
-            if let Some(deadline) = win.blink_deadline {
-                if now >= deadline {
-                    win.ui.toggle_cursor_blink();
-                    win.window.request_redraw();
-                    let next = Instant::now() + Duration::from_millis(500);
-                    win.blink_deadline = Some(next);
-                    event_loop.set_control_flow(ControlFlow::WaitUntil(next));
-                }
-            }
+            tick_blink(win, event_loop, now);
         }
     }
 }
