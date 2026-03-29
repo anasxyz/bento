@@ -27,6 +27,6 @@ pub use layout::{
 pub use settings::WindowConfig;
 pub use ui::{Event, Ui};
 pub use widget::{AnyWidget, AsAny, Base, Handle, HasBase, LayoutExt, Widget};
-pub use widgets::{Rect, Label, ScrollContainer, TextInput};
+pub use widgets::{Rect, Label, ScrollContainer, TextInput, Button};
 
 pub use bento_derive::Widget;
