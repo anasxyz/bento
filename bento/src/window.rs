@@ -72,6 +72,9 @@ impl BentoWindow {
                 slot.widget.base_mut().layout_dirty = true;
             }
         }
+        for slot in self.ui.slots.iter_mut().flatten() {
+            slot.widget.base_mut().render_dirty = true;
+        }
         self.window.request_redraw();
     }
 

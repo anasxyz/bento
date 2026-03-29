@@ -32,26 +32,32 @@ impl Label {
 
     pub fn set_text(&mut self, s: &str) -> &mut Self {
         self.text = s.to_string();
+        self.base.render_dirty = true;
         self
     }
     pub fn set_font_family(&mut self, s: &str) -> &mut Self {
         self.family = s.to_string();
+        self.base.render_dirty = true;
         self
     }
     pub fn set_size(&mut self, v: f32) -> &mut Self {
         self.size = v;
+        self.base.render_dirty = true;
         self
     }
     pub fn set_weight(&mut self, v: u16) -> &mut Self {
         self.weight = v;
+        self.base.render_dirty = true;
         self
     }
     pub fn set_italic(&mut self, v: bool) -> &mut Self {
         self.italic = v;
+        self.base.render_dirty = true;
         self
     }
     pub fn set_color(&mut self, c: Color) -> &mut Self {
         self.color = c;
+        self.base.render_dirty = true;
         self
     }
 }

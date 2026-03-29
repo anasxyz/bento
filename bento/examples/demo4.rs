@@ -42,7 +42,7 @@ fn main() {
         .set_width(Size::Fixed(300.0))
         .set_placeholder("Enter your name")
         .set_font_size(16.0)
-        .set_border_width(2.0)
+        .set_border_width(1.0)
         .set_border_radius(0.0);
     ui.append(row1, input);
 
@@ -59,7 +59,7 @@ fn main() {
         .set_width(Size::Fixed(300.0))
         .set_placeholder("Enter your password")
         .set_font_size(16.0)
-        .set_border_width(2.0)
+        .set_border_width(1.0)
         .set_border_radius(0.0);
     ui.append(row2, input2);
 

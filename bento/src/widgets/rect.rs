@@ -28,18 +28,22 @@ impl Rect {
 
     pub fn set_color(&mut self, c: Color) -> &mut Self {
         self.color = c;
+        self.base.render_dirty = true;
         self
     }
     pub fn set_radius(&mut self, r: f32) -> &mut Self {
         self.radius = r;
+        self.base.render_dirty = true;
         self
     }
     pub fn set_border_color(&mut self, c: Color) -> &mut Self {
         self.border_color = c;
+        self.base.render_dirty = true;
         self
     }
     pub fn set_border_widths(&mut self, w: [f32; 4]) -> &mut Self {
         self.border_widths = w;
+        self.base.render_dirty = true;
         self
     }
 }

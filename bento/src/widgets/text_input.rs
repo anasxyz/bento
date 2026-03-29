@@ -102,58 +102,72 @@ impl TextInput {
         self.cursor_pos = self.value.len();
         self.selection_start = 0;
         self.selection_end = 0;
+        self.base.render_dirty = true;
         self
     }
     pub fn set_placeholder(&mut self, s: &str) -> &mut Self {
         self.placeholder = s.to_string();
+        self.base.render_dirty = true;
         self
     }
     pub fn set_placeholder_color(&mut self, c: Color) -> &mut Self {
         self.placeholder_color = c;
+        self.base.render_dirty = true;
         self
     }
     pub fn set_background_color(&mut self, c: Color) -> &mut Self {
         self.background_color = c;
+        self.base.render_dirty = true;
         self
     }
     pub fn set_text_color(&mut self, c: Color) -> &mut Self {
         self.text_color = c;
+        self.base.render_dirty = true;
         self
     }
     pub fn set_cursor_color(&mut self, c: Color) -> &mut Self {
         self.cursor_color = c;
+        self.base.render_dirty = true;
         self
     }
     pub fn set_selection_color(&mut self, c: Color) -> &mut Self {
         self.selection_color = c;
+        self.base.render_dirty = true;
         self
     }
     pub fn set_border_color(&mut self, c: Color) -> &mut Self {
         self.border_color = c;
+        self.base.render_dirty = true;
         self
     }
     pub fn set_border_width(&mut self, v: f32) -> &mut Self {
         self.border_width = v;
+        self.base.render_dirty = true;
         self
     }
     pub fn set_border_radius(&mut self, v: f32) -> &mut Self {
         self.radius = v;
+        self.base.render_dirty = true;
         self
     }
     pub fn set_padding_x(&mut self, v: f32) -> &mut Self {
         self.padding_x = v;
+        self.base.render_dirty = true;
         self
     }
     pub fn set_font_family(&mut self, s: &str) -> &mut Self {
         self.font_family = s.to_string();
+        self.base.render_dirty = true;
         self
     }
     pub fn set_font_size(&mut self, v: f32) -> &mut Self {
         self.font_size = v;
+        self.base.render_dirty = true;
         self
     }
     pub fn set_font_weight(&mut self, v: u16) -> &mut Self {
         self.font_weight = v;
+        self.base.render_dirty = true;
         self
     }
 
@@ -235,6 +249,7 @@ impl TextInput {
 
     pub fn toggle_blink(&mut self) {
         self.cursor_visible = !self.cursor_visible;
+        self.base.render_dirty = true;
     }
 
     fn word_start(&self, pos: usize) -> usize {
@@ -329,6 +344,7 @@ impl Widget for TextInput {
     }
 
     fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, h: f32) {
+        println!("sync textinput");
         self.width = w;
         self.height = h;
 
@@ -420,7 +436,7 @@ impl Widget for TextInput {
             let n = scene.rect_mut(id);
             if self.base.focused && self.cursor_visible {
                 let cursor_x = self.text_x + self.cursor_offset_x;
-                n.set_rect(cursor_x, text_y - 1.0, 2.0, self.font_size * 1.4);
+                n.set_rect(cursor_x, text_y - 0.0, 1.0, self.font_size * 1.4);
                 n.set_color(self.cursor_color.to_array());
                 n.set_visible(true);
             } else {
@@ -466,6 +482,8 @@ impl Widget for TextInput {
     }
 
     fn on_mouse_press(&mut self, mx: f32, _my: f32, button: MouseButton) {
+        self.base.render_dirty = true;
+
         if button != MouseButton::Left {
             return;
         }
@@ -522,6 +540,8 @@ impl Widget for TextInput {
     }
 
     fn on_key_press(&mut self, key: Key, mods: Modifiers, text: Option<char>) {
+        self.base.render_dirty = true;
+
         if !self.base.focused {
             return;
         }
