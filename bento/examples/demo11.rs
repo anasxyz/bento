@@ -26,6 +26,8 @@ fn main() {
         .unwrap()
         .set_height(Size::Percent(100.0))
         .set_color(Color::rgb(25, 25, 30))
+        .set_font_size(12.0)
+        .add_underline(0, 1, Color::rgb(255, 255, 255), 1.0)
         .set_radius(0.0);
     ui.on::<Button, Click>(button, |ui, this, e| {
         println!("clicked {}", this.get_text());
@@ -35,6 +37,7 @@ fn main() {
     ui.get_mut(button2)
         .unwrap()
         .set_height(Size::Percent(100.0))
+        .set_font_size(12.0)
         .set_color(Color::rgb(25, 25, 30))
         .set_radius(0.0);
 
@@ -49,6 +52,7 @@ fn main() {
     ui.get_mut(button3)
         .unwrap()
         .set_height(Size::Percent(100.0))
+        .set_font_size(12.0)
         .set_color(Color::rgb(25, 25, 30))
         .set_radius(0.0);
 
@@ -56,6 +60,7 @@ fn main() {
     ui.get_mut(button4)
         .unwrap()
         .set_height(Size::Percent(100.0))
+        .set_font_size(12.0)
         .set_color(Color::rgb(25, 25, 30))
         .set_radius(0.0);
 
@@ -63,4 +68,3 @@ fn main() {
     app.open_window(WindowConfig::default(), ui);
     app.run();
 }
-

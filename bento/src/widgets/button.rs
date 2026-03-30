@@ -3,7 +3,7 @@ use crate::fonts::{FontAttrs, Fonts};
 use crate::ui::{Hover, HoverEnd, Press, Release, Ui};
 use crate::widget::{AsAny, Base, Handle, HasBase, Widget};
 use bento_derive::Widget;
-use bento_wgpu::{RectId, SceneGraph, SceneNodeId, TextId, TransformId};
+use bento_wgpu::{RectId, SceneGraph, SceneNodeId, TextDecoration, TextId, TransformId};
 
 #[derive(Widget)]
 pub struct Button {
@@ -28,6 +28,10 @@ pub struct Button {
     pub hovered: bool,
     pub pressed: bool,
     pub disabled: bool,
+
+    // decorations
+    underlines: Vec<TextDecoration>,
+    strikethroughs: Vec<TextDecoration>,
 
     // cached measured text width for centering
     text_width: f32,
@@ -58,6 +62,8 @@ impl Button {
             hovered: false,
             pressed: false,
             disabled: false,
+            underlines: Vec::new(),
+            strikethroughs: Vec::new(),
             text_width: 0.0,
             rect_id: None,
             transform_id: None,
@@ -145,6 +151,52 @@ impl Button {
 
     pub fn get_text(&self) -> &str {
         &self.label
+    }
+
+    pub fn add_underline(
+        &mut self,
+        start: usize,
+        end: usize,
+        color: Color,
+        thickness: f32,
+    ) -> &mut Self {
+        self.underlines.push(TextDecoration {
+            start,
+            end,
+            color: color.to_array(),
+            thickness,
+        });
+        self.base.render_dirty = true;
+        self
+    }
+
+    pub fn add_strikethrough(
+        &mut self,
+        start: usize,
+        end: usize,
+        color: Color,
+        thickness: f32,
+    ) -> &mut Self {
+        self.strikethroughs.push(TextDecoration {
+            start,
+            end,
+            color: color.to_array(),
+            thickness,
+        });
+        self.base.render_dirty = true;
+        self
+    }
+
+    pub fn clear_underlines(&mut self) -> &mut Self {
+        self.underlines.clear();
+        self.base.render_dirty = true;
+        self
+    }
+
+    pub fn clear_strikethroughs(&mut self) -> &mut Self {
+        self.strikethroughs.clear();
+        self.base.render_dirty = true;
+        self
     }
 
     pub fn current_color(&self) -> Color {
@@ -248,6 +300,15 @@ impl Widget for Button {
             n.set_color(self.current_text_color().to_array());
             n.set_width(w);
             n.set_visible(true);
+
+            n.clear_underlines();
+            for d in &self.underlines {
+                n.add_underline(d.start, d.end, d.color, d.thickness);
+            }
+            n.clear_strikethroughs();
+            for d in &self.strikethroughs {
+                n.add_strikethrough(d.start, d.end, d.color, d.thickness);
+            }
         }
     }
 

@@ -3,10 +3,10 @@ use crate::fonts::{FontAttrs, Fonts};
 use crate::input::Cursor;
 use std::time::Instant;
 
-use crate::ui::{Hover, HoverEnd, MouseMove, Press, Release, FocusGained, FocusLost, Ui};
+use crate::ui::{FocusGained, FocusLost, Hover, HoverEnd, MouseMove, Press, Release, Ui};
 use crate::widget::{AsAny, Base, Handle, HasBase, Widget};
 use bento_derive::Widget;
-use bento_wgpu::{SceneGraph, TextId};
+use bento_wgpu::{SceneGraph, TextDecoration, TextId};
 
 const DOUBLE_CLICK_MS: u128 = 500;
 
@@ -23,6 +23,10 @@ pub struct Label {
     pub selectable: bool,
     selection_color: Color,
     pub text_dirty: bool,
+
+    // decorations
+    underlines: Vec<TextDecoration>,
+    strikethroughs: Vec<TextDecoration>,
 
     // selection state
     selecting: bool,
@@ -56,6 +60,8 @@ impl Label {
             selectable: false,
             selection_color: Color::rgba(68, 152, 227, 80),
             text_dirty: true,
+            underlines: Vec::new(),
+            strikethroughs: Vec::new(),
             selecting: false,
             selection_anchor: 0,
             selection_start: 0,
@@ -118,6 +124,52 @@ impl Label {
     }
     pub fn set_selection_color(&mut self, c: Color) -> &mut Self {
         self.selection_color = c;
+        self.base.render_dirty = true;
+        self
+    }
+
+    pub fn add_underline(
+        &mut self,
+        start: usize,
+        end: usize,
+        color: Color,
+        thickness: f32,
+    ) -> &mut Self {
+        self.underlines.push(TextDecoration {
+            start,
+            end,
+            color: color.to_array(),
+            thickness,
+        });
+        self.base.render_dirty = true;
+        self
+    }
+
+    pub fn add_strikethrough(
+        &mut self,
+        start: usize,
+        end: usize,
+        color: Color,
+        thickness: f32,
+    ) -> &mut Self {
+        self.strikethroughs.push(TextDecoration {
+            start,
+            end,
+            color: color.to_array(),
+            thickness,
+        });
+        self.base.render_dirty = true;
+        self
+    }
+
+    pub fn clear_underlines(&mut self) -> &mut Self {
+        self.underlines.clear();
+        self.base.render_dirty = true;
+        self
+    }
+
+    pub fn clear_strikethroughs(&mut self) -> &mut Self {
+        self.strikethroughs.clear();
         self.base.render_dirty = true;
         self
     }
@@ -328,6 +380,15 @@ impl Widget for Label {
                 node.set_selection_color(self.selection_color.to_array());
             } else {
                 node.clear_selection();
+            }
+
+            node.clear_underlines();
+            for d in &self.underlines {
+                node.add_underline(d.start, d.end, d.color, d.thickness);
+            }
+            node.clear_strikethroughs();
+            for d in &self.strikethroughs {
+                node.add_strikethrough(d.start, d.end, d.color, d.thickness);
             }
         }
     }
