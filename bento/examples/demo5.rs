@@ -3,7 +3,7 @@ use bento::*;
 fn build_login_ui() -> Ui {
     let mut ui = Ui::new();
 
-    let root = ui.add(Rect::new());
+    let root = ui.add(Container::new());
     ui.get_mut(root)
         .unwrap()
         .set_width(Size::Percent(100.0))
@@ -14,7 +14,7 @@ fn build_login_ui() -> Ui {
         .set_flex_direction(FlexDirection::Col);
     ui.set_root(root);
 
-    let card = ui.add(Rect::new());
+    let card = ui.add(Container::new());
     ui.get_mut(card)
         .unwrap()
         .set_width(Size::Fixed(380.0))
@@ -27,7 +27,7 @@ fn build_login_ui() -> Ui {
         .set_row_gap(24.0);
     ui.append(root, card);
 
-    let header = ui.add(Rect::new());
+    let header = ui.add(Container::new());
     ui.get_mut(header)
         .unwrap()
         .set_flex_direction(FlexDirection::Col)
@@ -49,7 +49,7 @@ fn build_login_ui() -> Ui {
         .set_color(Color::rgb(100, 80, 80));
     ui.append(header, subtitle);
 
-    let divider = ui.add(Rect::new());
+    let divider = ui.add(Container::new());
     ui.get_mut(divider)
         .unwrap()
         .set_width(Size::Percent(100.0))
@@ -57,7 +57,7 @@ fn build_login_ui() -> Ui {
         .set_color(Color::rgb(40, 10, 10));
     ui.append(card, divider);
 
-    let fields = ui.add(Rect::new());
+    let fields = ui.add(Container::new());
     ui.get_mut(fields)
         .unwrap()
         .set_flex_direction(FlexDirection::Col)
@@ -65,7 +65,7 @@ fn build_login_ui() -> Ui {
     ui.append(card, fields);
 
     // email
-    let email_group = ui.add(Rect::new());
+    let email_group = ui.add(Container::new());
     ui.get_mut(email_group)
         .unwrap()
         .set_flex_direction(FlexDirection::Col)
@@ -96,7 +96,7 @@ fn build_login_ui() -> Ui {
     ui.append(email_group, email_input);
 
     // password
-    let pass_group = ui.add(Rect::new());
+    let pass_group = ui.add(Container::new());
     ui.get_mut(pass_group)
         .unwrap()
         .set_flex_direction(FlexDirection::Col)
@@ -127,7 +127,7 @@ fn build_login_ui() -> Ui {
     ui.append(pass_group, pass_input);
 
     // button
-    let button = ui.add(Rect::new());
+    let button = ui.add(Container::new());
     ui.get_mut(button)
         .unwrap()
         .set_width(Size::Percent(100.0))
@@ -147,7 +147,7 @@ fn build_login_ui() -> Ui {
     ui.append(button, button_label);
 
     // footer
-    let footer = ui.add(Rect::new());
+    let footer = ui.add(Container::new());
     ui.get_mut(footer)
         .unwrap()
         .set_justify_content(JustifyContent::Center)
@@ -176,7 +176,7 @@ fn build_login_ui() -> Ui {
 fn build_dashboard_ui() -> Ui {
     let mut ui = Ui::new();
 
-    let root = ui.add(Rect::new());
+    let root = ui.add(Container::new());
     ui.get_mut(root)
         .unwrap()
         .set_width(Size::Percent(100.0))
@@ -186,7 +186,7 @@ fn build_dashboard_ui() -> Ui {
     ui.set_root(root);
 
     // top bar
-    let topbar = ui.add(Rect::new());
+    let topbar = ui.add(Container::new());
     ui.get_mut(topbar)
         .unwrap()
         .set_width(Size::Percent(100.0))
@@ -208,7 +208,7 @@ fn build_dashboard_ui() -> Ui {
         .set_color(Color::rgb(220, 60, 60));
     ui.append(topbar, app_name);
 
-    let spacer = ui.add(Rect::new());
+    let spacer = ui.add(Container::new());
     ui.get_mut(spacer).unwrap().set_flex_grow(1.0);
     ui.append(topbar, spacer);
 
@@ -220,7 +220,7 @@ fn build_dashboard_ui() -> Ui {
     ui.append(topbar, user_label);
 
     // body
-    let body = ui.add(Rect::new());
+    let body = ui.add(Container::new());
     ui.get_mut(body)
         .unwrap()
         .set_flex_grow(1.0)
@@ -228,7 +228,7 @@ fn build_dashboard_ui() -> Ui {
     ui.append(root, body);
 
     // sidebar
-    let sidebar = ui.add(Rect::new());
+    let sidebar = ui.add(Container::new());
     ui.get_mut(sidebar)
         .unwrap()
         .set_width(Size::Fixed(200.0))
@@ -247,7 +247,7 @@ fn build_dashboard_ui() -> Ui {
         ("Users", false),
         ("Settings", false),
     ] {
-        let item = ui.add(Rect::new());
+        let item = ui.add(Container::new());
         ui.get_mut(item)
             .unwrap()
             .set_width(Size::Percent(100.0))
@@ -276,7 +276,7 @@ fn build_dashboard_ui() -> Ui {
     }
 
     // main content
-    let content = ui.add(Rect::new());
+    let content = ui.add(Container::new());
     ui.get_mut(content)
         .unwrap()
         .set_flex_grow(1.0)
@@ -294,7 +294,7 @@ fn build_dashboard_ui() -> Ui {
     ui.append(content, content_title);
 
     // stat cards
-    let stats_row = ui.add(Rect::new());
+    let stats_row = ui.add(Container::new());
     ui.get_mut(stats_row)
         .unwrap()
         .set_flex_direction(FlexDirection::Row)
@@ -306,7 +306,7 @@ fn build_dashboard_ui() -> Ui {
         ("128", "Active Now"),
         ("94%", "Uptime"),
     ] {
-        let stat = ui.add(Rect::new());
+        let stat = ui.add(Container::new());
         ui.get_mut(stat)
             .unwrap()
             .set_width(Size::Fixed(160.0))
@@ -344,19 +344,13 @@ fn build_dashboard_ui() -> Ui {
     ui.append(content, section_title);
 
     // scroll list
-    let scroll = ui.add(ScrollContainer::new());
+    let scroll = ui.add(Container::new());
     ui.get_mut(scroll)
         .unwrap()
         .set_width(Size::Percent(100.0))
         .set_height(Size::Fixed(220.0))
         .set_color(Color::rgb(14, 14, 14))
-        .set_flex_direction(FlexDirection::Col)
-        .set_scroll_y_enabled(true)
-        .set_scroll_x_enabled(false)
-        .set_scrollbar_width(6.0)
-        .set_track_color(Color::rgb(20, 8, 8))
-        .set_thumb_color(Color::rgb(120, 30, 30))
-        .set_thumb_radius(3.0);
+        .set_flex_direction(FlexDirection::Col);
     ui.append(content, scroll);
 
     for (i, event) in [
@@ -374,7 +368,7 @@ fn build_dashboard_ui() -> Ui {
     .iter()
     .enumerate()
     {
-        let row = ui.add(Rect::new());
+        let row = ui.add(Container::new());
         ui.get_mut(row)
             .unwrap()
             .set_width(Size::Percent(100.0))

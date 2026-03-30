@@ -3,7 +3,7 @@ use bento::*;
 fn main() {
     let mut ui = Ui::new();
 
-    let root = ui.add(Rect::new());
+    let root = ui.add(Container::new());
     ui.get_mut(root)
         .unwrap()
         .set_width(Size::Percent(100.0))
@@ -18,7 +18,7 @@ fn main() {
     // left box — overflow hidden
     // the purple child is 300x300 but the box is only 150x150
     // the child should be clipped to the box bounds
-    let box_hidden = ui.add(Rect::new());
+    let box_hidden = ui.add(Container::new());
     ui.get_mut(box_hidden)
         .unwrap()
         .set_width(Size::Fixed(150.0))
@@ -39,7 +39,7 @@ fn main() {
     // right box — overflow visible
     // the red child is 300x300 but the box is only 150x150
     // the child should spill outside the box bounds
-    let box_visible = ui.add(Rect::new());
+    let box_visible = ui.add(Container::new());
     ui.get_mut(box_visible)
         .unwrap()
         .set_width(Size::Fixed(150.0))
@@ -48,7 +48,7 @@ fn main() {
         .set_overflow(Overflow::Visible);
     ui.append(root, box_visible);
 
-    let child_visible = ui.add(Rect::new());
+    let child_visible = ui.add(Container::new());
     ui.get_mut(child_visible)
         .unwrap()
         .set_width(Size::Fixed(300.0))

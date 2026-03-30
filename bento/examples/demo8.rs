@@ -3,7 +3,7 @@ use bento::*;
 fn main() {
     let mut ui = Ui::new();
 
-    let root = ui.add(ScrollContainer::new());
+    let root = ui.add(Container::new());
     ui.get_mut(root)
         .unwrap()
         .set_width(Size::Percent(100.0))
@@ -23,7 +23,7 @@ fn main() {
         .set_color(Color::rgb(100, 100, 120));
     ui.append(root, s1);
 
-    let row1 = ui.add(Rect::new());
+    let row1 = ui.add(Container::new());
     ui.get_mut(row1)
         .unwrap()
         .set_width(Size::Percent(100.0))
@@ -55,7 +55,7 @@ fn main() {
         .set_color(Color::rgb(100, 100, 120));
     ui.append(root, s2);
 
-    let row2 = ui.add(Rect::new());
+    let row2 = ui.add(Container::new());
     ui.get_mut(row2)
         .unwrap()
         .set_width(Size::Percent(100.0))
@@ -91,7 +91,7 @@ fn main() {
         .set_color(Color::rgb(100, 100, 120));
     ui.append(root, s3);
 
-    let row3 = ui.add(Rect::new());
+    let row3 = ui.add(Container::new());
     ui.get_mut(row3)
         .unwrap()
         .set_width(Size::Percent(100.0))
@@ -123,7 +123,7 @@ fn main() {
         .set_color(Color::rgb(100, 100, 120));
     ui.append(root, s4);
 
-    let row4 = ui.add(Rect::new());
+    let row4 = ui.add(Container::new());
     ui.get_mut(row4)
         .unwrap()
         .set_width(Size::Percent(100.0))
@@ -156,7 +156,7 @@ fn main() {
         .set_color(Color::rgb(100, 100, 120));
     ui.append(root, s5);
 
-    let row5 = ui.add(Rect::new());
+    let row5 = ui.add(Container::new());
     ui.get_mut(row5)
         .unwrap()
         .set_flex_direction(FlexDirection::Col)

@@ -35,6 +35,7 @@ impl Label {
     pub fn set_text(&mut self, s: &str) -> &mut Self {
         self.text = s.to_string();
         self.base.render_dirty = true;
+        self.base.layout_dirty = true;
         self
     }
     pub fn set_font_family(&mut self, s: &str) -> &mut Self {

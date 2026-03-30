@@ -64,7 +64,7 @@ impl Ui {
         Handle::new(GLOBAL_ID, 0)
     }
 
-    pub fn has_focused_text_input(&self) -> bool {
+    pub fn has_focused_text_widget(&self) -> bool {
         if let Some(focused) = self.interaction.focused {
             if let Some(Some(slot)) = self.slots.get(focused.id as usize) {
                 return slot

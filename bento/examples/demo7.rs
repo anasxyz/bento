@@ -3,7 +3,7 @@ use bento::*;
 fn main() {
     let mut ui = Ui::new();
 
-    let root = ui.add(Rect::new());
+    let root = ui.add(Container::new());
     ui.get_mut(root).unwrap()
         .set_width(Size::Percent(100.0))
         .set_height(Size::Percent(100.0))
@@ -20,7 +20,7 @@ fn main() {
         .set_color(Color::rgb(140, 140, 140));
 
     for label_text in ["option a", "option b", "option c"] {
-        let row = ui.add_to(root, Rect::new());
+        let row = ui.add_to(root, Container::new());
         ui.get_mut(row).unwrap()
             .set_flex_direction(FlexDirection::Row)
             .set_align_items(AlignItems::Center)
