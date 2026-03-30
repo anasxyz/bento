@@ -1,7 +1,9 @@
 use crate::color::Color;
 use crate::fonts::{FontAttrs, Fonts};
 use crate::input::{Cursor, Key, Modifiers};
-use crate::ui::{Blur, Change, Focus, Hover, HoverEnd, KeyPress, MouseMove, Press, Release, Ui};
+use crate::ui::{
+    Change, FocusGained, FocusLost, Hover, HoverEnd, KeyPress, MouseMove, Press, Release, Ui,
+};
 use crate::widget::{AsAny, Base, Handle, HasBase, Widget};
 use bento_derive::Widget;
 use bento_wgpu::{ClipId, RectId, SceneGraph, SceneNodeId, TextId, TransformId};
@@ -49,7 +51,7 @@ pub struct TextInput {
     width: f32,
     height: f32,
 
-    // scene nodes — no selection_id, selection handled by text node
+    // scene nodes
     bg_id: Option<RectId>,
     clip_id: Option<ClipId>,
     transform_id: Option<TransformId>,
@@ -508,14 +510,14 @@ impl Widget for TextInput {
             this.base.render_dirty = true;
         });
 
-        ui.on::<TextInput, Focus>(h, |ui, this, e| {
+        ui.on::<TextInput, FocusGained>(h, |ui, this, e| {
             this.base.focused = true;
             this.cursor_visible = true;
             this.set_border_color(Color::rgb(230, 230, 230));
             this.base.render_dirty = true;
         });
 
-        ui.on::<TextInput, Blur>(h, |ui, this, e| {
+        ui.on::<TextInput, FocusLost>(h, |ui, this, e| {
             this.base.focused = false;
             this.selecting = false;
             this.click_count = 0;
@@ -598,7 +600,8 @@ impl Widget for TextInput {
             scene.transform_mut(id).set_offset(-self.scroll_x, 0.0);
         }
 
-        // text + selection — selection is set on the text node, renderer handles it
+        // text + selection
+        // selection is set on the text node
         if let Some(id) = self.text_id {
             let n = scene.text_mut(id);
             n.set_pos(self.text_x, text_y - 1.0);

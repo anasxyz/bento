@@ -120,6 +120,17 @@ impl Ui {
                         input.update_cursor_x();
                     }
                 }
+
+                if let Some(label) = slot
+                    .widget
+                    .as_any_mut()
+                    .downcast_mut::<crate::widgets::Label>()
+                {
+                    if label.selectable && label.text_dirty {
+                        label.update_char_offsets(fonts);
+                        label.text_dirty = false;
+                    }
+                }
             }
         }
 

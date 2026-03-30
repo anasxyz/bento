@@ -33,6 +33,7 @@ fn main() {
     ui.get_mut(label)
         .unwrap()
         .set_size(16.0)
+        .set_selectable(true)
         .set_width(Size::Fixed(100.0));
     ui.append(row1, label);
 

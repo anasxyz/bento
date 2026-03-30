@@ -214,11 +214,11 @@ impl HoverEnd {
 impl_event!(HoverEnd);
 
 #[derive(Clone, Debug)]
-pub struct Focus {
+pub struct FocusGained {
     propagation_stopped: bool,
     default_stopped: bool,
 }
-impl Focus {
+impl FocusGained {
     pub fn new() -> Self {
         Self {
             propagation_stopped: false,
@@ -226,14 +226,14 @@ impl Focus {
         }
     }
 }
-impl_event!(Focus);
+impl_event!(FocusGained);
 
 #[derive(Clone, Debug)]
-pub struct Blur {
+pub struct FocusLost {
     propagation_stopped: bool,
     default_stopped: bool,
 }
-impl Blur {
+impl FocusLost {
     pub fn new() -> Self {
         Self {
             propagation_stopped: false,
@@ -241,7 +241,7 @@ impl Blur {
         }
     }
 }
-impl_event!(Blur);
+impl_event!(FocusLost);
 
 #[derive(Clone, Debug)]
 pub struct KeyPress {

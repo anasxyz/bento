@@ -4,8 +4,8 @@ mod tree;
 mod update;
 
 pub use events::{
-    Blur, Change, Click, DoubleClick, Event, Focus, Hover, HoverEnd, KeyPress, KeyRelease,
-    MouseMove, Press, Release, RightClick, Scroll,
+    Change, Click, DoubleClick, Event, FocusGained, FocusLost, Hover, HoverEnd, KeyPress,
+    KeyRelease, MouseMove, Press, Release, RightClick, Scroll,
 };
 
 use crate::layout::LayoutEngine;
@@ -91,7 +91,7 @@ impl Ui {
         }
     }
 
-    // unified on<E> 
+    // unified on<E>
     // works for any type that implements Event, builtin or user defined
     // when called during register() goes to internal list, otherwise external
 
@@ -133,7 +133,7 @@ impl Ui {
         self.events.has_connections(handle)
     }
 
-    // emit 
+    // emit
 
     pub fn emit<T, E: Event>(&mut self, handle: Handle<T>, event: E) {
         self.events.emit(handle.untyped(), event);
@@ -152,7 +152,7 @@ impl Ui {
         self.events.emit_bubbling(event, chain);
     }
 
-    // drain 
+    // drain
 
     pub fn drain_events(&mut self) {
         while !self.events.event_queue.is_empty() {
@@ -215,7 +215,7 @@ impl Ui {
         }
     }
 
-    // interaction helpers 
+    // interaction helpers
 
     pub fn hovered(&self) -> Option<Handle<()>> {
         self.interaction.hovered

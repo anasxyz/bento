@@ -1,7 +1,7 @@
 use crate::input::InputState;
 use crate::ui::Ui;
 use crate::ui::{
-    Blur, Click, DoubleClick, Focus, Hover, HoverEnd, KeyPress, KeyRelease, MouseMove, Press,
+    FocusLost, Click, DoubleClick, FocusGained, Hover, HoverEnd, KeyPress, KeyRelease, MouseMove, Press,
     Release, RightClick, Scroll,
 };
 use crate::widget::Handle;
@@ -99,10 +99,10 @@ pub fn dispatch(ui: &mut Ui, input: &InputState) {
         let new_focused = new_hovered;
         if ui.interaction.focused != new_focused {
             if let Some(prev) = ui.interaction.focused {
-                ui.emit_bubbling(prev, Blur::new());
+                ui.emit_bubbling(prev, FocusLost::new());
             }
             if let Some(next) = new_focused {
-                ui.emit_bubbling(next, Focus::new());
+                ui.emit_bubbling(next, FocusGained::new());
             }
             ui.interaction.focused = new_focused;
         }

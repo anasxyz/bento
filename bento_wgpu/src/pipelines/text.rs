@@ -279,7 +279,7 @@ impl TextPipeline {
                 }
 
                 let gx = offset_x + meta.x + glyph.x;
-                let gx2 = gx + glyph.w;
+                let gx2 = gx + glyph.w + (1.0 / scale);
 
                 x1 = Some(x1.map_or(gx, |v: f32| v.min(gx)));
                 x2 = Some(x2.map_or(gx2, |v: f32| v.max(gx2)));
