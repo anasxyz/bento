@@ -30,6 +30,6 @@ pub use ui::{
     MouseMove, Press, Release, RightClick, Scroll, Ui,
 };
 pub use widget::{AnyWidget, AsAny, Base, Handle, HasBase, LayoutExt, Widget};
-pub use widgets::{Button, Label, Rect, ScrollContainer, TextInput};
+pub use widgets::{Button, Checkbox, Label, Rect, ScrollContainer, TextInput};
 
 pub use bento_derive::Widget;
