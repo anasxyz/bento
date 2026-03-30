@@ -194,7 +194,8 @@ impl RectPipeline {
             ],
             None => [0.0; 4],
         };
-        let aa = if pw <= 2.0 { 0.0 } else { 1.0 };
+        // fix 1 pixel bleeding
+        let aa = if scale > 1.0 && pw > 2.0 { 1.0 } else { 0.0 };
         let new_inst = Instance {
             pos_size: [px, py, pw, ph],
             params: [radius, aa, 0.0, 0.0],
