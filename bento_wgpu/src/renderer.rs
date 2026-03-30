@@ -18,6 +18,9 @@ pub struct Renderer {
     shadow_pipeline: ShadowPipeline,
     rect_alloc: SlotAllocator,
     shadow_alloc: SlotAllocator,
+    sel_alloc: SlotAllocator,
+    sel_slots_last_frame: Vec<u32>,
+    sel_slots_this_frame: Vec<u32>,
     pub stats: RendererStats,
 }
 
@@ -59,6 +62,9 @@ struct TextCall {
     color: [f32; 4],
     width: f32,
     clip: Option<[f32; 4]>,
+    selection_start: Option<usize>,
+    selection_end: Option<usize>,
+    selection_color: [f32; 4],
 }
 
 impl Renderer {
@@ -79,6 +85,9 @@ impl Renderer {
             ),
             rect_alloc: SlotAllocator::new(),
             shadow_alloc: SlotAllocator::new(),
+            sel_alloc: SlotAllocator::new(),
+            sel_slots_last_frame: Vec::new(),
+            sel_slots_this_frame: Vec::new(),
             stats: RendererStats {
                 rect_uploads: 0,
                 rects_culled: 0,
@@ -134,6 +143,13 @@ impl Renderer {
         self.stats.rect_uploads = 0;
         self.stats.rects_culled = 0;
         self.stats.texts_culled = 0;
+
+        // clear selection rect slots from last frame
+        for slot in self.sel_slots_last_frame.drain(..) {
+            self.rect_pipeline.clear_slot(slot as usize);
+            self.sel_alloc.free(slot);
+        }
+        self.sel_slots_this_frame.clear();
 
         // traverse scene tree
         // collect calls with their slab indices
@@ -220,6 +236,9 @@ impl Renderer {
                             color: apply_opacity(n.color, state.opacity),
                             width: n.width,
                             clip: state.clip,
+                            selection_start: n.selection_start,
+                            selection_end: n.selection_end,
+                            selection_color: apply_opacity(n.selection_color, state.opacity),
                         });
                     } else {
                         culled_texts += 1;
@@ -317,6 +336,44 @@ impl Renderer {
             );
         }
 
+        // compute selection rects from text layout and inject into rect pipeline
+        // selection rects are rendered as regular rects so they get culling for free
+        for (idx, call) in text_calls.iter().enumerate() {
+            let (Some(sel_start), Some(sel_end)) = (call.selection_start, call.selection_end)
+            else {
+                continue;
+            };
+            let sel_rects = self
+                .text_pipeline
+                .compute_selection_rects(idx, sel_start, sel_end, 0.0, 0.0, scale);
+            for (rx, ry, rw, rh) in sel_rects {
+                let in_clip = call.clip.map_or(true, |[cx, cy, cx2, cy2]| {
+                    rx < cx2 && ry < cy2 && rx + rw > cx && ry + rh > cy
+                });
+                if !in_clip {
+                    continue;
+                }
+                // use a dynamic slot from the selection allocator
+                let slot = self.sel_alloc.alloc();
+                let slot_idx = slot as usize;
+                self.rect_pipeline.ensure_slot(slot_idx);
+                self.rect_pipeline.write_slot(
+                    slot_idx,
+                    rx,
+                    ry,
+                    rw,
+                    rh,
+                    call.selection_color,
+                    0.0,
+                    [0.0; 4],
+                    [0.0; 4],
+                    call.clip,
+                    scale,
+                );
+                self.sel_slots_this_frame.push(slot);
+            }
+        }
+
         // render pass
         let frame_view = frame
             .texture
@@ -360,6 +417,11 @@ impl Renderer {
         frame.present();
         self.text_pipeline.trim_atlas();
         self.stats.rect_uploads = self.rect_pipeline.upload_count;
+        // swap selection slot lists for next frame cleanup
+        std::mem::swap(
+            &mut self.sel_slots_last_frame,
+            &mut self.sel_slots_this_frame,
+        );
     }
 
     pub fn free_rect_slot(&mut self, slot: u32) {

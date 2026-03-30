@@ -241,4 +241,55 @@ impl TextPipeline {
     pub fn trim_atlas(&mut self) {
         self.atlas.trim();
     }
+
+    /// compute selection highlight rects for a submitted text entry
+    /// returns (x, y, w, h) in logical pixels for each selected line segment
+    /// idx is the submission index (same order as submit() calls)
+    pub fn compute_selection_rects(
+        &self,
+        idx: usize,
+        sel_start: usize,
+        sel_end: usize,
+        offset_x: f32,
+        offset_y: f32,
+        scale: f32,
+    ) -> Vec<(f32, f32, f32, f32)> {
+        if idx >= self.active || sel_start >= sel_end {
+            return Vec::new();
+        }
+        let entry = &self.entries[idx];
+        let meta = &self.meta[idx];
+        let mut rects = Vec::new();
+        let line_height = entry.size * 1.4;
+
+        for run in entry.buffer.layout_runs() {
+            let run_y = offset_y + meta.y + run.line_top;
+
+            // find x range of selected glyphs in this run
+            let mut x1: Option<f32> = None;
+            let mut x2: Option<f32> = None;
+
+            for glyph in run.glyphs {
+                let glyph_start = glyph.start;
+                let glyph_end = glyph.end;
+
+                // check if this glyph overlaps the selection
+                if glyph_end <= sel_start || glyph_start >= sel_end {
+                    continue;
+                }
+
+                let gx = offset_x + meta.x + glyph.x;
+                let gx2 = gx + glyph.w;
+
+                x1 = Some(x1.map_or(gx, |v: f32| v.min(gx)));
+                x2 = Some(x2.map_or(gx2, |v: f32| v.max(gx2)));
+            }
+
+            if let (Some(rx1), Some(rx2)) = (x1, x2) {
+                rects.push((rx1, run_y, rx2 - rx1, line_height));
+            }
+        }
+
+        rects
+    }
 }

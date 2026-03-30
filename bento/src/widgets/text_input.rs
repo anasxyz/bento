@@ -49,9 +49,8 @@ pub struct TextInput {
     width: f32,
     height: f32,
 
-    // scene nodes
+    // scene nodes — no selection_id, selection handled by text node
     bg_id: Option<RectId>,
-    selection_id: Option<RectId>,
     clip_id: Option<ClipId>,
     transform_id: Option<TransformId>,
     text_id: Option<TextId>,
@@ -94,7 +93,6 @@ impl TextInput {
             width: 0.0,
             height: 0.0,
             bg_id: None,
-            selection_id: None,
             clip_id: None,
             transform_id: None,
             text_id: None,
@@ -102,7 +100,6 @@ impl TextInput {
         }
     }
 
-    // style setters
     pub fn set_value(&mut self, s: &str) -> &mut Self {
         self.value = s.to_string();
         self.cursor_pos = self.value.len();
@@ -178,7 +175,6 @@ impl TextInput {
         self
     }
 
-    // state helpers
     pub fn has_selection(&self) -> bool {
         self.selection_start < self.selection_end
     }
@@ -261,8 +257,6 @@ impl TextInput {
         self.base.render_dirty = true;
     }
 
-    // input handling helpers
-    // called from register connections
     pub fn handle_press(&mut self, mx: f32) {
         let x_in_text = mx - self.text_x + self.scroll_x;
         let pos = self.x_to_cursor(x_in_text);
@@ -484,18 +478,15 @@ impl Widget for TextInput {
         self.bg_id = Some(scene.add_rect());
         self.clip_id = Some(scene.add_clip());
         self.transform_id = Some(scene.add_transform());
-        self.selection_id = Some(scene.add_rect());
         self.text_id = Some(scene.add_text());
         self.cursor_id = Some(scene.add_rect());
 
         let clip = self.clip_id.unwrap();
         let transform = self.transform_id.unwrap();
-        let selection = self.selection_id.unwrap();
         let text = self.text_id.unwrap();
         let cursor = self.cursor_id.unwrap();
 
         scene.add_child(SceneNodeId(clip.0), SceneNodeId(transform.0));
-        scene.add_child(SceneNodeId(transform.0), SceneNodeId(selection.0));
         scene.add_child(SceneNodeId(transform.0), SceneNodeId(text.0));
         scene.add_child(SceneNodeId(transform.0), SceneNodeId(cursor.0));
     }
@@ -584,6 +575,7 @@ impl Widget for TextInput {
             self.scroll_x = (self.cursor_offset_x - 4.0).max(0.0);
         }
 
+        // background
         if let Some(id) = self.bg_id {
             let n = scene.rect_mut(id);
             n.set_rect(x, y, w, h);
@@ -594,53 +586,35 @@ impl Widget for TextInput {
             n.set_visible(true);
         }
 
+        // clip
         if let Some(id) = self.clip_id {
             scene
                 .clip_mut(id)
                 .set_rect(x + self.padding_x, y, inner_w, h);
         }
 
+        // scroll transform
         if let Some(id) = self.transform_id {
             scene.transform_mut(id).set_offset(-self.scroll_x, 0.0);
         }
 
-        if let Some(id) = self.selection_id {
-            let n = scene.rect_mut(id);
-            if self.has_selection() {
-                let sel_x1 = self
-                    .char_offsets
-                    .iter()
-                    .find(|&&(i, _)| i == self.selection_start)
-                    .map(|&(_, x)| x)
-                    .unwrap_or(0.0);
-                let sel_x2 = self
-                    .char_offsets
-                    .iter()
-                    .find(|&&(i, _)| i == self.selection_end)
-                    .map(|&(_, x)| x)
-                    .unwrap_or(0.0);
-                n.set_rect(
-                    self.text_x + sel_x1,
-                    text_y - 1.0,
-                    sel_x2 - sel_x1,
-                    self.font_size * 1.4,
-                );
-                n.set_color(self.selection_color.to_array());
-                n.set_visible(true);
-            } else {
-                n.set_visible(false);
-            }
-        }
-
+        // text + selection — selection is set on the text node, renderer handles it
         if let Some(id) = self.text_id {
             let n = scene.text_mut(id);
-            n.set_pos(self.text_x, text_y);
+            n.set_pos(self.text_x, text_y - 1.0);
             if self.value.is_empty() && !self.placeholder.is_empty() {
                 n.set_content(&self.placeholder);
                 n.set_color(self.placeholder_color.to_array());
+                n.clear_selection();
             } else {
                 n.set_content(&self.value);
                 n.set_color(self.text_color.to_array());
+                if self.has_selection() {
+                    n.set_selection(self.selection_start, self.selection_end);
+                    n.set_selection_color(self.selection_color.to_array());
+                } else {
+                    n.clear_selection();
+                }
             }
             n.set_family(&self.font_family);
             n.set_size(self.font_size);
@@ -649,6 +623,7 @@ impl Widget for TextInput {
             n.set_visible(true);
         }
 
+        // cursor
         if let Some(id) = self.cursor_id {
             let n = scene.rect_mut(id);
             if self.base.focused && self.cursor_visible {

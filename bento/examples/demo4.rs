@@ -3,7 +3,7 @@ use bento::*;
 fn main() {
     let mut ui = Ui::new();
 
-    let root = ui.add(Rect::new());
+    let root = ui.add(Container::new());
     ui.get_mut(root)
         .unwrap()
         .set_width(Size::Percent(100.0))
@@ -15,14 +15,14 @@ fn main() {
         .set_row_gap(8.0);
     ui.set_root(root);
 
-    let row1 = ui.add(Rect::new());
+    let row1 = ui.add(Container::new());
     ui.get_mut(row1)
         .unwrap()
         .set_flex_direction(FlexDirection::Row)
         .set_align_items(AlignItems::Center);
     ui.append(root, row1);
 
-    let row2 = ui.add(Rect::new());
+    let row2 = ui.add(Container::new());
     ui.get_mut(row2)
         .unwrap()
         .set_flex_direction(FlexDirection::Row)

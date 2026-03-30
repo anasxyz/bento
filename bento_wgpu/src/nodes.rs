@@ -98,6 +98,9 @@ pub struct TextNode {
     pub width: f32,
     pub z: i32,
     pub visible: bool,
+    pub selection_start: Option<usize>,
+    pub selection_end: Option<usize>,
+    pub selection_color: [f32; 4],
 }
 
 impl TextNode {
@@ -114,6 +117,9 @@ impl TextNode {
             width: f32::MAX,
             z: 0,
             visible: false,
+            selection_start: None,
+            selection_end: None,
+            selection_color: [0.267, 0.596, 0.890, 0.314],
         }
     }
 
@@ -149,6 +155,20 @@ impl TextNode {
     }
     pub fn set_visible(&mut self, v: bool) {
         self.visible = v;
+    }
+    pub fn set_selection(&mut self, start: usize, end: usize) {
+        self.selection_start = Some(start);
+        self.selection_end = Some(end);
+    }
+    pub fn set_selection_color(&mut self, c: [f32; 4]) {
+        self.selection_color = c;
+    }
+    pub fn clear_selection(&mut self) {
+        self.selection_start = None;
+        self.selection_end = None;
+    }
+    pub fn has_selection(&self) -> bool {
+        matches!((self.selection_start, self.selection_end), (Some(s), Some(e)) if s < e)
     }
 }
 
