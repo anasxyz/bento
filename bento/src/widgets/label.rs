@@ -1,4 +1,3 @@
-use crate::Size;
 use crate::color::Color;
 use crate::fonts::{FontAttrs, Fonts};
 use crate::widget::{AsAny, Base, HasBase, Widget};
@@ -14,12 +13,13 @@ pub struct Label {
     weight: u16,
     italic: bool,
     color: Color,
+    wrap: bool,
     text_id: Option<TextId>,
 }
 
 impl Label {
     pub fn new(text: &str) -> Self {
-        let mut label = Self {
+        Self {
             base: Base::new(),
             text: text.to_string(),
             family: "sans-serif".to_string(),
@@ -27,10 +27,9 @@ impl Label {
             weight: 400,
             italic: false,
             color: Color::WHITE,
+            wrap: true,
             text_id: None,
-        };
-        label.base.layout.min_w = Size::Fixed(0.0);
-        label
+        }
     }
 
     pub fn set_text(&mut self, s: &str) -> &mut Self {
@@ -63,6 +62,11 @@ impl Label {
         self.base.render_dirty = true;
         self
     }
+    pub fn set_wrap(&mut self, v: bool) -> &mut Self {
+        self.wrap = v;
+        self.base.render_dirty = true;
+        self
+    }
 }
 
 impl Widget for Label {
@@ -80,7 +84,7 @@ impl Widget for Label {
             node.set_weight(self.weight);
             node.set_italic(self.italic);
             node.set_color(self.color.to_array());
-            node.set_width(w);
+            node.set_width(if self.wrap { w } else { f32::MAX });
             node.set_visible(true);
         }
     }
@@ -93,7 +97,9 @@ impl Widget for Label {
             italic: self.italic,
             line_height: None,
         };
-        Some(fonts.measure(&self.text, &attrs, max_width))
+        // when wrap is off, always measure at natural width
+        let max = if self.wrap { max_width } else { None };
+        Some(fonts.measure(&self.text, &attrs, max))
     }
 
     fn has_measure(&self) -> bool {

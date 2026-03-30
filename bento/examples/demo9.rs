@@ -27,21 +27,14 @@ fn main() {
         .set_overflow(Overflow::Hidden);
     ui.append(root, box_hidden);
 
-    let child_hidden = ui.add(Rect::new());
-    ui.get_mut(child_hidden)
+    let lbl = ui.add(Label::new("This text is very wide and should be clipped"));
+    ui.get_mut(lbl)
         .unwrap()
-        .set_width(Size::Fixed(300.0))
-        .set_height(Size::Fixed(300.0))
-        .set_color(Color::rgb(99, 102, 241));
-    ui.append(box_hidden, child_hidden);
-
-    let label_hidden = ui.add(Label::new("Label inside hidden box"));
-    ui.get_mut(label_hidden)
-        .unwrap()
-        .set_size(11.0)
-        .set_weight(600)
-        .set_color(Color::rgb(100, 100, 120));
-    ui.append(box_hidden, label_hidden);
+        .set_size(20.0)
+        .set_color(Color::WHITE)
+        .set_wrap(false)
+        .set_width(Size::Fixed(400.0));
+    ui.append(box_hidden, lbl); // directly inside the hidden box
 
     // right box — overflow visible
     // the red child is 300x300 but the box is only 150x150
