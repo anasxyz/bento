@@ -18,7 +18,6 @@ pub struct Renderer {
     shadow_pipeline: ShadowPipeline,
     rect_alloc: SlotAllocator,
     shadow_alloc: SlotAllocator,
-    sel_alloc: SlotAllocator,
     sel_slots_last_frame: Vec<u32>,
     sel_slots_this_frame: Vec<u32>,
     pub stats: RendererStats,
@@ -65,6 +64,8 @@ struct TextCall {
     selection_start: Option<usize>,
     selection_end: Option<usize>,
     selection_color: [f32; 4],
+    underlines: Vec<crate::nodes::TextDecoration>,
+    strikethroughs: Vec<crate::nodes::TextDecoration>,
 }
 
 impl Renderer {
@@ -85,7 +86,6 @@ impl Renderer {
             ),
             rect_alloc: SlotAllocator::new(),
             shadow_alloc: SlotAllocator::new(),
-            sel_alloc: SlotAllocator::new(),
             sel_slots_last_frame: Vec::new(),
             sel_slots_this_frame: Vec::new(),
             stats: RendererStats {
@@ -144,11 +144,6 @@ impl Renderer {
         self.stats.rects_culled = 0;
         self.stats.texts_culled = 0;
 
-        // clear selection rect slots from last frame
-        for slot in self.sel_slots_last_frame.drain(..) {
-            self.rect_pipeline.clear_slot(slot as usize);
-            self.sel_alloc.free(slot);
-        }
         self.sel_slots_this_frame.clear();
 
         // traverse scene tree
@@ -239,6 +234,26 @@ impl Renderer {
                             selection_start: n.selection_start,
                             selection_end: n.selection_end,
                             selection_color: apply_opacity(n.selection_color, state.opacity),
+                            underlines: n
+                                .underlines
+                                .iter()
+                                .map(|d| crate::nodes::TextDecoration {
+                                    start: d.start,
+                                    end: d.end,
+                                    color: apply_opacity(d.color, state.opacity),
+                                    thickness: d.thickness,
+                                })
+                                .collect(),
+                            strikethroughs: n
+                                .strikethroughs
+                                .iter()
+                                .map(|d| crate::nodes::TextDecoration {
+                                    start: d.start,
+                                    end: d.end,
+                                    color: apply_opacity(d.color, state.opacity),
+                                    thickness: d.thickness,
+                                })
+                                .collect(),
                         });
                     } else {
                         culled_texts += 1;
@@ -276,6 +291,14 @@ impl Renderer {
                 c.clip,
                 scale,
             );
+        }
+
+        // now safe to free last frames transient slots
+        // all scene rect nodes
+        // have already claimed their slots so no freed slot can be reissued to one
+        for slot in self.sel_slots_last_frame.drain(..) {
+            self.rect_pipeline.clear_slot(slot as usize);
+            self.rect_alloc.free(slot);
         }
 
         // clear slots for invisible or culled rects
@@ -353,8 +376,9 @@ impl Renderer {
                 if !in_clip {
                     continue;
                 }
-                // use a dynamic slot from the selection allocator
-                let slot = self.sel_alloc.alloc();
+                // use a transient slot from rect_alloc
+                // freed next frame via sel_slots_last_frame
+                let slot = self.rect_alloc.alloc();
                 let slot_idx = slot as usize;
                 self.rect_pipeline.ensure_slot(slot_idx);
                 self.rect_pipeline.write_slot(
@@ -371,6 +395,67 @@ impl Renderer {
                     scale,
                 );
                 self.sel_slots_this_frame.push(slot);
+            }
+        }
+
+        // compute underline and strikethrough rects and inject into rect pipeline
+        // same slot model as selections
+        for (idx, call) in text_calls.iter().enumerate() {
+            for dec in &call.underlines {
+                let line_rects = self.text_pipeline.compute_decoration_rects(
+                    idx,
+                    dec.start,
+                    dec.end,
+                    dec.thickness,
+                    crate::pipelines::text::DecorationKind::Underline,
+                    0.0,
+                    0.0,
+                    scale,
+                );
+                for (rx, ry, rw, rh) in line_rects {
+                    let in_clip = call.clip.map_or(true, |[cx, cy, cx2, cy2]| {
+                        rx < cx2 && ry < cy2 && rx + rw > cx && ry + rh > cy
+                    });
+                    if !in_clip {
+                        continue;
+                    }
+                    let slot = self.rect_alloc.alloc();
+                    let slot_idx = slot as usize;
+                    self.rect_pipeline.ensure_slot(slot_idx);
+                    self.rect_pipeline.write_slot(
+                        slot_idx, rx, ry, rw, rh, dec.color, 0.0, [0.0; 4], [0.0; 4], call.clip,
+                        scale,
+                    );
+                    self.sel_slots_this_frame.push(slot);
+                }
+            }
+            for dec in &call.strikethroughs {
+                let line_rects = self.text_pipeline.compute_decoration_rects(
+                    idx,
+                    dec.start,
+                    dec.end,
+                    dec.thickness,
+                    crate::pipelines::text::DecorationKind::Strikethrough,
+                    0.0,
+                    0.0,
+                    scale,
+                );
+                for (rx, ry, rw, rh) in line_rects {
+                    let in_clip = call.clip.map_or(true, |[cx, cy, cx2, cy2]| {
+                        rx < cx2 && ry < cy2 && rx + rw > cx && ry + rh > cy
+                    });
+                    if !in_clip {
+                        continue;
+                    }
+                    let slot = self.rect_alloc.alloc();
+                    let slot_idx = slot as usize;
+                    self.rect_pipeline.ensure_slot(slot_idx);
+                    self.rect_pipeline.write_slot(
+                        slot_idx, rx, ry, rw, rh, dec.color, 0.0, [0.0; 4], [0.0; 4], call.clip,
+                        scale,
+                    );
+                    self.sel_slots_this_frame.push(slot);
+                }
             }
         }
 

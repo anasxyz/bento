@@ -5,6 +5,11 @@ use glyphon::{
 };
 use wgpu;
 
+pub enum DecorationKind {
+    Underline,
+    Strikethrough,
+}
+
 #[derive(Clone)]
 struct SubmitMeta {
     x: f32,
@@ -240,6 +245,79 @@ impl TextPipeline {
 
     pub fn trim_atlas(&mut self) {
         self.atlas.trim();
+    }
+
+    /// compute line rects for underlines or strikethroughs
+    /// decoration_type: "underline" or "strikethrough"
+    /// returns (x, y, w, h) in logical pixels, one rect per run that overlaps the range
+    pub fn compute_decoration_rects(
+        &self,
+        idx: usize,
+        start: usize,
+        end: usize,
+        thickness: f32,
+        decoration_type: DecorationKind,
+        offset_x: f32,
+        offset_y: f32,
+        scale: f32,
+    ) -> Vec<(f32, f32, f32, f32)> {
+        if idx >= self.active || start >= end {
+            return Vec::new();
+        }
+        let entry = &self.entries[idx];
+        let meta = &self.meta[idx];
+        let mut rects = Vec::new();
+
+        // snap thickness to at least 1 physical pixel
+        let thick = (thickness * scale).round().max(1.0) / scale;
+
+        for run in entry.buffer.layout_runs() {
+            let mut x1: Option<f32> = None;
+            let mut x2: Option<f32> = None;
+
+            for glyph in run.glyphs {
+                if glyph.end <= start || glyph.start >= end {
+                    continue;
+                }
+                let gx1 = offset_x + meta.x + glyph.x;
+                let gx2 = gx1 + glyph.w;
+                x1 = Some(x1.map_or(gx1, |v: f32| v.min(gx1)));
+                x2 = Some(x2.map_or(gx2, |v: f32| v.max(gx2)));
+            }
+
+            if let (Some(rx1), Some(rx2)) = (x1, x2) {
+                if rx2 <= rx1 {
+                    continue;
+                }
+
+                // snap x extents to physical pixels independently to avoid
+                // fractional endpoints — same pattern as compute_selection_rects
+                let px1 = (rx1 * scale).round() / scale;
+                let px2 = (rx2 * scale).round() / scale;
+
+                let line_y = match decoration_type {
+                    DecorationKind::Underline => {
+                        // line_y is the baseline in cosmic-text
+                        // place underline just below baseline, 1 physical pixel gap
+                        let baseline = offset_y + meta.y + run.line_y;
+                        let y = baseline + (1.0 / scale);
+                        (y * scale).round() / scale
+                    }
+                    DecorationKind::Strikethrough => {
+                        // ascent = distance from line_top to baseline
+                        // strikethrough at ~40% of ascent above baseline
+                        let baseline = offset_y + meta.y + run.line_y;
+                        let ascent = run.line_y - run.line_top;
+                        let y = baseline - ascent * 0.4;
+                        (y * scale).round() / scale
+                    }
+                };
+
+                rects.push((px1, line_y, px2 - px1, thick));
+            }
+        }
+
+        rects
     }
 
     /// compute selection highlight rects for a submitted text entry

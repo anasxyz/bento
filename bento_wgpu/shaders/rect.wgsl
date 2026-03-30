@@ -68,8 +68,7 @@ fn sdf_rrect(p: vec2f, half_size: vec2f, radius: f32) -> f32 {
 }
 
 fn aa_coverage(d: f32) -> f32 {
-    let fw = fwidth(d);
-    return clamp(0.5 - d / max(fw, 0.0001), 0.0, 1.0);
+    return clamp(0.5 - d, 0.0, 1.0);
 }
 
 @fragment

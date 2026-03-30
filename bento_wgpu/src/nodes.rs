@@ -86,6 +86,14 @@ impl RectNode {
     }
 }
 
+#[derive(Clone)]
+pub struct TextDecoration {
+    pub start: usize,
+    pub end: usize,
+    pub color: [f32; 4],
+    pub thickness: f32,
+}
+
 pub struct TextNode {
     pub x: f32,
     pub y: f32,
@@ -101,6 +109,8 @@ pub struct TextNode {
     pub selection_start: Option<usize>,
     pub selection_end: Option<usize>,
     pub selection_color: [f32; 4],
+    pub underlines: Vec<TextDecoration>,
+    pub strikethroughs: Vec<TextDecoration>,
 }
 
 impl TextNode {
@@ -120,6 +130,8 @@ impl TextNode {
             selection_start: None,
             selection_end: None,
             selection_color: [0.267, 0.596, 0.890, 0.314],
+            underlines: Vec::new(),
+            strikethroughs: Vec::new(),
         }
     }
 
@@ -169,6 +181,32 @@ impl TextNode {
     }
     pub fn has_selection(&self) -> bool {
         matches!((self.selection_start, self.selection_end), (Some(s), Some(e)) if s < e)
+    }
+
+    pub fn add_underline(&mut self, start: usize, end: usize, color: [f32; 4], thickness: f32) {
+        self.underlines.push(TextDecoration {
+            start,
+            end,
+            color,
+            thickness,
+        });
+    }
+
+    pub fn add_strikethrough(&mut self, start: usize, end: usize, color: [f32; 4], thickness: f32) {
+        self.strikethroughs.push(TextDecoration {
+            start,
+            end,
+            color,
+            thickness,
+        });
+    }
+
+    pub fn clear_underlines(&mut self) {
+        self.underlines.clear();
+    }
+
+    pub fn clear_strikethroughs(&mut self) {
+        self.strikethroughs.clear();
     }
 }
 
