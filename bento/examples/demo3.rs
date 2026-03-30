@@ -3,7 +3,7 @@ use bento::*;
 fn main() {
     let mut ui = Ui::new();
 
-    let root = ui.add(Rect::new());
+    let root = ui.add(Container::new());
     ui.get_mut(root)
         .unwrap()
         .set_width(Size::Percent(100.0))
@@ -13,15 +13,14 @@ fn main() {
         .set_padding([16.0, 16.0, 16.0, 16.0]);
     ui.set_root(root);
 
-    let scroll = ui.add(ScrollContainer::new());
+    let scroll = ui.add(Container::new());
     ui.get_mut(scroll)
         .unwrap()
         .set_flex_direction(FlexDirection::Col)
         .set_width(Size::Percent(100.0))
         .set_height(Size::Fixed(450.0))
         .set_color(Color::rgb(20, 20, 20))
-        .set_scroll_y_enabled(true)
-        .set_scroll_x_enabled(false)
+        .set_overflow(Overflow::Scroll)
         .set_scrollbar_width(12.0)
         .set_scroll_speed(30.0)
         .set_track_color(Color::rgb(20, 20, 20))

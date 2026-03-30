@@ -25,8 +25,11 @@ pub use layout::{
     Position, Size,
 };
 pub use settings::WindowConfig;
-pub use ui::{Event, Ui};
+pub use ui::{
+    Blur, Change, Click, DoubleClick, Event, Focus, Hover, HoverEnd, KeyPress, KeyRelease,
+    MouseMove, Press, Release, RightClick, Scroll, Ui,
+};
 pub use widget::{AnyWidget, AsAny, Base, Handle, HasBase, LayoutExt, Widget};
-pub use widgets::{Rect, Label, ScrollContainer, TextInput, Button};
+pub use widgets::{Button, Checkbox, Container, Label, TextInput};
 
 pub use bento_derive::Widget;

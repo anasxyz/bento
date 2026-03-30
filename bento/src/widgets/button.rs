@@ -1,7 +1,7 @@
 use crate::color::Color;
 use crate::fonts::{FontAttrs, Fonts};
-use crate::input::MouseButton;
-use crate::widget::{AsAny, Base, HasBase, Widget};
+use crate::ui::{Hover, HoverEnd, Press, Release, Ui};
+use crate::widget::{AsAny, Base, Handle, HasBase, Widget};
 use bento_derive::Widget;
 use bento_wgpu::{RectId, SceneGraph, SceneNodeId, TextId, TransformId};
 
@@ -25,9 +25,9 @@ pub struct Button {
     font_weight: u16,
 
     // state
-    hovered: bool,
-    pressed: bool,
-    disabled: bool,
+    pub hovered: bool,
+    pub pressed: bool,
+    pub disabled: bool,
 
     // cached measured text width for centering
     text_width: f32,
@@ -72,6 +72,9 @@ impl Button {
     }
     pub fn set_color(&mut self, c: Color) -> &mut Self {
         self.color = c;
+        self.hover_color = c.lighten(0.08);
+        self.pressed_color = c.darken(0.08);
+        self.disabled_color = c.desaturate(0.5).darken(0.1);
         self.base.render_dirty = true;
         self
     }
@@ -140,7 +143,11 @@ impl Button {
         self.disabled
     }
 
-    fn current_color(&self) -> Color {
+    pub fn get_text(&self) -> &str {
+        &self.label
+    }
+
+    pub fn current_color(&self) -> Color {
         if self.disabled {
             self.disabled_color
         } else if self.pressed {
@@ -152,7 +159,7 @@ impl Button {
         }
     }
 
-    fn current_text_color(&self) -> Color {
+    pub fn current_text_color(&self) -> Color {
         if self.disabled {
             self.disabled_text_color
         } else {
@@ -179,6 +186,39 @@ impl Widget for Button {
 
         scene.add_child(SceneNodeId(transform.0), SceneNodeId(rect.0));
         scene.add_child(SceneNodeId(transform.0), SceneNodeId(text.0));
+    }
+
+    fn register(&mut self, handle: Handle<()>, ui: &mut Ui) {
+        let h = Handle::<Button>::new(handle.id, handle.generation);
+
+        ui.on::<Button, Hover>(h, |ui, this, e| {
+            if this.disabled {
+                return;
+            }
+            this.hovered = true;
+            this.base.cursor = crate::input::Cursor::Pointer;
+            this.base.render_dirty = true;
+        });
+
+        ui.on::<Button, HoverEnd>(h, |ui, this, e| {
+            this.hovered = false;
+            this.pressed = false;
+            this.base.cursor = crate::input::Cursor::Default;
+            this.base.render_dirty = true;
+        });
+
+        ui.on::<Button, Press>(h, |ui, this, e| {
+            if this.disabled {
+                return;
+            }
+            this.pressed = true;
+            this.base.render_dirty = true;
+        });
+
+        ui.on::<Button, Release>(h, |ui, this, e| {
+            this.pressed = false;
+            this.base.render_dirty = true;
+        });
     }
 
     fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, h: f32) {
@@ -234,38 +274,5 @@ impl Widget for Button {
 
     fn has_measure(&self) -> bool {
         true
-    }
-
-    fn on_mouse_enter(&mut self) {
-        if self.disabled {
-            return;
-        }
-        self.hovered = true;
-        self.base.cursor = crate::input::Cursor::Pointer;
-        self.base.render_dirty = true;
-    }
-
-    fn on_mouse_leave(&mut self) {
-        self.hovered = false;
-        self.pressed = false;
-        self.base.cursor = crate::input::Cursor::Default;
-        self.base.render_dirty = true;
-    }
-
-    fn on_mouse_press(&mut self, _x: f32, _y: f32, button: MouseButton) {
-        if self.disabled {
-            return;
-        }
-        if button == MouseButton::Left {
-            self.pressed = true;
-            self.base.render_dirty = true;
-        }
-    }
-
-    fn on_mouse_release(&mut self, _x: f32, _y: f32, _button: MouseButton) {
-        if self.pressed {
-            self.pressed = false;
-            self.base.render_dirty = true;
-        }
     }
 }

@@ -20,7 +20,7 @@ use crate::window::BentoWindow;
 const BLINK_MS: u64 = 500;
 
 fn schedule_blink(win: &mut BentoWindow, event_loop: &ActiveEventLoop) {
-    if win.ui.has_focused_text_input() {
+    if win.ui.has_focused_text_widget() {
         if win.blink_deadline.is_none() {
             win.blink_deadline = Some(Instant::now() + Duration::from_millis(BLINK_MS));
         }

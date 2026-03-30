@@ -3,18 +3,20 @@ mod slot;
 mod tree;
 mod update;
 
-pub use events::Event;
+pub use events::{
+    Blur, Change, Click, DoubleClick, Event, Focus, Hover, HoverEnd, KeyPress, KeyRelease,
+    MouseMove, Press, Release, RightClick, Scroll,
+};
 
 use crate::layout::LayoutEngine;
-use crate::widget::Handle;
+use crate::widget::{Handle, Widget};
 use bento_wgpu::SceneGraph;
 
-use events::EventSystem;
+use events::{ConnectionList, EventSystem, QueuedEvent};
 use slot::Slot;
 
 const GLOBAL_ID: u32 = u32::MAX;
 
-/// tracks which widget currently has hover/press/focus
 pub struct InteractionState {
     pub hovered: Option<Handle<()>>,
     pub pressed: Option<Handle<()>>,
@@ -38,6 +40,7 @@ pub struct Ui {
     pub(crate) events: EventSystem,
     pub(crate) interaction: InteractionState,
     pub(crate) root: Option<Handle<()>>,
+    pub(crate) registering: bool,
     pub window_width: u32,
     pub window_height: u32,
 }
@@ -51,6 +54,7 @@ impl Ui {
             events: EventSystem::new(),
             interaction: InteractionState::new(),
             root: None,
+            registering: false,
             window_width: 0,
             window_height: 0,
         }
@@ -60,7 +64,7 @@ impl Ui {
         Handle::new(GLOBAL_ID, 0)
     }
 
-    pub fn has_focused_text_input(&self) -> bool {
+    pub fn has_focused_text_widget(&self) -> bool {
         if let Some(focused) = self.interaction.focused {
             if let Some(Some(slot)) = self.slots.get(focused.id as usize) {
                 return slot
@@ -87,14 +91,38 @@ impl Ui {
         }
     }
 
-    // ── event API (delegates to EventSystem) ─────────────────────────────────
+    // unified on<E> 
+    // works for any type that implements Event, builtin or user defined
+    // when called during register() goes to internal list, otherwise external
 
-    pub fn connect<T>(
+    pub fn on<W, E>(
         &mut self,
-        handle: Handle<T>,
-        callback: impl FnMut(&mut Ui, &Event) + 'static,
-    ) -> u32 {
-        self.events.connect(handle, callback)
+        handle: Handle<W>,
+        mut callback: impl FnMut(&mut Ui, &mut W, &mut E) + 'static,
+    ) -> u32
+    where
+        W: Widget,
+        E: Event,
+    {
+        let h = handle.untyped();
+        let cb = move |ui: &mut Ui, event: &mut dyn Event| {
+            if let Some(e) = event.as_any_mut().downcast_mut::<E>() {
+                let Some(mut slot) = ui.slots.get_mut(h.id as usize).and_then(|s| s.take()) else {
+                    return;
+                };
+                if let Some(w) = slot.widget.as_any_mut().downcast_mut::<W>() {
+                    callback(ui, w, e);
+                }
+                if let Some(s) = ui.slots.get_mut(h.id as usize) {
+                    *s = Some(slot);
+                }
+            }
+        };
+        if self.registering {
+            self.events.connect_internal(handle, cb)
+        } else {
+            self.events.connect_external(handle, cb)
+        }
     }
 
     pub fn disconnect(&mut self, connection_id: u32) {
@@ -105,14 +133,15 @@ impl Ui {
         self.events.has_connections(handle)
     }
 
-    pub fn emit<T>(&mut self, handle: Handle<T>, event: Event) {
-        self.events.emit(handle, event);
+    // emit 
+
+    pub fn emit<T, E: Event>(&mut self, handle: Handle<T>, event: E) {
+        self.events.emit(handle.untyped(), event);
     }
 
-    pub fn emit_bubbling<T>(&mut self, handle: Handle<T>, event: Event) {
+    pub fn emit_bubbling<T, E: Event>(&mut self, handle: Handle<T>, event: E) {
         let global = self.global();
         let handle = handle.untyped();
-        // build ancestor chain first to avoid borrow conflict
         let mut chain = vec![handle];
         let mut current = self.parent(handle);
         while let Some(p) = current {
@@ -120,33 +149,73 @@ impl Ui {
             current = self.parent(p);
         }
         chain.push(global);
-        for ancestor in chain {
-            self.events.event_queue.push((ancestor, event.clone()));
-        }
+        self.events.emit_bubbling(event, chain);
     }
+
+    // drain 
 
     pub fn drain_events(&mut self) {
         while !self.events.event_queue.is_empty() {
             let queue = std::mem::take(&mut self.events.event_queue);
-            for (handle, event) in queue {
-                // take connections for this handle out to avoid borrow conflict
-                let Some(mut conns) = self.events.connections.remove(&handle) else {
+            for mut queued in queue {
+                let handle = queued.handle;
+                let event = &mut *queued.event;
+
+                let Some(mut list) = self.events.connections.remove(&handle) else {
+                    // no connections here but still need to bubble
+                    if !event.is_propagation_stopped() && !queued.remaining_chain.is_empty() {
+                        let next = queued.remaining_chain.remove(0);
+                        self.events.event_queue.push(events::QueuedEvent {
+                            handle: next,
+                            event: queued.event,
+                            remaining_chain: queued.remaining_chain,
+                        });
+                    }
                     continue;
                 };
-                for conn in &mut conns {
-                    (conn.callback)(self, &event);
+
+                // external first
+                for conn in &mut list.external {
+                    if event.is_propagation_stopped() {
+                        break;
+                    }
+                    (conn.callback)(self, event);
                 }
-                // put connections back — merge in case new ones were added during callback
-                let entry = self.events.connections.entry(handle).or_default();
-                // prepend existing conns back (callbacks added during drain go at end)
-                let new_conns = std::mem::take(entry);
-                *entry = conns;
-                entry.extend(new_conns);
+
+                // internal only if default not stopped
+                if !event.is_default_stopped() {
+                    for conn in &mut list.internal {
+                        if event.is_propagation_stopped() {
+                            break;
+                        }
+                        (conn.callback)(self, event);
+                    }
+                }
+
+                // put list back, merging any new connections added during drain
+                let entry = self
+                    .events
+                    .connections
+                    .entry(handle)
+                    .or_insert_with(ConnectionList::new);
+                let new_list = std::mem::replace(entry, list);
+                entry.external.extend(new_list.external);
+                entry.internal.extend(new_list.internal);
+
+                // continue bubbling to next ancestor if propagation not stopped
+                if !queued.event.is_propagation_stopped() && !queued.remaining_chain.is_empty() {
+                    let next = queued.remaining_chain.remove(0);
+                    self.events.event_queue.push(events::QueuedEvent {
+                        handle: next,
+                        event: queued.event,
+                        remaining_chain: queued.remaining_chain,
+                    });
+                }
             }
         }
     }
 
-    // ── mouse helpers ─────────────────────────────────────────────────────────
+    // interaction helpers 
 
     pub fn hovered(&self) -> Option<Handle<()>> {
         self.interaction.hovered

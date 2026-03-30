@@ -66,13 +66,8 @@ impl BentoWindow {
         self.renderer.resize(ctx, &self.surface, &mut self.ui.scene);
         self.ui.window_width = w as u32;
         self.ui.window_height = h as u32;
-        // mark root dirty so taffy recomputes from the new window size
-        if let Some(root) = self.ui.root() {
-            if let Some(Some(slot)) = self.ui.slots.get_mut(root.id as usize) {
-                slot.widget.base_mut().layout_dirty = true;
-            }
-        }
         for slot in self.ui.slots.iter_mut().flatten() {
+            slot.widget.base_mut().layout_dirty = true;
             slot.widget.base_mut().render_dirty = true;
         }
         self.window.request_redraw();

@@ -7,7 +7,7 @@ impl Ui {
         let layout = widget.base().layout.clone();
         let has_measure = widget.has_measure();
 
-        // call build to create scene nodes eagerly, track which were created
+        // build scene nodes
         let before: std::collections::HashSet<usize> =
             self.scene.nodes.iter().map(|(i, _)| i).collect();
         widget.build(&mut self.scene);
@@ -19,8 +19,6 @@ impl Ui {
             .filter(|id| !before.contains(&id.0))
             .collect();
 
-        // find which new nodes are already children of another new node
-        // those are internal nodes and should not be attached to root
         let mut child_nodes: std::collections::HashSet<usize> = std::collections::HashSet::new();
         for &node_id in &all_new {
             match &self.scene.nodes[node_id.0] {
@@ -43,7 +41,6 @@ impl Ui {
             }
         }
 
-        // only top level nodes (not already someones child) attach to root
         let scene_nodes: Vec<bento_wgpu::SceneNodeId> = all_new
             .iter()
             .filter(|id| !child_nodes.contains(&id.0))
@@ -54,48 +51,70 @@ impl Ui {
             self.scene.add_child(self.scene.root, node_id);
         }
 
-        for (i, slot) in self.slots.iter_mut().enumerate() {
-            if slot.is_none() {
-                let generation = 0;
-                let h = Handle::<()>::new(i as u32, generation);
-                if has_measure {
-                    self.layout.add_with_measure(h, &layout);
-                } else {
-                    self.layout.add(h, &layout);
-                }
-                *slot = Some(Slot {
-                    widget: Box::new(widget),
-                    generation,
-                    children: Vec::new(),
-                    parent: None,
-                    scene_nodes,
-                });
-                return Handle::new(i as u32, generation);
-            }
-        }
-
-        let id = self.slots.len() as u32;
-        let generation = 0;
+        // find a free slot or push a new one
+        let (id, generation) = self.alloc_slot();
         let h = Handle::<()>::new(id, generation);
+
         if has_measure {
             self.layout.add_with_measure(h, &layout);
         } else {
             self.layout.add(h, &layout);
         }
-        self.slots.push(Some(Slot {
+
+        // insert into slot
+        let slot_ref = if (id as usize) < self.slots.len() {
+            &mut self.slots[id as usize]
+        } else {
+            self.slots.push(None);
+            self.slots.last_mut().unwrap()
+        };
+        *slot_ref = Some(Slot {
             widget: Box::new(widget),
             generation,
             children: Vec::new(),
             parent: None,
             scene_nodes,
-        }));
-        Handle::new(id, generation)
+        });
+
+        // register internal connections now that slot exists
+        let typed_handle = Handle::<W>::new(id, generation);
+        {
+            let Some(slot) = self.slots.get_mut(id as usize) else {
+                return typed_handle;
+            };
+            let Some(mut s) = slot.take() else {
+                return typed_handle;
+            };
+            self.registering = true;
+            s.widget.register(h, self);
+            self.registering = false;
+            if let Some(slot) = self.slots.get_mut(id as usize) {
+                *slot = Some(s);
+            }
+        }
+
+        typed_handle
+    }
+
+    /// find a free slot index and return (id, generation)
+    fn alloc_slot(&self) -> (u32, u32) {
+        for (i, slot) in self.slots.iter().enumerate() {
+            if slot.is_none() {
+                return (i as u32, 0);
+            }
+        }
+        (self.slots.len() as u32, 0)
+    }
+
+    pub fn add_to<W: Widget, P>(&mut self, parent: Handle<P>, widget: W) -> Handle<W> {
+        let handle = self.add(widget);
+        self.append(parent, handle);
+        handle
     }
 
     pub fn remove<T>(&mut self, handle: Handle<T>) {
         let handle = handle.untyped();
 
-        // detach from parent
         if let Some(parent) = self.parent(handle) {
             if let Some(Some(slot)) = self.slots.get_mut(parent.id as usize) {
                 slot.children.retain(|c| *c != handle);
@@ -104,7 +123,6 @@ impl Ui {
             self.layout.set_children(parent, &children);
         }
 
-        // detach scene nodes from scene graph
         if let Some(Some(slot)) = self.slots.get(handle.id as usize) {
             let nodes = slot.scene_nodes.clone();
             let parent_scene_node = self.get_attachment_node(handle);
@@ -116,7 +134,7 @@ impl Ui {
 
         self.layout.remove(handle);
         self.events.connections.remove(&handle);
-        self.events.event_queue.retain(|(h, _)| *h != handle);
+        self.events.event_queue.retain(|q| q.handle != handle);
 
         if self.interaction.hovered == Some(handle) {
             self.interaction.hovered = None;
@@ -148,7 +166,6 @@ impl Ui {
         let parent = parent.untyped();
         let child = child.untyped();
 
-        // widget tree
         if let Some(Some(slot)) = self.slots.get_mut(child.id as usize) {
             slot.parent = Some(parent);
         }
@@ -160,8 +177,6 @@ impl Ui {
         let children = self.children(parent).to_vec();
         self.layout.set_children(parent, &children);
 
-        // scene graph
-        // move childs nodes from root to parents attachment node
         let child_nodes: Vec<SceneNodeId> = self
             .slots
             .get(child.id as usize)
@@ -172,22 +187,16 @@ impl Ui {
         let attachment = self.get_attachment_node(parent);
 
         for node_id in child_nodes {
-            // remove from scene root
             self.scene.remove_child(self.scene.root, node_id);
-            // attach to parent's attachment node
             self.scene.add_child(attachment, node_id);
         }
     }
 
-    /// get the scene node that children of this widget should attach to
-    /// uses children_attachment_node() if provided, otherwise the widget's first scene node,
-    /// otherwise the scene root
     pub(crate) fn get_attachment_node(&self, handle: Handle<()>) -> SceneNodeId {
         if let Some(Some(slot)) = self.slots.get(handle.id as usize) {
             if let Some(node) = slot.widget.children_attachment_node() {
                 return node;
             }
-            // check if first scene node is a group node
             if let Some(&first) = slot.scene_nodes.first() {
                 match &self.scene.nodes[first.0] {
                     bento_wgpu::SceneNode::Transform(_)

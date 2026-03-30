@@ -45,9 +45,9 @@ impl Default for Layout {
             flex_direction: FlexDirection::Row,
             flex_wrap: FlexWrap::NoWrap,
             flex_grow: 0.0,
-            flex_shrink: 0.0,
+            flex_shrink: 1.0,
             flex_basis: Size::Auto,
-            align_items: AlignItems::Start,
+            align_items: AlignItems::Stretch,
             align_self: AlignSelf::Auto,
             justify_content: JustifyContent::Start,
             padding: [0.0; 4],
@@ -56,7 +56,7 @@ impl Default for Layout {
             col_gap: 0.0,
             position: Position::Relative,
             inset: [Size::Auto, Size::Auto, Size::Auto, Size::Auto],
-            overflow: Overflow::Hidden,
+            overflow: Overflow::Visible,
             aspect_ratio: None,
         }
     }
