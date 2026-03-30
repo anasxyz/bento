@@ -1,3 +1,4 @@
+use crate::Size;
 use crate::color::Color;
 use crate::fonts::{FontAttrs, Fonts};
 use crate::widget::{AsAny, Base, HasBase, Widget};
@@ -18,7 +19,7 @@ pub struct Label {
 
 impl Label {
     pub fn new(text: &str) -> Self {
-        Self {
+        let mut label = Self {
             base: Base::new(),
             text: text.to_string(),
             family: "sans-serif".to_string(),
@@ -27,7 +28,9 @@ impl Label {
             italic: false,
             color: Color::WHITE,
             text_id: None,
-        }
+        };
+        label.base.layout.min_w = Size::Fixed(0.0);
+        label
     }
 
     pub fn set_text(&mut self, s: &str) -> &mut Self {
