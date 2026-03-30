@@ -35,6 +35,14 @@ fn main() {
         .set_color(Color::rgb(99, 102, 241));
     ui.append(box_hidden, child_hidden);
 
+    let label_hidden = ui.add(Label::new("Label inside hidden box"));
+    ui.get_mut(label_hidden)
+        .unwrap()
+        .set_size(11.0)
+        .set_weight(600)
+        .set_color(Color::rgb(100, 100, 120));
+    ui.append(box_hidden, label_hidden);
+
     // right box — overflow visible
     // the red child is 300x300 but the box is only 150x150
     // the child should spill outside the box bounds

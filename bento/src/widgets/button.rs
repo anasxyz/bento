@@ -143,6 +143,10 @@ impl Button {
         self.disabled
     }
 
+    pub fn get_text(&self) -> &str {
+        &self.label
+    }
+
     pub fn current_color(&self) -> Color {
         if self.disabled {
             self.disabled_color

@@ -1,8 +1,9 @@
 use crate::color::Color;
 use crate::fonts::Fonts;
+use crate::layout::Overflow;
 use crate::widget::{AsAny, Base, HasBase, Widget};
 use bento_derive::Widget;
-use bento_wgpu::{RectId, SceneGraph, SceneNodeId, TransformId};
+use bento_wgpu::{ClipId, RectId, SceneGraph, SceneNodeId, TransformId};
 
 #[derive(Widget)]
 pub struct Rect {
@@ -13,6 +14,7 @@ pub struct Rect {
     border_widths: [f32; 4],
     rect_id: Option<RectId>,
     transform_id: Option<TransformId>,
+    clip_id: Option<ClipId>,
 }
 
 impl Rect {
@@ -25,6 +27,7 @@ impl Rect {
             border_widths: [0.0; 4],
             rect_id: None,
             transform_id: None,
+            clip_id: None,
         }
     }
 
@@ -58,15 +61,17 @@ impl Default for Rect {
 
 impl Widget for Rect {
     fn build(&mut self, scene: &mut SceneGraph) {
-        self.transform_id = Some(scene.add_transform());
-        self.rect_id = Some(scene.add_rect());
-        let t = self.transform_id.unwrap();
-        let r = self.rect_id.unwrap();
-        scene.add_child(SceneNodeId(t.0), SceneNodeId(r.0));
-    }
+        let transform = scene.add_transform();
+        let rect = scene.add_rect();
+        scene.add_child(SceneNodeId(transform.0), SceneNodeId(rect.0));
+        self.transform_id = Some(transform);
+        self.rect_id = Some(rect);
 
-    fn children_attachment_node(&self) -> Option<SceneNodeId> {
-        self.transform_id.map(|id| SceneNodeId(id.0))
+        // always create a clip node
+        // only activated when overflow is Hidden
+        let clip = scene.add_clip();
+        scene.add_child(SceneNodeId(transform.0), SceneNodeId(clip.0));
+        self.clip_id = Some(clip);
     }
 
     fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, h: f32) {
@@ -79,5 +84,25 @@ impl Widget for Rect {
             node.set_border_widths(self.border_widths);
             node.set_visible(true);
         }
+
+        // update clip region based on overflow setting
+        if let Some(id) = self.clip_id {
+            match self.base.layout.overflow {
+                Overflow::Hidden => {
+                    scene.clip_mut(id).set_rect(x, y, w, h);
+                }
+                _ => {
+                    // disable clipping by setting an enormous rect
+                    scene
+                        .clip_mut(id)
+                        .set_rect(-100000.0, -100000.0, 200000.0, 200000.0);
+                }
+            }
+        }
+    }
+
+    fn children_attachment_node(&self) -> Option<SceneNodeId> {
+        // children attach to the clip node so they get clipped when overflow is Hidden
+        self.clip_id.map(|id| SceneNodeId(id.0))
     }
 }
