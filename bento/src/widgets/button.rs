@@ -23,6 +23,7 @@ pub struct Button {
     font_family: String,
     font_size: f32,
     font_weight: u16,
+    padding: [f32; 4],
 
     // state
     pub hovered: bool,
@@ -59,6 +60,7 @@ impl Button {
             font_family: "sans-serif".to_string(),
             font_size: 14.0,
             font_weight: 500,
+            padding: [4.0, 8.0, 4.0, 8.0],
             hovered: false,
             pressed: false,
             disabled: false,
@@ -137,6 +139,12 @@ impl Button {
     pub fn set_font_weight(&mut self, v: u16) -> &mut Self {
         self.font_weight = v;
         self.base.render_dirty = true;
+        self
+    }
+    pub fn set_padding(&mut self, v: [f32; 4]) -> &mut Self {
+        self.padding = v;
+        self.base.render_dirty = true;
+        self.base.layout_dirty = true;
         self
     }
     pub fn set_disabled(&mut self, v: bool) -> &mut Self {
@@ -289,7 +297,7 @@ impl Widget for Button {
             let text_x = if self.text_width > 0.0 {
                 x + (w - self.text_width).max(0.0) / 2.0
             } else {
-                x
+                x + self.padding[3] // left padding
             };
             let text_y = y + (h - self.font_size) / 2.0 - self.font_size * 0.15;
             n.set_pos(text_x, text_y);
@@ -330,7 +338,10 @@ impl Widget for Button {
         };
         let (tw, _) = fonts.measure(&self.label, &attrs, None);
         self.text_width = tw;
-        Some((tw + 24.0, self.font_size * 1.6 + 8.0))
+        Some((
+            tw + self.padding[1] + self.padding[3],
+            self.font_size + self.padding[0] + self.padding[2],
+        ))
     }
 
     fn has_measure(&self) -> bool {

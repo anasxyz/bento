@@ -1,3 +1,4 @@
+#![allow(unused)]
 use bento::*;
 
 fn main() {
@@ -61,6 +62,7 @@ fn main() {
         .unwrap()
         .set_height(Size::Percent(100.0))
         .set_font_size(12.0)
+        .add_underline(3, 4, Color::rgb(255, 255, 255), 1.0)
         .set_color(Color::rgb(25, 25, 30))
         .set_radius(0.0);
 
