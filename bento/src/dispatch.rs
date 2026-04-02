@@ -23,17 +23,30 @@ fn hit_chain(ui: &Ui, handle: Handle<()>, mx: f32, my: f32, chain: &mut Vec<(Han
 }
 
 fn top_hit(ui: &Ui, chain: &[(Handle<()>, u32)]) -> Option<Handle<()>> {
-    // sort by layer descending so highest layer wins
-    let mut sorted = chain.to_vec();
-    sorted.sort_by(|a, b| b.1.cmp(&a.1));
-    for &(handle, _) in &sorted {
+    if chain.is_empty() {
+        return None;
+    }
+
+    // find the highest layer that has any widget at this position
+    let max_layer = chain.iter().map(|&(_, l)| l).max().unwrap_or(0);
+
+    // only consider widgets on the highest layer
+    let top_layer: Vec<Handle<()>> = chain
+        .iter()
+        .filter(|&&(_, l)| l == max_layer)
+        .map(|&(h, _)| h)
+        .collect();
+
+    // within that layer, prefer interactive widgets
+    // otherwise take the last deepest one
+    for &handle in top_layer.iter().rev() {
         if let Some(w) = ui.get_any(handle) {
             if w.is_interactive() {
                 return Some(handle);
             }
         }
     }
-    sorted.last().map(|&(h, _)| h)
+    top_layer.last().copied()
 }
 
 pub fn dispatch(ui: &mut Ui, input: &InputState) {

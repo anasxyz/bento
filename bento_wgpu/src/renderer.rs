@@ -61,6 +61,7 @@ struct TextCall {
     color: [f32; 4],
     width: f32,
     clip: Option<[f32; 4]>,
+    layer: u32,
     selection_start: Option<usize>,
     selection_end: Option<usize>,
     selection_color: [f32; 4],
@@ -246,6 +247,7 @@ impl Renderer {
                             color: apply_opacity(n.color, state.opacity),
                             width: n.width,
                             clip: state.clip,
+                            layer,
                             selection_start: n.selection_start,
                             selection_end: n.selection_end,
                             selection_color: apply_opacity(n.selection_color, state.opacity),
@@ -379,10 +381,13 @@ impl Renderer {
             layer_text_ranges.insert(layer, (range_start, text_call_index));
         }
 
-        // compute selection/decoration rects for all text calls
+        // compute selection/decoration rects for all text calls, bucketed by layer
+        let mut layer_sel_slots: std::collections::BTreeMap<u32, Vec<u32>> =
+            std::collections::BTreeMap::new();
         let all_text_calls: Vec<&TextCall> =
             layers.values().flat_map(|(_, _, tc)| tc.iter()).collect();
         for (idx, call) in all_text_calls.iter().enumerate() {
+            let sel_slots = layer_sel_slots.entry(call.layer).or_default();
             if let (Some(sel_start), Some(sel_end)) = (call.selection_start, call.selection_end) {
                 let sel_rects = self
                     .text_pipeline
@@ -409,6 +414,7 @@ impl Renderer {
                         call.clip,
                         scale,
                     );
+                    sel_slots.push(slot);
                     self.sel_slots_this_frame.push(slot);
                 }
             }
@@ -445,6 +451,7 @@ impl Renderer {
                         call.clip,
                         scale,
                     );
+                    sel_slots.push(slot);
                     self.sel_slots_this_frame.push(slot);
                 }
             }
@@ -481,6 +488,7 @@ impl Renderer {
                         call.clip,
                         scale,
                     );
+                    sel_slots.push(slot);
                     self.sel_slots_this_frame.push(slot);
                 }
             }
@@ -492,8 +500,7 @@ impl Renderer {
         self.text_pipeline
             .prepare(font_system, &ctx.device, &ctx.queue);
 
-        // render pass
-        // draw shadow -> rect -> text per layer in ascending order
+        // render pass — draw shadow→rect→text per layer in ascending order
         let frame_view = frame
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -532,13 +539,18 @@ impl Renderer {
                         _ => None,
                     })
                     .collect();
-                let rect_slots: Vec<usize> = rect_calls
+                let mut rect_slots: Vec<usize> = rect_calls
                     .iter()
                     .filter_map(|c| match &scene.nodes[c.node_idx] {
                         SceneNode::Rect(n) if n.slot != u32::MAX => Some(n.slot as usize),
                         _ => None,
                     })
                     .collect();
+
+                // add selection/decoration slots for this layer
+                if let Some(extra) = layer_sel_slots.get(&layer) {
+                    rect_slots.extend(extra.iter().map(|&s| s as usize));
+                }
 
                 self.shadow_pipeline.draw_slots(&mut pass, &shadow_slots);
                 self.rect_pipeline.draw_slots(&mut pass, &rect_slots);
