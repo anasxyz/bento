@@ -32,6 +32,7 @@ struct GlyphAtlas {
     packer: AtlasAllocator,
     entries: HashMap<CacheKey, AtlasEntry>,
     dirty: bool,
+    was_cleared: bool,
 }
 
 impl GlyphAtlas {
@@ -58,10 +59,11 @@ impl GlyphAtlas {
             packer,
             entries: HashMap::new(),
             dirty: false,
+            was_cleared: false,
         }
     }
 
-    fn clear(&mut self, device: &wgpu::Device) {
+    pub fn clear(&mut self, device: &wgpu::Device) {
         self.packer = AtlasAllocator::new(size2(ATLAS_SIZE as i32, ATLAS_SIZE as i32));
         self.entries.clear();
         self.texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -82,6 +84,7 @@ impl GlyphAtlas {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
         self.dirty = true;
+        self.was_cleared = true;
     }
 
     fn get_or_insert(
@@ -388,10 +391,23 @@ impl TextPipeline {
         })
     }
 
-    pub fn resize(&mut self, queue: &wgpu::Queue, screen_w: f32, screen_h: f32, scale: f32) {
+    pub fn resize(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        screen_w: f32,
+        screen_h: f32,
+        scale: f32,
+    ) {
         self.screen_w = screen_w;
         self.screen_h = screen_h;
-        self.scale = scale;
+        if self.scale != scale {
+            self.scale = scale;
+            self.swash_cache = SwashCache::new();
+            self.atlas.clear(device);
+        } else {
+            self.scale = scale;
+        }
         let phys = [screen_w * scale, screen_h * scale];
         queue.write_buffer(&self.screen_buf, 0, bytemuck::cast_slice(&phys));
         self.atlas.dirty = true;
@@ -400,6 +416,11 @@ impl TextPipeline {
     pub fn begin_frame(&mut self) {
         self.active = 0;
         self.instances.clear();
+    }
+
+    pub fn end_frame(&mut self) {
+        self.entries.truncate(self.active);
+        self.meta.truncate(self.active);
     }
 
     pub fn submit(
@@ -579,6 +600,11 @@ impl TextPipeline {
 
         if self.instances.is_empty() {
             return;
+        }
+
+        if self.atlas.was_cleared {
+            self.swash_cache = SwashCache::new();
+            self.atlas.was_cleared = false;
         }
 
         if self.atlas.dirty {
