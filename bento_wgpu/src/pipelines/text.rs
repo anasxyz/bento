@@ -31,6 +31,7 @@ struct GlyphAtlas {
     view: wgpu::TextureView,
     packer: AtlasAllocator,
     entries: HashMap<CacheKey, AtlasEntry>,
+    dirty: bool,
 }
 
 impl GlyphAtlas {
@@ -56,6 +57,7 @@ impl GlyphAtlas {
             view,
             packer,
             entries: HashMap::new(),
+            dirty: false,
         }
     }
 
@@ -123,6 +125,7 @@ impl GlyphAtlas {
                 is_color,
             },
         );
+        self.dirty = true;
 
         self.entries.get(&cache_key)
     }
@@ -349,6 +352,7 @@ impl TextPipeline {
         self.scale = scale;
         let phys = [screen_w * scale, screen_h * scale];
         queue.write_buffer(&self.screen_buf, 0, bytemuck::cast_slice(&phys));
+        self.atlas.dirty = true;
     }
 
     pub fn begin_frame(&mut self) {
@@ -534,13 +538,16 @@ impl TextPipeline {
             return;
         }
 
-        self.bind_group = Self::make_bind_group(
-            device,
-            &self.bind_group_layout,
-            &self.screen_buf,
-            &self.atlas.view,
-            &self.sampler,
-        );
+        if self.atlas.dirty {
+            self.bind_group = Self::make_bind_group(
+                device,
+                &self.bind_group_layout,
+                &self.screen_buf,
+                &self.atlas.view,
+                &self.sampler,
+            );
+            self.atlas.dirty = false;
+        }
 
         let vb = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("glyph vb"),
