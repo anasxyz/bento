@@ -303,10 +303,24 @@ impl RectPipeline {
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.bind_group, &[]);
         pass.set_vertex_buffer(0, self.instance_buffer.slice(..));
-        for &slot in slots {
-            if slot < self.instances.len() {
-                pass.draw(0..6, slot as u32..slot as u32 + 1);
+
+        // sort slots and merge contiguous runs into single draw calls
+        let mut sorted = slots.to_vec();
+        sorted.sort_unstable();
+
+        let mut i = 0;
+        while i < sorted.len() {
+            let start = sorted[i];
+            let mut end = start + 1;
+            while i + 1 < sorted.len() && sorted[i + 1] == end {
+                end += 1;
+                i += 1;
             }
+            if start < self.instances.len() {
+                let clamped_end = end.min(self.instances.len());
+                pass.draw(0..6, start as u32..clamped_end as u32);
+            }
+            i += 1;
         }
     }
 
