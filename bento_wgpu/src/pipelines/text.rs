@@ -171,6 +171,8 @@ pub struct TextPipeline {
     screen_buf: wgpu::Buffer,
     sampler: wgpu::Sampler,
     instances: Vec<GlyphInstance>,
+    vertex_buf: wgpu::Buffer,
+    vertex_buf_cap: usize,
     entries: Vec<BufferEntry>,
     meta: Vec<SubmitMeta>,
     active: usize,
@@ -301,6 +303,14 @@ impl TextPipeline {
             cache: None,
         });
 
+        let initial_cap = 256;
+        let vertex_buf = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("glyph vb"),
+            size: (initial_cap * std::mem::size_of::<GlyphInstance>()) as u64,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
         Self {
             swash_cache: SwashCache::new(),
             atlas,
@@ -310,6 +320,8 @@ impl TextPipeline {
             screen_buf,
             sampler,
             instances: Vec::new(),
+            vertex_buf,
+            vertex_buf_cap: initial_cap,
             entries: Vec::new(),
             meta: Vec::new(),
             active: 0,
@@ -549,15 +561,21 @@ impl TextPipeline {
             self.atlas.dirty = false;
         }
 
-        let vb = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("glyph vb"),
-            contents: bytemuck::cast_slice(&self.instances),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
+        if self.instances.len() > self.vertex_buf_cap {
+            self.vertex_buf_cap = self.instances.len().next_power_of_two();
+            self.vertex_buf = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("glyph vb"),
+                size: (self.vertex_buf_cap * std::mem::size_of::<GlyphInstance>()) as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+
+        queue.write_buffer(&self.vertex_buf, 0, bytemuck::cast_slice(&self.instances));
 
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.bind_group, &[]);
-        pass.set_vertex_buffer(0, vb.slice(..));
+        pass.set_vertex_buffer(0, self.vertex_buf.slice(..));
         pass.draw(0..6, 0..self.instances.len() as u32);
     }
 
