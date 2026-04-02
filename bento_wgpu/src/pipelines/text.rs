@@ -61,12 +61,36 @@ impl GlyphAtlas {
         }
     }
 
+    fn clear(&mut self, device: &wgpu::Device) {
+        self.packer = AtlasAllocator::new(size2(ATLAS_SIZE as i32, ATLAS_SIZE as i32));
+        self.entries.clear();
+        self.texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("glyph atlas"),
+            size: wgpu::Extent3d {
+                width: ATLAS_SIZE,
+                height: ATLAS_SIZE,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        self.view = self
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        self.dirty = true;
+    }
+
     fn get_or_insert(
         &mut self,
         cache_key: CacheKey,
         font_system: &mut FontSystem,
         swash_cache: &mut SwashCache,
         queue: &wgpu::Queue,
+        device: &wgpu::Device,
     ) -> Option<&AtlasEntry> {
         if self.entries.contains_key(&cache_key) {
             return self.entries.get(&cache_key);
@@ -81,7 +105,13 @@ impl GlyphAtlas {
 
         let is_color = matches!(image.content, SwashContent::Color);
 
-        let alloc = self.packer.allocate(size2(w as i32 + 1, h as i32 + 1))?;
+        let alloc = match self.packer.allocate(size2(w as i32 + 1, h as i32 + 1)) {
+            Some(a) => a,
+            None => {
+                self.clear(device);
+                self.packer.allocate(size2(w as i32 + 1, h as i32 + 1))?
+            }
+        };
         let ax = alloc.rectangle.min.x as u32;
         let ay = alloc.rectangle.min.y as u32;
 
@@ -506,6 +536,7 @@ impl TextPipeline {
                         font_system,
                         &mut self.swash_cache,
                         queue,
+                        device,
                     ) else {
                         continue;
                     };
