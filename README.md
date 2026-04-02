@@ -7,17 +7,18 @@
 
 - Cross-platform, runs on Windows, macOS, and Linux
 - Optimised, high performance, GPU-accelerated rendering with low overhead at scale
-- Extensible UI widget system using `#[derive(Widget)]` trait, make your own custom UI widgets that integrate seamlessly
-- Comprehensive built-in widget and styling library
-- Support for multiple windows
-- Rich event system with builtin input handling, widget lifecycle hooks using `connect()`, and custom event broadcasting using `emit()`
+- Built-in widget library + Custom widgets using `#[derive(Widget)]` trait
+- Event system:
+    - Widget lifecycle hooks using `on::<T, Event>(handle, callback)`
+    - Event broadcasting using `emit(handle, event)`
+    - Custom event support coming soon
 - Flexbox layout engine
 - Font loading and management
 
 Bento is built on top of:
 * **[`winit`](https://github.com/rust-windowing/winit)** for window handling
 * **[`wgpu`](https://github.com/gfx-rs/wgpu)** for 2D rendering
-* **[`cosmic_text`](https://github.com/pop-os/cosmic-text)** for text rendering
+* **[`cosmic-text`](https://github.com/pop-os/cosmic-text)** for text rendering
 * **[`taffy`](https://github.com/DioxusLabs/taffy)** for layout
 * **[`Tokio`](https://github.com/tokio-rs/tokio)** for async task runtime
 
