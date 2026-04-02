@@ -374,7 +374,7 @@ impl Widget for Label {
             node.set_color(self.color.to_array());
             node.set_width(if self.wrap { w } else { f32::MAX });
             node.set_z(layer as i32);
-            node.set_visible(true);
+            node.set_visible(self.base.visible);
 
             if self.selectable && self.has_selection() {
                 node.set_selection(self.selection_start, self.selection_end);

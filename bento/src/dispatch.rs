@@ -7,6 +7,12 @@ use crate::ui::{
 use crate::widget::Handle;
 
 fn hit_chain(ui: &Ui, handle: Handle<()>, mx: f32, my: f32, chain: &mut Vec<(Handle<()>, u32)>) {
+    let Some(slot) = ui.slots.get(handle.id as usize).and_then(|s| s.as_ref()) else {
+        return;
+    };
+    if !slot.widget.base().visible || !slot.widget.base().layout.displayed {
+        return;
+    }
     let Some(rect) = ui.layout.get_rect(handle) else {
         return;
     };
@@ -14,7 +20,7 @@ fn hit_chain(ui: &Ui, handle: Handle<()>, mx: f32, my: f32, chain: &mut Vec<(Han
     if mx < x || mx > x + w || my < y || my > y + h {
         return;
     }
-    let layer = ui.get_any(handle).map(|w| w.base().layer).unwrap_or(0);
+    let layer = slot.widget.base().layer;
     chain.push((handle, layer));
     let children = ui.children(handle).to_vec();
     for child in children {
@@ -37,8 +43,7 @@ fn top_hit(ui: &Ui, chain: &[(Handle<()>, u32)]) -> Option<Handle<()>> {
         .map(|&(h, _)| h)
         .collect();
 
-    // within that layer, prefer interactive widgets
-    // otherwise take the last deepest one
+    // within that layer, prefer interactive widgets, otherwise take the last (deepest) one
     for &handle in top_layer.iter().rev() {
         if let Some(w) = ui.get_any(handle) {
             if w.is_interactive() {

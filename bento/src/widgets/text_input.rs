@@ -563,6 +563,7 @@ impl Widget for TextInput {
     }
 
     fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, h: f32, layer: u32) {
+        let visible = self.base.visible;
         self.width = w;
         self.height = h;
 
@@ -585,7 +586,7 @@ impl Widget for TextInput {
             n.set_border_color(self.border_color.to_array());
             n.set_border_widths([self.border_width; 4]);
             n.set_z(layer as i32);
-            n.set_visible(true);
+            n.set_visible(visible);
         }
 
         if let Some(id) = self.clip_id {
@@ -620,12 +621,12 @@ impl Widget for TextInput {
             n.set_weight(self.font_weight);
             n.set_width(f32::MAX);
             n.set_z(layer as i32);
-            n.set_visible(true);
+            n.set_visible(visible);
         }
 
         if let Some(id) = self.cursor_id {
             let n = scene.rect_mut(id);
-            if self.base.focused && self.cursor_visible {
+            if self.base.focused && self.cursor_visible && visible {
                 let cursor_x = self.text_x + self.cursor_offset_x;
                 n.set_rect(cursor_x, text_y - 1.0, 1.0, self.font_size * 1.4);
                 n.set_color(self.cursor_color.to_array());

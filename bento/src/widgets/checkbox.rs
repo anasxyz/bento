@@ -149,6 +149,7 @@ impl Widget for Checkbox {
     }
 
     fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, h: f32, layer: u32) {
+        let visible = self.base.visible;
         if let Some(id) = self.bg_id {
             let n = scene.rect_mut(id);
             n.set_rect(x, y, self.size, self.size);
@@ -161,12 +162,12 @@ impl Widget for Checkbox {
             });
             n.set_border_widths([self.border_width; 4]);
             n.set_z(layer as i32);
-            n.set_visible(true);
+            n.set_visible(visible);
         }
 
         if let Some(id) = self.check_id {
             let n = scene.rect_mut(id);
-            if self.checked {
+            if self.checked && visible {
                 let pad = self.size * 0.25;
                 n.set_rect(
                     x + pad,

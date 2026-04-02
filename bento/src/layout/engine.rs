@@ -149,12 +149,16 @@ impl Default for LayoutEngine {
     }
 }
 
-// taffy style conversion 
+// taffy style conversion
 // all taffy imports are local to this file
 
 fn build_style(l: &Layout) -> Style {
     Style {
-        display: Display::Flex,
+        display: if l.displayed {
+            Display::Flex
+        } else {
+            Display::None
+        },
         position: map_position(&l.position),
         flex_direction: map_flex_direction(&l.flex_direction),
         flex_wrap: map_flex_wrap(&l.flex_wrap),

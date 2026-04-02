@@ -2,6 +2,8 @@ use super::values::*;
 
 #[derive(Debug, Clone)]
 pub struct Layout {
+    pub displayed: bool,
+
     // size
     pub width: Size,
     pub height: Size,
@@ -36,6 +38,7 @@ pub struct Layout {
 impl Default for Layout {
     fn default() -> Self {
         Self {
+            displayed: true,
             width: Size::Auto,
             height: Size::Auto,
             min_w: Size::Auto,

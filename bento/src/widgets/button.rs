@@ -282,6 +282,7 @@ impl Widget for Button {
     }
 
     fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, h: f32, layer: u32) {
+        let visible = self.base.visible;
         if let Some(id) = self.rect_id {
             let n = scene.rect_mut(id);
             n.set_rect(x, y, w, h);
@@ -290,7 +291,7 @@ impl Widget for Button {
             n.set_border_color(self.border_color.to_array());
             n.set_border_widths(self.border_widths);
             n.set_z(layer as i32);
-            n.set_visible(true);
+            n.set_visible(visible);
         }
 
         if let Some(id) = self.text_id {
@@ -309,7 +310,7 @@ impl Widget for Button {
             n.set_color(self.current_text_color().to_array());
             n.set_width(w);
             n.set_z(layer as i32);
-            n.set_visible(true);
+            n.set_visible(visible);
 
             n.clear_underlines();
             for d in &self.underlines {

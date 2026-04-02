@@ -9,7 +9,6 @@ impl Ui {
         let w = self.window_width as f32;
         let h = self.window_height as f32;
 
-        // sync dirty layout styles to taffy
         let dirty_updates: Vec<(Handle<()>, crate::layout::Layout)> = self
             .slots
             .iter()
@@ -39,7 +38,6 @@ impl Ui {
                 }
             }
 
-            // pre-measure widgets that need it
             let mut measured: HashMap<Handle<()>, (f32, f32)> = HashMap::new();
             for (i, slot) in self.slots.iter_mut().enumerate() {
                 let Some(slot) = slot.as_mut() else { continue };
@@ -51,7 +49,6 @@ impl Ui {
                 measured.insert(handle, size);
             }
 
-            // compute layout
             self.layout.compute(root, w, h, |handle, max_w, _max_h| {
                 let natural = measured.get(&handle).copied().unwrap_or((0.0, 0.0));
                 if let Some(mw) = max_w {
@@ -65,7 +62,11 @@ impl Ui {
                 (natural.0 + 1.0, natural.1)
             });
 
-            // compute content size for widgets that have children
+            // mark all widgets render_dirty so they re-sync with new positions
+            for slot in self.slots.iter_mut().flatten() {
+                slot.widget.base_mut().render_dirty = true;
+            }
+
             let handles: Vec<Handle<()>> = self
                 .slots
                 .iter()
@@ -97,7 +98,6 @@ impl Ui {
             }
         }
 
-        // collect handles
         let handles: Vec<Handle<()>> = self
             .slots
             .iter()
@@ -105,7 +105,6 @@ impl Ui {
             .filter_map(|(i, s)| s.as_ref().map(|s| Handle::new(i as u32, s.generation)))
             .collect();
 
-        // update cursor offset for text inputs
         for &handle in &handles {
             if let Some(Some(slot)) = self.slots.get_mut(handle.id as usize) {
                 if let Some(input) = slot
@@ -120,7 +119,6 @@ impl Ui {
                         input.update_cursor_x();
                     }
                 }
-
                 if let Some(label) = slot
                     .widget
                     .as_any_mut()
@@ -134,15 +132,18 @@ impl Ui {
             }
         }
 
-        // sync computed positions to scene nodes
         for handle in handles {
-            if let Some((x, y, w, h)) = self.layout.get_rect(handle) {
-                if let Some(Some(slot)) = self.slots.get_mut(handle.id as usize) {
-                    if slot.widget.base().render_dirty {
-                        let layer = slot.widget.base().layer;
+            if let Some(Some(slot)) = self.slots.get_mut(handle.id as usize) {
+                if slot.widget.base().render_dirty {
+                    let layer = slot.widget.base().layer;
+                    if let Some((x, y, w, h)) = self.layout.get_rect(handle) {
                         slot.widget.sync(&mut self.scene, x, y, w, h, layer);
-                        slot.widget.base_mut().render_dirty = false;
+                    } else {
+                        // Display::None means no rect from taffy so hide scene nodes
+                        slot.widget.base_mut().visible = false;
+                        slot.widget.sync(&mut self.scene, 0.0, 0.0, 0.0, 0.0, layer);
                     }
+                    slot.widget.base_mut().render_dirty = false;
                 }
             }
         }
