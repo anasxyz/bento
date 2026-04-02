@@ -3,7 +3,7 @@ use bento::*;
 fn main() {
     let mut ui = Ui::new();
 
-    let root = ui.add(Rect::new());
+    let root = ui.add(Container::new());
     ui.get_mut(root)
         .unwrap()
         .set_flex_direction(FlexDirection::Col)
@@ -12,7 +12,7 @@ fn main() {
         .set_height(Size::Percent(100.0));
     ui.set_root(root);
 
-    let toolbar = ui.add_to(root, Rect::new());
+    let toolbar = ui.add_to(root, Container::new());
     ui.get_mut(toolbar)
         .unwrap()
         .set_width(Size::Percent(100.0))
