@@ -256,13 +256,13 @@ impl TextPipeline {
         });
 
         let inst_attrs = wgpu::vertex_attr_array![
-            0 => Float32x2,  
-            1 => Float32x2,  
-            2 => Float32x2,  
-            3 => Float32x2,  
-            4 => Float32x4,  
-            5 => Float32x4, 
-            6 => Uint32,     
+            0 => Float32x2,
+            1 => Float32x2,
+            2 => Float32x2,
+            3 => Float32x2,
+            4 => Float32x4,
+            5 => Float32x4,
+            6 => Uint32,
         ];
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -460,11 +460,12 @@ impl TextPipeline {
 
             for run in entry.buffer.layout_runs() {
                 for glyph in run.glyphs.iter() {
-                    let hires = glyph.physical((0.0, 0.0), scale);
-                    let cache_key = hires.cache_key;
-
-                    let glyph_phys_x = ((meta.x + glyph.x) * scale).round() as i32;
-                    let glyph_phys_y = ((meta.y) * scale).round() as i32;
+                    let physical = glyph.physical((0.0, 0.0), scale);
+                    let cache_key = physical.cache_key;
+                    let origin_x = (meta.x * scale).round() as i32;
+                    let origin_y = (meta.y * scale).round() as i32;
+                    let glyph_phys_x = origin_x + physical.x;
+                    let glyph_phys_y = origin_y + physical.y;
 
                     if let Some([cx, cy, cx2, cy2]) = meta.clip {
                         let pcx = cx * scale;
