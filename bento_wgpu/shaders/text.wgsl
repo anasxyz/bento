@@ -51,8 +51,9 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
     }
 
     let sample = textureSample(atlas_tex, atlas_sampler, in.tex_uv);
+    
     if in.flags == 1u {
-        return sample;
+        return vec4<f32>(sample.rgb * sample.a, sample.a);
     } else {
         let alpha = sample.r * in.color.a;
         return vec4<f32>(in.color.rgb * alpha, alpha);

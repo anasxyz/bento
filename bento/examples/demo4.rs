@@ -32,9 +32,9 @@ fn main() {
     let label = ui.add(Label::new("Name😀🔥🌈🚀🍕🎧🐱🌊✨⚡️🎮🍩🧠🌙🦄📚🎯🍀💡🎲:"));
     ui.get_mut(label)
         .unwrap()
-        .set_size(16.0)
+        .set_size(18.0)
         .set_selectable(true)
-        .set_color(Color::rgba(255, 255, 2, 0))
+        .set_color(Color::rgb(255, 255, 2))
         .set_width(Size::Fixed(100.0));
     ui.append(row1, label);
 

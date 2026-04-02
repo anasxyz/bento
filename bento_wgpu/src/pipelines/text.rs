@@ -47,7 +47,7 @@ impl GlyphAtlas {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Unorm,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         });
@@ -76,7 +76,7 @@ impl GlyphAtlas {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Unorm,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         });
@@ -121,7 +121,8 @@ impl GlyphAtlas {
         let rgba: Vec<u8> = match image.content {
             SwashContent::Color => image.data.to_vec(),
             SwashContent::Mask | SwashContent::SubpixelMask => {
-                image.data.iter().flat_map(|&a| [a, 0, 0, 255]).collect()
+                // fill all channels with the mask value for consistency
+                image.data.iter().flat_map(|&a| [a, a, a, a]).collect()
             }
         };
 
