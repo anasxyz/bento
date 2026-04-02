@@ -3,7 +3,7 @@ use bento::*;
 fn main() {
     let mut ui = Ui::new();
 
-    let root = ui.add(Rect::new());
+    let root = ui.add(Container::new());
     ui.get_mut(root)
         .unwrap()
         .set_width(Size::Percent(100.0))
@@ -50,7 +50,7 @@ fn main() {
     });
 
     // outer container to test stop_propagation
-    let outer = ui.add_to(root, Rect::new());
+    let outer = ui.add_to(root, Container::new());
     ui.get_mut(outer)
         .unwrap()
         .set_width(Size::Fixed(320.0))
@@ -75,7 +75,7 @@ fn main() {
     });
 
     // outer click — only fires if propagation not stopped
-    ui.on::<Rect, Click>(outer, move |ui, this, e| {
+    ui.on::<Container, Click>(outer, move |ui, this, e| {
         println!(
             "outer click fired, propagation_stopped: {}",
             e.is_propagation_stopped()

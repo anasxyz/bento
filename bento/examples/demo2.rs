@@ -3,7 +3,7 @@ use bento::*;
 fn main() {
     let mut ui = Ui::new();
 
-    let root = ui.add(Rect::new());
+    let root = ui.add(Container::new());
     ui.get_mut(root)
         .unwrap()
         .set_width(Size::Percent(100.0))
@@ -11,7 +11,7 @@ fn main() {
         .set_flex_wrap(FlexWrap::Wrap);
     ui.set_root(root);
 
-    let rect = ui.add(Rect::new());
+    let rect = ui.add(Container::new());
     ui.get_mut(rect)
         .unwrap()
         .set_width(Size::Fixed(400.0))
