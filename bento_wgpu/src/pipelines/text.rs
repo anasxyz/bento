@@ -204,6 +204,7 @@ pub struct TextPipeline {
     screen_buf: wgpu::Buffer,
     sampler: wgpu::Sampler,
     instances: Vec<GlyphInstance>,
+    ranges: Vec<(u32, u32)>,
     vertex_buf: wgpu::Buffer,
     vertex_buf_cap: usize,
     entries: Vec<BufferEntry>,
@@ -353,6 +354,7 @@ impl TextPipeline {
             screen_buf,
             sampler,
             instances: Vec::new(),
+            ranges: Vec::new(),
             vertex_buf,
             vertex_buf_cap: initial_cap,
             entries: Vec::new(),
@@ -416,6 +418,7 @@ impl TextPipeline {
     pub fn begin_frame(&mut self) {
         self.active = 0;
         self.instances.clear();
+        self.ranges.clear();
     }
 
     pub fn end_frame(&mut self) {
@@ -506,12 +509,11 @@ impl TextPipeline {
         }
     }
 
-    pub fn render(
+    pub fn prepare(
         &mut self,
         font_system: &mut FontSystem,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        pass: &mut wgpu::RenderPass<'_>,
     ) {
         if self.active == 0 {
             return;
@@ -524,6 +526,7 @@ impl TextPipeline {
         for idx in 0..self.active {
             let meta = self.meta[idx].clone();
             let entry = &self.entries[idx];
+            let start = self.instances.len() as u32;
 
             for run in entry.buffer.layout_runs() {
                 for glyph in run.glyphs.iter() {
@@ -596,6 +599,8 @@ impl TextPipeline {
                     });
                 }
             }
+            let count = self.instances.len() as u32 - start;
+            self.ranges.push((start, count));
         }
 
         if self.instances.is_empty() {
@@ -629,11 +634,32 @@ impl TextPipeline {
         }
 
         queue.write_buffer(&self.vertex_buf, 0, bytemuck::cast_slice(&self.instances));
+    }
 
+    pub fn draw_range(&self, pass: &mut wgpu::RenderPass<'_>, start: u32, count: u32) {
+        if count == 0 {
+            return;
+        }
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.bind_group, &[]);
         pass.set_vertex_buffer(0, self.vertex_buf.slice(..));
-        pass.draw(0..6, 0..self.instances.len() as u32);
+        pass.draw(0..6, start..start + count);
+    }
+
+    pub fn render(
+        &mut self,
+        font_system: &mut FontSystem,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        pass: &mut wgpu::RenderPass<'_>,
+    ) {
+        self.prepare(font_system, device, queue);
+        let count = self.instances.len() as u32;
+        self.draw_range(pass, 0, count);
+    }
+
+    pub fn instance_range(&self, idx: usize) -> (u32, u32) {
+        self.ranges.get(idx).copied().unwrap_or((0, 0))
     }
 
     pub fn trim_atlas(&mut self) {}

@@ -67,7 +67,6 @@ impl SceneGraph {
         }
     }
 
-    /// call f, return all SceneNodeIds created during f
     pub fn track_build<F: FnMut(&mut Self)>(&mut self, mut f: F) -> Vec<SceneNodeId> {
         let before: std::collections::HashSet<usize> = self.nodes.iter().map(|(i, _)| i).collect();
         f(self);
@@ -111,6 +110,7 @@ impl SceneGraph {
             _ => panic!("not a rect"),
         }
     }
+
     pub fn rect_mut(&mut self, id: RectId) -> &mut RectNode {
         match &mut self.nodes[id.0] {
             SceneNode::Rect(n) => n,
@@ -124,6 +124,7 @@ impl SceneGraph {
             _ => panic!("not a text"),
         }
     }
+
     pub fn text_mut(&mut self, id: TextId) -> &mut TextNode {
         match &mut self.nodes[id.0] {
             SceneNode::Text(n) => n,
@@ -137,6 +138,7 @@ impl SceneGraph {
             _ => panic!("not a shadow"),
         }
     }
+
     pub fn shadow_mut(&mut self, id: ShadowId) -> &mut ShadowNode {
         match &mut self.nodes[id.0] {
             SceneNode::Shadow(n) => n,
@@ -187,8 +189,6 @@ impl SceneGraph {
         self.nodes.remove(id.0);
     }
 
-    /// traverse the scene tree, calling f for each leaf node
-    /// f receives the node, its slab index, and the accumulated traversal state
     pub fn traverse<F>(&self, node_id: SceneNodeId, state: TraversalState, f: &mut F)
     where
         F: FnMut(&SceneNode, usize, &TraversalState),

@@ -562,7 +562,7 @@ impl Widget for TextInput {
         });
     }
 
-    fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, h: f32) {
+    fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, h: f32, layer: u32) {
         self.width = w;
         self.height = h;
 
@@ -577,7 +577,6 @@ impl Widget for TextInput {
             self.scroll_x = (self.cursor_offset_x - 4.0).max(0.0);
         }
 
-        // background
         if let Some(id) = self.bg_id {
             let n = scene.rect_mut(id);
             n.set_rect(x, y, w, h);
@@ -585,23 +584,20 @@ impl Widget for TextInput {
             n.set_radius(self.radius);
             n.set_border_color(self.border_color.to_array());
             n.set_border_widths([self.border_width; 4]);
+            n.set_z(layer as i32);
             n.set_visible(true);
         }
 
-        // clip
         if let Some(id) = self.clip_id {
             scene
                 .clip_mut(id)
                 .set_rect(x + self.padding_x, y, inner_w, h);
         }
 
-        // scroll transform
         if let Some(id) = self.transform_id {
             scene.transform_mut(id).set_offset(-self.scroll_x, 0.0);
         }
 
-        // text + selection
-        // selection is set on the text node
         if let Some(id) = self.text_id {
             let n = scene.text_mut(id);
             n.set_pos(self.text_x, text_y - 1.0);
@@ -623,16 +619,17 @@ impl Widget for TextInput {
             n.set_size(self.font_size);
             n.set_weight(self.font_weight);
             n.set_width(f32::MAX);
+            n.set_z(layer as i32);
             n.set_visible(true);
         }
 
-        // cursor
         if let Some(id) = self.cursor_id {
             let n = scene.rect_mut(id);
             if self.base.focused && self.cursor_visible {
                 let cursor_x = self.text_x + self.cursor_offset_x;
                 n.set_rect(cursor_x, text_y - 1.0, 1.0, self.font_size * 1.4);
                 n.set_color(self.cursor_color.to_array());
+                n.set_z(layer as i32);
                 n.set_visible(true);
             } else {
                 n.set_visible(false);

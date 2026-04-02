@@ -6,7 +6,8 @@ use crate::{Cursor, layout::{
 pub struct Base {
     pub layout: Layout,
     pub focused: bool,
-    pub cursor: Cursor, 
+    pub cursor: Cursor,
+    pub layer: u32,
     pub(crate) layout_dirty: bool,
     pub(crate) render_dirty: bool,
     pub(crate) content_height: f32,
@@ -19,6 +20,7 @@ impl Base {
             layout: Layout::default(),
             focused: false,
             cursor: Cursor::Default,
+            layer: 0,
             layout_dirty: true,
             render_dirty: true,
             content_height: 0.0,
@@ -172,6 +174,11 @@ pub trait LayoutExt: HasBase + Sized {
         self.base_mut().layout_dirty = true;
         self.base_mut().render_dirty = true;
         self.base_mut().layout.overflow = v;
+        self
+    }
+    fn set_layer(&mut self, v: u32) -> &mut Self {
+        self.base_mut().layer = v;
+        self.base_mut().render_dirty = true;
         self
     }
     fn set_aspect_ratio(&mut self, v: Option<f32>) -> &mut Self {

@@ -289,6 +289,7 @@ impl ScrollState {
         v_thumb_id: RectId,
         h_track_id: RectId,
         h_thumb_id: RectId,
+        layer: u32,
     ) -> (f32, f32) {
         self.width = w;
         self.height = h;
@@ -309,7 +310,6 @@ impl ScrollState {
             .transform_mut(transform_id)
             .set_offset(-self.scroll_x, -self.scroll_y);
 
-        // vertical scrollbar
         if show_v {
             let track_h = inner_h;
             let thumb_h = (inner_h / content_h * track_h).max(DEFAULT_THUMB_MIN_SIZE);
@@ -328,6 +328,7 @@ impl ScrollState {
             let n = scene.rect_mut(v_track_id);
             n.set_rect(self.v_track_x, y, sw, track_h);
             n.set_color(self.track_color.to_array());
+            n.set_z(layer as i32);
             n.set_visible(true);
 
             let n = scene.rect_mut(v_thumb_id);
@@ -340,13 +341,13 @@ impl ScrollState {
                 self.thumb_color.to_array()
             });
             n.set_radius(self.thumb_radius);
+            n.set_z(layer as i32);
             n.set_visible(true);
         } else {
             scene.rect_mut(v_track_id).set_visible(false);
             scene.rect_mut(v_thumb_id).set_visible(false);
         }
 
-        // horizontal scrollbar
         if show_h {
             let track_w = inner_w;
             let thumb_w = (inner_w / content_w * track_w).max(DEFAULT_THUMB_MIN_SIZE);
@@ -365,6 +366,7 @@ impl ScrollState {
             let n = scene.rect_mut(h_track_id);
             n.set_rect(x, self.h_track_y, track_w, sw);
             n.set_color(self.track_color.to_array());
+            n.set_z(layer as i32);
             n.set_visible(true);
 
             let n = scene.rect_mut(h_thumb_id);
@@ -377,6 +379,7 @@ impl ScrollState {
                 self.thumb_color.to_array()
             });
             n.set_radius(self.thumb_radius);
+            n.set_z(layer as i32);
             n.set_visible(true);
         } else {
             scene.rect_mut(h_track_id).set_visible(false);

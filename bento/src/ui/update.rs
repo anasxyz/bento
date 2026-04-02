@@ -139,8 +139,8 @@ impl Ui {
             if let Some((x, y, w, h)) = self.layout.get_rect(handle) {
                 if let Some(Some(slot)) = self.slots.get_mut(handle.id as usize) {
                     if slot.widget.base().render_dirty {
-                        // println!("syncing widget {}", handle.id);
-                        slot.widget.sync(&mut self.scene, x, y, w, h);
+                        let layer = slot.widget.base().layer;
+                        slot.widget.sync(&mut self.scene, x, y, w, h, layer);
                         slot.widget.base_mut().render_dirty = false;
                     }
                 }

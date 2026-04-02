@@ -19,7 +19,7 @@ pub trait Widget: HasBase + AsAny + Any + 'static {
     fn register(&mut self, _handle: Handle<()>, _ui: &mut crate::Ui) {}
 
     /// called every frame after layout
-    fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, h: f32);
+    fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, h: f32, layer: u32);
 
     /// which scene node children should attach to
     fn children_attachment_node(&self) -> Option<SceneNodeId> {

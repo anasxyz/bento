@@ -281,7 +281,7 @@ impl Widget for Button {
         });
     }
 
-    fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, h: f32) {
+    fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, h: f32, layer: u32) {
         if let Some(id) = self.rect_id {
             let n = scene.rect_mut(id);
             n.set_rect(x, y, w, h);
@@ -289,6 +289,7 @@ impl Widget for Button {
             n.set_radius(self.radius);
             n.set_border_color(self.border_color.to_array());
             n.set_border_widths(self.border_widths);
+            n.set_z(layer as i32);
             n.set_visible(true);
         }
 
@@ -297,7 +298,7 @@ impl Widget for Button {
             let text_x = if self.text_width > 0.0 {
                 x + (w - self.text_width).max(0.0) / 2.0
             } else {
-                x + self.padding[3] // left padding
+                x + self.padding[3]
             };
             let text_y = y + (h - self.font_size) / 2.0 - self.font_size * 0.15;
             n.set_pos(text_x, text_y);
@@ -307,6 +308,7 @@ impl Widget for Button {
             n.set_weight(self.font_weight);
             n.set_color(self.current_text_color().to_array());
             n.set_width(w);
+            n.set_z(layer as i32);
             n.set_visible(true);
 
             n.clear_underlines();

@@ -130,7 +130,7 @@ impl Widget for Container {
         self.h_track_id = Some(scene.add_rect());
         self.h_thumb_id = Some(scene.add_rect());
 
-        // only transform is inside clip 
+        // only transform is inside clip
         // scrollbars and bg rect are top level
         let clip = self.clip_id.unwrap();
         let transform = self.transform_id.unwrap();
@@ -192,7 +192,7 @@ impl Widget for Container {
         });
     }
 
-    fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, h: f32) {
+    fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, h: f32, layer: u32) {
         if let Some(id) = self.rect_id {
             let n = scene.rect_mut(id);
             n.set_rect(x, y, w, h);
@@ -200,12 +200,12 @@ impl Widget for Container {
             n.set_radius(self.radius);
             n.set_border_color(self.border_color.to_array());
             n.set_border_widths(self.border_widths);
+            n.set_z(layer as i32);
             n.set_visible(true);
         }
 
         match self.base.layout.overflow {
             Overflow::Visible => {
-                // huge clip rect = effectively no clipping
                 if let Some(id) = self.clip_id {
                     scene
                         .clip_mut(id)
@@ -240,6 +240,7 @@ impl Widget for Container {
                     self.v_thumb_id.unwrap(),
                     self.h_track_id.unwrap(),
                     self.h_thumb_id.unwrap(),
+                    layer,
                 );
             }
         }

@@ -359,7 +359,7 @@ impl Widget for Label {
         });
     }
 
-    fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, _h: f32) {
+    fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, _h: f32, layer: u32) {
         self.text_x = x;
         self.text_y = y;
 
@@ -373,6 +373,7 @@ impl Widget for Label {
             node.set_italic(self.italic);
             node.set_color(self.color.to_array());
             node.set_width(if self.wrap { w } else { f32::MAX });
+            node.set_z(layer as i32);
             node.set_visible(true);
 
             if self.selectable && self.has_selection() {

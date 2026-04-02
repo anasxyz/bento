@@ -1,6 +1,6 @@
 use crate::color::Color;
 use crate::ui::{Change, Hover, HoverEnd, Press, Ui};
-use crate::widget::{AsAny, Base, HasBase, Handle, Widget};
+use crate::widget::{AsAny, Base, Handle, HasBase, Widget};
 use bento_derive::Widget;
 use bento_wgpu::{RectId, SceneGraph, SceneNodeId, TransformId};
 
@@ -148,7 +148,7 @@ impl Widget for Checkbox {
         });
     }
 
-    fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, h: f32) {
+    fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, h: f32, layer: u32) {
         if let Some(id) = self.bg_id {
             let n = scene.rect_mut(id);
             n.set_rect(x, y, self.size, self.size);
@@ -160,6 +160,7 @@ impl Widget for Checkbox {
                 self.border_color.to_array()
             });
             n.set_border_widths([self.border_width; 4]);
+            n.set_z(layer as i32);
             n.set_visible(true);
         }
 
@@ -175,6 +176,7 @@ impl Widget for Checkbox {
                 );
                 n.set_color(self.check_color.to_array());
                 n.set_radius((self.radius - pad).max(1.0));
+                n.set_z(layer as i32);
                 n.set_visible(true);
             } else {
                 n.set_visible(false);
@@ -190,7 +192,11 @@ impl Widget for Checkbox {
         true
     }
 
-    fn measure(&mut self, _fonts: &mut crate::fonts::Fonts, _max_width: Option<f32>) -> Option<(f32, f32)> {
+    fn measure(
+        &mut self,
+        _fonts: &mut crate::fonts::Fonts,
+        _max_width: Option<f32>,
+    ) -> Option<(f32, f32)> {
         Some((self.size, self.size))
     }
 

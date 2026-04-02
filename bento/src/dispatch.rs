@@ -1,12 +1,12 @@
 use crate::input::InputState;
 use crate::ui::Ui;
 use crate::ui::{
-    FocusLost, Click, DoubleClick, FocusGained, Hover, HoverEnd, KeyPress, KeyRelease, MouseMove, Press,
-    Release, RightClick, Scroll,
+    Click, DoubleClick, FocusGained, FocusLost, Hover, HoverEnd, KeyPress, KeyRelease, MouseMove,
+    Press, Release, RightClick, Scroll,
 };
 use crate::widget::Handle;
 
-fn hit_chain(ui: &Ui, handle: Handle<()>, mx: f32, my: f32, chain: &mut Vec<Handle<()>>) {
+fn hit_chain(ui: &Ui, handle: Handle<()>, mx: f32, my: f32, chain: &mut Vec<(Handle<()>, u32)>) {
     let Some(rect) = ui.layout.get_rect(handle) else {
         return;
     };
@@ -14,22 +14,26 @@ fn hit_chain(ui: &Ui, handle: Handle<()>, mx: f32, my: f32, chain: &mut Vec<Hand
     if mx < x || mx > x + w || my < y || my > y + h {
         return;
     }
-    chain.push(handle);
+    let layer = ui.get_any(handle).map(|w| w.base().layer).unwrap_or(0);
+    chain.push((handle, layer));
     let children = ui.children(handle).to_vec();
     for child in children {
         hit_chain(ui, child, mx, my, chain);
     }
 }
 
-fn top_hit(ui: &Ui, chain: &[Handle<()>]) -> Option<Handle<()>> {
-    for &handle in chain.iter().rev() {
+fn top_hit(ui: &Ui, chain: &[(Handle<()>, u32)]) -> Option<Handle<()>> {
+    // sort by layer descending so highest layer wins
+    let mut sorted = chain.to_vec();
+    sorted.sort_by(|a, b| b.1.cmp(&a.1));
+    for &(handle, _) in &sorted {
         if let Some(w) = ui.get_any(handle) {
             if w.is_interactive() {
                 return Some(handle);
             }
         }
     }
-    chain.last().copied()
+    sorted.last().map(|&(h, _)| h)
 }
 
 pub fn dispatch(ui: &mut Ui, input: &InputState) {
@@ -38,16 +42,17 @@ pub fn dispatch(ui: &mut Ui, input: &InputState) {
     let mx = input.mouse.x;
     let my = input.mouse.y;
 
-    let mut chain: Vec<Handle<()>> = Vec::new();
+    let mut chain: Vec<(Handle<()>, u32)> = Vec::new();
     hit_chain(ui, root, mx, my, &mut chain);
 
     let new_hovered = top_hit(ui, &chain);
     let global = ui.global();
+    let chain_handles: Vec<Handle<()>> = chain.iter().map(|&(h, _)| h).collect();
 
     // mouse move
     {
         if let Some(pressed) = ui.interaction.pressed {
-            if !chain.contains(&pressed) {
+            if !chain_handles.contains(&pressed) {
                 ui.emit(pressed, MouseMove::new(mx, my));
             }
         }

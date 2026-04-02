@@ -253,12 +253,7 @@ impl RectPipeline {
         }
     }
 
-    pub fn render<'pass>(
-        &'pass mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        pass: &mut wgpu::RenderPass<'pass>,
-    ) {
+    pub fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
         if self.instances.is_empty() {
             return;
         }
@@ -299,7 +294,32 @@ impl RectPipeline {
                 }
             }
         }
+    }
 
+    pub fn draw_slots<'pass>(&'pass self, pass: &mut wgpu::RenderPass<'pass>, slots: &[usize]) {
+        if slots.is_empty() || self.instances.is_empty() {
+            return;
+        }
+        pass.set_pipeline(&self.pipeline);
+        pass.set_bind_group(0, &self.bind_group, &[]);
+        pass.set_vertex_buffer(0, self.instance_buffer.slice(..));
+        for &slot in slots {
+            if slot < self.instances.len() {
+                pass.draw(0..6, slot as u32..slot as u32 + 1);
+            }
+        }
+    }
+
+    pub fn render<'pass>(
+        &'pass mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        pass: &mut wgpu::RenderPass<'pass>,
+    ) {
+        if self.instances.is_empty() {
+            return;
+        }
+        self.upload(device, queue);
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.bind_group, &[]);
         pass.set_vertex_buffer(0, self.instance_buffer.slice(..));
