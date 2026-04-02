@@ -541,7 +541,7 @@ impl TextPipeline {
                         let pcy2 = cy2 * scale;
                         let gx = glyph_phys_x as f32;
                         let gy = glyph_phys_y as f32 + (run.line_y * scale).round();
-                        if gx >= pcx2 || gy >= pcy2 {
+                        if gx >= pcx2 || gy >= pcy2 + entry.size * scale {
                             continue;
                         }
                         if gx + glyph.w * scale <= pcx {
