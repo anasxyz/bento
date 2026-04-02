@@ -1,6 +1,6 @@
 use super::attrs::FontAttrs;
 use super::cache::{FontCache, MeasureKey};
-use glyphon::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping, Style, Weight};
+use cosmic_text::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping, Style, Weight};
 
 pub fn measure_text(
     font_system: &mut FontSystem,
@@ -41,6 +41,7 @@ pub fn measure_text(
                 Style::Normal
             }),
         Shaping::Advanced,
+        None,
     );
     buffer.shape_until_scroll(font_system, false);
 

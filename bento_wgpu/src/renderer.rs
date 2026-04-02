@@ -104,7 +104,7 @@ impl Renderer {
         self.rect_pipeline.resize(&ctx.queue, sw, sh);
         self.shadow_pipeline.resize(&ctx.queue, sw, sh);
         self.text_pipeline
-            .resize(surface.width, surface.height, surface.scale);
+            .resize(&ctx.queue, surface.width, surface.height, surface.scale);
     }
 
     pub fn invalidate(&mut self, scene: &mut SceneGraph) {
@@ -122,7 +122,7 @@ impl Renderer {
     pub fn render(
         &mut self,
         ctx: &mut RenderContext,
-        font_system: &mut glyphon::FontSystem,
+        font_system: &mut cosmic_text::FontSystem,
         surface: &mut Surface,
         scene: &mut SceneGraph,
         clear_color: [f32; 4],

@@ -113,6 +113,7 @@ dependencies = [
  "bento_derive",
  "bento_wgpu",
  "bytemuck",
+ "cosmic-text",
  "pollster",
  "taffy",
  "tokio",

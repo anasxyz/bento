@@ -1,7 +1,7 @@
 use super::attrs::FontAttrs;
 use super::cache::FontCache;
 use super::measure::measure_text;
-use glyphon::FontSystem;
+use cosmic_text::FontSystem;
 
 pub struct Fonts {
     pub(crate) font_system: FontSystem,
