@@ -17,8 +17,8 @@
 Bento is built on top of:
 * **[`winit`](https://github.com/rust-windowing/winit)** for window handling
 * **[`wgpu`](https://github.com/gfx-rs/wgpu)** for 2D rendering
-* **[`glyphon`](https://github.com/grovesNL/glyphon)** for text rendering
-* **[`Taffy`](https://github.com/DioxusLabs/taffy)** for layout
+* **[`cosmic_text`](https://github.com/pop-os/cosmic-text)** for text rendering
+* **[`taffy`](https://github.com/DioxusLabs/taffy)** for layout
 * **[`Tokio`](https://github.com/tokio-rs/tokio)** for async task runtime
 
 <img width="795" height="598" alt="image" src="https://github.com/user-attachments/assets/755ca1bb-91bb-470b-b2dd-b6d37eeb9382" />
