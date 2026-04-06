@@ -278,8 +278,8 @@ impl Widget for Label {
         self.text_id = Some(scene.add_text());
     }
 
-    fn register(&mut self, handle: Handle<()>, ui: &mut Ui) {
-        let h = Handle::<Label>::new(handle.id, handle.generation);
+    fn register(&mut self, ui: &mut Ui) {
+        let h = Handle::<Label>::new(self.base.handle.id, self.base.handle.generation);
 
         ui.on::<Label, Hover>(h, |ui, this, e| {
             if !this.selectable {

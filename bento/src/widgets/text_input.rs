@@ -493,8 +493,8 @@ impl Widget for TextInput {
         scene.add_child(SceneNodeId(transform.0), SceneNodeId(cursor.0));
     }
 
-    fn register(&mut self, handle: Handle<()>, ui: &mut Ui) {
-        let h = Handle::<TextInput>::new(handle.id, handle.generation);
+    fn register(&mut self, ui: &mut Ui) {
+        let h = Handle::<TextInput>::new(self.base.handle.id, self.base.handle.generation);
 
         ui.on::<TextInput, Hover>(h, |ui, this, e| {
             this.set_border_color(Color::rgb(230, 230, 230));
@@ -557,7 +557,7 @@ impl Widget for TextInput {
             this.handle_key(key, &mods, text);
             if this.value != value_before {
                 let change_value = this.value.clone();
-                ui.emit(handle, Change::new(change_value));
+                ui.emit(this.base.handle, Change::new(change_value));
             }
         });
     }

@@ -16,7 +16,7 @@ pub trait Widget: HasBase + AsAny + Any + 'static {
     /// register internal event connections
     /// called after the widget is inserted into the slot, so handle is valid
     /// default is no op, only override if widget has internal behaviour to register
-    fn register(&mut self, _handle: Handle<()>, _ui: &mut crate::Ui) {}
+    fn register(&mut self, _ui: &mut crate::Ui) {}
 
     /// called every frame after layout
     fn sync(&mut self, scene: &mut SceneGraph);

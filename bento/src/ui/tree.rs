@@ -86,7 +86,8 @@ impl Ui {
                 return typed_handle;
             };
             self.registering = true;
-            s.widget.register(h, self);
+            s.widget.base_mut().handle = h;
+            s.widget.register(self);
             self.registering = false;
             if let Some(slot) = self.slots.get_mut(id as usize) {
                 *slot = Some(s);

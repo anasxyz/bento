@@ -1,13 +1,13 @@
 use crate::{
-    Cursor,
-    layout::{
+    Cursor, Handle, layout::{
         AlignItems, AlignSelf, FlexDirection, FlexWrap, JustifyContent, Layout, Overflow, Position,
         Size,
-    },
+    }
 };
 
 pub struct Base {
     pub layout: Layout,
+    pub handle: Handle<()>,
     pub focused: bool,
     pub cursor: Cursor,
     pub layer: u32,
@@ -22,6 +22,7 @@ impl Base {
     pub fn new() -> Self {
         Self {
             layout: Layout::default(),
+            handle: Handle::new(0, 0),
             focused: false,
             cursor: Cursor::Default,
             layer: 0,

@@ -137,8 +137,8 @@ impl Widget for Container {
         scene.add_child(SceneNodeId(clip.0), SceneNodeId(transform.0));
     }
 
-    fn register(&mut self, handle: Handle<()>, ui: &mut Ui) {
-        let h = Handle::<Container>::new(handle.id, handle.generation);
+    fn register(&mut self, ui: &mut Ui) {
+        let h = Handle::<Container>::new(self.base.handle.id, self.base.handle.generation);
 
         ui.on::<Container, Scroll>(h, |ui, this, e| {
             if !this.is_scroll() {
