@@ -281,7 +281,13 @@ impl Widget for Button {
         });
     }
 
-    fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, h: f32, layer: u32) {
+    fn sync(&mut self, scene: &mut SceneGraph) {
+        let layer = self.base.layer();
+        let x = self.base.x();
+        let y = self.base.y();
+        let w = self.base.w();
+        let h = self.base.h();
+
         let visible = self.base.visible;
         if let Some(id) = self.rect_id {
             let n = scene.rect_mut(id);

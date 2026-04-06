@@ -32,6 +32,22 @@ impl Base {
             content_width: 0.0,
         }
     }
+
+    pub fn x(&self) -> f32 {
+        self.layout.x
+    }
+    pub fn y(&self) -> f32 {
+        self.layout.y
+    }
+    pub fn w(&self) -> f32 {
+        self.layout.w
+    }
+    pub fn h(&self) -> f32 {
+        self.layout.h
+    }
+    pub fn layer(&self) -> u32 {
+        self.layer
+    }
 }
 
 impl Default for Base {
