@@ -7,9 +7,9 @@ mod app;
 mod color;
 mod dispatch;
 mod fonts;
+mod images;
 mod input;
 mod layout;
-mod runner;
 mod settings;
 mod ui;
 mod widget;
@@ -17,6 +17,7 @@ mod widgets;
 mod window;
 
 pub use app::{App, WindowHandle};
+pub use bento_wgpu::ImageKey;
 pub use color::{Color, hex, hsl, hsla, hwb, hwba, rgb, rgba};
 pub use fonts::{FontAttrs, Fonts};
 pub use input::{Cursor, InputState, Key, KeyState, Modifiers, MouseButton, MouseState};
@@ -30,6 +31,6 @@ pub use ui::{
     KeyRelease, MouseMove, Press, Release, RightClick, Scroll, Ui,
 };
 pub use widget::{AnyWidget, AsAny, Base, Handle, HasBase, LayoutExt, Widget};
-pub use widgets::{Button, Checkbox, Container, Label, TextInput};
+pub use widgets::{Button, Checkbox, Container, Label, TextInput, Image};
 
 pub use bento_derive::Widget;

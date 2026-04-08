@@ -125,8 +125,8 @@ impl Widget for Checkbox {
         scene.add_child(SceneNodeId(transform.0), SceneNodeId(check.0));
     }
 
-    fn register(&mut self, handle: Handle<()>, ui: &mut Ui) {
-        let h = Handle::<Checkbox>::new(handle.id, handle.generation);
+    fn register(&mut self, ui: &mut Ui) {
+        let h = Handle::<Checkbox>::new(self.base.handle.id, self.base.handle.generation);
 
         ui.on::<Checkbox, Hover>(h, |ui, this, e| {
             this.hovered = true;
@@ -144,11 +144,17 @@ impl Widget for Checkbox {
             this.checked = !this.checked;
             this.base.render_dirty = true;
             let value = this.checked.to_string();
-            ui.emit(handle, Change::new(value));
+            ui.emit(this.base.handle, Change::new(value));
         });
     }
 
-    fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, h: f32, layer: u32) {
+    fn sync(&mut self, scene: &mut SceneGraph) {
+        let layer = self.base.layer();
+        let x = self.base.x();
+        let y = self.base.y();
+        let w = self.base.w();
+        let h = self.base.h();
+
         let visible = self.base.visible;
         if let Some(id) = self.bg_id {
             let n = scene.rect_mut(id);

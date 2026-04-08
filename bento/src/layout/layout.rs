@@ -4,6 +4,12 @@ use super::values::*;
 pub struct Layout {
     pub displayed: bool,
 
+    // computed layout bounds
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+
     // size
     pub width: Size,
     pub height: Size,
@@ -39,6 +45,10 @@ impl Default for Layout {
     fn default() -> Self {
         Self {
             displayed: true,
+            x: 0.0,
+            y: 0.0,
+            w: 0.0,
+            h: 0.0,
             width: Size::Auto,
             height: Size::Auto,
             min_w: Size::Auto,

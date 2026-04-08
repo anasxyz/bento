@@ -16,10 +16,10 @@ pub trait Widget: HasBase + AsAny + Any + 'static {
     /// register internal event connections
     /// called after the widget is inserted into the slot, so handle is valid
     /// default is no op, only override if widget has internal behaviour to register
-    fn register(&mut self, _handle: Handle<()>, _ui: &mut crate::Ui) {}
+    fn register(&mut self, _ui: &mut crate::Ui) {}
 
     /// called every frame after layout
-    fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, h: f32, layer: u32);
+    fn sync(&mut self, scene: &mut SceneGraph);
 
     /// which scene node children should attach to
     fn children_attachment_node(&self) -> Option<SceneNodeId> {

@@ -278,8 +278,8 @@ impl Widget for Label {
         self.text_id = Some(scene.add_text());
     }
 
-    fn register(&mut self, handle: Handle<()>, ui: &mut Ui) {
-        let h = Handle::<Label>::new(handle.id, handle.generation);
+    fn register(&mut self, ui: &mut Ui) {
+        let h = Handle::<Label>::new(self.base.handle.id, self.base.handle.generation);
 
         ui.on::<Label, Hover>(h, |ui, this, e| {
             if !this.selectable {
@@ -359,7 +359,13 @@ impl Widget for Label {
         });
     }
 
-    fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, _h: f32, layer: u32) {
+    fn sync(&mut self, scene: &mut SceneGraph) {
+        let layer = self.base.layer();
+        let x = self.base.x();
+        let y = self.base.y();
+        let w = self.base.w();
+        let h = self.base.h();
+
         self.text_x = x;
         self.text_y = y;
 

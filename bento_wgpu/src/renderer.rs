@@ -1,7 +1,12 @@
 use crate::allocator::SlotAllocator;
 use crate::context::RenderContext;
 use crate::nodes::*;
-use crate::pipelines::{rect::RectPipeline, shadow::ShadowPipeline, text::TextPipeline};
+use crate::pipelines::{
+    image::{ImageCache, ImageCall, ImagePipeline},
+    rect::RectPipeline,
+    shadow::ShadowPipeline,
+    text::TextPipeline,
+};
 use crate::scene::{SceneGraph, TraversalState};
 use crate::surface::Surface;
 use std::collections::BTreeMap;
@@ -11,19 +16,29 @@ pub struct RendererStats {
     pub rect_uploads: u32,
     pub rects_culled: u32,
     pub texts_culled: u32,
+    pub images_culled: u32,
 }
 
 pub struct Renderer {
     rect_pipeline: RectPipeline,
     text_pipeline: TextPipeline,
     shadow_pipeline: ShadowPipeline,
+    image_pipeline: ImagePipeline,
+    image_cache: ImageCache,
     rect_alloc: SlotAllocator,
     shadow_alloc: SlotAllocator,
     sel_slots_last_frame: Vec<u32>,
     sel_slots_this_frame: Vec<u32>,
-    // reused perframe collections
-    // allocated once and cleared each frame
-    layers: BTreeMap<u32, (Vec<ShadowCall>, Vec<RectCall>, Vec<TextCall>)>,
+    layers: BTreeMap<
+        u32,
+        (
+            Vec<ShadowCall>,
+            Vec<RectCall>,
+            Vec<ImageCall>,
+            Vec<TextCall>,
+        ),
+    >,
+    layer_image_ranges: BTreeMap<u32, Vec<(u32, u32, ImageKey)>>,
     layer_text_ranges: BTreeMap<u32, (usize, usize)>,
     layer_sel_slots: BTreeMap<u32, Vec<u32>>,
     culled_rect_nodes: Vec<usize>,
@@ -81,6 +96,10 @@ impl Renderer {
         let fmt = surface.format;
         let sw = surface.physical_width() as f32;
         let sh = surface.physical_height() as f32;
+
+        let image_cache = ImageCache::new(&ctx.device);
+        let image_pipeline = ImagePipeline::new(&ctx.device, &ctx.queue, fmt, sw, sh, &image_cache);
+
         let mut r = Self {
             rect_pipeline: RectPipeline::new(&ctx.device, fmt, sw, sh),
             shadow_pipeline: ShadowPipeline::new(&ctx.device, &ctx.queue, fmt, sw, sh),
@@ -92,11 +111,14 @@ impl Renderer {
                 surface.height,
                 surface.scale,
             ),
+            image_pipeline,
+            image_cache,
             rect_alloc: SlotAllocator::new(),
             shadow_alloc: SlotAllocator::new(),
             sel_slots_last_frame: Vec::new(),
             sel_slots_this_frame: Vec::new(),
             layers: BTreeMap::new(),
+            layer_image_ranges: BTreeMap::new(),
             layer_text_ranges: BTreeMap::new(),
             layer_sel_slots: BTreeMap::new(),
             culled_rect_nodes: Vec::new(),
@@ -104,10 +126,27 @@ impl Renderer {
                 rect_uploads: 0,
                 rects_culled: 0,
                 texts_culled: 0,
+                images_culled: 0,
             },
         };
         r.rect_pipeline.resize(&ctx.queue, sw, sh);
         r
+    }
+
+    pub fn upload_image(
+        &mut self,
+        ctx: &RenderContext,
+        key: ImageKey,
+        rgba: &[u8],
+        width: u32,
+        height: u32,
+    ) {
+        self.image_cache
+            .upload(&ctx.device, &ctx.queue, key, rgba, width, height);
+    }
+
+    pub fn free_image(&mut self, key: ImageKey) {
+        self.image_cache.free(key);
     }
 
     pub fn resize(&mut self, ctx: &RenderContext, surface: &Surface, scene: &mut SceneGraph) {
@@ -122,6 +161,7 @@ impl Renderer {
             surface.height,
             surface.scale,
         );
+        self.image_pipeline.resize(&ctx.queue, sw, sh);
     }
 
     pub fn invalidate(&mut self, scene: &mut SceneGraph) {
@@ -157,22 +197,26 @@ impl Renderer {
         let screen_w = surface.width;
         let screen_h = surface.height;
 
-        self.stats.rect_uploads = 0;
-        self.stats.rects_culled = 0;
-        self.stats.texts_culled = 0;
-
+        self.stats = RendererStats {
+            rect_uploads: 0,
+            rects_culled: 0,
+            texts_culled: 0,
+            images_culled: 0,
+        };
         self.sel_slots_this_frame.clear();
         self.culled_rect_nodes.clear();
+        self.image_pipeline.begin_frame();
 
-        // clear layer buckets, reusing their inner vec allocations
-        for (_, (shadows, rects, texts)) in self.layers.iter_mut() {
+        for (_, (shadows, rects, images, texts)) in self.layers.iter_mut() {
             shadows.clear();
             rects.clear();
+            images.clear();
             texts.clear();
         }
 
         let mut culled_rects = 0u32;
         let mut culled_texts = 0u32;
+        let mut culled_images = 0u32;
 
         let root = scene.root;
         scene.traverse(
@@ -184,14 +228,10 @@ impl Renderer {
                     let bucket = self
                         .layers
                         .entry(layer)
-                        .or_insert_with(|| (Vec::new(), Vec::new(), Vec::new()));
+                        .or_insert_with(|| (vec![], vec![], vec![], vec![]));
                     let x = n.x + state.offset_x;
                     let y = n.y + state.offset_y;
-                    let in_window = x < screen_w && y < screen_h && x + n.w > 0.0 && y + n.h > 0.0;
-                    let in_clip = state.clip.map_or(true, |[cx, cy, cx2, cy2]| {
-                        x < cx2 && y < cy2 && x + n.w > cx && y + n.h > cy
-                    });
-                    if in_window && in_clip {
+                    if is_visible(x, y, n.w, n.h, screen_w, screen_h, state.clip) {
                         bucket.1.push(RectCall {
                             node_idx,
                             x,
@@ -214,14 +254,10 @@ impl Renderer {
                     let bucket = self
                         .layers
                         .entry(layer)
-                        .or_insert_with(|| (Vec::new(), Vec::new(), Vec::new()));
+                        .or_insert_with(|| (vec![], vec![], vec![], vec![]));
                     let x = n.x + state.offset_x;
                     let y = n.y + state.offset_y;
-                    let in_window = x < screen_w && y < screen_h && x + n.w > 0.0 && y + n.h > 0.0;
-                    let in_clip = state.clip.map_or(true, |[cx, cy, cx2, cy2]| {
-                        x < cx2 && y < cy2 && x + n.w > cx && y + n.h > cy
-                    });
-                    if in_window && in_clip {
+                    if is_visible(x, y, n.w, n.h, screen_w, screen_h, state.clip) {
                         bucket.0.push(ShadowCall {
                             node_idx,
                             x,
@@ -237,23 +273,40 @@ impl Renderer {
                         });
                     }
                 }
+                SceneNode::Image(n) if n.visible => {
+                    let layer = n.z.max(0) as u32;
+                    let bucket = self
+                        .layers
+                        .entry(layer)
+                        .or_insert_with(|| (vec![], vec![], vec![], vec![]));
+                    let x = n.x + state.offset_x;
+                    let y = n.y + state.offset_y;
+                    if is_visible(x, y, n.w, n.h, screen_w, screen_h, state.clip) {
+                        bucket.2.push(ImageCall {
+                            x,
+                            y,
+                            w: n.w,
+                            h: n.h,
+                            uv: n.uv,
+                            tint: apply_opacity(n.tint, state.opacity),
+                            radius: n.radius,
+                            image_key: n.image_key,
+                            clip: state.clip,
+                        });
+                    } else {
+                        culled_images += 1;
+                    }
+                }
                 SceneNode::Text(n) if n.visible && !n.content.is_empty() => {
                     let layer = n.z.max(0) as u32;
                     let bucket = self
                         .layers
                         .entry(layer)
-                        .or_insert_with(|| (Vec::new(), Vec::new(), Vec::new()));
+                        .or_insert_with(|| (vec![], vec![], vec![], vec![]));
                     let x = n.x + state.offset_x;
                     let y = n.y + state.offset_y;
-                    let in_window = x < screen_w
-                        && y < screen_h
-                        && x + n.width > 0.0
-                        && y + n.size * 20.0 > 0.0;
-                    let in_clip = state.clip.map_or(true, |[cx, cy, cx2, cy2]| {
-                        x < cx2 && y < cy2 && x + n.width > cx && y + n.size * 20.0 > cy
-                    });
-                    if in_window && in_clip {
-                        bucket.2.push(TextCall {
+                    if is_visible(x, y, n.width, n.size * 20.0, screen_w, screen_h, state.clip) {
+                        bucket.3.push(TextCall {
                             x,
                             y,
                             content: n.content.clone(),
@@ -299,9 +352,9 @@ impl Renderer {
 
         self.stats.rects_culled = culled_rects;
         self.stats.texts_culled = culled_texts;
+        self.stats.images_culled = culled_images;
 
-        // upload rects and shadows
-        for (_, (shadow_calls, rect_calls, _)) in &self.layers {
+        for (_, (shadow_calls, rect_calls, _, _)) in &self.layers {
             for c in rect_calls {
                 let n = match &mut scene.nodes[c.node_idx] {
                     SceneNode::Rect(n) => n,
@@ -347,7 +400,6 @@ impl Renderer {
             self.rect_pipeline.clear_slot(slot as usize);
             self.rect_alloc.free(slot);
         }
-
         for (_, node) in &mut scene.nodes {
             if let SceneNode::Rect(n) = node {
                 if !n.visible && n.slot != u32::MAX {
@@ -362,7 +414,6 @@ impl Renderer {
                 }
             }
         }
-
         for (_, node) in &mut scene.nodes {
             if let SceneNode::Shadow(n) = node {
                 if !n.visible && n.slot != u32::MAX {
@@ -371,12 +422,20 @@ impl Renderer {
             }
         }
 
-        // submit text
+        self.layer_image_ranges.clear();
+        for (&layer, (_, _, image_calls, _)) in &self.layers {
+            if !image_calls.is_empty() {
+                let ranges = self.image_pipeline.prepare_layer(image_calls, scale);
+                self.layer_image_ranges.insert(layer, ranges);
+            }
+        }
+        self.image_pipeline.upload_staged(&ctx.device, &ctx.queue);
+
         self.text_pipeline.begin_frame();
         let mut text_call_index = 0usize;
         self.layer_text_ranges.clear();
 
-        for (&layer, (_, _, text_calls)) in &self.layers {
+        for (&layer, (_, _, _, text_calls)) in &self.layers {
             let range_start = text_call_index;
             for call in text_calls {
                 self.text_pipeline.submit(
@@ -398,45 +457,41 @@ impl Renderer {
                 .insert(layer, (range_start, text_call_index));
         }
 
-        // compute selection/decoration rects bucketed by layer
         self.layer_sel_slots.clear();
         let mut text_idx = 0usize;
-        for (_, (_, _, text_calls)) in &self.layers {
+        for (_, (_, _, _, text_calls)) in &self.layers {
             for call in text_calls {
                 let sel_slots = self.layer_sel_slots.entry(call.layer).or_default();
-                if let (Some(sel_start), Some(sel_end)) = (call.selection_start, call.selection_end)
-                {
-                    let sel_rects = self
+                if let (Some(s), Some(e)) = (call.selection_start, call.selection_end) {
+                    for (rx, ry, rw, rh) in self
                         .text_pipeline
-                        .compute_selection_rects(text_idx, sel_start, sel_end, 0.0, 0.0, scale);
-                    for (rx, ry, rw, rh) in sel_rects {
-                        let in_clip = call.clip.map_or(true, |[cx, cy, cx2, cy2]| {
+                        .compute_selection_rects(text_idx, s, e, 0.0, 0.0, scale)
+                    {
+                        if call.clip.map_or(true, |[cx, cy, cx2, cy2]| {
                             rx < cx2 && ry < cy2 && rx + rw > cx && ry + rh > cy
-                        });
-                        if !in_clip {
-                            continue;
+                        }) {
+                            let slot = self.rect_alloc.alloc();
+                            self.rect_pipeline.ensure_slot(slot as usize);
+                            self.rect_pipeline.write_slot(
+                                slot as usize,
+                                rx,
+                                ry,
+                                rw,
+                                rh,
+                                call.selection_color,
+                                0.0,
+                                [0.0; 4],
+                                [0.0; 4],
+                                call.clip,
+                                scale,
+                            );
+                            sel_slots.push(slot);
+                            self.sel_slots_this_frame.push(slot);
                         }
-                        let slot = self.rect_alloc.alloc();
-                        self.rect_pipeline.ensure_slot(slot as usize);
-                        self.rect_pipeline.write_slot(
-                            slot as usize,
-                            rx,
-                            ry,
-                            rw,
-                            rh,
-                            call.selection_color,
-                            0.0,
-                            [0.0; 4],
-                            [0.0; 4],
-                            call.clip,
-                            scale,
-                        );
-                        sel_slots.push(slot);
-                        self.sel_slots_this_frame.push(slot);
                     }
                 }
                 for dec in &call.underlines {
-                    let rects = self.text_pipeline.compute_decoration_rects(
+                    for (rx, ry, rw, rh) in self.text_pipeline.compute_decoration_rects(
                         text_idx,
                         dec.start,
                         dec.end,
@@ -445,35 +500,32 @@ impl Renderer {
                         0.0,
                         0.0,
                         scale,
-                    );
-                    for (rx, ry, rw, rh) in rects {
-                        let in_clip = call.clip.map_or(true, |[cx, cy, cx2, cy2]| {
+                    ) {
+                        if call.clip.map_or(true, |[cx, cy, cx2, cy2]| {
                             rx < cx2 && ry < cy2 && rx + rw > cx && ry + rh > cy
-                        });
-                        if !in_clip {
-                            continue;
+                        }) {
+                            let slot = self.rect_alloc.alloc();
+                            self.rect_pipeline.ensure_slot(slot as usize);
+                            self.rect_pipeline.write_slot(
+                                slot as usize,
+                                rx,
+                                ry,
+                                rw,
+                                rh,
+                                dec.color,
+                                0.0,
+                                [0.0; 4],
+                                [0.0; 4],
+                                call.clip,
+                                scale,
+                            );
+                            sel_slots.push(slot);
+                            self.sel_slots_this_frame.push(slot);
                         }
-                        let slot = self.rect_alloc.alloc();
-                        self.rect_pipeline.ensure_slot(slot as usize);
-                        self.rect_pipeline.write_slot(
-                            slot as usize,
-                            rx,
-                            ry,
-                            rw,
-                            rh,
-                            dec.color,
-                            0.0,
-                            [0.0; 4],
-                            [0.0; 4],
-                            call.clip,
-                            scale,
-                        );
-                        sel_slots.push(slot);
-                        self.sel_slots_this_frame.push(slot);
                     }
                 }
                 for dec in &call.strikethroughs {
-                    let rects = self.text_pipeline.compute_decoration_rects(
+                    for (rx, ry, rw, rh) in self.text_pipeline.compute_decoration_rects(
                         text_idx,
                         dec.start,
                         dec.end,
@@ -482,45 +534,39 @@ impl Renderer {
                         0.0,
                         0.0,
                         scale,
-                    );
-                    for (rx, ry, rw, rh) in rects {
-                        let in_clip = call.clip.map_or(true, |[cx, cy, cx2, cy2]| {
+                    ) {
+                        if call.clip.map_or(true, |[cx, cy, cx2, cy2]| {
                             rx < cx2 && ry < cy2 && rx + rw > cx && ry + rh > cy
-                        });
-                        if !in_clip {
-                            continue;
+                        }) {
+                            let slot = self.rect_alloc.alloc();
+                            self.rect_pipeline.ensure_slot(slot as usize);
+                            self.rect_pipeline.write_slot(
+                                slot as usize,
+                                rx,
+                                ry,
+                                rw,
+                                rh,
+                                dec.color,
+                                0.0,
+                                [0.0; 4],
+                                [0.0; 4],
+                                call.clip,
+                                scale,
+                            );
+                            sel_slots.push(slot);
+                            self.sel_slots_this_frame.push(slot);
                         }
-                        let slot = self.rect_alloc.alloc();
-                        self.rect_pipeline.ensure_slot(slot as usize);
-                        self.rect_pipeline.write_slot(
-                            slot as usize,
-                            rx,
-                            ry,
-                            rw,
-                            rh,
-                            dec.color,
-                            0.0,
-                            [0.0; 4],
-                            [0.0; 4],
-                            call.clip,
-                            scale,
-                        );
-                        sel_slots.push(slot);
-                        self.sel_slots_this_frame.push(slot);
                     }
                 }
                 text_idx += 1;
             }
         }
 
-        // upload all pipeline data
         self.rect_pipeline.upload(&ctx.device, &ctx.queue);
         self.shadow_pipeline.upload(&ctx.device, &ctx.queue);
         self.text_pipeline
             .prepare(font_system, &ctx.device, &ctx.queue);
 
-        // render pass
-        // shadow -> rect -> text per layer
         let frame_view = frame
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -551,7 +597,7 @@ impl Renderer {
                 occlusion_query_set: None,
             });
 
-            for (&layer, (shadow_calls, rect_calls, _)) in &self.layers {
+            for (&layer, (shadow_calls, rect_calls, _, _)) in &self.layers {
                 let shadow_slots: Vec<usize> = shadow_calls
                     .iter()
                     .filter_map(|c| match &scene.nodes[c.node_idx] {
@@ -559,6 +605,7 @@ impl Renderer {
                         _ => None,
                     })
                     .collect();
+                self.shadow_pipeline.draw_slots(&mut pass, &shadow_slots);
 
                 let mut rect_slots: Vec<usize> = rect_calls
                     .iter()
@@ -567,21 +614,26 @@ impl Renderer {
                         _ => None,
                     })
                     .collect();
-
                 if let Some(extra) = self.layer_sel_slots.get(&layer) {
                     rect_slots.extend(extra.iter().map(|&s| s as usize));
                 }
-
-                self.shadow_pipeline.draw_slots(&mut pass, &shadow_slots);
                 self.rect_pipeline.draw_slots(&mut pass, &rect_slots);
+
+                if let Some(ranges) = self.layer_image_ranges.get(&layer) {
+                    self.image_pipeline
+                        .draw_layer(&mut pass, &self.image_cache, ranges);
+                }
 
                 if let Some(&(range_start, range_end)) = self.layer_text_ranges.get(&layer) {
                     if range_end > range_start {
                         let (inst_start, _) = self.text_pipeline.instance_range(range_start);
                         let (last_start, last_count) =
                             self.text_pipeline.instance_range(range_end - 1);
-                        let total = last_start + last_count - inst_start;
-                        self.text_pipeline.draw_range(&mut pass, inst_start, total);
+                        self.text_pipeline.draw_range(
+                            &mut pass,
+                            inst_start,
+                            last_start + last_count - inst_start,
+                        );
                     }
                 }
             }
@@ -611,6 +663,14 @@ impl Renderer {
             self.shadow_alloc.free(slot);
         }
     }
+}
+
+fn is_visible(x: f32, y: f32, w: f32, h: f32, sw: f32, sh: f32, clip: Option<[f32; 4]>) -> bool {
+    let in_window = x < sw && y < sh && x + w > 0.0 && y + h > 0.0;
+    let in_clip = clip.map_or(true, |[cx, cy, cx2, cy2]| {
+        x < cx2 && y < cy2 && x + w > cx && y + h > cy
+    });
+    in_window && in_clip
 }
 
 fn apply_opacity(color: [f32; 4], opacity: f32) -> [f32; 4] {

@@ -135,14 +135,19 @@ impl Ui {
         for handle in handles {
             if let Some(Some(slot)) = self.slots.get_mut(handle.id as usize) {
                 if slot.widget.base().render_dirty {
-                    let layer = slot.widget.base().layer;
                     if let Some((x, y, w, h)) = self.layout.get_rect(handle) {
-                        slot.widget.sync(&mut self.scene, x, y, w, h, layer);
+                        slot.widget.base_mut().layout.x = x;
+                        slot.widget.base_mut().layout.y = y;
+                        slot.widget.base_mut().layout.w = w;
+                        slot.widget.base_mut().layout.h = h;
                     } else {
-                        // Display::None means no rect from taffy so hide scene nodes
                         slot.widget.base_mut().visible = false;
-                        slot.widget.sync(&mut self.scene, 0.0, 0.0, 0.0, 0.0, layer);
+                        slot.widget.base_mut().layout.x = 0.0;
+                        slot.widget.base_mut().layout.y = 0.0;
+                        slot.widget.base_mut().layout.w = 0.0;
+                        slot.widget.base_mut().layout.h = 0.0;
                     }
+                    slot.widget.sync(&mut self.scene);
                     slot.widget.base_mut().render_dirty = false;
                 }
             }

@@ -248,8 +248,8 @@ impl Widget for Button {
         scene.add_child(SceneNodeId(transform.0), SceneNodeId(text.0));
     }
 
-    fn register(&mut self, handle: Handle<()>, ui: &mut Ui) {
-        let h = Handle::<Button>::new(handle.id, handle.generation);
+    fn register(&mut self, ui: &mut Ui) {
+        let h = Handle::<Button>::new(self.base.handle.id, self.base.handle.generation);
 
         ui.on::<Button, Hover>(h, |ui, this, e| {
             if this.disabled {
@@ -281,7 +281,13 @@ impl Widget for Button {
         });
     }
 
-    fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, h: f32, layer: u32) {
+    fn sync(&mut self, scene: &mut SceneGraph) {
+        let layer = self.base.layer();
+        let x = self.base.x();
+        let y = self.base.y();
+        let w = self.base.w();
+        let h = self.base.h();
+
         let visible = self.base.visible;
         if let Some(id) = self.rect_id {
             let n = scene.rect_mut(id);

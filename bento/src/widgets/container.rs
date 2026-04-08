@@ -137,8 +137,8 @@ impl Widget for Container {
         scene.add_child(SceneNodeId(clip.0), SceneNodeId(transform.0));
     }
 
-    fn register(&mut self, handle: Handle<()>, ui: &mut Ui) {
-        let h = Handle::<Container>::new(handle.id, handle.generation);
+    fn register(&mut self, ui: &mut Ui) {
+        let h = Handle::<Container>::new(self.base.handle.id, self.base.handle.generation);
 
         ui.on::<Container, Scroll>(h, |ui, this, e| {
             if !this.is_scroll() {
@@ -192,7 +192,13 @@ impl Widget for Container {
         });
     }
 
-    fn sync(&mut self, scene: &mut SceneGraph, x: f32, y: f32, w: f32, h: f32, layer: u32) {
+    fn sync(&mut self, scene: &mut SceneGraph) {
+        let layer = self.base.layer();
+        let x = self.base.x();
+        let y = self.base.y();
+        let w = self.base.w();
+        let h = self.base.h();
+
         let visible = self.base.visible;
         if let Some(id) = self.rect_id {
             let n = scene.rect_mut(id);

@@ -33,6 +33,7 @@ struct GlyphAtlas {
     entries: HashMap<CacheKey, AtlasEntry>,
     dirty: bool,
     was_cleared: bool,
+    generation: u64,
 }
 
 impl GlyphAtlas {
@@ -60,6 +61,7 @@ impl GlyphAtlas {
             entries: HashMap::new(),
             dirty: false,
             was_cleared: false,
+            generation: 0,
         }
     }
 
@@ -85,6 +87,7 @@ impl GlyphAtlas {
             .create_view(&wgpu::TextureViewDescriptor::default());
         self.dirty = true;
         self.was_cleared = true;
+        self.generation += 1;
     }
 
     fn get_or_insert(
@@ -121,7 +124,6 @@ impl GlyphAtlas {
         let rgba: Vec<u8> = match image.content {
             SwashContent::Color => image.data.to_vec(),
             SwashContent::Mask | SwashContent::SubpixelMask => {
-                // fill all channels with the mask value for consistency
                 image.data.iter().flat_map(|&a| [a, a, a, a]).collect()
             }
         };
@@ -196,6 +198,25 @@ struct SubmitMeta {
     clip: Option<[f32; 4]>,
 }
 
+struct CachedInstances {
+    instances: Vec<GlyphInstance>,
+    x: f32,
+    y: f32,
+    color: [f32; 4],
+    clip: Option<[f32; 4]>,
+    atlas_generation: u64,
+}
+
+impl CachedInstances {
+    fn is_valid(&self, meta: &SubmitMeta, atlas_generation: u64) -> bool {
+        self.atlas_generation == atlas_generation
+            && self.x == meta.x
+            && self.y == meta.y
+            && self.color == meta.color
+            && self.clip == meta.clip
+    }
+}
+
 pub struct TextPipeline {
     swash_cache: SwashCache,
     atlas: GlyphAtlas,
@@ -210,6 +231,8 @@ pub struct TextPipeline {
     vertex_buf_cap: usize,
     entries: Vec<BufferEntry>,
     meta: Vec<SubmitMeta>,
+    cache: Vec<CachedInstances>,
+    instances_dirty: bool,
     active: usize,
     screen_w: f32,
     screen_h: f32,
@@ -360,6 +383,8 @@ impl TextPipeline {
             vertex_buf_cap: initial_cap,
             entries: Vec::new(),
             meta: Vec::new(),
+            cache: Vec::new(),
+            instances_dirty: false,
             active: 0,
             screen_w,
             screen_h,
@@ -408,6 +433,7 @@ impl TextPipeline {
             self.scale = scale;
             self.swash_cache = SwashCache::new();
             self.atlas.clear(device);
+            self.cache.clear();
         } else {
             self.scale = scale;
         }
@@ -420,11 +446,13 @@ impl TextPipeline {
         self.active = 0;
         self.instances.clear();
         self.ranges.clear();
+        self.instances_dirty = false;
     }
 
     pub fn end_frame(&mut self) {
         self.entries.truncate(self.active);
         self.meta.truncate(self.active);
+        self.cache.truncate(self.active);
     }
 
     pub fn submit(
@@ -454,9 +482,10 @@ impl TextPipeline {
                 CStyle::Normal
             });
 
+        let needs_reshape;
         if idx < self.entries.len() {
             let e = &mut self.entries[idx];
-            let needs_reshape = e.text != content
+            needs_reshape = e.text != content
                 || e.family != family
                 || e.size != size
                 || e.weight != weight
@@ -483,6 +512,7 @@ impl TextPipeline {
                 e.buffer.shape_until_scroll(font_system, false);
             }
         } else {
+            needs_reshape = true;
             let mut buf = Buffer::new(font_system, Metrics::new(size, line_height));
             buf.set_size(
                 font_system,
@@ -508,6 +538,10 @@ impl TextPipeline {
         } else {
             self.meta.push(m);
         }
+
+        if needs_reshape && idx < self.cache.len() {
+            self.cache[idx].atlas_generation = u64::MAX;
+        }
     }
 
     pub fn prepare(
@@ -523,83 +557,112 @@ impl TextPipeline {
         let scale = self.scale;
         let phys_w = self.screen_w * scale;
         let phys_h = self.screen_h * scale;
+        let atlas_gen = self.atlas.generation;
 
         for idx in 0..self.active {
             let meta = self.meta[idx].clone();
-            let entry = &self.entries[idx];
-            let start = self.instances.len() as u32;
 
-            for run in entry.buffer.layout_runs() {
-                for glyph in run.glyphs.iter() {
-                    let physical = glyph.physical((0.0, 0.0), scale);
-                    let cache_key = physical.cache_key;
-                    let origin_x = (meta.x * scale).round() as i32;
-                    let origin_y = (meta.y * scale).round() as i32;
-                    let glyph_phys_x = origin_x + physical.x;
-                    let glyph_phys_y = origin_y + physical.y;
-
-                    if let Some([cx, cy, cx2, cy2]) = meta.clip {
-                        let pcx = cx * scale;
-                        let pcy = cy * scale;
-                        let pcx2 = cx2 * scale;
-                        let pcy2 = cy2 * scale;
-                        let gx = glyph_phys_x as f32;
-                        let gy = glyph_phys_y as f32 + (run.line_y * scale).round();
-                        if gx >= pcx2 || gy >= pcy2 + entry.size * scale {
-                            continue;
-                        }
-                        if gx + glyph.w * scale <= pcx {
-                            continue;
-                        }
-                        if gy + entry.size * scale <= pcy {
-                            continue;
-                        }
-                    }
-
-                    let Some(ae) = self.atlas.get_or_insert(
-                        cache_key,
-                        font_system,
-                        &mut self.swash_cache,
-                        queue,
-                        device,
-                    ) else {
-                        continue;
-                    };
-
-                    let px = glyph_phys_x as f32 + ae.left as f32;
-                    let py = glyph_phys_y as f32 + (run.line_y * scale).round() - ae.top as f32;
-
-                    if (px + ae.w as f32) < 0.0 || px > phys_w {
-                        continue;
-                    }
-                    if (py + ae.h as f32) < 0.0 || py > phys_h {
-                        continue;
-                    }
-
-                    let u0 = ae.x as f32 / ATLAS_SIZE as f32;
-                    let v0 = ae.y as f32 / ATLAS_SIZE as f32;
-                    let uw = ae.w as f32 / ATLAS_SIZE as f32;
-                    let vh = ae.h as f32 / ATLAS_SIZE as f32;
-
-                    let clip_phys = match meta.clip {
-                        Some([cx, cy, cx2, cy2]) => {
-                            [cx * scale, cy * scale, cx2 * scale, cy2 * scale]
-                        }
-                        None => [0.0f32; 4],
-                    };
-
-                    self.instances.push(GlyphInstance {
-                        pos: [px, py],
-                        size: [ae.w as f32, ae.h as f32],
-                        uv: [u0, v0],
-                        uv_sz: [uw, vh],
-                        color: meta.color,
-                        clip: clip_phys,
-                        flags: if ae.is_color { 1 } else { 0 },
-                        _pad: [0; 3],
-                    });
-                }
+            if idx >= self.cache.len() {
+                self.cache.push(CachedInstances {
+                    instances: Vec::new(),
+                    x: f32::NAN, 
+                    y: f32::NAN,
+                    color: [f32::NAN; 4],
+                    clip: None,
+                    atlas_generation: u64::MAX,
+                });
             }
+
+            let cache_valid = self.cache[idx].is_valid(&meta, atlas_gen);
+
+            if !cache_valid {
+                let entry = &self.entries[idx];
+                let mut new_instances: Vec<GlyphInstance> = Vec::new();
+
+                for run in entry.buffer.layout_runs() {
+                    for glyph in run.glyphs.iter() {
+                        let physical = glyph.physical((0.0, 0.0), scale);
+                        let cache_key = physical.cache_key;
+                        let origin_x = (meta.x * scale).round() as i32;
+                        let origin_y = (meta.y * scale).round() as i32;
+                        let glyph_phys_x = origin_x + physical.x;
+                        let glyph_phys_y = origin_y + physical.y;
+
+                        if let Some([cx, cy, cx2, cy2]) = meta.clip {
+                            let pcx = cx * scale;
+                            let pcy = cy * scale;
+                            let pcx2 = cx2 * scale;
+                            let pcy2 = cy2 * scale;
+                            let gx = glyph_phys_x as f32;
+                            let gy = glyph_phys_y as f32 + (run.line_y * scale).round();
+                            if gx >= pcx2 || gy >= pcy2 + entry.size * scale {
+                                continue;
+                            }
+                            if gx + glyph.w * scale <= pcx {
+                                continue;
+                            }
+                            if gy + entry.size * scale <= pcy {
+                                continue;
+                            }
+                        }
+
+                        let Some(ae) = self.atlas.get_or_insert(
+                            cache_key,
+                            font_system,
+                            &mut self.swash_cache,
+                            queue,
+                            device,
+                        ) else {
+                            continue;
+                        };
+
+                        let px = glyph_phys_x as f32 + ae.left as f32;
+                        let py = glyph_phys_y as f32 + (run.line_y * scale).round() - ae.top as f32;
+
+                        if (px + ae.w as f32) < 0.0 || px > phys_w {
+                            continue;
+                        }
+                        if (py + ae.h as f32) < 0.0 || py > phys_h {
+                            continue;
+                        }
+
+                        let u0 = ae.x as f32 / ATLAS_SIZE as f32;
+                        let v0 = ae.y as f32 / ATLAS_SIZE as f32;
+                        let uw = ae.w as f32 / ATLAS_SIZE as f32;
+                        let vh = ae.h as f32 / ATLAS_SIZE as f32;
+                        let clip_phys = match meta.clip {
+                            Some([cx, cy, cx2, cy2]) => {
+                                [cx * scale, cy * scale, cx2 * scale, cy2 * scale]
+                            }
+                            None => [0.0f32; 4],
+                        };
+
+                        new_instances.push(GlyphInstance {
+                            pos: [px, py],
+                            size: [ae.w as f32, ae.h as f32],
+                            uv: [u0, v0],
+                            uv_sz: [uw, vh],
+                            color: meta.color,
+                            clip: clip_phys,
+                            flags: if ae.is_color { 1 } else { 0 },
+                            _pad: [0; 3],
+                        });
+                    }
+                }
+
+                self.cache[idx] = CachedInstances {
+                    instances: new_instances,
+                    x: meta.x,
+                    y: meta.y,
+                    color: meta.color,
+                    clip: meta.clip,
+                    atlas_generation: atlas_gen,
+                };
+                self.instances_dirty = true;
+            }
+
+            let start = self.instances.len() as u32;
+            self.instances.extend_from_slice(&self.cache[idx].instances);
             let count = self.instances.len() as u32 - start;
             self.ranges.push((start, count));
         }
@@ -632,9 +695,10 @@ impl TextPipeline {
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
+            queue.write_buffer(&self.vertex_buf, 0, bytemuck::cast_slice(&self.instances));
+        } else if self.instances_dirty {
+            queue.write_buffer(&self.vertex_buf, 0, bytemuck::cast_slice(&self.instances));
         }
-
-        queue.write_buffer(&self.vertex_buf, 0, bytemuck::cast_slice(&self.instances));
     }
 
     pub fn draw_range(&self, pass: &mut wgpu::RenderPass<'_>, start: u32, count: u32) {

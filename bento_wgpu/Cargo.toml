@@ -1,6 +1,6 @@
 [package]
 name = "bento_wgpu"
-version = "0.5.2"
+version = "0.5.3"
 edition = "2024"
 
 [dependencies]
@@ -10,6 +10,8 @@ slab = "0.4"
 cosmic-text = "0.18"
 swash = "0.2"
 etagere = "0.2"
+image = "0.25"
+resvg = "0.44"
 
 [dev-dependencies]
 winit = "0.30"

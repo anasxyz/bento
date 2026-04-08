@@ -17,6 +17,7 @@ pub use scene::{SceneGraph, TraversalState};
 pub use surface::Surface;
 
 pub use nodes::{
-    ClipId, ClipNode, OpacityId, OpacityNode, RectId, RectNode, SceneNode, SceneNodeId, ShadowId,
-    ShadowNode, TextDecoration, TextId, TextNode, TransformId, TransformNode,
+    ClipId, ClipNode, ImageId, ImageKey, ImageNode, OpacityId, OpacityNode, RectId, RectNode,
+    SceneNode, SceneNodeId, ShadowId, ShadowNode, TextDecoration, TextId, TextNode, TransformId,
+    TransformNode,
 };

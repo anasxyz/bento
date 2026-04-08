@@ -32,18 +32,12 @@ fn top_hit(ui: &Ui, chain: &[(Handle<()>, u32)]) -> Option<Handle<()>> {
     if chain.is_empty() {
         return None;
     }
-
-    // find the highest layer that has any widget at this position
     let max_layer = chain.iter().map(|&(_, l)| l).max().unwrap_or(0);
-
-    // only consider widgets on the highest layer
     let top_layer: Vec<Handle<()>> = chain
         .iter()
         .filter(|&&(_, l)| l == max_layer)
         .map(|&(h, _)| h)
         .collect();
-
-    // within that layer, prefer interactive widgets, otherwise take the last (deepest) one
     for &handle in top_layer.iter().rev() {
         if let Some(w) = ui.get_any(handle) {
             if w.is_interactive() {
@@ -118,7 +112,6 @@ pub fn dispatch(ui: &mut Ui, input: &InputState) {
             None => ui.emit(global, Press::new(lx, ly)),
         }
 
-        // focus
         let new_focused = new_hovered;
         if ui.interaction.focused != new_focused {
             if let Some(prev) = ui.interaction.focused {
@@ -166,14 +159,20 @@ pub fn dispatch(ui: &mut Ui, input: &InputState) {
         }
     }
 
-    // keyboard
+    let mods = input.keyboard.modifiers.clone();
     if let Some(focused) = ui.interaction.focused {
-        let mods = input.keyboard.modifiers.clone();
         for (key, text) in input.keyboard.just_pressed().to_vec() {
             ui.emit_bubbling(focused, KeyPress::new(key, text, mods.clone()));
         }
         for key in input.keyboard.just_released().to_vec() {
             ui.emit_bubbling(focused, KeyRelease::new(key));
+        }
+    } else {
+        for (key, text) in input.keyboard.just_pressed().to_vec() {
+            ui.emit(global, KeyPress::new(key, text, mods.clone()));
+        }
+        for key in input.keyboard.just_released().to_vec() {
+            ui.emit(global, KeyRelease::new(key));
         }
     }
 }
