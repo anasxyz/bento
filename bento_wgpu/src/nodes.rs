@@ -21,6 +21,12 @@ pub struct TransformId(pub usize);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct OpacityId(pub usize);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ImageId(pub usize);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ImageKey(pub u64);
+
 pub struct RectNode {
     pub x: f32,
     pub y: f32,
@@ -333,6 +339,63 @@ impl OpacityNode {
     }
 }
 
+pub struct ImageNode {
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+    pub image_key: ImageKey,
+    pub uv: [f32; 4],
+    pub tint: [f32; 4],
+    pub radius: f32,
+    pub z: i32,
+    pub visible: bool,
+    pub(crate) slot: u32,
+}
+
+impl ImageNode {
+    pub fn new() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            w: 0.0,
+            h: 0.0,
+            image_key: ImageKey(0),
+            uv: [0.0, 0.0, 1.0, 1.0],
+            tint: [1.0, 1.0, 1.0, 1.0],
+            radius: 0.0,
+            z: 0,
+            visible: false,
+            slot: u32::MAX,
+        }
+    }
+
+    pub fn set_rect(&mut self, x: f32, y: f32, w: f32, h: f32) {
+        self.x = x;
+        self.y = y;
+        self.w = w;
+        self.h = h;
+    }
+    pub fn set_image_key(&mut self, key: ImageKey) {
+        self.image_key = key;
+    }
+    pub fn set_uv(&mut self, uv: [f32; 4]) {
+        self.uv = uv;
+    }
+    pub fn set_tint(&mut self, tint: [f32; 4]) {
+        self.tint = tint;
+    }
+    pub fn set_radius(&mut self, r: f32) {
+        self.radius = r;
+    }
+    pub fn set_z(&mut self, z: i32) {
+        self.z = z;
+    }
+    pub fn set_visible(&mut self, v: bool) {
+        self.visible = v;
+    }
+}
+
 pub enum SceneNode {
     Rect(RectNode),
     Text(TextNode),
@@ -340,6 +403,7 @@ pub enum SceneNode {
     Clip(ClipNode),
     Transform(TransformNode),
     Opacity(OpacityNode),
+    Image(ImageNode),
 }
 
 impl RectId {
@@ -368,6 +432,11 @@ impl TransformId {
     }
 }
 impl OpacityId {
+    pub fn to_scene(self) -> SceneNodeId {
+        SceneNodeId(self.0)
+    }
+}
+impl ImageId {
     pub fn to_scene(self) -> SceneNodeId {
         SceneNodeId(self.0)
     }

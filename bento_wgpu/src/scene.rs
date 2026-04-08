@@ -104,6 +104,10 @@ impl SceneGraph {
         OpacityId(self.nodes.insert(SceneNode::Opacity(OpacityNode::new())))
     }
 
+    pub fn add_image(&mut self) -> ImageId {
+        ImageId(self.nodes.insert(SceneNode::Image(ImageNode::new())))
+    }
+
     pub fn rect(&self, id: RectId) -> &RectNode {
         match &self.nodes[id.0] {
             SceneNode::Rect(n) => n,
@@ -167,6 +171,13 @@ impl SceneGraph {
         }
     }
 
+    pub fn image_mut(&mut self, id: ImageId) -> &mut ImageNode {
+        match &mut self.nodes[id.0] {
+            SceneNode::Image(n) => n,
+            _ => panic!("not an image"),
+        }
+    }
+
     pub fn add_child(&mut self, parent: SceneNodeId, child: SceneNodeId) {
         match &mut self.nodes[parent.0] {
             SceneNode::Transform(n) => n.children.push(child),
@@ -195,7 +206,10 @@ impl SceneGraph {
     {
         let node = &self.nodes[node_id.0];
         match node {
-            SceneNode::Rect(_) | SceneNode::Text(_) | SceneNode::Shadow(_) => {
+            SceneNode::Rect(_)
+            | SceneNode::Text(_)
+            | SceneNode::Shadow(_)
+            | SceneNode::Image(_) => {
                 f(node, node_id.0, &state);
             }
             SceneNode::Transform(n) => {
