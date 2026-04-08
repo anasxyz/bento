@@ -232,6 +232,7 @@ pub struct TextPipeline {
     entries: Vec<BufferEntry>,
     meta: Vec<SubmitMeta>,
     cache: Vec<CachedInstances>,
+    instances_dirty: bool,
     active: usize,
     screen_w: f32,
     screen_h: f32,
@@ -383,6 +384,7 @@ impl TextPipeline {
             entries: Vec::new(),
             meta: Vec::new(),
             cache: Vec::new(),
+            instances_dirty: false,
             active: 0,
             screen_w,
             screen_h,
@@ -444,6 +446,7 @@ impl TextPipeline {
         self.active = 0;
         self.instances.clear();
         self.ranges.clear();
+        self.instances_dirty = false;
     }
 
     pub fn end_frame(&mut self) {
@@ -655,6 +658,7 @@ impl TextPipeline {
                     clip: meta.clip,
                     atlas_generation: atlas_gen,
                 };
+                self.instances_dirty = true;
             }
 
             let start = self.instances.len() as u32;
@@ -691,9 +695,10 @@ impl TextPipeline {
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
+            queue.write_buffer(&self.vertex_buf, 0, bytemuck::cast_slice(&self.instances));
+        } else if self.instances_dirty {
+            queue.write_buffer(&self.vertex_buf, 0, bytemuck::cast_slice(&self.instances));
         }
-
-        queue.write_buffer(&self.vertex_buf, 0, bytemuck::cast_slice(&self.instances));
     }
 
     pub fn draw_range(&self, pass: &mut wgpu::RenderPass<'_>, start: u32, count: u32) {
