@@ -27,6 +27,42 @@ pub struct ImageId(pub usize);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ImageKey(pub u64);
 
+impl From<RectId> for SceneNodeId {
+    fn from(id: RectId) -> Self {
+        SceneNodeId(id.0)
+    }
+}
+impl From<TextId> for SceneNodeId {
+    fn from(id: TextId) -> Self {
+        SceneNodeId(id.0)
+    }
+}
+impl From<ShadowId> for SceneNodeId {
+    fn from(id: ShadowId) -> Self {
+        SceneNodeId(id.0)
+    }
+}
+impl From<ClipId> for SceneNodeId {
+    fn from(id: ClipId) -> Self {
+        SceneNodeId(id.0)
+    }
+}
+impl From<TransformId> for SceneNodeId {
+    fn from(id: TransformId) -> Self {
+        SceneNodeId(id.0)
+    }
+}
+impl From<OpacityId> for SceneNodeId {
+    fn from(id: OpacityId) -> Self {
+        SceneNodeId(id.0)
+    }
+}
+impl From<ImageId> for SceneNodeId {
+    fn from(id: ImageId) -> Self {
+        SceneNodeId(id.0)
+    }
+}
+
 pub struct RectNode {
     pub x: f32,
     pub y: f32,
@@ -188,7 +224,6 @@ impl TextNode {
     pub fn has_selection(&self) -> bool {
         matches!((self.selection_start, self.selection_end), (Some(s), Some(e)) if s < e)
     }
-
     pub fn add_underline(&mut self, start: usize, end: usize, color: [f32; 4], thickness: f32) {
         self.underlines.push(TextDecoration {
             start,
@@ -197,7 +232,6 @@ impl TextNode {
             thickness,
         });
     }
-
     pub fn add_strikethrough(&mut self, start: usize, end: usize, color: [f32; 4], thickness: f32) {
         self.strikethroughs.push(TextDecoration {
             start,
@@ -206,11 +240,9 @@ impl TextNode {
             thickness,
         });
     }
-
     pub fn clear_underlines(&mut self) {
         self.underlines.clear();
     }
-
     pub fn clear_strikethroughs(&mut self) {
         self.strikethroughs.clear();
     }
@@ -408,36 +440,36 @@ pub enum SceneNode {
 
 impl RectId {
     pub fn to_scene(self) -> SceneNodeId {
-        SceneNodeId(self.0)
+        self.into()
     }
 }
 impl TextId {
     pub fn to_scene(self) -> SceneNodeId {
-        SceneNodeId(self.0)
+        self.into()
     }
 }
 impl ShadowId {
     pub fn to_scene(self) -> SceneNodeId {
-        SceneNodeId(self.0)
+        self.into()
     }
 }
 impl ClipId {
     pub fn to_scene(self) -> SceneNodeId {
-        SceneNodeId(self.0)
+        self.into()
     }
 }
 impl TransformId {
     pub fn to_scene(self) -> SceneNodeId {
-        SceneNodeId(self.0)
+        self.into()
     }
 }
 impl OpacityId {
     pub fn to_scene(self) -> SceneNodeId {
-        SceneNodeId(self.0)
+        self.into()
     }
 }
 impl ImageId {
     pub fn to_scene(self) -> SceneNodeId {
-        SceneNodeId(self.0)
+        self.into()
     }
 }

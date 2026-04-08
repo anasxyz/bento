@@ -178,7 +178,9 @@ impl SceneGraph {
         }
     }
 
-    pub fn add_child(&mut self, parent: SceneNodeId, child: SceneNodeId) {
+    pub fn add_child(&mut self, parent: impl Into<SceneNodeId>, child: impl Into<SceneNodeId>) {
+        let parent = parent.into();
+        let child = child.into();
         match &mut self.nodes[parent.0] {
             SceneNode::Transform(n) => n.children.push(child),
             SceneNode::Clip(n) => n.children.push(child),
@@ -187,7 +189,9 @@ impl SceneGraph {
         }
     }
 
-    pub fn remove_child(&mut self, parent: SceneNodeId, child: SceneNodeId) {
+    pub fn remove_child(&mut self, parent: impl Into<SceneNodeId>, child: impl Into<SceneNodeId>) {
+        let parent = parent.into();
+        let child = child.into();
         match &mut self.nodes[parent.0] {
             SceneNode::Transform(n) => n.children.retain(|c| *c != child),
             SceneNode::Clip(n) => n.children.retain(|c| *c != child),
@@ -196,8 +200,43 @@ impl SceneGraph {
         }
     }
 
-    pub fn remove_node(&mut self, id: SceneNodeId) {
-        self.nodes.remove(id.0);
+    pub fn remove_node(&mut self, id: impl Into<SceneNodeId>) {
+        self.nodes.remove(id.into().0);
+    }
+
+    pub fn top_level_of(&self, ids: &[SceneNodeId]) -> Vec<SceneNodeId> {
+        let id_set: std::collections::HashSet<usize> = ids.iter().map(|id| id.0).collect();
+        let mut child_set: std::collections::HashSet<usize> = std::collections::HashSet::new();
+        for &node_id in ids {
+            match &self.nodes[node_id.0] {
+                SceneNode::Transform(n) => {
+                    for c in &n.children {
+                        if id_set.contains(&c.0) {
+                            child_set.insert(c.0);
+                        }
+                    }
+                }
+                SceneNode::Clip(n) => {
+                    for c in &n.children {
+                        if id_set.contains(&c.0) {
+                            child_set.insert(c.0);
+                        }
+                    }
+                }
+                SceneNode::Opacity(n) => {
+                    for c in &n.children {
+                        if id_set.contains(&c.0) {
+                            child_set.insert(c.0);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        ids.iter()
+            .copied()
+            .filter(|id| !child_set.contains(&id.0))
+            .collect()
     }
 
     pub fn traverse<F>(&self, node_id: SceneNodeId, state: TraversalState, f: &mut F)
