@@ -1,4 +1,4 @@
-use bento_wgpu::RenderContext;
+use bento_wgpu::{ImageKey, RenderContext};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use winit::{
@@ -10,6 +10,7 @@ use winit::{
 };
 
 use crate::fonts::Fonts;
+use crate::images::ImageManager;
 use crate::input::cursor::map_cursor;
 use crate::input::{Key, MouseButton};
 use crate::settings::WindowConfig;
@@ -23,6 +24,7 @@ pub struct WindowHandle(pub(crate) u32);
 
 pub struct App {
     pub fonts: Fonts,
+    images: ImageManager,
 
     pending: Vec<(WindowHandle, WindowConfig, Ui)>,
     next_handle: u32,
@@ -37,6 +39,7 @@ impl App {
     pub fn new() -> Self {
         Self {
             fonts: Fonts::new(),
+            images: ImageManager::new(),
             pending: Vec::new(),
             next_handle: 0,
             ctx: None,
@@ -53,6 +56,14 @@ impl App {
         handle
     }
 
+    pub fn load_image(&mut self, path: &str) -> ImageKey {
+        self.images.load_image(path)
+    }
+
+    pub fn load_image_svg(&mut self, path: &str, width: u32, height: u32) -> ImageKey {
+        self.images.load_image_svg(path, width, height)
+    }
+
     pub fn run(mut self) {
         let event_loop = EventLoop::new().unwrap();
         event_loop.run_app(&mut self).unwrap();
@@ -66,7 +77,8 @@ impl App {
         ui: Ui,
     ) {
         let ctx = self.ctx.as_ref().unwrap();
-        let win = BentoWindow::new(ctx, event_loop, config, ui);
+        let mut win = BentoWindow::new(ctx, event_loop, config, ui);
+        self.images.flush(&mut win.renderer, ctx);
         let id = win.id();
         self.handle_to_id.insert(handle, id);
         self.windows.insert(id, win);
@@ -93,13 +105,11 @@ impl Default for App {
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        // Create the GPU context once on first resume
         if self.ctx.is_none() {
             let rt = tokio::runtime::Runtime::new().expect("tokio runtime");
             self.ctx = Some(rt.block_on(RenderContext::new()));
         }
 
-        // Flush all pending windows
         for (handle, config, ui) in std::mem::take(&mut self.pending) {
             self.create_window(event_loop, handle, config, ui);
         }
