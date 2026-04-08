@@ -11,6 +11,7 @@ mod window;
 mod ui;
 mod input;
 mod fonts;
+mod widget;
 
 // other
 mod color;
