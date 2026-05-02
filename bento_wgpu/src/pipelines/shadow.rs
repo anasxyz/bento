@@ -1,40 +1,50 @@
 // instanced box shadow pipeline
 //
-// same slot model as the rect pipeline 
-// shadows are drawn before rects (lower z) so they appear beneath ui chrome
+// same slot model as rect.rs, updated to accept a 2x3 affine transform
+// so that shadows correctly follow rotated/scaled parent TransformNodes.
+//
+// the shadow quad is expanded by (blur * 2) in local space before the
+// transform is applied, so the blur fringe always tracks the rect shape.
 
-use std::mem;
+use crate::scene::Mat2x3;
 use bytemuck::{Pod, Zeroable};
+use std::mem;
 use wgpu;
 
+// Per-instance layout:
+//   col01  = (a, b, c, d)           — 2x2 rotation+scale from the affine matrix
+//   trans  = (tx, ty, pw, ph)       — translation + local size in physical pixels
+//   color  = (r, g, b, a)
+//   params = (corner_radius, blur, offset_x, offset_y)  — all in physical pixels
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 struct Instance {
-    rect:   [f32; 4],  // x, y, w, h (physical pixels)
-    color:  [f32; 4],
-    params: [f32; 4],  // corner_radius, blur, offset_x, offset_y (physical pixels)
+    col01: [f32; 4],
+    trans: [f32; 4],
+    color: [f32; 4],
+    params: [f32; 4],
 }
 
 const INSTANCE_SIZE: usize = mem::size_of::<Instance>();
 const INITIAL_CAPACITY: usize = 64;
 
 pub struct ShadowPipeline {
-    pipeline:        wgpu::RenderPipeline,
-    screen_buffer:   wgpu::Buffer,
-    screen_bg:       wgpu::BindGroup,
+    pipeline: wgpu::RenderPipeline,
+    screen_buffer: wgpu::Buffer,
+    screen_bg: wgpu::BindGroup,
     instance_buffer: wgpu::Buffer,
-    instance_cap:    usize,
-    instances:       Vec<Instance>,
-    dirty:           Vec<bool>,
-    screen_w:        f32,  // physical pixels
-    screen_h:        f32,
+    instance_cap: usize,
+    instances: Vec<Instance>,
+    dirty: Vec<bool>,
+    screen_w: f32,
+    screen_h: f32,
 }
 
 impl ShadowPipeline {
     pub fn new(
-        device:   &wgpu::Device,
-        queue:    &wgpu::Queue,
-        format:   wgpu::TextureFormat,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        format: wgpu::TextureFormat,
         screen_w: f32,
         screen_h: f32,
     ) -> Self {
@@ -50,7 +60,8 @@ impl ShadowPipeline {
             mapped_at_creation: false,
         });
         queue.write_buffer(
-            &screen_buffer, 0,
+            &screen_buffer,
+            0,
             bytemuck::bytes_of(&[screen_w, screen_h, 0.0f32, 0.0f32]),
         );
 
@@ -93,9 +104,26 @@ impl ShadowPipeline {
                     array_stride: INSTANCE_SIZE as wgpu::BufferAddress,
                     step_mode: wgpu::VertexStepMode::Instance,
                     attributes: &[
-                        wgpu::VertexAttribute { offset: 0,  shader_location: 0, format: wgpu::VertexFormat::Float32x4 },
-                        wgpu::VertexAttribute { offset: 16, shader_location: 1, format: wgpu::VertexFormat::Float32x4 },
-                        wgpu::VertexAttribute { offset: 32, shader_location: 2, format: wgpu::VertexFormat::Float32x4 },
+                        wgpu::VertexAttribute {
+                            offset: 0,
+                            shader_location: 0,
+                            format: wgpu::VertexFormat::Float32x4,
+                        },
+                        wgpu::VertexAttribute {
+                            offset: 16,
+                            shader_location: 1,
+                            format: wgpu::VertexFormat::Float32x4,
+                        },
+                        wgpu::VertexAttribute {
+                            offset: 32,
+                            shader_location: 2,
+                            format: wgpu::VertexFormat::Float32x4,
+                        },
+                        wgpu::VertexAttribute {
+                            offset: 48,
+                            shader_location: 3,
+                            format: wgpu::VertexFormat::Float32x4,
+                        },
                     ],
                 }],
             },
@@ -123,16 +151,26 @@ impl ShadowPipeline {
         let instance_buffer = Self::make_buffer(device, INITIAL_CAPACITY);
 
         Self {
-            pipeline, screen_buffer, screen_bg,
-            instance_buffer, instance_cap: INITIAL_CAPACITY,
-            instances: Vec::new(), dirty: Vec::new(),
-            screen_w, screen_h,
+            pipeline,
+            screen_buffer,
+            screen_bg,
+            instance_buffer,
+            instance_cap: INITIAL_CAPACITY,
+            instances: Vec::new(),
+            dirty: Vec::new(),
+            screen_w,
+            screen_h,
         }
     }
 
     pub fn ensure_slot(&mut self, slot: usize) {
         while self.instances.len() <= slot {
-            self.instances.push(Instance { rect: [0.0;4], color: [0.0;4], params: [0.0;4] });
+            self.instances.push(Instance {
+                col01: [0.0; 4],
+                trans: [0.0; 4],
+                color: [0.0; 4],
+                params: [0.0; 4],
+            });
             self.dirty.push(true);
         }
     }
@@ -140,17 +178,27 @@ impl ShadowPipeline {
     pub fn write_slot(
         &mut self,
         slot: usize,
-        x: f32, y: f32, w: f32, h: f32,
+        transform: Mat2x3,
+        local_w: f32,
+        local_h: f32,
         color: [f32; 4],
-        blur: f32, radius: f32,
-        offset_x: f32, offset_y: f32,
+        blur: f32,
+        radius: f32,
+        offset_x: f32,
+        offset_y: f32,
         scale: f32,
     ) {
         let s = scale;
         let new_inst = Instance {
-            rect:   [x*s, y*s, w*s, h*s],
+            col01: [
+                transform[0] * s,
+                transform[1] * s,
+                transform[2] * s,
+                transform[3] * s,
+            ],
+            trans: [transform[4] * s, transform[5] * s, local_w * s, local_h * s],
             color,
-            params: [radius*s, blur*s, offset_x*s, offset_y*s],
+            params: [radius * s, blur * s, offset_x * s, offset_y * s],
         };
         if bytemuck::bytes_of(&self.instances[slot]) != bytemuck::bytes_of(&new_inst) {
             self.instances[slot] = new_inst;
@@ -159,8 +207,15 @@ impl ShadowPipeline {
     }
 
     pub fn clear_slot(&mut self, slot: usize) {
-        if slot >= self.instances.len() { return; }
-        let zero = Instance { rect: [0.0;4], color: [0.0;4], params: [0.0;4] };
+        if slot >= self.instances.len() {
+            return;
+        }
+        let zero = Instance {
+            col01: [0.0; 4],
+            trans: [0.0; 4],
+            color: [0.0; 4],
+            params: [0.0; 4],
+        };
         if bytemuck::bytes_of(&self.instances[slot]) != bytemuck::bytes_of(&zero) {
             self.instances[slot] = zero;
             self.dirty[slot] = true;
@@ -171,25 +226,38 @@ impl ShadowPipeline {
         self.screen_w = screen_w;
         self.screen_h = screen_h;
         queue.write_buffer(
-            &self.screen_buffer, 0,
+            &self.screen_buffer,
+            0,
             bytemuck::bytes_of(&[screen_w, screen_h, 0.0f32, 0.0f32]),
         );
-        for d in &mut self.dirty { *d = true; }
+        for d in &mut self.dirty {
+            *d = true;
+        }
     }
 
     pub fn invalidate(&mut self) {
-        for d in &mut self.dirty { *d = true; }
+        for d in &mut self.dirty {
+            *d = true;
+        }
     }
 
     pub fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
-        if self.instances.is_empty() { return; }
+        if self.instances.is_empty() {
+            return;
+        }
 
         if self.instances.len() > self.instance_cap {
             let new_cap = self.instances.len().next_power_of_two();
             self.instance_buffer = Self::make_buffer(device, new_cap);
             self.instance_cap = new_cap;
-            queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&self.instances));
-            for d in &mut self.dirty { *d = false; }
+            queue.write_buffer(
+                &self.instance_buffer,
+                0,
+                bytemuck::cast_slice(&self.instances),
+            );
+            for d in &mut self.dirty {
+                *d = false;
+            }
         } else {
             let mut range_start: Option<usize> = None;
             for i in 0..=self.instances.len() {
@@ -206,17 +274,17 @@ impl ShadowPipeline {
                     }
                     _ => {}
                 }
-                if i < self.instances.len() { self.dirty[i] = false; }
+                if i < self.instances.len() {
+                    self.dirty[i] = false;
+                }
             }
         }
     }
 
-    pub fn draw_slots<'pass>(
-        &'pass self,
-        pass: &mut wgpu::RenderPass<'pass>,
-        slots: &[usize],
-    ) {
-        if slots.is_empty() || self.instances.is_empty() { return; }
+    pub fn draw_slots<'pass>(&'pass self, pass: &mut wgpu::RenderPass<'pass>, slots: &[usize]) {
+        if slots.is_empty() || self.instances.is_empty() {
+            return;
+        }
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.screen_bg, &[]);
         pass.set_vertex_buffer(0, self.instance_buffer.slice(..));
@@ -238,20 +306,6 @@ impl ShadowPipeline {
             }
             i += 1;
         }
-    }
-
-    pub fn render<'pass>(
-        &'pass mut self,
-        device: &wgpu::Device,
-        queue:  &wgpu::Queue,
-        pass:   &mut wgpu::RenderPass<'pass>,
-    ) {
-        if self.instances.is_empty() { return; }
-        self.upload(device, queue);
-        pass.set_pipeline(&self.pipeline);
-        pass.set_bind_group(0, &self.screen_bg, &[]);
-        pass.set_vertex_buffer(0, self.instance_buffer.slice(..));
-        pass.draw(0..6, 0..self.instances.len() as u32);
     }
 
     fn make_buffer(device: &wgpu::Device, capacity: usize) -> wgpu::Buffer {

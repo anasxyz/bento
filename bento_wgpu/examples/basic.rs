@@ -1,42 +1,13 @@
-use bento_wgpu::{ImageKey, RenderContext, Renderer, SceneGraph, Surface};
+use bento_wgpu::{RenderContext, Renderer, SceneGraph, Surface, TextId};
 use cosmic_text::FontSystem;
 use std::sync::Arc;
+use std::time::Instant;
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
     event_loop::{ActiveEventLoop, EventLoop},
     window::{Window, WindowId},
 };
-
-fn load_svg(path: &str, width: u32, height: u32) -> (Vec<u8>, u32, u32) {
-    let tree = resvg::usvg::Tree::from_data(
-        &std::fs::read(path).unwrap(),
-        &resvg::usvg::Options::default(),
-    )
-    .unwrap();
-
-    let mut pixmap = resvg::tiny_skia::Pixmap::new(width, height).unwrap();
-    let scale_x = width as f32 / tree.size().width();
-    let scale_y = height as f32 / tree.size().height();
-    resvg::render(
-        &tree,
-        resvg::tiny_skia::Transform::from_scale(scale_x, scale_y),
-        &mut pixmap.as_mut(),
-    );
-
-    // resvg outputs premultiplied RGBA — un-premultiply for straight alpha upload
-    let mut rgba = pixmap.take();
-    for pixel in rgba.chunks_exact_mut(4) {
-        let a = pixel[3];
-        if a > 0 {
-            pixel[0] = ((pixel[0] as u16 * 255) / a as u16).min(255) as u8;
-            pixel[1] = ((pixel[1] as u16 * 255) / a as u16).min(255) as u8;
-            pixel[2] = ((pixel[2] as u16 * 255) / a as u16).min(255) as u8;
-        }
-    }
-
-    (rgba, width, height)
-}
 
 struct App {
     ctx: RenderContext,
@@ -45,6 +16,11 @@ struct App {
     window: Option<Arc<Window>>,
     surface: Option<Surface<'static>>,
     renderer: Option<Renderer>,
+
+    rotating_label: Option<TextId>,
+    angle_label: Option<TextId>,
+
+    start: Instant,
 }
 
 impl ApplicationHandler for App {
@@ -53,7 +29,7 @@ impl ApplicationHandler for App {
             event_loop
                 .create_window(
                     Window::default_attributes()
-                        .with_title("bento_wgpu test")
+                        .with_title("rotation quality test")
                         .with_inner_size(winit::dpi::LogicalSize::new(800u32, 600u32)),
                 )
                 .unwrap(),
@@ -65,61 +41,54 @@ impl ApplicationHandler for App {
         let h = size.height as f32 / scale;
 
         let surface = Surface::new(&self.ctx, Arc::clone(&window), w, h, scale);
-        let mut renderer = Renderer::new(&self.ctx, &surface);
+        let renderer = Renderer::new(&self.ctx, &surface);
 
-        let shadow = self.scene.add_shadow();
+        // Static reference — always 0 degrees so we can compare quality
+        let ref_label = self.scene.add_text();
+        self.scene.text_mut(ref_label).set_pos(40.0, 40.0);
         self.scene
-            .shadow_mut(shadow)
-            .set_rect(50.0, 50.0, 300.0, 200.0);
-        self.scene.shadow_mut(shadow).set_blur(16.0);
-        self.scene.shadow_mut(shadow).set_offset(0.0, 4.0);
-        self.scene.shadow_mut(shadow).set_visible(true);
-        self.scene.add_child(self.scene.root, shadow.to_scene());
-
-        let bg = self.scene.add_rect();
-        self.scene.rect_mut(bg).set_rect(50.0, 50.0, 300.0, 200.0);
-        self.scene.rect_mut(bg).set_color([0.2, 0.3, 0.8, 1.0]);
-        self.scene.rect_mut(bg).set_radius(8.0);
-        self.scene.rect_mut(bg).set_visible(true);
-        self.scene.add_child(self.scene.root, bg.to_scene());
-
-        let label = self.scene.add_text();
-        self.scene.text_mut(label).set_pos(70.0, 70.0);
-        self.scene.text_mut(label).set_content("hello bento_wgpu");
-        self.scene.text_mut(label).set_family("sans-serif");
-        self.scene.text_mut(label).set_size(20.0);
-        self.scene.text_mut(label).set_color([1.0, 1.0, 1.0, 1.0]);
-        self.scene.text_mut(label).set_visible(true);
-        self.scene.add_child(self.scene.root, label.to_scene());
-
-        let img = image::open("/home/anas/Claude-logo.jpeg")
-            .expect("could not open assets/photo.png")
-            .into_rgba8();
-        let (img_w, img_h) = img.dimensions();
-        let photo_key = ImageKey(1);
-        renderer.upload_image(&self.ctx, photo_key, img.as_raw(), img_w, img_h);
-
-        let img_node = self.scene.add_image();
+            .text_mut(ref_label)
+            .set_content("reference (0 deg) — The quick brown fox");
+        self.scene.text_mut(ref_label).set_family("sans-serif");
+        self.scene.text_mut(ref_label).set_size(20.0);
         self.scene
-            .image_mut(img_node)
-            .set_rect(380.0, 50.0, 150.0, 150.0);
-        self.scene.image_mut(img_node).set_image_key(photo_key);
-        self.scene.image_mut(img_node).set_radius(12.0);
-        self.scene.image_mut(img_node).set_visible(true);
-        self.scene.add_child(self.scene.root, img_node.to_scene());
+            .text_mut(ref_label)
+            .set_color([1.0, 1.0, 1.0, 1.0]);
+        self.scene.text_mut(ref_label).set_visible(true);
+        self.scene.add_child(self.scene.root, ref_label.to_scene());
 
-        let (svg_rgba, svg_w, svg_h) = load_svg("/home/anas/rust-icon.svg", 24, 24);
-        let svg_key = ImageKey(2);
-        renderer.upload_image(&self.ctx, svg_key, &svg_rgba, svg_w, svg_h);
-
-        let svg_node = self.scene.add_image();
+        // Rotating label — same text, same size, spins continuously
+        let rotating = self.scene.add_text();
+        self.scene.text_mut(rotating).set_pos(400.0, 300.0);
         self.scene
-            .image_mut(svg_node)
-            .set_rect(550.0, 50.0, 24.0, 24.0);
-        self.scene.image_mut(svg_node).set_image_key(svg_key);
-        self.scene.image_mut(svg_node).set_visible(true);
-        self.scene.add_child(self.scene.root, svg_node.to_scene());
+            .text_mut(rotating)
+            .set_content("The quick brown fox");
+        self.scene.text_mut(rotating).set_family("sans-serif");
+        self.scene.text_mut(rotating).set_size(20.0);
+        self.scene
+            .text_mut(rotating)
+            .set_color([1.0, 0.85, 0.3, 1.0]);
+        self.scene.text_mut(rotating).set_visible(true);
+        self.scene.text_mut(rotating).set_rotate(45.0_f32.to_radians());
+        self.scene.add_child(self.scene.root, rotating.to_scene());
 
+        // Live angle readout at bottom
+        let angle_label = self.scene.add_text();
+        self.scene.text_mut(angle_label).set_pos(40.0, 555.0);
+        self.scene
+            .text_mut(angle_label)
+            .set_content("angle: 0.0 deg");
+        self.scene.text_mut(angle_label).set_family("sans-serif");
+        self.scene.text_mut(angle_label).set_size(15.0);
+        self.scene
+            .text_mut(angle_label)
+            .set_color([0.5, 0.5, 0.5, 1.0]);
+        self.scene.text_mut(angle_label).set_visible(true);
+        self.scene
+            .add_child(self.scene.root, angle_label.to_scene());
+
+        self.rotating_label = Some(rotating);
+        self.angle_label = Some(angle_label);
         self.window = Some(window);
         self.surface = Some(surface);
         self.renderer = Some(renderer);
@@ -135,17 +104,17 @@ impl ApplicationHandler for App {
                 ) else {
                     return;
                 };
+
                 renderer.render(
                     &mut self.ctx,
                     &mut self.font_system,
                     surface,
                     &mut self.scene,
-                    [0.1, 0.1, 0.1, 1.0],
+                    [0.08, 0.08, 0.08, 1.0],
                 );
-                window.request_redraw();
             }
 
-            WindowEvent::Resized(_) => {
+            WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {
                 let (Some(renderer), Some(surface)) =
                     (self.renderer.as_mut(), self.surface.as_mut())
                 else {
@@ -178,6 +147,9 @@ fn main() {
             window: None,
             surface: None,
             renderer: None,
+            rotating_label: None,
+            angle_label: None,
+            start: Instant::now(),
         })
         .unwrap();
 }

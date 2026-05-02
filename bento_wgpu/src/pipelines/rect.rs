@@ -1,27 +1,43 @@
 // instanced rounded rect pipeline
 //
-// each rect node gets a stable slot in the gpu instance buffer.
-// only dirty slots are uploaded each frame, meaning a changed rect costs
-// one write_buffer call of ~112 bytes, everything else is skipped
+// instance layout changed from pos_size (x,y,w,h) to a 2x3 affine transform
+// plus local size. this lets the vertex shader place all four quad corners
+// through the transform, supporting rotation and scale inherited from
+// TransformNode parents.
 //
-// slots are assigned by the Renderer via the SlotAllocator and written
-// into RectNode::slot
-//
-// this pipeline just owns the gpu buffer and draws
+// the SDF for rounded corners still runs in local space using local_size,
+// so rounded corners stay perfectly round even on rotated rects.
 
+use crate::scene::Mat2x3;
 use bytemuck::{Pod, Zeroable};
 use std::mem;
 use wgpu;
 
+// Per-instance data sent to the GPU.
+//
+// transform encodes the full 2x3 affine matrix as two vec4s:
+//   col01  = (a, b, c, d)  — the 2x2 rotation+scale part
+//   trans  = (tx, ty, pw, ph) — translation + local pixel size
+//
+// In the shader:
+//   screen_pos = col01.xy * local.x + col01.zw * local.y + trans.xy
+//
+// local_size (pw, ph) is packed into trans.zw to keep the struct at
+// the same 112 bytes as before (no GPU buffer size change).
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 pub struct Instance {
-    pos_size: [f32; 4],
-    params: [f32; 4],
+    col01: [f32; 4], // a, b, c, d
+    trans: [f32; 4], // tx, ty, pw, ph
     fill_color: [f32; 4],
     border_color: [f32; 4],
     clip: [f32; 4],
     border_widths: [f32; 4],
+    params: [f32; 4], // radius, aa_width, _, _
+    // Gradient: grad_color0.a==0 means solid fill (grad inactive)
+    grad_color0: [f32; 4], // start colour (or sentinel [0,0,0,0])
+    grad_color1: [f32; 4], // end colour
+    grad_params: [f32; 4], // cos(angle), sin(angle), _, _
 }
 
 #[repr(C)]
@@ -130,7 +146,7 @@ impl RectPipeline {
 
         let instance_buffer = Self::make_buffer(device, INITIAL_CAPACITY);
 
-        let mut s = Self {
+        Self {
             pipeline,
             instance_buffer,
             instance_cap: INITIAL_CAPACITY,
@@ -141,23 +157,22 @@ impl RectPipeline {
             screen_w,
             screen_h,
             upload_count: 0,
-        };
-
-        // write initial screen size
-        s.screen_w = screen_w;
-        s.screen_h = screen_h;
-        s
+        }
     }
 
     pub fn ensure_slot(&mut self, slot: usize) {
         while self.instances.len() <= slot {
             self.instances.push(Instance {
-                pos_size: [0.0; 4],
-                params: [0.0; 4],
+                col01: [0.0; 4],
+                trans: [0.0; 4],
                 fill_color: [0.0; 4],
                 border_color: [0.0; 4],
                 clip: [0.0; 4],
                 border_widths: [0.0; 4],
+                params: [0.0; 4],
+                grad_color0: [0.0; 4],
+                grad_color1: [0.0; 4],
+                grad_params: [0.0; 4],
             });
             self.dirty.push(true);
         }
@@ -166,50 +181,64 @@ impl RectPipeline {
     pub fn write_slot(
         &mut self,
         slot: usize,
-        x: f32,
-        y: f32,
-        w: f32,
-        h: f32,
+        transform: Mat2x3,
+        local_w: f32,
+        local_h: f32,
         color: [f32; 4],
         radius: f32,
         border_color: [f32; 4],
         border_widths: [f32; 4],
         clip: Option<[f32; 4]>,
         scale: f32,
+        // Gradient: None = solid fill
+        gradient: Option<([f32; 4], [f32; 4], f32)>, // (color0, color1, angle_rad)
     ) {
         let s = scale;
-        let px = (x * s).round();
-        let py = (y * s).round();
-        let px2 = ((x + w) * s).round();
-        let py2 = ((y + h) * s).round();
-        let pw = px2 - px;
-        let ph = py2 - py;
-        let radius = (radius * s).round().min(pw * 0.5).min(ph * 0.5);
+        let a = transform[0] * s;
+        let b = transform[1] * s;
+        let c = transform[2] * s;
+        let d = transform[3] * s;
+        let tx = transform[4] * s;
+        let ty = transform[5] * s;
+        let pw = local_w * s;
+        let ph = local_h * s;
+        let r = (radius * s).min(pw * 0.5).min(ph * 0.5);
+        let aa = if pw > 2.0 { 1.0 } else { 0.0 };
+
         let clip_arr = match clip {
-            Some([cx, cy, cx2, cy2]) => [
-                (cx * s).round(),
-                (cy * s).round(),
-                (cx2 * s).round(),
-                (cy2 * s).round(),
-            ],
+            Some([cx, cy, cx2, cy2]) => [cx * s, cy * s, cx2 * s, cy2 * s],
             None => [0.0; 4],
         };
-        // fix 1 pixel bleeding
-        // let aa = if scale > 1.0 && pw > 2.0 { 1.0 } else { 0.0 };
-        let aa = if pw > 2.0 { 1.0 } else { 0.0 };
+        let bw = [
+            (border_widths[0] * s).round(),
+            (border_widths[1] * s).round(),
+            (border_widths[2] * s).round(),
+            (border_widths[3] * s).round(),
+        ];
+
+        // Gradient encoding: use grad_color0.a as active flag.
+        // Solid fill: grad_color0 = [0,0,0,0] (alpha=0 = inactive).
+        let (gc0, gc1, gp) = match gradient {
+            Some((c0, c1, angle)) => {
+                let (sin_a, cos_a) = angle.sin_cos();
+                (c0, c1, [cos_a, sin_a, 0.0, 0.0])
+            }
+            None => ([0.0f32; 4], [0.0f32; 4], [0.0f32; 4]),
+        };
+
         let new_inst = Instance {
-            pos_size: [px, py, pw, ph],
-            params: [radius, aa, 0.0, 0.0],
+            col01: [a, b, c, d],
+            trans: [tx, ty, pw, ph],
             fill_color: color,
             border_color,
             clip: clip_arr,
-            border_widths: [
-                (border_widths[0] * s).round(),
-                (border_widths[1] * s).round(),
-                (border_widths[2] * s).round(),
-                (border_widths[3] * s).round(),
-            ],
+            border_widths: bw,
+            params: [r, aa, 0.0, 0.0],
+            grad_color0: gc0,
+            grad_color1: gc1,
+            grad_params: gp,
         };
+
         if bytemuck::bytes_of(&self.instances[slot]) != bytemuck::bytes_of(&new_inst) {
             self.instances[slot] = new_inst;
             self.dirty[slot] = true;
@@ -221,12 +250,16 @@ impl RectPipeline {
             return;
         }
         let zero = Instance {
-            pos_size: [0.0; 4],
-            params: [0.0; 4],
+            col01: [0.0; 4],
+            trans: [0.0; 4],
             fill_color: [0.0; 4],
             border_color: [0.0; 4],
             clip: [0.0; 4],
             border_widths: [0.0; 4],
+            params: [0.0; 4],
+            grad_color0: [0.0; 4],
+            grad_color1: [0.0; 4],
+            grad_params: [0.0; 4],
         };
         if bytemuck::bytes_of(&self.instances[slot]) != bytemuck::bytes_of(&zero) {
             self.instances[slot] = zero;
@@ -304,7 +337,6 @@ impl RectPipeline {
         pass.set_bind_group(0, &self.bind_group, &[]);
         pass.set_vertex_buffer(0, self.instance_buffer.slice(..));
 
-        // sort slots and merge contiguous runs into single draw calls
         let mut sorted = slots.to_vec();
         sorted.sort_unstable();
 
@@ -324,22 +356,6 @@ impl RectPipeline {
         }
     }
 
-    pub fn render<'pass>(
-        &'pass mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        pass: &mut wgpu::RenderPass<'pass>,
-    ) {
-        if self.instances.is_empty() {
-            return;
-        }
-        self.upload(device, queue);
-        pass.set_pipeline(&self.pipeline);
-        pass.set_bind_group(0, &self.bind_group, &[]);
-        pass.set_vertex_buffer(0, self.instance_buffer.slice(..));
-        pass.draw(0..6, 0..self.instances.len() as u32);
-    }
-
     fn make_buffer(device: &wgpu::Device, capacity: usize) -> wgpu::Buffer {
         device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("bento_wgpu::rect instances"),
@@ -350,6 +366,10 @@ impl RectPipeline {
     }
 }
 
+// Vertex attribute layout:
+//    0 → col01         16 → trans          32 → fill_color
+//   48 → border_color  64 → clip           80 → border_widths
+//   96 → params       112 → grad_color0   128 → grad_color1   144 → grad_params
 const INSTANCE_ATTRS: &[wgpu::VertexAttribute] = &[
     wgpu::VertexAttribute {
         offset: 0,
@@ -379,6 +399,26 @@ const INSTANCE_ATTRS: &[wgpu::VertexAttribute] = &[
     wgpu::VertexAttribute {
         offset: 80,
         shader_location: 5,
+        format: wgpu::VertexFormat::Float32x4,
+    },
+    wgpu::VertexAttribute {
+        offset: 96,
+        shader_location: 6,
+        format: wgpu::VertexFormat::Float32x4,
+    },
+    wgpu::VertexAttribute {
+        offset: 112,
+        shader_location: 7,
+        format: wgpu::VertexFormat::Float32x4,
+    },
+    wgpu::VertexAttribute {
+        offset: 128,
+        shader_location: 8,
+        format: wgpu::VertexFormat::Float32x4,
+    },
+    wgpu::VertexAttribute {
+        offset: 144,
+        shader_location: 9,
         format: wgpu::VertexFormat::Float32x4,
     },
 ];

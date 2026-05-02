@@ -7,6 +7,8 @@ use etagere::{Allocation, AtlasAllocator, size2};
 use std::collections::HashMap;
 use wgpu::util::DeviceExt;
 
+use crate::scene::{Mat2x3, mat_mul};
+
 pub enum DecorationKind {
     Underline,
     Strikethrough,
@@ -38,20 +40,7 @@ struct GlyphAtlas {
 
 impl GlyphAtlas {
     fn new(device: &wgpu::Device) -> Self {
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("glyph atlas"),
-            size: wgpu::Extent3d {
-                width: ATLAS_SIZE,
-                height: ATLAS_SIZE,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[],
-        });
+        let texture = Self::make_texture(device);
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let packer = AtlasAllocator::new(size2(ATLAS_SIZE as i32, ATLAS_SIZE as i32));
         Self {
@@ -65,10 +54,8 @@ impl GlyphAtlas {
         }
     }
 
-    pub fn clear(&mut self, device: &wgpu::Device) {
-        self.packer = AtlasAllocator::new(size2(ATLAS_SIZE as i32, ATLAS_SIZE as i32));
-        self.entries.clear();
-        self.texture = device.create_texture(&wgpu::TextureDescriptor {
+    fn make_texture(device: &wgpu::Device) -> wgpu::Texture {
+        device.create_texture(&wgpu::TextureDescriptor {
             label: Some("glyph atlas"),
             size: wgpu::Extent3d {
                 width: ATLAS_SIZE,
@@ -81,7 +68,13 @@ impl GlyphAtlas {
             format: wgpu::TextureFormat::Rgba8UnormSrgb,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
-        });
+        })
+    }
+
+    pub fn clear(&mut self, device: &wgpu::Device) {
+        self.packer = AtlasAllocator::new(size2(ATLAS_SIZE as i32, ATLAS_SIZE as i32));
+        self.entries.clear();
+        self.texture = Self::make_texture(device);
         self.view = self
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -162,16 +155,22 @@ impl GlyphAtlas {
             },
         );
         self.dirty = true;
-
         self.entries.get(&cache_key)
     }
 }
 
+// Per-glyph instance sent to the GPU.
+//
+// col01 + trans encode the 2x3 affine transform for this glyph quad:
+//   screen_pos = col01.xy * local.x + col01.zw * local.y + trans.xy
+//
+// trans.zw = physical glyph size (w, h), used to scale the unit quad.
+// The transform already encodes: text_node_transform * T(glyph_local_offset).
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
 struct GlyphInstance {
-    pos: [f32; 2],
-    size: [f32; 2],
+    col01: [f32; 4], // a, b, c, d
+    trans: [f32; 4], // tx, ty, glyph_w, glyph_h  (physical pixels)
     uv: [f32; 2],
     uv_sz: [f32; 2],
     color: [f32; 4],
@@ -184,36 +183,38 @@ struct BufferEntry {
     buffer: Buffer,
     text: String,
     family: String,
-    size: f32,
+    size: f32,      // logical size
+    phys_size: f32, // size * scale at time of shaping
     weight: u16,
     italic: bool,
     width: f32,
 }
 
+// Everything needed to re-check the cache and re-emit instances
 #[derive(Clone)]
 struct SubmitMeta {
-    x: f32,
-    y: f32,
+    // The full physical-space transform for the text origin.
+    // Stored as [f32; 6] so we can compare it cheaply.
+    transform: [f32; 6],
     color: [f32; 4],
     clip: Option<[f32; 4]>,
 }
 
+impl SubmitMeta {
+    fn matches(&self, other: &SubmitMeta) -> bool {
+        self.transform == other.transform && self.color == other.color && self.clip == other.clip
+    }
+}
+
 struct CachedInstances {
     instances: Vec<GlyphInstance>,
-    x: f32,
-    y: f32,
-    color: [f32; 4],
-    clip: Option<[f32; 4]>,
+    meta: SubmitMeta,
     atlas_generation: u64,
 }
 
 impl CachedInstances {
     fn is_valid(&self, meta: &SubmitMeta, atlas_generation: u64) -> bool {
-        self.atlas_generation == atlas_generation
-            && self.x == meta.x
-            && self.y == meta.y
-            && self.color == meta.color
-            && self.clip == meta.clip
+        self.atlas_generation == atlas_generation && self.meta.matches(meta)
     }
 }
 
@@ -259,9 +260,12 @@ impl TextPipeline {
             label: Some("glyph sampler"),
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Nearest,
-            min_filter: wgpu::FilterMode::Nearest,
-            mipmap_filter: wgpu::FilterMode::Nearest,
+            // Linear filtering is required for rotated/scaled text — Nearest causes
+            // jagged aliased edges at non-axis-aligned angles. For axis-aligned text
+            // the result is identical since sampling lands exactly on texel centres.
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
 
@@ -318,14 +322,50 @@ impl TextPipeline {
             push_constant_ranges: &[],
         });
 
-        let inst_attrs = wgpu::vertex_attr_array![
-            0 => Float32x2,
-            1 => Float32x2,
-            2 => Float32x2,
-            3 => Float32x2,
-            4 => Float32x4,
-            5 => Float32x4,
-            6 => Uint32,
+        // Instance attribute layout matching GlyphInstance struct:
+        //   offset  0: col01  Float32x4
+        //   offset 16: trans  Float32x4
+        //   offset 32: uv     Float32x2
+        //   offset 40: uv_sz  Float32x2
+        //   offset 48: color  Float32x4
+        //   offset 64: clip   Float32x4
+        //   offset 80: flags  Uint32
+        let inst_attrs = &[
+            wgpu::VertexAttribute {
+                offset: 0,
+                shader_location: 0,
+                format: wgpu::VertexFormat::Float32x4,
+            },
+            wgpu::VertexAttribute {
+                offset: 16,
+                shader_location: 1,
+                format: wgpu::VertexFormat::Float32x4,
+            },
+            wgpu::VertexAttribute {
+                offset: 32,
+                shader_location: 2,
+                format: wgpu::VertexFormat::Float32x2,
+            },
+            wgpu::VertexAttribute {
+                offset: 40,
+                shader_location: 3,
+                format: wgpu::VertexFormat::Float32x2,
+            },
+            wgpu::VertexAttribute {
+                offset: 48,
+                shader_location: 4,
+                format: wgpu::VertexFormat::Float32x4,
+            },
+            wgpu::VertexAttribute {
+                offset: 64,
+                shader_location: 5,
+                format: wgpu::VertexFormat::Float32x4,
+            },
+            wgpu::VertexAttribute {
+                offset: 80,
+                shader_location: 6,
+                format: wgpu::VertexFormat::Uint32,
+            },
         ];
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -337,7 +377,7 @@ impl TextPipeline {
                 buffers: &[wgpu::VertexBufferLayout {
                     array_stride: std::mem::size_of::<GlyphInstance>() as u64,
                     step_mode: wgpu::VertexStepMode::Instance,
-                    attributes: &inst_attrs,
+                    attributes: inst_attrs,
                 }],
                 compilation_options: Default::default(),
             },
@@ -455,11 +495,15 @@ impl TextPipeline {
         self.cache.truncate(self.active);
     }
 
+    // Submit a text run for rendering.
+    //
+    // `transform` is the full accumulated 2x3 affine matrix for this text node
+    // in LOGICAL coordinates. The pipeline scales it to physical pixels internally.
+    // For plain axis-aligned text this is just [1,0,0,1, x, y].
     pub fn submit(
         &mut self,
         font_system: &mut FontSystem,
-        x: f32,
-        y: f32,
+        transform: Mat2x3,
         content: &str,
         family: &str,
         size: f32,
@@ -469,7 +513,17 @@ impl TextPipeline {
         width: f32,
         clip: Option<[f32; 4]>,
     ) {
-        let line_height = size * 1.4;
+        // Shape at physical pixels so glyph.physical((0,0), 1.0) gives the
+        // correct cache key and the layout positions are already in physical px.
+        let scale = self.scale;
+        let phys_size = size * scale;
+        let line_height = phys_size * 1.4;
+        let phys_width = if width >= f32::MAX {
+            None
+        } else {
+            Some(width * scale)
+        };
+
         let idx = self.active;
         self.active += 1;
 
@@ -485,9 +539,11 @@ impl TextPipeline {
         let needs_reshape;
         if idx < self.entries.len() {
             let e = &mut self.entries[idx];
+            // Also reshape when scale changed (monitor DPI switch)
             needs_reshape = e.text != content
                 || e.family != family
                 || e.size != size
+                || e.phys_size != phys_size
                 || e.weight != weight
                 || e.italic != italic
                 || e.width != width;
@@ -497,28 +553,21 @@ impl TextPipeline {
                 e.family.clear();
                 e.family.push_str(family);
                 e.size = size;
+                e.phys_size = phys_size;
                 e.weight = weight;
                 e.italic = italic;
                 e.width = width;
                 e.buffer
-                    .set_metrics(font_system, Metrics::new(size, line_height));
-                e.buffer.set_size(
-                    font_system,
-                    if width >= f32::MAX { None } else { Some(width) },
-                    None,
-                );
+                    .set_metrics(font_system, Metrics::new(phys_size, line_height));
+                e.buffer.set_size(font_system, phys_width, None);
                 e.buffer
                     .set_text(font_system, content, &attrs, Shaping::Advanced, None);
                 e.buffer.shape_until_scroll(font_system, false);
             }
         } else {
             needs_reshape = true;
-            let mut buf = Buffer::new(font_system, Metrics::new(size, line_height));
-            buf.set_size(
-                font_system,
-                if width >= f32::MAX { None } else { Some(width) },
-                None,
-            );
+            let mut buf = Buffer::new(font_system, Metrics::new(phys_size, line_height));
+            buf.set_size(font_system, phys_width, None);
             buf.set_text(font_system, content, &attrs, Shaping::Advanced, None);
             buf.shape_until_scroll(font_system, false);
             self.entries.push(BufferEntry {
@@ -526,13 +575,18 @@ impl TextPipeline {
                 text: content.to_string(),
                 family: family.to_string(),
                 size,
+                phys_size,
                 weight,
                 italic,
                 width,
             });
         }
 
-        let m = SubmitMeta { x, y, color, clip };
+        let m = SubmitMeta {
+            transform,
+            color,
+            clip,
+        };
         if idx < self.meta.len() {
             self.meta[idx] = m;
         } else {
@@ -565,10 +619,11 @@ impl TextPipeline {
             if idx >= self.cache.len() {
                 self.cache.push(CachedInstances {
                     instances: Vec::new(),
-                    x: f32::NAN, 
-                    y: f32::NAN,
-                    color: [f32::NAN; 4],
-                    clip: None,
+                    meta: SubmitMeta {
+                        transform: [f32::NAN; 6],
+                        color: [f32::NAN; 4],
+                        clip: None,
+                    },
                     atlas_generation: u64::MAX,
                 });
             }
@@ -579,29 +634,65 @@ impl TextPipeline {
                 let entry = &self.entries[idx];
                 let mut new_instances: Vec<GlyphInstance> = Vec::new();
 
+                // Build the physical-space transform for glyph placement.
+                //
+                // The logical transform's 2x2 part (rotation + user scale) is
+                // dimensionless — it just rotates/scales directions and should
+                // be applied unchanged to the glyph's physical local offsets.
+                //
+                // Only the translation needs converting from logical → physical px.
+                //
+                // Why: glyph local offsets (lx, ly) are in physical pixels because
+                // the buffer was shaped at (size * dpi_scale). Applying the 2x2 to
+                // physical offsets gives physical screen coordinates. We then add
+                // the physical translation to get the final screen position.
+                let t = meta.transform;
+                let phys_transform: Mat2x3 = [
+                    t[0],
+                    t[1], // 2x2 rotation+user-scale: unchanged
+                    t[2],
+                    t[3],
+                    t[4] * scale, // translation: logical px → physical px
+                    t[5] * scale,
+                ];
+
+                let clip_phys = match meta.clip {
+                    Some([cx, cy, cx2, cy2]) => [cx * scale, cy * scale, cx2 * scale, cy2 * scale],
+                    None => [0.0f32; 4],
+                };
+
                 for run in entry.buffer.layout_runs() {
                     for glyph in run.glyphs.iter() {
-                        let physical = glyph.physical((0.0, 0.0), scale);
+                        // Buffer was shaped at physical size, so glyph.physical with
+                        // scale=1.0 gives the correct cache key and pixel positions
+                        // directly — no additional scaling needed.
+                        let physical = glyph.physical((0.0, 0.0), 1.0);
                         let cache_key = physical.cache_key;
-                        let origin_x = (meta.x * scale).round() as i32;
-                        let origin_y = (meta.y * scale).round() as i32;
-                        let glyph_phys_x = origin_x + physical.x;
-                        let glyph_phys_y = origin_y + physical.y;
 
+                        // Glyph's offset within the text block — already in physical px
+                        // because the buffer was shaped at physical size.
+                        let glyph_local_x = physical.x as f32;
+                        let glyph_local_y = run.line_y.round() + physical.y as f32;
+
+                        // Early clip test — both glyph positions and clip are in physical px
                         if let Some([cx, cy, cx2, cy2]) = meta.clip {
                             let pcx = cx * scale;
                             let pcy = cy * scale;
                             let pcx2 = cx2 * scale;
                             let pcy2 = cy2 * scale;
-                            let gx = glyph_phys_x as f32;
-                            let gy = glyph_phys_y as f32 + (run.line_y * scale).round();
-                            if gx >= pcx2 || gy >= pcy2 + entry.size * scale {
+                            let sx = phys_transform[0] * glyph_local_x
+                                + phys_transform[2] * glyph_local_y
+                                + phys_transform[4];
+                            let sy = phys_transform[1] * glyph_local_x
+                                + phys_transform[3] * glyph_local_y
+                                + phys_transform[5];
+                            if sx >= pcx2 || sy >= pcy2 + entry.phys_size {
                                 continue;
                             }
-                            if gx + glyph.w * scale <= pcx {
+                            if sx + glyph.w <= pcx {
                                 continue;
                             }
-                            if gy + entry.size * scale <= pcy {
+                            if sy + entry.phys_size <= pcy {
                                 continue;
                             }
                         }
@@ -616,13 +707,21 @@ impl TextPipeline {
                             continue;
                         };
 
-                        let px = glyph_phys_x as f32 + ae.left as f32;
-                        let py = glyph_phys_y as f32 + (run.line_y * scale).round() - ae.top as f32;
+                        // Final glyph top-left in local text space (physical px):
+                        //   glyph_local + bearing offset from atlas
+                        let lx = glyph_local_x + ae.left as f32;
+                        let ly = glyph_local_y - ae.top as f32;
 
-                        if (px + ae.w as f32) < 0.0 || px > phys_w {
+                        // Compose: phys_transform * T(lx, ly)
+                        // T(lx, ly) = [1,0,0,1,lx,ly]
+                        let glyph_transform = mat_mul(phys_transform, [1.0, 0.0, 0.0, 1.0, lx, ly]);
+
+                        // Quick screen-space bounds check
+                        let (sx, sy) = (glyph_transform[4], glyph_transform[5]);
+                        if (sx + ae.w as f32) < 0.0 || sx > phys_w {
                             continue;
                         }
-                        if (py + ae.h as f32) < 0.0 || py > phys_h {
+                        if (sy + ae.h as f32) < 0.0 || sy > phys_h {
                             continue;
                         }
 
@@ -630,16 +729,20 @@ impl TextPipeline {
                         let v0 = ae.y as f32 / ATLAS_SIZE as f32;
                         let uw = ae.w as f32 / ATLAS_SIZE as f32;
                         let vh = ae.h as f32 / ATLAS_SIZE as f32;
-                        let clip_phys = match meta.clip {
-                            Some([cx, cy, cx2, cy2]) => {
-                                [cx * scale, cy * scale, cx2 * scale, cy2 * scale]
-                            }
-                            None => [0.0f32; 4],
-                        };
 
                         new_instances.push(GlyphInstance {
-                            pos: [px, py],
-                            size: [ae.w as f32, ae.h as f32],
+                            col01: [
+                                glyph_transform[0],
+                                glyph_transform[1],
+                                glyph_transform[2],
+                                glyph_transform[3],
+                            ],
+                            trans: [
+                                glyph_transform[4],
+                                glyph_transform[5],
+                                ae.w as f32,
+                                ae.h as f32,
+                            ],
                             uv: [u0, v0],
                             uv_sz: [uw, vh],
                             color: meta.color,
@@ -652,10 +755,7 @@ impl TextPipeline {
 
                 self.cache[idx] = CachedInstances {
                     instances: new_instances,
-                    x: meta.x,
-                    y: meta.y,
-                    color: meta.color,
-                    clip: meta.clip,
+                    meta,
                     atlas_generation: atlas_gen,
                 };
                 self.instances_dirty = true;
@@ -711,24 +811,15 @@ impl TextPipeline {
         pass.draw(0..6, start..start + count);
     }
 
-    pub fn render(
-        &mut self,
-        font_system: &mut FontSystem,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        pass: &mut wgpu::RenderPass<'_>,
-    ) {
-        self.prepare(font_system, device, queue);
-        let count = self.instances.len() as u32;
-        self.draw_range(pass, 0, count);
-    }
-
     pub fn instance_range(&self, idx: usize) -> (u32, u32) {
         self.ranges.get(idx).copied().unwrap_or((0, 0))
     }
 
     pub fn trim_atlas(&mut self) {}
 
+    // Returns (rect_x, rect_y, rect_w, rect_h, transform) in LOGICAL coordinates.
+    // Buffer is shaped at physical size so all glyph positions are physical —
+    // we divide by scale to return logical values for write_slot.
     pub fn compute_decoration_rects(
         &self,
         idx: usize,
@@ -736,16 +827,15 @@ impl TextPipeline {
         end: usize,
         thickness: f32,
         decoration_type: DecorationKind,
-        offset_x: f32,
-        offset_y: f32,
         scale: f32,
-    ) -> Vec<(f32, f32, f32, f32)> {
+    ) -> Vec<(f32, f32, f32, f32, Mat2x3)> {
         if idx >= self.active || start >= end {
             return Vec::new();
         }
         let entry = &self.entries[idx];
         let meta = &self.meta[idx];
         let mut rects = Vec::new();
+        // thickness is logical; round to nearest physical pixel then back to logical
         let thick = (thickness * scale).round().max(1.0) / scale;
 
         for run in entry.buffer.layout_runs() {
@@ -755,8 +845,9 @@ impl TextPipeline {
                 if glyph.end <= start || glyph.start >= end {
                     continue;
                 }
-                let gx1 = offset_x + meta.x + glyph.x;
-                let gx2 = gx1 + glyph.w;
+                // glyph.x is physical — convert to logical
+                let gx1 = glyph.x / scale;
+                let gx2 = gx1 + glyph.w / scale;
                 x1 = Some(x1.map_or(gx1, |v: f32| v.min(gx1)));
                 x2 = Some(x2.map_or(gx2, |v: f32| v.max(gx2)));
             }
@@ -764,20 +855,22 @@ impl TextPipeline {
                 if rx2 <= rx1 {
                     continue;
                 }
+                // Snap to physical pixel grid then back to logical
                 let px1 = (rx1 * scale).round() / scale;
                 let px2 = (rx2 * scale).round() / scale;
                 let line_y = match decoration_type {
                     DecorationKind::Underline => {
-                        let baseline = offset_y + meta.y + run.line_y;
+                        // run.line_y is physical baseline
+                        let baseline = run.line_y / scale;
                         ((baseline + 1.0 / scale) * scale).round() / scale
                     }
                     DecorationKind::Strikethrough => {
-                        let baseline = offset_y + meta.y + run.line_y;
-                        let ascent = run.line_y - run.line_top;
+                        let baseline = run.line_y / scale;
+                        let ascent = (run.line_y - run.line_top) / scale;
                         ((baseline - ascent * 0.4) * scale).round() / scale
                     }
                 };
-                rects.push((px1, line_y, px2 - px1, thick));
+                rects.push((px1, line_y, px2 - px1, thick, meta.transform));
             }
         }
         rects
@@ -788,33 +881,33 @@ impl TextPipeline {
         idx: usize,
         sel_start: usize,
         sel_end: usize,
-        offset_x: f32,
-        offset_y: f32,
         scale: f32,
-    ) -> Vec<(f32, f32, f32, f32)> {
+    ) -> Vec<(f32, f32, f32, f32, Mat2x3)> {
         if idx >= self.active || sel_start >= sel_end {
             return Vec::new();
         }
         let entry = &self.entries[idx];
         let meta = &self.meta[idx];
         let mut rects = Vec::new();
+        // line_height in logical pixels
         let line_height = entry.size * 1.4;
 
         for run in entry.buffer.layout_runs() {
-            let run_y = offset_y + meta.y + run.line_top;
+            // run.line_top is physical — convert to logical
+            let run_y = run.line_top / scale;
             let mut x1: Option<f32> = None;
             let mut x2: Option<f32> = None;
             for glyph in run.glyphs {
                 if glyph.end <= sel_start || glyph.start >= sel_end {
                     continue;
                 }
-                let gx = offset_x + meta.x + glyph.x;
-                let gx2 = gx + glyph.w + 1.0 / scale;
+                let gx = glyph.x / scale;
+                let gx2 = gx + glyph.w / scale + 1.0 / scale;
                 x1 = Some(x1.map_or(gx, |v: f32| v.min(gx)));
                 x2 = Some(x2.map_or(gx2, |v: f32| v.max(gx2)));
             }
             if let (Some(rx1), Some(rx2)) = (x1, x2) {
-                rects.push((rx1, run_y, rx2 - rx1, line_height));
+                rects.push((rx1, run_y, rx2 - rx1, line_height, meta.transform));
             }
         }
         rects
