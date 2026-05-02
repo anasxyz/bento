@@ -1,4 +1,4 @@
-use bento_wgpu::{ImageKey, RenderContext};
+use bento_wgpu::RenderContext;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use winit::{
@@ -113,9 +113,7 @@ impl ApplicationHandler for App {
                 let ctx = self.ctx.as_mut().unwrap();
                 win.renderer.render(
                     ctx,
-                    &mut self.fonts.font_system,
                     &mut win.surface,
-                    &mut win.ui.scene,
                     clear,
                 );
             }

@@ -61,7 +61,7 @@ impl WindowInstance {
         let w = size.width as f32 / scale;
         let h = size.height as f32 / scale;
         self.surface.resize(ctx, w, h, scale);
-        self.renderer.resize(ctx, &self.surface, &mut self.ui.scene);
+        self.renderer.resize(ctx, &self.surface);
         self.window.request_redraw();
     }
 
