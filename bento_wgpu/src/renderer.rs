@@ -1,8 +1,10 @@
-use crate::context::RenderContext;
-use crate::surface::Surface;
+use crate::{
+    context::RenderContext,
+    pipelines::rect::{RectInstance, RectPipeline},
+    scene::{Node, Scene},
+    surface::Surface,
+};
 use wgpu;
-
-use crate::pipelines::rect::{RectPipeline, RectInstance};
 
 pub struct Renderer {
     rect: RectPipeline,
@@ -26,6 +28,7 @@ impl Renderer {
         ctx: &mut RenderContext,
         surface: &mut Surface,
         clear_color: [f32; 4],
+        scene: &Scene,
     ) {
         // get the next frame from the swapchain
         let frame = match surface.surface.get_current_texture() {
@@ -70,18 +73,16 @@ impl Renderer {
                 occlusion_query_set: None,
             });
 
+            let rects: Vec<RectInstance> = scene
+                .nodes()
+                .iter()
+                .filter_map(|node| match node {
+                    Node::Rect(r) => Some(*r),
+                })
+                .collect();
+
             // draw calls
-            self.rect.draw(
-                &[
-                    RectInstance {
-                        pos_size: [50.0, 50.0, 200.0, 100.0],
-                        color: [0.2, 0.5, 1.0, 1.0],
-                        radii: [6.0; 4]
-                    },
-                ],
-                &ctx.queue,
-                &mut pass,
-            );
+            self.rect.draw(&rects, &ctx.queue, &mut pass);
         }
 
         ctx.queue.submit(Some(encoder.finish()));
