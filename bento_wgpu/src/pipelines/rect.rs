@@ -56,5 +56,49 @@ impl RectPipeline {
             0,
             bytemuck::cast_slice(&[screen_w, screen_h]),
         );
+
+        /*
+         * bind group layout is the description of what slots exists and
+         * what type of data goes in each one
+         *
+         * binding field is what slot number
+         *
+         * visibility field is which shader is it relevant to between VERTEX or FRAGMENT
+         *
+         * outer ty field is type of resource being stored in this slot, in this case its a buffer
+         *
+         * inner ty field is the type of buffer being stored, in this case a uniform
+         * different types of buffers as far as I know are uniform or storage types:
+         * - uniform buffer: CPU writes it, shader reads it, smaller and faster
+         * - storage buffer: shader both reads and writes to it. the shader can basically modify
+         * values and they can be read back by the CPU
+         */
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("rect bind group layout"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        });
+
+        /*
+        * bind group is where resource to binding slot allocation actually happens
+        *
+        * bind screen_buffer to slot 0
+        */
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("rect bind group"),
+            layout: &bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: screen_buffer.as_entire_binding(),
+            }],
+        });
     }
 }
