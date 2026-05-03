@@ -57,7 +57,7 @@ fn fs_main(in: VOut) -> @location(0) vec4f {
   );
 
   let d = sdf_rect(in.local_pos, in.half_size, r);
-  let alpha = clamp(-d, 0.0, 1.0);
+  let alpha = clamp(-d + 0.5, 0.0, 1.0);
   
   return vec4f(in.color.rgb, in.color.a * alpha);
 }

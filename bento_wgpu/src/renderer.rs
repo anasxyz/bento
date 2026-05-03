@@ -76,7 +76,7 @@ impl Renderer {
                     RectInstance {
                         pos_size: [50.0, 50.0, 200.0, 100.0],
                         color: [0.2, 0.5, 1.0, 1.0],
-                        radii: [0.0; 4]
+                        radii: [6.0; 4]
                     },
                 ],
                 &ctx.queue,

@@ -54,7 +54,6 @@ impl ApplicationHandler for App {
                     return;
                 };
                 renderer.render(&mut self.ctx, surface, [0.1, 0.1, 0.1, 1.0]);
-                self.window.as_ref().unwrap().request_redraw();
             }
 
             WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {
