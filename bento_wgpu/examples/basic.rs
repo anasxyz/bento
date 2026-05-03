@@ -1,3 +1,4 @@
+use bento_wgpu::RenderContext;
 use cosmic_text::FontSystem;
 use std::sync::Arc;
 use std::time::Instant;
@@ -9,7 +10,10 @@ use winit::{
 };
 
 struct App {
+    ctx: RenderContext,
     window: Option<Arc<Window>>,
+    surface: Option<bento_wgpu::Surface<'static>>,
+    renderer: Option<bento_wgpu::Renderer>,
 }
 
 impl ApplicationHandler for App {
@@ -18,7 +22,7 @@ impl ApplicationHandler for App {
             event_loop
                 .create_window(
                     Window::default_attributes()
-                        .with_title("rotation quality test")
+                        .with_title("demo")
                         .with_inner_size(winit::dpi::LogicalSize::new(800u32, 600u32)),
                 )
                 .unwrap(),
@@ -28,12 +32,24 @@ impl ApplicationHandler for App {
         let scale = window.scale_factor() as f32;
         let w = size.width as f32 / scale;
         let h = size.height as f32 / scale;
+
+        let surface = bento_wgpu::Surface::new(&self.ctx, Arc::clone(&window), w, h, scale);
+        let renderer = bento_wgpu::Renderer::new(&self.ctx, &surface);
+        self.window = Some(window);
+        self.surface = Some(surface);
+        self.renderer = Some(renderer);
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::RedrawRequested => {
-
+                let (Some(renderer), Some(surface)) =
+                    (self.renderer.as_mut(), self.surface.as_mut())
+                else {
+                    return;
+                };
+                renderer.render(&mut self.ctx, surface, [0.1, 0.1, 0.1, 1.0]);
+                self.window.as_ref().unwrap().request_redraw();
             }
 
             WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {
@@ -56,7 +72,10 @@ fn main() {
     let event_loop = EventLoop::new().unwrap();
     event_loop
         .run_app(&mut App {
+            ctx: ctx,
             window: None,
+            surface: None,
+            renderer: None,
         })
         .unwrap();
 }
