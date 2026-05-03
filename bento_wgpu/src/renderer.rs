@@ -89,6 +89,6 @@ impl Renderer {
     }
 
     pub fn resize(&mut self, ctx: &RenderContext, surface: &Surface) {
-        // pipelines will resize here later
+        self.rect.resize(&ctx.queue, surface.width, surface.height);
     }
 }

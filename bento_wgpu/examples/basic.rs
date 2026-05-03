@@ -46,13 +46,13 @@ impl ApplicationHandler for App {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+        let (Some(renderer), Some(surface)) = (self.renderer.as_mut(), self.surface.as_mut())
+        else {
+            return;
+        };
+
         match event {
             WindowEvent::RedrawRequested => {
-                let (Some(renderer), Some(surface)) =
-                    (self.renderer.as_mut(), self.surface.as_mut())
-                else {
-                    return;
-                };
                 renderer.render(&mut self.ctx, surface, [0.1, 0.1, 0.1, 1.0]);
             }
 
@@ -62,6 +62,9 @@ impl ApplicationHandler for App {
                 let scale = window.scale_factor() as f32;
                 let w = size.width as f32 / scale;
                 let h = size.height as f32 / scale;
+                surface.resize(&self.ctx, w, h, scale);
+                renderer.resize(&self.ctx, surface);
+                self.window.as_ref().unwrap().request_redraw();
             }
 
             WindowEvent::CloseRequested => event_loop.exit(),
