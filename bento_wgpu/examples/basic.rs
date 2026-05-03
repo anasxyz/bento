@@ -1,3 +1,8 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unused_imports)]
+#![allow(unused_mut)]
+
 use bento_wgpu::RenderContext;
 use cosmic_text::FontSystem;
 use std::sync::Arc;

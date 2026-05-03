@@ -6,6 +6,7 @@ use wgpu;
 pub struct RectInstance {
     pub pos_size: [f32; 4],
     pub color: [f32; 4],
+    pub radii: [f32; 4],
 }
 
 pub struct RectPipeline {
@@ -124,6 +125,11 @@ impl RectPipeline {
                 wgpu::VertexAttribute {
                     offset: 16,
                     shader_location: 1,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: 32,
+                    shader_location: 2,
                     format: wgpu::VertexFormat::Float32x4,
                 },
             ],
