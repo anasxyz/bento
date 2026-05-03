@@ -129,6 +129,53 @@ impl RectPipeline {
             ],
         };
 
+        // tells pipeline which bind group layouts its using
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("rect pipeline layout"),
+            bind_group_layouts: &[&bgl],
+            push_constant_ranges: &[],
+        });
 
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("rect pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_main"),
+                buffers: &[vertex_layout],
+                compilation_options: Default::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: Default::default(),
+            }),
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+            cache: None,
+        });
+
+        let capacity = 64;
+        let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("rect vertex buffer"),
+            size: (capacity * std::mem::size_of::<RectInstance>()) as u64,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        Self {
+            pipeline,
+            vertex_buffer,
+            screen_buffer,
+            bind_group,
+            capacity,
+        }
     }
 }
