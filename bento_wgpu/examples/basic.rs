@@ -51,7 +51,7 @@ impl ApplicationHandler for App {
             color: [0.2, 0.5, 1.0, 1.0],
             radii: [14.0; 4],
             border_color: [0.0, 0.0, 0.0, 1.0],
-            border_widths: [2.0; 4],
+            border_widths: [3.0; 4],
             transform: transform(45.0_f32.to_radians(), 1.0, 1.0),
         });
     }

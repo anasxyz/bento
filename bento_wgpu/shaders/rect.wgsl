@@ -20,6 +20,7 @@ struct VOut {
   @location(3) radii: vec4f,
   @location(4) border_color: vec4f,
   @location(5) border_widths: vec4f,
+  @location(6) scale: f32,
 }
 
 var<private> QUAD: array<vec2f, 6> = array<vec2f, 6>(
@@ -57,6 +58,7 @@ fn vs_main(@builtin(vertex_index) vi: u32, inst: Instance) -> VOut {
   out.radii = inst.radii;
   out.border_color = inst.border_color;
   out.border_widths = inst.border_widths;
+  out.scale = length(vec2f(inst.transform_ab.x, inst.transform_ab.y));
 
   return out;
 }
@@ -74,8 +76,10 @@ fn fs_main(in: VOut) -> @location(0) vec4f {
     in.local_pos.y > 0.0
   );
 
+  let aa = 0.5 / in.scale;
+
   let d = sdf_rect(in.local_pos, in.half_size, r);
-  let alpha = clamp(-d + 0.5, 0.0, 1.0);
+  let alpha = clamp(-d + aa, 0.0, 1.0);
   if alpha <= 0.0 { discard; }
 
   let inner_half = vec2f(
@@ -90,7 +94,7 @@ fn fs_main(in: VOut) -> @location(0) vec4f {
   let inner_r = max(r - max(max(in.border_widths.x, in.border_widths.z),
                             max(in.border_widths.y, in.border_widths.w)), 0.0);
   let d_inner = sdf_rect(in.local_pos - inner_offset, inner_half, inner_r);
-  let in_inner = clamp(-d_inner + 0.5, 0.0, 1.0);
+  let in_inner = clamp(-d_inner + aa, 0.0, 1.0);
 
   let color = mix(in.border_color, in.color, in_inner);
 
