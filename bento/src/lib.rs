@@ -19,3 +19,4 @@ mod color;
 pub use app::App;
 pub use window::WindowConfig;
 pub use ui::Ui;
+pub use color::Color;
