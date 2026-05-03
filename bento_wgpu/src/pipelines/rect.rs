@@ -9,6 +9,7 @@ pub struct RectInstance {
     pub radii: [f32; 4],
     pub border_color: [f32; 4],
     pub border_widths: [f32; 4],
+    pub transform: [f32; 4],
 }
 
 pub struct RectPipeline {
@@ -143,7 +144,12 @@ impl RectPipeline {
                     offset: 64,
                     shader_location: 4,
                     format: wgpu::VertexFormat::Float32x4,
-                }
+                },
+                wgpu::VertexAttribute {
+                    offset: 80,
+                    shader_location: 5,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
             ],
         };
 
@@ -198,7 +204,11 @@ impl RectPipeline {
     }
 
     pub fn resize(&mut self, queue: &wgpu::Queue, width: f32, height: f32) {
-        queue.write_buffer(&self.screen_buffer, 0, bytemuck::cast_slice(&[width, height]));
+        queue.write_buffer(
+            &self.screen_buffer,
+            0,
+            bytemuck::cast_slice(&[width, height]),
+        );
     }
 
     pub fn draw<'pass>(

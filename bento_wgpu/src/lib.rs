@@ -8,6 +8,7 @@ mod surface;
 mod renderer;
 mod pipelines;
 mod scene;
+pub mod math;
 
 pub use context::RenderContext;
 pub use surface::Surface;

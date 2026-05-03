@@ -10,9 +10,7 @@ pub struct Scene {
 
 impl Scene {
     pub fn new() -> Self {
-        Self {
-            nodes: Vec::new(),
-        }
+        Self { nodes: Vec::new() }
     }
 
     pub fn add_rect(&mut self, rect: RectInstance) {

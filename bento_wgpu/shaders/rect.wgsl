@@ -9,6 +9,7 @@ struct Instance {
   @location(2) radii: vec4f,
   @location(3) border_color: vec4f,
   @location(4) border_widths: vec4f,
+  @location(5) transform_ab: vec4f, // a, b, c, d
 }
 
 struct VOut {
@@ -29,18 +30,29 @@ var<private> QUAD: array<vec2f, 6> = array<vec2f, 6>(
 @vertex
 fn vs_main(@builtin(vertex_index) vi: u32, inst: Instance) -> VOut {
   let q = QUAD[vi];
-  let px = inst.pos_size.x + q.x * inst.pos_size.z;
-  let py = inst.pos_size.y + q.y * inst.pos_size.w;
+
+  // local corner position relative to the rect center
+  let half = inst.pos_size.zw * 0.5;
+  let local = (q - vec2f(0.5)) * inst.pos_size.zw;
+
+  // apply transform matrix
+  let a = inst.transform_ab.x;
+  let b = inst.transform_ab.y;
+  let c = inst.transform_ab.z;
+  let d = inst.transform_ab.w;
+
+  // rotate/scale around center
+  // translate to top left position
+  let px = a * local.x + c * local.y + inst.pos_size.x + half.x;
+  let py = b * local.x + d * local.y + inst.pos_size.y + half.y;
+
   let ndcx = (px / screen.size.x) * 2.0 - 1.0;
   let ndcy = -(py / screen.size.y) * 2.0 + 1.0;
-  
-  let half = inst.pos_size.zw * 0.5;
-  let center = inst.pos_size.xy + half;
 
   var out: VOut;
   out.pos = vec4f(ndcx, ndcy, 0.0, 1.0);
   out.color = inst.color;
-  out.local_pos = vec2f(px, py) - center;
+  out.local_pos = local;
   out.half_size = half;
   out.radii = inst.radii;
   out.border_color = inst.border_color;

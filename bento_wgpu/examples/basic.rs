@@ -4,6 +4,7 @@
 #![allow(unused_mut)]
 
 use bento_wgpu::{RectInstance, RenderContext, Scene};
+use bento_wgpu::{math::transform};
 use cosmic_text::FontSystem;
 use std::sync::Arc;
 use std::time::Instant;
@@ -46,11 +47,12 @@ impl ApplicationHandler for App {
         self.renderer = Some(renderer);
 
         self.scene.add_rect(RectInstance {
-            pos_size: [50.0, 50.0, 200.0, 100.0],
+            pos_size: [0.0, 0.0, 200.0, 100.0],
             color: [0.2, 0.5, 1.0, 1.0],
-            radii: [0.0; 4],
+            radii: [14.0; 4],
             border_color: [0.0, 0.0, 0.0, 1.0],
             border_widths: [2.0; 4],
+            transform: transform(45.0_f32.to_radians(), 1.0, 1.0),
         });
     }
 
