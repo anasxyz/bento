@@ -88,10 +88,10 @@ impl RectPipeline {
         });
 
         /*
-        * bind group is where resource to binding slot allocation actually happens
-        *
-        * bind screen_buffer to slot 0
-        */
+         * bind group is where resource to binding slot allocation actually happens
+         *
+         * bind screen_buffer to slot 0
+         */
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("rect bind group"),
             layout: &bind_group_layout,
@@ -100,5 +100,35 @@ impl RectPipeline {
                 resource: screen_buffer.as_entire_binding(),
             }],
         });
+
+        /*
+         * tells the GPU how to read RectInstance out of vertex buffer
+         *
+         * array_stride is how far for the GPU to jump to the next instance which
+         * is just the size of one instance, in this case 32 bytes, meaning that the next instance
+         * will start at 32 bytes because theyre all 32 bytes
+         *
+         * step_mode tells the GPU when to step to the next entry in the buffer
+         * - Vertex: step to the next entry after every vertex
+         * - Instance: step to the next entry after every instance
+         */
+        let vertex_layout = wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<RectInstance>() as u64,
+            step_mode: wgpu::VertexStepMode::Instance,
+            attributes: &[
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 0,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: 16,
+                    shader_location: 1,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+            ],
+        };
+
+
     }
 }
