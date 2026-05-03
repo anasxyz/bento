@@ -48,13 +48,9 @@ impl ApplicationHandler for App {
         self.scene.add_rect(RectInstance {
             pos_size: [50.0, 50.0, 200.0, 100.0],
             color: [0.2, 0.5, 1.0, 1.0],
-            radii: [20.0, 20.0, 20.0, 20.0],
-        });
-
-        self.scene.add_rect(RectInstance {
-            pos_size: [500.0, 500.0, 200.0, 100.0],
-            color: [0.7, 0.5, 0.0, 1.0],
-            radii: [20.0, 20.0, 20.0, 20.0],
+            radii: [0.0; 4],
+            border_color: [0.0, 0.0, 0.0, 1.0],
+            border_widths: [2.0; 4],
         });
     }
 

@@ -7,6 +7,8 @@ struct Instance {
   @location(0) pos_size: vec4f,
   @location(1) color: vec4f,
   @location(2) radii: vec4f,
+  @location(3) border_color: vec4f,
+  @location(4) border_widths: vec4f,
 }
 
 struct VOut {
@@ -15,6 +17,8 @@ struct VOut {
   @location(1) local_pos: vec2f,
   @location(2) half_size: vec2f,
   @location(3) radii: vec4f,
+  @location(4) border_color: vec4f,
+  @location(5) border_widths: vec4f,
 }
 
 var<private> QUAD: array<vec2f, 6> = array<vec2f, 6>(
@@ -39,6 +43,8 @@ fn vs_main(@builtin(vertex_index) vi: u32, inst: Instance) -> VOut {
   out.local_pos = vec2f(px, py) - center;
   out.half_size = half;
   out.radii = inst.radii;
+  out.border_color = inst.border_color;
+  out.border_widths = inst.border_widths;
 
   return out;
 }
@@ -58,6 +64,23 @@ fn fs_main(in: VOut) -> @location(0) vec4f {
 
   let d = sdf_rect(in.local_pos, in.half_size, r);
   let alpha = clamp(-d + 0.5, 0.0, 1.0);
-  
-  return vec4f(in.color.rgb, in.color.a * alpha);
+  if alpha <= 0.0 { discard; }
+
+  let inner_half = vec2f(
+    in.half_size.x - (in.border_widths.y + in.border_widths.w) * 0.5,
+    in.half_size.y - (in.border_widths.x + in.border_widths.z) * 0.5,
+  );
+  let inner_offset = vec2f(
+    (in.border_widths.w - in.border_widths.y) * 0.5,
+    (in.border_widths.x - in.border_widths.z) * 0.5,
+  );
+
+  let inner_r = max(r - max(max(in.border_widths.x, in.border_widths.z),
+                            max(in.border_widths.y, in.border_widths.w)), 0.0);
+  let d_inner = sdf_rect(in.local_pos - inner_offset, inner_half, inner_r);
+  let in_inner = clamp(-d_inner + 0.5, 0.0, 1.0);
+
+  let color = mix(in.border_color, in.color, in_inner);
+
+  return vec4f(color.rgb, color.a * alpha);
 }

@@ -7,6 +7,8 @@ pub struct RectInstance {
     pub pos_size: [f32; 4],
     pub color: [f32; 4],
     pub radii: [f32; 4],
+    pub border_color: [f32; 4],
+    pub border_widths: [f32; 4],
 }
 
 pub struct RectPipeline {
@@ -132,6 +134,16 @@ impl RectPipeline {
                     shader_location: 2,
                     format: wgpu::VertexFormat::Float32x4,
                 },
+                wgpu::VertexAttribute {
+                    offset: 48,
+                    shader_location: 3,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: 64,
+                    shader_location: 4,
+                    format: wgpu::VertexFormat::Float32x4,
+                }
             ],
         };
 
