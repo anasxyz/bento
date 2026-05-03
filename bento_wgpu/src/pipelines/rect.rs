@@ -27,7 +27,7 @@ impl RectPipeline {
         // create rect shader module
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("rect shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("rect.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/rect.wgsl").into()),
         });
 
         /*
@@ -132,7 +132,7 @@ impl RectPipeline {
         // tells pipeline which bind group layouts its using
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("rect pipeline layout"),
-            bind_group_layouts: &[&bgl],
+            bind_group_layouts: &[&bind_group_layout],
             push_constant_ranges: &[],
         });
 
@@ -177,5 +177,27 @@ impl RectPipeline {
             bind_group,
             capacity,
         }
+    }
+
+    pub fn draw<'pass>(
+        &'pass self,
+        rects: &[RectInstance],
+        queue: &wgpu::Queue,
+        pass: &mut wgpu::RenderPass<'pass>,
+    ) {
+        if rects.is_empty() {
+            return;
+        }
+
+        // upload rect data to the GPU
+        queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(rects));
+
+        // set up the pipeline and buffers
+        pass.set_pipeline(&self.pipeline);
+        pass.set_bind_group(0, &self.bind_group, &[]);
+        pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+
+        // draw
+        pass.draw(0..6, 0..rects.len() as u32);
     }
 }

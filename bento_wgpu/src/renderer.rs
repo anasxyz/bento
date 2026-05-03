@@ -2,13 +2,23 @@ use crate::context::RenderContext;
 use crate::surface::Surface;
 use wgpu;
 
+use crate::pipelines::rect::{RectPipeline, RectInstance};
+
 pub struct Renderer {
-    // nothing yet, pipelines will live here later
+    rect: RectPipeline,
 }
 
 impl Renderer {
     pub fn new(ctx: &RenderContext, surface: &Surface) -> Self {
-        Self {}
+        Self {
+            rect: RectPipeline::new(
+                &ctx.device,
+                &ctx.queue,
+                surface.format,
+                surface.width,
+                surface.height,
+            ),
+        }
     }
 
     pub fn render(
@@ -27,16 +37,20 @@ impl Renderer {
             Err(_) => return,
         };
 
-        let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let view = frame
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let mut encoder = ctx.device.create_command_encoder(
-            &wgpu::CommandEncoderDescriptor { label: Some("frame") }
-        );
+        let mut encoder = ctx
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("frame"),
+            });
 
         let [r, g, b, a] = clear_color;
         {
             // a render pass clears the screen and is where draw calls go
-            let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("main pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
@@ -55,7 +69,16 @@ impl Renderer {
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
-            // draw calls will go inside this block later
+
+            // draw calls
+            self.rect.draw(
+                &[RectInstance {
+                    pos_size: [50.0, 50.0, 200.0, 100.0],
+                    color: [0.2, 0.5, 1.0, 1.0],
+                }],
+                &ctx.queue,
+                &mut pass,
+            );
         }
 
         ctx.queue.submit(Some(encoder.finish()));
