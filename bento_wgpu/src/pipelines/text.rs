@@ -355,6 +355,14 @@ impl TextPipeline {
         }
     }
 
+    pub fn resize(&mut self, queue: &wgpu::Queue, width: f32, height: f32) {
+        queue.write_buffer(
+            &self.screen_buffer,
+            0,
+            bytemuck::cast_slice(&[width, height]),
+        );
+    }
+
     pub fn draw<'pass>(
         &'pass mut self,
         text: &str,

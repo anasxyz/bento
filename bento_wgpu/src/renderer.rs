@@ -97,7 +97,7 @@ impl Renderer {
                 "Hello world",
                 50.0,
                 50.0,
-                24.0,
+                12.0,
                 [1.0, 1.0, 1.0, 1.0],
                 font_system,
                 &ctx.device,
@@ -112,5 +112,6 @@ impl Renderer {
 
     pub fn resize(&mut self, ctx: &RenderContext, surface: &Surface) {
         self.rect.resize(&ctx.queue, surface.width, surface.height);
+        self.text.resize(&ctx.queue, surface.width, surface.height);
     }
 }
