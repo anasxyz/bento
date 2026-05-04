@@ -41,9 +41,8 @@ impl Renderer {
         font_system: &mut cosmic_text::FontSystem,
         surface: &mut Surface,
         clear_color: [f32; 4],
-        scene: &Scene,
+        scene: &mut Scene,
     ) {
-        // get the next frame from the swapchain
         let frame = match surface.surface.get_current_texture() {
             Ok(f) => f,
             Err(wgpu::SurfaceError::Outdated | wgpu::SurfaceError::Lost) => {
@@ -56,48 +55,56 @@ impl Renderer {
         let view = frame
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
-
         let mut encoder = ctx
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("frame"),
             });
 
-        let [r, g, b, a] = clear_color;
+        // prepare phase
 
-        // collect rects
-        let rects: Vec<RectInstance> = scene
-            .nodes
-            .iter()
-            .filter_map(|n| match n {
-                Node::Rect(r) => Some(RectInstance {
-                    pos_size: [r.x, r.y, r.w, r.h],
-                    color: r.color,
-                    radii: r.radii,
-                    border_color: r.border_color,
-                    border_widths: r.border_widths,
-                    transform: crate::math::transform(r.rotate, r.scale_x, r.scale_y),
-                }),
-                _ => None,
-            })
-            .collect();
+        // assign slots and write rect data
+        for node in &mut scene.nodes {
+            if let Node::Rect(r) = node {
+                if r.slot == u32::MAX {
+                    r.slot = self.rect.alloc_slot();
+                }
+                self.rect.write_slot(
+                    r.slot,
+                    RectInstance {
+                        pos_size: [r.x, r.y, r.w, r.h],
+                        color: r.color,
+                        radii: r.radii,
+                        border_color: r.border_color,
+                        border_widths: r.border_widths,
+                        transform: crate::math::transform(r.rotate, r.scale_x, r.scale_y),
+                    },
+                );
+            }
+        }
+        self.rect.upload(&ctx.device, &ctx.queue);
 
-        // collect texts
-        let texts: Vec<(&str, f32, f32, f32, [f32; 4])> = scene
-            .nodes
-            .iter()
-            .filter_map(|n| match n {
-                Node::Text(t) => Some((t.text.as_str(), t.x, t.y, t.size, t.color)),
-                _ => None,
-            })
-            .collect();
-
-        // prepare textm, uploads glyph data to GPU before render pass
+        // prepare text
+        let mut texts: Vec<(&str, f32, f32, f32, [f32; 4])> = Vec::new();
+        for node in &mut scene.nodes {
+            if let Node::Text(t) = node {
+                t.slot = texts.len();
+                texts.push((t.text.as_str(), t.x, t.y, t.size, t.color));
+            }
+        }
         self.text
             .prepare(&texts, font_system, &ctx.device, &ctx.queue);
 
+        // draw phase
+
+        let mut sorted: Vec<&Node> = scene.nodes.iter().collect();
+        sorted.sort_by_key(|n| match n {
+            Node::Rect(r) => r.z,
+            Node::Text(t) => t.z,
+        });
+
+        let [r, g, b, a] = clear_color;
         {
-            // a render pass clears the screen and is where draw calls go
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("main pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -118,9 +125,12 @@ impl Renderer {
                 occlusion_query_set: None,
             });
 
-            // issue draw calls
-            self.rect.draw(&rects, &ctx.queue, &mut pass);
-            self.text.draw(&mut pass);
+            for node in &sorted {
+                match node {
+                    Node::Rect(r) => self.rect.draw_slot(&mut pass, r.slot),
+                    Node::Text(t) => self.text.draw_range(&mut pass, t.slot),
+                }
+            }
         }
 
         ctx.queue.submit(Some(encoder.finish()));

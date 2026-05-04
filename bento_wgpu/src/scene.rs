@@ -10,6 +10,8 @@ pub struct RectNode {
     pub rotate: f32,
     pub scale_x: f32,
     pub scale_y: f32,
+    pub z: i32,
+    pub(crate) slot: u32,
 }
 
 impl RectNode {
@@ -26,6 +28,8 @@ impl RectNode {
             rotate: 0.0,
             scale_x: 1.0,
             scale_y: 1.0,
+            z: 1,
+            slot: u32::MAX,
         }
     }
 }
@@ -36,6 +40,8 @@ pub struct TextNode {
     pub y: f32,
     pub size: f32,
     pub color: [f32; 4],
+    pub z: i32,
+    pub(crate) slot: usize,
 }
 
 impl TextNode {
@@ -46,6 +52,8 @@ impl TextNode {
             y,
             size,
             color: [1.0, 1.0, 1.0, 1.0],
+            z: 1,
+            slot: usize::MAX,
         }
     }
 }

@@ -177,6 +177,7 @@ pub struct TextPipeline {
     sampler: wgpu::Sampler,
     capacity: usize,
     count: u32,
+    ranges: Vec<(u32, u32)>,
 }
 
 impl TextPipeline {
@@ -354,6 +355,7 @@ impl TextPipeline {
             sampler,
             capacity,
             count: 0,
+            ranges: Vec::new(),
         }
     }
 
@@ -374,8 +376,11 @@ impl TextPipeline {
     ) {
         use cosmic_text::{Attrs, Buffer, Metrics, Shaping};
         let mut instances: Vec<GlyphInstance> = Vec::new();
+        self.ranges.clear();
 
         for &(text, x, y, size, color) in texts {
+            let start = instances.len() as u32;
+
             let mut buffer = Buffer::new(font_system, Metrics::new(size, size * 1.4));
             buffer.set_size(font_system, None, None);
             buffer.set_text(font_system, text, &Attrs::new(), Shaping::Advanced, None);
@@ -409,9 +414,13 @@ impl TextPipeline {
                     });
                 }
             }
+
+            let count = instances.len() as u32 - start;
+            self.ranges.push((start, count));
         }
 
         if instances.is_empty() {
+            self.count = 0;
             return;
         }
 
@@ -427,6 +436,19 @@ impl TextPipeline {
 
         queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&instances));
         self.count = instances.len() as u32;
+    }
+
+    pub fn draw_range<'pass>(&'pass self, pass: &mut wgpu::RenderPass<'pass>, index: usize) {
+        let Some(&(start, count)) = self.ranges.get(index) else {
+            return;
+        };
+        if count == 0 {
+            return;
+        }
+        pass.set_pipeline(&self.pipeline);
+        pass.set_bind_group(0, &self.bind_group, &[]);
+        pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        pass.draw(0..6, start..start + count);
     }
 
     pub fn draw<'pass>(&'pass self, pass: &mut wgpu::RenderPass<'pass>) {

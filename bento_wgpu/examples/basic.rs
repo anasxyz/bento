@@ -47,27 +47,15 @@ impl ApplicationHandler for App {
         self.surface = Some(surface);
         self.renderer = Some(renderer);
 
-        self.scene.add_rect(RectNode {
-            x: 20.0,
-            y: 20.0,
-            w: 200.0,
-            h: 100.0,
-            color: [0.2, 0.5, 1.0, 1.0],
-            radii: [14.0; 4],
-            border_color: [0.0, 0.0, 0.0, 1.0],
-            border_widths: [2.0; 4],
-            rotate: 0.0,
-            scale_x: 1.0,
-            scale_y: 1.0,
-        });
+        let mut rect = RectNode::new(60.0, 20.0, 200.0, 100.0);
+        rect.color = [0.2, 0.5, 1.0, 1.0];
+        rect.radii = [14.0; 4];
+        rect.z = 1;
+        self.scene.add_rect(rect);
 
-        self.scene.add_text(TextNode {
-            text: "Hello world".to_string(),
-            x: 20.0,
-            y: 140.0,
-            size: 24.0,
-            color: [1.0, 1.0, 1.0, 1.0],
-        });
+        let mut text = TextNode::new("Hello world", 40.0, 60.0, 24.0);
+        text.z = 0;
+        self.scene.add_text(text);
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {

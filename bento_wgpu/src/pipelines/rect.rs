@@ -18,6 +18,9 @@ pub struct RectPipeline {
     screen_buffer: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
     capacity: usize,
+    instances: Vec<RectInstance>,
+    dirty: Vec<bool>,
+    next_slot: u32,
 }
 
 impl RectPipeline {
@@ -200,6 +203,9 @@ impl RectPipeline {
             screen_buffer,
             bind_group,
             capacity,
+            instances: Vec::new(),
+            dirty: Vec::new(),
+            next_slot: 0,
         }
     }
 
@@ -209,6 +215,74 @@ impl RectPipeline {
             0,
             bytemuck::cast_slice(&[width, height]),
         );
+    }
+
+    pub fn alloc_slot(&mut self) -> u32 {
+        let slot = self.next_slot;
+        self.next_slot += 1;
+        // grow instances and dirty vecs
+        self.instances.push(RectInstance {
+            pos_size: [0.0; 4],
+            color: [0.0; 4],
+            radii: [0.0; 4],
+            border_color: [0.0; 4],
+            border_widths: [0.0; 4],
+            transform: [1.0, 0.0, 0.0, 1.0],
+        });
+        self.dirty.push(true);
+        slot
+    }
+
+    pub fn write_slot(&mut self, slot: u32, instance: RectInstance) {
+        let s = slot as usize;
+        if bytemuck::bytes_of(&self.instances[s]) != bytemuck::bytes_of(&instance) {
+            self.instances[s] = instance;
+            self.dirty[s] = true;
+        }
+    }
+
+    pub fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
+        if self.instances.is_empty() {
+            return;
+        }
+
+        if self.instances.len() > self.capacity {
+            self.capacity = self.instances.len().next_power_of_two();
+            self.vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("rect vertex buffer"),
+                size: (self.capacity * std::mem::size_of::<RectInstance>()) as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            queue.write_buffer(
+                &self.vertex_buffer,
+                0,
+                bytemuck::cast_slice(&self.instances),
+            );
+            for d in &mut self.dirty {
+                *d = false;
+            }
+            return;
+        }
+
+        for (i, dirty) in self.dirty.iter_mut().enumerate() {
+            if *dirty {
+                let offset = (i * std::mem::size_of::<RectInstance>()) as u64;
+                queue.write_buffer(
+                    &self.vertex_buffer,
+                    offset,
+                    bytemuck::bytes_of(&self.instances[i]),
+                );
+                *dirty = false;
+            }
+        }
+    }
+
+    pub fn draw_slot<'pass>(&'pass self, pass: &mut wgpu::RenderPass<'pass>, slot: u32) {
+        pass.set_pipeline(&self.pipeline);
+        pass.set_bind_group(0, &self.bind_group, &[]);
+        pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        pass.draw(0..6, slot..slot + 1);
     }
 
     pub fn draw<'pass>(
