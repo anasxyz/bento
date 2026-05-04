@@ -41,19 +41,18 @@ impl ApplicationHandler for App {
         let h = size.height as f32 / scale;
 
         let surface = bento_wgpu::Surface::new(&self.ctx, Arc::clone(&window), w, h, scale);
-        println!("{:?}", surface.format);
         let renderer = bento_wgpu::Renderer::new(&self.ctx, &surface);
         self.window = Some(window);
         self.surface = Some(surface);
         self.renderer = Some(renderer);
 
         self.scene.add_rect(RectInstance {
-            pos_size: [20.0, 20.0, 200.0, 100.0],
-            color: [0.2, 0.5, 1.0, 0.1],
-            radii: [14.0; 4],
+            pos_size: [20.0, 20.0, 100.0, 50.0],
+            color: [0.2, 0.5, 1.0, 1.0],
+            radii: [25.0; 4],
             border_color: [0.0, 0.0, 0.0, 1.0],
             border_widths: [3.0; 4],
-            transform: transform(0.0_f32.to_radians(), 1.0, 1.0),
+            transform: transform(0.0_f32.to_radians(), 5.0, 5.0),
         });
 
     }

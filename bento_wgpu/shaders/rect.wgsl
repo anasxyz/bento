@@ -70,38 +70,40 @@ fn sdf_rect(p: vec2f, half_size: vec2f, radius: f32) -> f32 {
 
 @fragment
 fn fs_main(in: VOut) -> @location(0) vec4f {
-    let r = select(
-      select(in.radii.x, in.radii.y, in.local_pos.x > 0.0),
-      select(in.radii.w, in.radii.z, in.local_pos.x > 0.0),
-      in.local_pos.y > 0.0
-    );
-
-    let aa = 0.5 / in.scale;
-    let d = sdf_rect(in.local_pos, in.half_size, r);
-    let alpha = clamp(-d + aa, 0.0, 1.0);
-    if alpha <= 0.0 { discard; }
-
-    let has_border = (in.border_widths.x + in.border_widths.y +
-                      in.border_widths.z + in.border_widths.w) > 0.0;
-
-    var out_color: vec4f;
-    if !has_border {
+  let r = select(
+    select(in.radii.x, in.radii.y, in.local_pos.x > 0.0),
+    select(in.radii.w, in.radii.z, in.local_pos.x > 0.0),
+    in.local_pos.y > 0.0
+  );
+  let aa = 0.5 / in.scale;
+  let d = sdf_rect(in.local_pos, in.half_size, r);
+  let alpha = clamp(-d + aa, 0.0, 1.0);
+  if alpha <= 0.0 { discard; }
+  let has_border = (in.border_widths.x + in.border_widths.y +
+                    in.border_widths.z + in.border_widths.w) > 0.0;
+  var out_color: vec4f;
+  if !has_border {
+    out_color = vec4f(in.color.rgb, in.color.a * alpha);
+  } else {
+    let bw = (in.border_widths.x + in.border_widths.y +
+                   in.border_widths.z + in.border_widths.w) * 0.25;
+    let inner_r = max(r - bw, 0.0);
+    let d_inner = sdf_rect(in.local_pos, in.half_size - bw, inner_r);
+    let inner_aa = 0.5;
+    if in.color.a <= 0.0 {
+      out_color = vec4f(in.border_color.rgb, in.border_color.a * clamp(-d_inner + inner_aa, 0.0, 1.0) * alpha);
+    } else if d_inner >= inner_aa {
+      out_color = vec4f(in.border_color.rgb, in.border_color.a * alpha);
+    } else if d_inner <= -inner_aa {
       out_color = vec4f(in.color.rgb, in.color.a * alpha);
     } else {
-      let bw = (in.border_widths.x + in.border_widths.y +
-                     in.border_widths.z + in.border_widths.w) * 0.25;
-      let inner_r = max(r - bw, 0.0);
-      let d_inner = sdf_rect(in.local_pos, in.half_size - bw, inner_r);
-
-      if in.color.a <= 0.0 {
-        out_color = vec4f(in.border_color.rgb, in.border_color.a * step(0.0, -d_inner) * alpha);
-      } else if d_inner >= 0.0 {
-        out_color = vec4f(in.border_color.rgb, in.border_color.a * alpha);
-      } else {
-        out_color = vec4f(in.color.rgb, in.color.a * alpha);
-      }
+      let t = (d_inner + inner_aa) / (2.0 * inner_aa);
+      out_color = vec4f(
+        mix(in.border_color.rgb, in.color.rgb, 1.0 - t),
+        mix(in.border_color.a, in.color.a, 1.0 - t) * alpha
+      );
     }
-
-    if out_color.a <= 0.0 { discard; }
-    return out_color;
+  }
+  if out_color.a <= 0.0 { discard; }
+  return out_color;
 }
