@@ -1,5 +1,5 @@
 use bytemuck::{Pod, Zeroable};
-use cosmic_text::{CacheKey, FontSystem, SwashCache};
+use cosmic_text::{AttrsList, CacheKey, Family, FontSystem, Style as CStyle, SwashCache, Weight};
 use etagere::{Allocation, AtlasAllocator, size2};
 use std::collections::HashMap;
 use wgpu;
@@ -8,7 +8,7 @@ use wgpu;
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct GlyphInstance {
     pub position: [f32; 2], // glyph position relative to text origin
-    pub origin: [f32; 2],   // text origin in physical pixels
+    pub origin: [f32; 2], // text origin in physical pixels
     pub size: [f32; 2],
     pub uv: [f32; 2],
     pub uv_size: [f32; 2],
@@ -27,6 +27,9 @@ struct TextSlot {
     rotate: f32,
     scale_x: f32,
     scale_y: f32,
+    weight: u16,
+    italic: bool,
+    font_family: String,
     cached_instances: Vec<GlyphInstance>,
 }
 
@@ -41,6 +44,9 @@ impl TextSlot {
         rotate: f32,
         scale_x: f32,
         scale_y: f32,
+        weight: u16,
+        italic: bool,
+        font_family: &str,
     ) -> bool {
         self.text == text
             && self.x == x
@@ -50,6 +56,9 @@ impl TextSlot {
             && self.rotate == rotate
             && self.scale_x == scale_x
             && self.scale_y == scale_y
+            && self.weight == weight
+            && self.italic == italic
+            && self.font_family == font_family
     }
 }
 
@@ -425,7 +434,19 @@ impl TextPipeline {
 
     pub fn prepare(
         &mut self,
-        texts: &[(&str, f32, f32, f32, [f32; 4], f32, f32, f32)],
+        texts: &[(
+            &str,
+            f32,
+            f32,
+            f32,
+            [f32; 4],
+            f32,
+            f32,
+            f32,
+            u16,
+            bool,
+            String,
+        )],
         font_system: &mut cosmic_text::FontSystem,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
@@ -442,6 +463,9 @@ impl TextPipeline {
                 rotate: f32::NAN,
                 scale_x: f32::NAN,
                 scale_y: f32::NAN,
+                weight: 0,
+                italic: false,
+                font_family: String::new(),
                 cached_instances: Vec::new(),
             });
         }
@@ -450,16 +474,79 @@ impl TextPipeline {
         let mut any_changed = false;
         self.ranges.clear();
 
-        for (i, &(text, x, y, size, color, rotate, scale_x, scale_y)) in texts.iter().enumerate() {
+        for (i, (text, x, y, size, color, rotate, scale_x, scale_y, weight, italic, font_family)) in
+            texts.iter().enumerate()
+        {
+            let (text, x, y, size, color, rotate, scale_x, scale_y, weight, italic) = (
+                *text, *x, *y, *size, *color, *rotate, *scale_x, *scale_y, *weight, *italic,
+            );
+
             let slot = &mut self.slots[i];
 
-            if !slot.matches(text, x, y, size, color, rotate, scale_x, scale_y) {
+            if !slot.matches(
+                text,
+                x,
+                y,
+                size,
+                color,
+                rotate,
+                scale_x,
+                scale_y,
+                weight,
+                italic,
+                font_family,
+            ) {
                 any_changed = true;
                 slot.cached_instances.clear();
 
                 let mut buffer = Buffer::new(font_system, Metrics::new(size, size * 1.4));
                 buffer.set_size(font_system, None, None);
-                buffer.set_text(font_system, text, &Attrs::new(), Shaping::Advanced, None);
+
+                let base_attrs = Attrs::new();
+                let text_attrs = {
+                    let mut a = Attrs::new().weight(Weight(weight));
+                    if italic {
+                        a = a.style(CStyle::Italic);
+                    }
+                    if !font_family.is_empty() {
+                        a = a.family(Family::Name(font_family.as_str()));
+                    }
+                    a
+                };
+                let mut spans: Vec<(&str, Attrs)> = Vec::new();
+                let mut span_start = 0usize;
+                let mut prev_is_emoji = false;
+                for (i, c) in text.char_indices() {
+                    let curr_is_emoji = is_emoji(c);
+                    if i > 0 && curr_is_emoji != prev_is_emoji {
+                        spans.push((
+                            &text[span_start..i],
+                            if prev_is_emoji {
+                                base_attrs.clone()
+                            } else {
+                                text_attrs.clone()
+                            },
+                        ));
+                        span_start = i;
+                    }
+                    prev_is_emoji = curr_is_emoji;
+                }
+                spans.push((
+                    &text[span_start..],
+                    if prev_is_emoji {
+                        base_attrs.clone()
+                    } else {
+                        text_attrs.clone()
+                    },
+                ));
+                buffer.set_rich_text(
+                    font_system,
+                    spans.into_iter(),
+                    &base_attrs,
+                    Shaping::Advanced,
+                    None,
+                );
+
                 buffer.shape_until_scroll(font_system, false);
 
                 let cos_r = rotate.cos();
@@ -524,6 +611,9 @@ impl TextPipeline {
                 slot.rotate = rotate;
                 slot.scale_x = scale_x;
                 slot.scale_y = scale_y;
+                slot.weight = weight;
+                slot.italic = italic;
+                slot.font_family = font_family.clone();
             }
 
             let start = instances.len() as u32;
@@ -576,4 +666,15 @@ impl TextPipeline {
         pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         pass.draw(0..6, 0..self.count);
     }
+}
+
+fn is_emoji(c: char) -> bool {
+    matches!(c as u32,
+        0x2600..=0x27BF
+        | 0x1F000..=0x1FAFF
+        | 0x2B50 | 0x2B55 | 0x2B1B..=0x2B1C
+        | 0x2B05..=0x2B07
+        | 0x2934..=0x2935
+        | 0x3030 | 0x303D | 0x3297 | 0x3299
+    )
 }

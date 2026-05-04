@@ -58,9 +58,10 @@ impl ApplicationHandler for App {
         rect.z = 1;
         self.scene.add_rect(rect);
 
-        let mut text = TextNode::new("Enter your name 💁👌🎍😍 Password", 40.0, 150.0, 16.0);
+        let mut text = TextNode::new("Enter your name 💁👌🎍😍 Password", 200.0, 500.0, 12.0);
         text.scale_x = 1.0;
         text.scale_y = 1.0;
+        text.weight = 400;
         text.z = 3;
         self.scene.add_text(text);
     }

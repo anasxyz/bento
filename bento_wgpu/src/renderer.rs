@@ -87,7 +87,19 @@ impl Renderer {
 
         // prepare text
         let mut text_slot = 0usize;
-        let texts: Vec<(&str, f32, f32, f32, [f32; 4], f32, f32, f32)> = scene
+        let texts: Vec<(
+            &str,
+            f32,
+            f32,
+            f32,
+            [f32; 4],
+            f32,
+            f32,
+            f32,
+            u16,
+            bool,
+            String,
+        )> = scene
             .nodes
             .iter_mut()
             .filter_map(|n| match n {
@@ -103,6 +115,9 @@ impl Renderer {
                         t.rotate,
                         t.scale_x,
                         t.scale_y,
+                        t.weight,
+                        t.italic,
+                        t.font_family.clone(),
                     ))
                 }
                 _ => None,

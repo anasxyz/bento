@@ -44,6 +44,9 @@ pub struct TextNode {
     pub rotate: f32,
     pub scale_x: f32,
     pub scale_y: f32,
+    pub weight: u16,
+    pub italic: bool,
+    pub font_family: String,
     pub(crate) slot: usize,
 }
 
@@ -60,6 +63,9 @@ impl TextNode {
             rotate: 0.0,
             scale_x: 1.0,
             scale_y: 1.0,
+            weight: 400,
+            italic: false,
+            font_family: String::new(),
         }
     }
 }
