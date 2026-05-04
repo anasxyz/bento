@@ -7,11 +7,13 @@ use wgpu;
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct GlyphInstance {
-    pub position: [f32; 2],
+    pub position: [f32; 2], // glyph position relative to text origin
+    pub origin: [f32; 2],   // text origin in physical pixels
     pub size: [f32; 2],
     pub uv: [f32; 2],
     pub uv_size: [f32; 2],
     pub color: [f32; 4],
+    pub transform: [f32; 4],
     pub is_color: u32,
     pub _pad: [u32; 3],
 }
@@ -301,33 +303,43 @@ impl TextPipeline {
                 wgpu::VertexAttribute {
                     offset: 0,
                     shader_location: 0,
-                    format: wgpu::VertexFormat::Float32x2, // position
-                },
+                    format: wgpu::VertexFormat::Float32x2,
+                }, // position
                 wgpu::VertexAttribute {
                     offset: 8,
                     shader_location: 1,
-                    format: wgpu::VertexFormat::Float32x2, // size
-                },
+                    format: wgpu::VertexFormat::Float32x2,
+                }, // origin
                 wgpu::VertexAttribute {
                     offset: 16,
                     shader_location: 2,
-                    format: wgpu::VertexFormat::Float32x2, // uv
-                },
+                    format: wgpu::VertexFormat::Float32x2,
+                }, // size
                 wgpu::VertexAttribute {
                     offset: 24,
                     shader_location: 3,
-                    format: wgpu::VertexFormat::Float32x2, // uv_size
-                },
+                    format: wgpu::VertexFormat::Float32x2,
+                }, // uv
                 wgpu::VertexAttribute {
                     offset: 32,
                     shader_location: 4,
-                    format: wgpu::VertexFormat::Float32x4, // color
-                },
+                    format: wgpu::VertexFormat::Float32x2,
+                }, // uv_size
                 wgpu::VertexAttribute {
-                    offset: 48,
+                    offset: 40,
                     shader_location: 5,
-                    format: wgpu::VertexFormat::Uint32, // is_color_emoji
-                },
+                    format: wgpu::VertexFormat::Float32x4,
+                }, // color
+                wgpu::VertexAttribute {
+                    offset: 56,
+                    shader_location: 6,
+                    format: wgpu::VertexFormat::Float32x4,
+                }, // transform
+                wgpu::VertexAttribute {
+                    offset: 72,
+                    shader_location: 7,
+                    format: wgpu::VertexFormat::Uint32,
+                }, // is_color
             ],
         };
 
@@ -393,7 +405,7 @@ impl TextPipeline {
 
     pub fn prepare(
         &mut self,
-        texts: &[(&str, f32, f32, f32, [f32; 4])],
+        texts: &[(&str, f32, f32, f32, [f32; 4], f32, f32, f32)],
         font_system: &mut cosmic_text::FontSystem,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
@@ -415,7 +427,7 @@ impl TextPipeline {
         let mut any_changed = false;
         self.ranges.clear();
 
-        for (i, &(text, x, y, size, color)) in texts.iter().enumerate() {
+        for (i, &(text, x, y, size, color, rotate, scale_x, scale_y)) in texts.iter().enumerate() {
             let slot = &mut self.slots[i];
 
             if !slot.matches(text, x, y, size, color) {
@@ -426,6 +438,15 @@ impl TextPipeline {
                 buffer.set_size(font_system, None, None);
                 buffer.set_text(font_system, text, &Attrs::new(), Shaping::Advanced, None);
                 buffer.shape_until_scroll(font_system, false);
+
+                let cos_r = rotate.cos();
+                let sin_r = rotate.sin();
+                let transform = [
+                    cos_r * scale_x,
+                    sin_r * scale_x,
+                    -sin_r * scale_y,
+                    cos_r * scale_y,
+                ];
 
                 for run in buffer.layout_runs() {
                     for glyph in run.glyphs {
@@ -440,10 +461,10 @@ impl TextPipeline {
                             continue;
                         };
 
-                        let gx = (x * self.scale).round() + physical.x as f32 + entry.left as f32;
-                        let gy = (y * self.scale).round()
-                            + (run.line_y * self.scale).round()
-                            + physical.y as f32
+                        let origin_x = (x * self.scale).round();
+                        let origin_y = (y * self.scale).round();
+                        let gx = physical.x as f32 + entry.left as f32;
+                        let gy = (run.line_y * self.scale).round() + physical.y as f32
                             - entry.top as f32;
 
                         let u0 = entry.x as f32 / ATLAS_SIZE as f32;
@@ -453,10 +474,12 @@ impl TextPipeline {
 
                         slot.cached_instances.push(GlyphInstance {
                             position: [gx, gy],
+                            origin: [origin_x, origin_y],
                             size: [entry.w as f32, entry.h as f32],
                             uv: [u0, v0],
                             uv_size: [uw, vh],
                             color,
+                            transform,
                             is_color: entry.is_color as u32,
                             _pad: [0; 3],
                         });
@@ -476,8 +499,8 @@ impl TextPipeline {
                 .push((start, slot.cached_instances.len() as u32));
         }
 
+        self.count = instances.len() as u32;
         if instances.is_empty() {
-            self.count = 0;
             return;
         }
         if !any_changed {

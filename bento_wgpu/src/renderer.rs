@@ -86,13 +86,28 @@ impl Renderer {
         self.rect.upload(&ctx.device, &ctx.queue);
 
         // prepare text
-        let mut texts: Vec<(&str, f32, f32, f32, [f32; 4])> = Vec::new();
-        for node in &mut scene.nodes {
-            if let Node::Text(t) = node {
-                t.slot = texts.len();
-                texts.push((t.text.as_str(), t.x, t.y, t.size, t.color));
-            }
-        }
+        let mut text_slot = 0usize;
+        let texts: Vec<(&str, f32, f32, f32, [f32; 4], f32, f32, f32)> = scene
+            .nodes
+            .iter_mut()
+            .filter_map(|n| match n {
+                Node::Text(t) => {
+                    t.slot = text_slot;
+                    text_slot += 1;
+                    Some((
+                        t.text.as_str(),
+                        t.x,
+                        t.y,
+                        t.size,
+                        t.color,
+                        t.rotate,
+                        t.scale_x,
+                        t.scale_y,
+                    ))
+                }
+                _ => None,
+            })
+            .collect();
         self.text
             .prepare(&texts, font_system, &ctx.device, &ctx.queue);
 
@@ -140,6 +155,7 @@ impl Renderer {
 
     pub fn resize(&mut self, ctx: &RenderContext, surface: &Surface) {
         self.rect.resize(&ctx.queue, surface.width, surface.height);
-        self.text.resize(&ctx.queue, surface.width, surface.height, surface.scale);
+        self.text
+            .resize(&ctx.queue, surface.width, surface.height, surface.scale);
     }
 }

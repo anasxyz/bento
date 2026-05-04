@@ -41,6 +41,9 @@ pub struct TextNode {
     pub size: f32,
     pub color: [f32; 4],
     pub z: i32,
+    pub rotate: f32,
+    pub scale_x: f32,
+    pub scale_y: f32,
     pub(crate) slot: usize,
 }
 
@@ -54,6 +57,9 @@ impl TextNode {
             color: [1.0, 1.0, 1.0, 1.0],
             z: 1,
             slot: usize::MAX,
+            rotate: 0.0,
+            scale_x: 1.0,
+            scale_y: 1.0,
         }
     }
 }

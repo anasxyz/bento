@@ -49,11 +49,14 @@ impl ApplicationHandler for App {
 
         let mut rect = RectNode::new(60.0, 20.0, 200.0, 100.0);
         rect.color = [0.2, 0.5, 1.0, 1.0];
-        rect.radii = [14.0; 4];
+        rect.radii = [0.0; 4];
+        rect.border_color = [0.0, 0.0, 0.0, 1.0];
+        rect.border_widths = [2.0; 4];
         rect.z = 1;
         self.scene.add_rect(rect);
 
         let mut text = TextNode::new("Enter your name 💁👌🎍😍", 40.0, 150.0, 18.0);
+        text.rotate = 25.0_f32.to_radians();
         text.z = 3;
         self.scene.add_text(text);
     }
