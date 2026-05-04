@@ -1,11 +1,62 @@
-use crate::pipelines::rect::RectInstance;
+pub struct RectNode {
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+    pub color: [f32; 4],
+    pub radii: [f32; 4],
+    pub border_color: [f32; 4],
+    pub border_widths: [f32; 4],
+    pub rotate: f32,
+    pub scale_x: f32,
+    pub scale_y: f32,
+}
+
+impl RectNode {
+    pub fn new(x: f32, y: f32, w: f32, h: f32) -> Self {
+        Self {
+            x,
+            y,
+            w,
+            h,
+            color: [1.0, 1.0, 1.0, 1.0],
+            radii: [0.0; 4],
+            border_color: [0.0; 4],
+            border_widths: [0.0; 4],
+            rotate: 0.0,
+            scale_x: 1.0,
+            scale_y: 1.0,
+        }
+    }
+}
+
+pub struct TextNode {
+    pub text: String,
+    pub x: f32,
+    pub y: f32,
+    pub size: f32,
+    pub color: [f32; 4],
+}
+
+impl TextNode {
+    pub fn new(text: &str, x: f32, y: f32, size: f32) -> Self {
+        Self {
+            text: text.to_string(),
+            x,
+            y,
+            size,
+            color: [1.0, 1.0, 1.0, 1.0],
+        }
+    }
+}
 
 pub enum Node {
-    Rect(RectInstance),
+    Rect(RectNode),
+    Text(TextNode),
 }
 
 pub struct Scene {
-    nodes: Vec<Node>,
+    pub nodes: Vec<Node>,
 }
 
 impl Scene {
@@ -13,11 +64,11 @@ impl Scene {
         Self { nodes: Vec::new() }
     }
 
-    pub fn add_rect(&mut self, rect: RectInstance) {
+    pub fn add_rect(&mut self, rect: RectNode) {
         self.nodes.push(Node::Rect(rect));
     }
 
-    pub fn nodes(&self) -> &[Node] {
-        &self.nodes
+    pub fn add_text(&mut self, text: TextNode) {
+        self.nodes.push(Node::Text(text));
     }
 }

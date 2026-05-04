@@ -1,7 +1,10 @@
 use crate::{
+    TextNode,
     context::RenderContext,
-    pipelines::rect::{RectInstance, RectPipeline},
-    pipelines::text::TextPipeline,
+    pipelines::{
+        rect::{RectInstance, RectPipeline},
+        text::TextPipeline,
+    },
     scene::{Node, Scene},
     surface::Surface,
 };
@@ -61,6 +64,38 @@ impl Renderer {
             });
 
         let [r, g, b, a] = clear_color;
+
+        // collect rects
+        let rects: Vec<RectInstance> = scene
+            .nodes
+            .iter()
+            .filter_map(|n| match n {
+                Node::Rect(r) => Some(RectInstance {
+                    pos_size: [r.x, r.y, r.w, r.h],
+                    color: r.color,
+                    radii: r.radii,
+                    border_color: r.border_color,
+                    border_widths: r.border_widths,
+                    transform: crate::math::transform(r.rotate, r.scale_x, r.scale_y),
+                }),
+                _ => None,
+            })
+            .collect();
+
+        // collect texts
+        let texts: Vec<(&str, f32, f32, f32, [f32; 4])> = scene
+            .nodes
+            .iter()
+            .filter_map(|n| match n {
+                Node::Text(t) => Some((t.text.as_str(), t.x, t.y, t.size, t.color)),
+                _ => None,
+            })
+            .collect();
+
+        // prepare textm, uploads glyph data to GPU before render pass
+        self.text
+            .prepare(&texts, font_system, &ctx.device, &ctx.queue);
+
         {
             // a render pass clears the screen and is where draw calls go
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -83,27 +118,9 @@ impl Renderer {
                 occlusion_query_set: None,
             });
 
-            let rects: Vec<RectInstance> = scene
-                .nodes()
-                .iter()
-                .filter_map(|node| match node {
-                    Node::Rect(r) => Some(*r),
-                })
-                .collect();
-
-            // draw calls
+            // issue draw calls
             self.rect.draw(&rects, &ctx.queue, &mut pass);
-            self.text.draw(
-                "Hello world",
-                50.0,
-                50.0,
-                12.0,
-                [1.0, 1.0, 1.0, 1.0],
-                font_system,
-                &ctx.device,
-                &ctx.queue,
-                &mut pass,
-            );
+            self.text.draw(&mut pass);
         }
 
         ctx.queue.submit(Some(encoder.finish()));

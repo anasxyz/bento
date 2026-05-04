@@ -176,6 +176,7 @@ pub struct TextPipeline {
     bind_group_layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
     capacity: usize,
+    count: u32,
 }
 
 impl TextPipeline {
@@ -352,6 +353,7 @@ impl TextPipeline {
             bind_group_layout,
             sampler,
             capacity,
+            count: 0,
         }
     }
 
@@ -363,56 +365,49 @@ impl TextPipeline {
         );
     }
 
-    pub fn draw<'pass>(
-        &'pass mut self,
-        text: &str,
-        x: f32,
-        y: f32,
-        size: f32,
-        color: [f32; 4],
+    pub fn prepare(
+        &mut self,
+        texts: &[(&str, f32, f32, f32, [f32; 4])],
         font_system: &mut cosmic_text::FontSystem,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        pass: &mut wgpu::RenderPass<'pass>,
     ) {
         use cosmic_text::{Attrs, Buffer, Metrics, Shaping};
-
-        // shape the text at physical size
-        let mut buffer = Buffer::new(font_system, Metrics::new(size, size * 1.4));
-        buffer.set_size(font_system, None, None);
-        buffer.set_text(font_system, text, &Attrs::new(), Shaping::Advanced, None);
-        buffer.shape_until_scroll(font_system, false);
-
         let mut instances: Vec<GlyphInstance> = Vec::new();
 
-        for run in buffer.layout_runs() {
-            for glyph in run.glyphs {
-                let physical = glyph.physical((x, y), 1.0);
+        for &(text, x, y, size, color) in texts {
+            let mut buffer = Buffer::new(font_system, Metrics::new(size, size * 1.4));
+            buffer.set_size(font_system, None, None);
+            buffer.set_text(font_system, text, &Attrs::new(), Shaping::Advanced, None);
+            buffer.shape_until_scroll(font_system, false);
 
-                let Some(entry) =
-                    self.atlas
-                        .get_or_insert(physical.cache_key, font_system, device, queue)
-                else {
-                    continue;
-                };
+            for run in buffer.layout_runs() {
+                for glyph in run.glyphs {
+                    let physical = glyph.physical((x, y), 1.0);
+                    let Some(entry) =
+                        self.atlas
+                            .get_or_insert(physical.cache_key, font_system, device, queue)
+                    else {
+                        continue;
+                    };
 
-                let gx = physical.x as f32 + entry.left as f32;
-                let gy = y + run.line_y - entry.top as f32;
+                    let gx = physical.x as f32 + entry.left as f32;
+                    let gy = y + run.line_y - entry.top as f32;
+                    let u0 = entry.x as f32 / ATLAS_SIZE as f32;
+                    let v0 = entry.y as f32 / ATLAS_SIZE as f32;
+                    let uw = entry.w as f32 / ATLAS_SIZE as f32;
+                    let vh = entry.h as f32 / ATLAS_SIZE as f32;
 
-                let u0 = entry.x as f32 / ATLAS_SIZE as f32;
-                let v0 = entry.y as f32 / ATLAS_SIZE as f32;
-                let uw = entry.w as f32 / ATLAS_SIZE as f32;
-                let vh = entry.h as f32 / ATLAS_SIZE as f32;
-
-                instances.push(GlyphInstance {
-                    position: [gx, gy],
-                    size: [entry.w as f32, entry.h as f32],
-                    uv: [u0, v0],
-                    uv_size: [uw, vh],
-                    color,
-                    is_color: entry.is_color as u32,
-                    _pad: [0; 3],
-                });
+                    instances.push(GlyphInstance {
+                        position: [gx, gy],
+                        size: [entry.w as f32, entry.h as f32],
+                        uv: [u0, v0],
+                        uv_size: [uw, vh],
+                        color,
+                        is_color: entry.is_color as u32,
+                        _pad: [0; 3],
+                    });
+                }
             }
         }
 
@@ -420,7 +415,6 @@ impl TextPipeline {
             return;
         }
 
-        // grow buffer if needed
         if instances.len() > self.capacity {
             self.capacity = instances.len().next_power_of_two();
             self.vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -432,10 +426,16 @@ impl TextPipeline {
         }
 
         queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&instances));
+        self.count = instances.len() as u32;
+    }
 
+    pub fn draw<'pass>(&'pass self, pass: &mut wgpu::RenderPass<'pass>) {
+        if self.count == 0 {
+            return;
+        }
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.bind_group, &[]);
         pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        pass.draw(0..6, 0..instances.len() as u32);
+        pass.draw(0..6, 0..self.count);
     }
 }
