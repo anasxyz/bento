@@ -1,6 +1,7 @@
 use crate::{
     context::RenderContext,
     pipelines::rect::{RectInstance, RectPipeline},
+    pipelines::text::TextPipeline,
     scene::{Node, Scene},
     surface::Surface,
 };
@@ -8,6 +9,7 @@ use wgpu;
 
 pub struct Renderer {
     rect: RectPipeline,
+    text: TextPipeline,
 }
 
 impl Renderer {
@@ -20,12 +22,20 @@ impl Renderer {
                 surface.width,
                 surface.height,
             ),
+            text: TextPipeline::new(
+                &ctx.device,
+                &ctx.queue,
+                surface.format,
+                surface.width,
+                surface.height,
+            ),
         }
     }
 
     pub fn render(
         &mut self,
         ctx: &mut RenderContext,
+        font_system: &mut cosmic_text::FontSystem,
         surface: &mut Surface,
         clear_color: [f32; 4],
         scene: &Scene,
@@ -83,6 +93,17 @@ impl Renderer {
 
             // draw calls
             self.rect.draw(&rects, &ctx.queue, &mut pass);
+            self.text.draw(
+                "Hello world",
+                50.0,
+                50.0,
+                24.0,
+                [1.0, 1.0, 1.0, 1.0],
+                font_system,
+                &ctx.device,
+                &ctx.queue,
+                &mut pass,
+            );
         }
 
         ctx.queue.submit(Some(encoder.finish()));

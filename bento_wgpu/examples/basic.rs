@@ -3,8 +3,8 @@
 #![allow(unused_imports)]
 #![allow(unused_mut)]
 
+use bento_wgpu::math::transform;
 use bento_wgpu::{RectInstance, RenderContext, Scene};
-use bento_wgpu::{math::transform};
 use cosmic_text::FontSystem;
 use std::sync::Arc;
 use std::time::Instant;
@@ -21,6 +21,7 @@ struct App {
     surface: Option<bento_wgpu::Surface<'static>>,
     renderer: Option<bento_wgpu::Renderer>,
     scene: Scene,
+    font_system: cosmic_text::FontSystem,
 }
 
 impl ApplicationHandler for App {
@@ -46,6 +47,7 @@ impl ApplicationHandler for App {
         self.surface = Some(surface);
         self.renderer = Some(renderer);
 
+        /*
         self.scene.add_rect(RectInstance {
             pos_size: [20.0, 20.0, 100.0, 50.0],
             color: [0.2, 0.5, 1.0, 1.0],
@@ -54,7 +56,7 @@ impl ApplicationHandler for App {
             border_widths: [3.0; 4],
             transform: transform(0.0_f32.to_radians(), 5.0, 5.0),
         });
-
+        */
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
@@ -67,6 +69,7 @@ impl ApplicationHandler for App {
             WindowEvent::RedrawRequested => {
                 renderer.render(
                     &mut self.ctx,
+                    &mut self.font_system,
                     surface,
                     [0.1, 0.1, 0.1, 1.0],
                     &mut self.scene,
@@ -101,6 +104,7 @@ fn main() {
             surface: None,
             renderer: None,
             scene: Scene::new(),
+            font_system: cosmic_text::FontSystem::new(),
         })
         .unwrap();
 }

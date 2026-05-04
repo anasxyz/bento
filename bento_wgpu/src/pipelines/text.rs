@@ -1,7 +1,20 @@
+use bytemuck::{Pod, Zeroable};
 use cosmic_text::{CacheKey, FontSystem, SwashCache};
 use etagere::{Allocation, AtlasAllocator, size2};
 use std::collections::HashMap;
 use wgpu;
+
+#[repr(C)]
+#[derive(Copy, Clone, Pod, Zeroable)]
+pub struct GlyphInstance {
+    pub position: [f32; 2],
+    pub size: [f32; 2],
+    pub uv: [f32; 2],
+    pub uv_size: [f32; 2],
+    pub color: [f32; 4],
+    pub is_color: u32,
+    pub _pad: [u32; 3],
+}
 
 const ATLAS_SIZE: u32 = 2048;
 
@@ -151,5 +164,270 @@ impl GlyphAtlas {
         );
 
         self.entries.get(&key)
+    }
+}
+
+pub struct TextPipeline {
+    pub atlas: GlyphAtlas,
+    pipeline: wgpu::RenderPipeline,
+    vertex_buffer: wgpu::Buffer,
+    screen_buffer: wgpu::Buffer,
+    bind_group: wgpu::BindGroup,
+    bind_group_layout: wgpu::BindGroupLayout,
+    sampler: wgpu::Sampler,
+    capacity: usize,
+}
+
+impl TextPipeline {
+    pub fn new(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        format: wgpu::TextureFormat,
+        screen_w: f32,
+        screen_h: f32,
+    ) -> Self {
+        let atlas = GlyphAtlas::new(device);
+
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("glyph sampler"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
+
+        let screen_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("text screen uniform"),
+            size: 8,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        queue.write_buffer(
+            &screen_buffer,
+            0,
+            bytemuck::cast_slice(&[screen_w, screen_h]),
+        );
+
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("text bgl"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
+        });
+
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("text bind group"),
+            layout: &bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: screen_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&atlas.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Sampler(&sampler),
+                },
+            ],
+        });
+
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("text shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/text.wgsl").into()),
+        });
+
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("text pipeline layout"),
+            bind_group_layouts: &[&bind_group_layout],
+            push_constant_ranges: &[],
+        });
+
+        let vertex_layout = wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<GlyphInstance>() as u64,
+            step_mode: wgpu::VertexStepMode::Instance,
+            attributes: &[
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 0,
+                    format: wgpu::VertexFormat::Float32x2, // position
+                },
+                wgpu::VertexAttribute {
+                    offset: 8,
+                    shader_location: 1,
+                    format: wgpu::VertexFormat::Float32x2, // size
+                },
+                wgpu::VertexAttribute {
+                    offset: 16,
+                    shader_location: 2,
+                    format: wgpu::VertexFormat::Float32x2, // uv
+                },
+                wgpu::VertexAttribute {
+                    offset: 24,
+                    shader_location: 3,
+                    format: wgpu::VertexFormat::Float32x2, // uv_size
+                },
+                wgpu::VertexAttribute {
+                    offset: 32,
+                    shader_location: 4,
+                    format: wgpu::VertexFormat::Float32x4, // color
+                },
+                wgpu::VertexAttribute {
+                    offset: 48,
+                    shader_location: 5,
+                    format: wgpu::VertexFormat::Uint32, // is_color_emoji
+                },
+            ],
+        };
+
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("text pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_main"),
+                buffers: &[vertex_layout],
+                compilation_options: Default::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: Default::default(),
+            }),
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+            cache: None,
+        });
+
+        let capacity = 1024;
+        let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("glyph vertex buffer"),
+            size: (capacity * std::mem::size_of::<GlyphInstance>()) as u64,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        Self {
+            atlas,
+            pipeline,
+            vertex_buffer,
+            screen_buffer,
+            bind_group,
+            bind_group_layout,
+            sampler,
+            capacity,
+        }
+    }
+
+    pub fn draw<'pass>(
+        &'pass mut self,
+        text: &str,
+        x: f32,
+        y: f32,
+        size: f32,
+        color: [f32; 4],
+        font_system: &mut cosmic_text::FontSystem,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        pass: &mut wgpu::RenderPass<'pass>,
+    ) {
+        use cosmic_text::{Attrs, Buffer, Metrics, Shaping};
+
+        // shape the text at physical size
+        let mut buffer = Buffer::new(font_system, Metrics::new(size, size * 1.4));
+        buffer.set_size(font_system, None, None);
+        buffer.set_text(font_system, text, &Attrs::new(), Shaping::Advanced, None);
+        buffer.shape_until_scroll(font_system, false);
+
+        let mut instances: Vec<GlyphInstance> = Vec::new();
+
+        for run in buffer.layout_runs() {
+            for glyph in run.glyphs {
+                let physical = glyph.physical((x, y), 1.0);
+
+                let Some(entry) =
+                    self.atlas
+                        .get_or_insert(physical.cache_key, font_system, device, queue)
+                else {
+                    continue;
+                };
+
+                let gx = physical.x as f32 + entry.left as f32;
+                let gy = y + run.line_y - entry.top as f32;
+
+                let u0 = entry.x as f32 / ATLAS_SIZE as f32;
+                let v0 = entry.y as f32 / ATLAS_SIZE as f32;
+                let uw = entry.w as f32 / ATLAS_SIZE as f32;
+                let vh = entry.h as f32 / ATLAS_SIZE as f32;
+
+                instances.push(GlyphInstance {
+                    position: [gx, gy],
+                    size: [entry.w as f32, entry.h as f32],
+                    uv: [u0, v0],
+                    uv_size: [uw, vh],
+                    color,
+                    is_color: entry.is_color as u32,
+                    _pad: [0; 3],
+                });
+            }
+        }
+
+        if instances.is_empty() {
+            return;
+        }
+
+        // grow buffer if needed
+        if instances.len() > self.capacity {
+            self.capacity = instances.len().next_power_of_two();
+            self.vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("glyph vertex buffer"),
+                size: (self.capacity * std::mem::size_of::<GlyphInstance>()) as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+
+        queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&instances));
+
+        pass.set_pipeline(&self.pipeline);
+        pass.set_bind_group(0, &self.bind_group, &[]);
+        pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        pass.draw(0..6, 0..instances.len() as u32);
     }
 }
