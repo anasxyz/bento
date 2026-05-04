@@ -52,11 +52,15 @@ impl ApplicationHandler for App {
         rect.radii = [0.0; 4];
         rect.border_color = [0.0, 0.0, 0.0, 1.0];
         rect.border_widths = [2.0; 4];
+        rect.scale_x = 5.0;
+        rect.scale_y = 5.0;
         rect.z = 1;
         self.scene.add_rect(rect);
 
         let mut text = TextNode::new("Enter your name 💁👌🎍😍", 40.0, 150.0, 18.0);
         text.rotate = 25.0_f32.to_radians();
+        text.scale_x = 5.0;
+        text.scale_y = 5.0;
         text.z = 3;
         self.scene.add_text(text);
     }

@@ -24,12 +24,32 @@ struct TextSlot {
     y: f32,
     size: f32,
     color: [f32; 4],
+    rotate: f32,
+    scale_x: f32,
+    scale_y: f32,
     cached_instances: Vec<GlyphInstance>,
 }
 
 impl TextSlot {
-    fn matches(&self, text: &str, x: f32, y: f32, size: f32, color: [f32; 4]) -> bool {
-        self.text == text && self.x == x && self.y == y && self.size == size && self.color == color
+    fn matches(
+        &self,
+        text: &str,
+        x: f32,
+        y: f32,
+        size: f32,
+        color: [f32; 4],
+        rotate: f32,
+        scale_x: f32,
+        scale_y: f32,
+    ) -> bool {
+        self.text == text
+            && self.x == x
+            && self.y == y
+            && self.size == size
+            && self.color == color
+            && self.rotate == rotate
+            && self.scale_x == scale_x
+            && self.scale_y == scale_y
     }
 }
 
@@ -419,6 +439,9 @@ impl TextPipeline {
                 y: f32::NAN,
                 size: f32::NAN,
                 color: [f32::NAN; 4],
+                rotate: f32::NAN,
+                scale_x: f32::NAN,
+                scale_y: f32::NAN,
                 cached_instances: Vec::new(),
             });
         }
@@ -430,7 +453,7 @@ impl TextPipeline {
         for (i, &(text, x, y, size, color, rotate, scale_x, scale_y)) in texts.iter().enumerate() {
             let slot = &mut self.slots[i];
 
-            if !slot.matches(text, x, y, size, color) {
+            if !slot.matches(text, x, y, size, color, rotate, scale_x, scale_y) {
                 any_changed = true;
                 slot.cached_instances.clear();
 
@@ -450,7 +473,8 @@ impl TextPipeline {
 
                 for run in buffer.layout_runs() {
                     for glyph in run.glyphs {
-                        let physical = glyph.physical((0.0, 0.0), self.scale);
+                        let physical =
+                            glyph.physical((0.0, 0.0), self.scale * scale_x.max(scale_y));
 
                         let Some(entry) = self.atlas.get_or_insert(
                             physical.cache_key,
@@ -461,11 +485,13 @@ impl TextPipeline {
                             continue;
                         };
 
+                        let raster_scale = self.scale * scale_x.max(scale_y);
                         let origin_x = (x * self.scale).round();
                         let origin_y = (y * self.scale).round();
-                        let gx = physical.x as f32 + entry.left as f32;
-                        let gy = (run.line_y * self.scale).round() + physical.y as f32
-                            - entry.top as f32;
+                        let gx = (physical.x as f32 + entry.left as f32) / scale_x.max(scale_y);
+                        let gy = ((run.line_y * raster_scale).round() + physical.y as f32
+                            - entry.top as f32)
+                            / scale_x.max(scale_y);
 
                         let u0 = entry.x as f32 / ATLAS_SIZE as f32;
                         let v0 = entry.y as f32 / ATLAS_SIZE as f32;
@@ -475,7 +501,10 @@ impl TextPipeline {
                         slot.cached_instances.push(GlyphInstance {
                             position: [gx, gy],
                             origin: [origin_x, origin_y],
-                            size: [entry.w as f32, entry.h as f32],
+                            size: [
+                                entry.w as f32 / scale_x.max(scale_y),
+                                entry.h as f32 / scale_x.max(scale_y),
+                            ],
                             uv: [u0, v0],
                             uv_size: [uw, vh],
                             color,
@@ -491,6 +520,9 @@ impl TextPipeline {
                 slot.y = y;
                 slot.size = size;
                 slot.color = color;
+                slot.rotate = rotate;
+                slot.scale_x = scale_x;
+                slot.scale_y = scale_y;
             }
 
             let start = instances.len() as u32;
