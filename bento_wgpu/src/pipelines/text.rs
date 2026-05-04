@@ -73,4 +73,83 @@ impl GlyphAtlas {
         self.view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         self.texture = texture;
     }
+
+    pub fn get_or_insert(
+        &mut self,
+        key: CacheKey,
+        font_system: &mut FontSystem,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Option<&AtlasEntry> {
+        if self.entries.contains_key(&key) {
+            return self.entries.get(&key);
+        }
+
+        // rasterise the glyph on CPU using swash
+        let image = self.swash.get_image_uncached(font_system, key)?;
+
+        let w = image.placement.width;
+        let h = image.placement.height;
+        if w == 0 || h == 0 {
+            return None;
+        }
+
+        // allocate space in the atlas
+        let alloc = match self.packer.allocate(size2(w as i32 + 1, h as i32 + 1)) {
+            Some(a) => a,
+            None => {
+                self.clear(device);
+                self.packer.allocate(size2(w as i32 + 1, h as i32 + 1))?
+            }
+        };
+
+        let x = alloc.rectangle.min.x as u32;
+        let y = alloc.rectangle.min.y as u32;
+
+        // convert to rgba
+        use cosmic_text::SwashContent;
+        let rgba: Vec<u8> = match image.content {
+            SwashContent::Mask => image.data.iter().flat_map(|&a| [a, a, a, a]).collect(),
+            SwashContent::Color | SwashContent::SubpixelMask => image.data.to_vec(),
+        };
+
+        // upload to atlas texture
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &self.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d { x, y, z: 0 },
+                aspect: wgpu::TextureAspect::All,
+            },
+            &rgba,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(w * 4),
+                rows_per_image: None,
+            },
+            wgpu::Extent3d {
+                width: w,
+                height: h,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        let is_color = matches!(image.content, SwashContent::Color);
+
+        self.entries.insert(
+            key,
+            AtlasEntry {
+                x,
+                y,
+                w,
+                h,
+                left: image.placement.left,
+                top: image.placement.top,
+                is_color,
+                allocation: alloc,
+            },
+        );
+
+        self.entries.get(&key)
+    }
 }
