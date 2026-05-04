@@ -16,6 +16,21 @@ pub struct GlyphInstance {
     pub _pad: [u32; 3],
 }
 
+struct TextSlot {
+    text: String,
+    x: f32,
+    y: f32,
+    size: f32,
+    color: [f32; 4],
+    cached_instances: Vec<GlyphInstance>,
+}
+
+impl TextSlot {
+    fn matches(&self, text: &str, x: f32, y: f32, size: f32, color: [f32; 4]) -> bool {
+        self.text == text && self.x == x && self.y == y && self.size == size && self.color == color
+    }
+}
+
 const ATLAS_SIZE: u32 = 2048;
 
 pub struct AtlasEntry {
@@ -49,7 +64,7 @@ impl GlyphAtlas {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Unorm,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         });
@@ -79,7 +94,7 @@ impl GlyphAtlas {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Unorm,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         });
@@ -178,6 +193,7 @@ pub struct TextPipeline {
     capacity: usize,
     count: u32,
     ranges: Vec<(u32, u32)>,
+    slots: Vec<TextSlot>,
 }
 
 impl TextPipeline {
@@ -356,6 +372,7 @@ impl TextPipeline {
             capacity,
             count: 0,
             ranges: Vec::new(),
+            slots: Vec::new(),
         }
     }
 
@@ -375,52 +392,84 @@ impl TextPipeline {
         queue: &wgpu::Queue,
     ) {
         use cosmic_text::{Attrs, Buffer, Metrics, Shaping};
+
+        while self.slots.len() < texts.len() {
+            self.slots.push(TextSlot {
+                text: String::new(),
+                x: f32::NAN,
+                y: f32::NAN,
+                size: f32::NAN,
+                color: [f32::NAN; 4],
+                cached_instances: Vec::new(),
+            });
+        }
+
         let mut instances: Vec<GlyphInstance> = Vec::new();
+        let mut any_changed = false;
         self.ranges.clear();
 
-        for &(text, x, y, size, color) in texts {
-            let start = instances.len() as u32;
+        for (i, &(text, x, y, size, color)) in texts.iter().enumerate() {
+            let slot = &mut self.slots[i];
 
-            let mut buffer = Buffer::new(font_system, Metrics::new(size, size * 1.4));
-            buffer.set_size(font_system, None, None);
-            buffer.set_text(font_system, text, &Attrs::new(), Shaping::Advanced, None);
-            buffer.shape_until_scroll(font_system, false);
+            if !slot.matches(text, x, y, size, color) {
+                any_changed = true;
+                println!("text slot {} re-preparing", i);
+                slot.cached_instances.clear();
 
-            for run in buffer.layout_runs() {
-                for glyph in run.glyphs {
-                    let physical = glyph.physical((x, y), 1.0);
-                    let Some(entry) =
-                        self.atlas
-                            .get_or_insert(physical.cache_key, font_system, device, queue)
-                    else {
-                        continue;
-                    };
+                let mut buffer = Buffer::new(font_system, Metrics::new(size, size * 1.4));
+                buffer.set_size(font_system, None, None);
+                buffer.set_text(font_system, text, &Attrs::new(), Shaping::Advanced, None);
+                buffer.shape_until_scroll(font_system, false);
 
-                    let gx = physical.x as f32 + entry.left as f32;
-                    let gy = y + run.line_y - entry.top as f32;
-                    let u0 = entry.x as f32 / ATLAS_SIZE as f32;
-                    let v0 = entry.y as f32 / ATLAS_SIZE as f32;
-                    let uw = entry.w as f32 / ATLAS_SIZE as f32;
-                    let vh = entry.h as f32 / ATLAS_SIZE as f32;
+                for run in buffer.layout_runs() {
+                    for glyph in run.glyphs {
+                        let physical = glyph.physical((x, y), 1.0);
+                        let Some(entry) = self.atlas.get_or_insert(
+                            physical.cache_key,
+                            font_system,
+                            device,
+                            queue,
+                        ) else {
+                            continue;
+                        };
 
-                    instances.push(GlyphInstance {
-                        position: [gx, gy],
-                        size: [entry.w as f32, entry.h as f32],
-                        uv: [u0, v0],
-                        uv_size: [uw, vh],
-                        color,
-                        is_color: entry.is_color as u32,
-                        _pad: [0; 3],
-                    });
+                        let gx = physical.x as f32 + entry.left as f32;
+                        let gy = y + run.line_y - entry.top as f32;
+                        let u0 = entry.x as f32 / ATLAS_SIZE as f32;
+                        let v0 = entry.y as f32 / ATLAS_SIZE as f32;
+                        let uw = entry.w as f32 / ATLAS_SIZE as f32;
+                        let vh = entry.h as f32 / ATLAS_SIZE as f32;
+
+                        slot.cached_instances.push(GlyphInstance {
+                            position: [gx, gy],
+                            size: [entry.w as f32, entry.h as f32],
+                            uv: [u0, v0],
+                            uv_size: [uw, vh],
+                            color,
+                            is_color: entry.is_color as u32,
+                            _pad: [0; 3],
+                        });
+                    }
                 }
+
+                slot.text = text.to_string();
+                slot.x = x;
+                slot.y = y;
+                slot.size = size;
+                slot.color = color;
             }
 
-            let count = instances.len() as u32 - start;
-            self.ranges.push((start, count));
+            let start = instances.len() as u32;
+            instances.extend_from_slice(&slot.cached_instances);
+            self.ranges
+                .push((start, slot.cached_instances.len() as u32));
         }
 
         if instances.is_empty() {
             self.count = 0;
+            return;
+        }
+        if !any_changed {
             return;
         }
 
