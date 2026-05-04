@@ -388,10 +388,7 @@ impl TextPipeline {
             0,
             bytemuck::cast_slice(&[width * scale, height * scale]),
         );
-        // invalidate all cached slots so they reshape at new scale
-        for slot in &mut self.slots {
-            slot.x = f32::NAN; // forces rematch to fail
-        }
+        self.slots.clear();
     }
 
     pub fn prepare(
@@ -423,20 +420,17 @@ impl TextPipeline {
 
             if !slot.matches(text, x, y, size, color) {
                 any_changed = true;
-                println!("text slot {} re-preparing", i);
                 slot.cached_instances.clear();
 
-                let mut buffer = Buffer::new(
-                    font_system,
-                    Metrics::new(size * self.scale, size * self.scale * 1.4),
-                );
+                let mut buffer = Buffer::new(font_system, Metrics::new(size, size * 1.4));
                 buffer.set_size(font_system, None, None);
                 buffer.set_text(font_system, text, &Attrs::new(), Shaping::Advanced, None);
                 buffer.shape_until_scroll(font_system, false);
 
                 for run in buffer.layout_runs() {
                     for glyph in run.glyphs {
-                        let physical = glyph.physical((x * self.scale, y * self.scale), 1.0);
+                        let physical = glyph.physical((0.0, 0.0), self.scale);
+
                         let Some(entry) = self.atlas.get_or_insert(
                             physical.cache_key,
                             font_system,
@@ -446,8 +440,12 @@ impl TextPipeline {
                             continue;
                         };
 
-                        let gx = physical.x as f32 + entry.left as f32;
-                        let gy = y * self.scale + run.line_y - entry.top as f32;
+                        let gx = (x * self.scale).round() + physical.x as f32 + entry.left as f32;
+                        let gy = (y * self.scale).round()
+                            + (run.line_y * self.scale).round()
+                            + physical.y as f32
+                            - entry.top as f32;
+
                         let u0 = entry.x as f32 / ATLAS_SIZE as f32;
                         let v0 = entry.y as f32 / ATLAS_SIZE as f32;
                         let uw = entry.w as f32 / ATLAS_SIZE as f32;
