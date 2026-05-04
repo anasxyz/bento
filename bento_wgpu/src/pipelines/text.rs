@@ -473,8 +473,9 @@ impl TextPipeline {
 
                 for run in buffer.layout_runs() {
                     for glyph in run.glyphs {
+                        let subpixel_offset = ((x * self.scale).fract(), (y * self.scale).fract());
                         let physical =
-                            glyph.physical((0.0, 0.0), self.scale * scale_x.max(scale_y));
+                            glyph.physical(subpixel_offset, self.scale * scale_x.max(scale_y));
 
                         let Some(entry) = self.atlas.get_or_insert(
                             physical.cache_key,
@@ -486,10 +487,10 @@ impl TextPipeline {
                         };
 
                         let raster_scale = self.scale * scale_x.max(scale_y);
-                        let origin_x = (x * self.scale).round();
-                        let origin_y = (y * self.scale).round();
+                        let origin_x = (x * self.scale).floor();
+                        let origin_y = (y * self.scale).floor();
                         let gx = (physical.x as f32 + entry.left as f32) / scale_x.max(scale_y);
-                        let gy = ((run.line_y * raster_scale).round() + physical.y as f32
+                        let gy = ((run.line_y * raster_scale).floor() + physical.y as f32
                             - entry.top as f32)
                             / scale_x.max(scale_y);
 
