@@ -137,8 +137,10 @@ impl GlyphAtlas {
         // convert to rgba
         use cosmic_text::SwashContent;
         let rgba: Vec<u8> = match image.content {
-            SwashContent::Mask => image.data.iter().flat_map(|&a| [a, a, a, a]).collect(),
-            SwashContent::Color | SwashContent::SubpixelMask => image.data.to_vec(),
+            SwashContent::Color => image.data.to_vec(),
+            SwashContent::Mask | SwashContent::SubpixelMask => {
+                image.data.iter().flat_map(|&a| [a, a, a, a]).collect()
+            }
         };
 
         // upload to atlas texture
@@ -194,6 +196,7 @@ pub struct TextPipeline {
     count: u32,
     ranges: Vec<(u32, u32)>,
     slots: Vec<TextSlot>,
+    scale: f32,
 }
 
 impl TextPipeline {
@@ -203,6 +206,7 @@ impl TextPipeline {
         format: wgpu::TextureFormat,
         screen_w: f32,
         screen_h: f32,
+        scale: f32,
     ) -> Self {
         let atlas = GlyphAtlas::new(device);
 
@@ -225,7 +229,7 @@ impl TextPipeline {
         queue.write_buffer(
             &screen_buffer,
             0,
-            bytemuck::cast_slice(&[screen_w, screen_h]),
+            bytemuck::cast_slice(&[screen_w * scale, screen_h * scale]),
         );
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -341,7 +345,7 @@ impl TextPipeline {
                 entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
                     format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
                 compilation_options: Default::default(),
@@ -373,15 +377,21 @@ impl TextPipeline {
             count: 0,
             ranges: Vec::new(),
             slots: Vec::new(),
+            scale: 1.0,
         }
     }
 
-    pub fn resize(&mut self, queue: &wgpu::Queue, width: f32, height: f32) {
+    pub fn resize(&mut self, queue: &wgpu::Queue, width: f32, height: f32, scale: f32) {
+        self.scale = scale;
         queue.write_buffer(
             &self.screen_buffer,
             0,
-            bytemuck::cast_slice(&[width, height]),
+            bytemuck::cast_slice(&[width * scale, height * scale]),
         );
+        // invalidate all cached slots so they reshape at new scale
+        for slot in &mut self.slots {
+            slot.x = f32::NAN; // forces rematch to fail
+        }
     }
 
     pub fn prepare(
@@ -416,14 +426,17 @@ impl TextPipeline {
                 println!("text slot {} re-preparing", i);
                 slot.cached_instances.clear();
 
-                let mut buffer = Buffer::new(font_system, Metrics::new(size, size * 1.4));
+                let mut buffer = Buffer::new(
+                    font_system,
+                    Metrics::new(size * self.scale, size * self.scale * 1.4),
+                );
                 buffer.set_size(font_system, None, None);
                 buffer.set_text(font_system, text, &Attrs::new(), Shaping::Advanced, None);
                 buffer.shape_until_scroll(font_system, false);
 
                 for run in buffer.layout_runs() {
                     for glyph in run.glyphs {
-                        let physical = glyph.physical((x, y), 1.0);
+                        let physical = glyph.physical((x * self.scale, y * self.scale), 1.0);
                         let Some(entry) = self.atlas.get_or_insert(
                             physical.cache_key,
                             font_system,
@@ -434,7 +447,7 @@ impl TextPipeline {
                         };
 
                         let gx = physical.x as f32 + entry.left as f32;
-                        let gy = y + run.line_y - entry.top as f32;
+                        let gy = y * self.scale + run.line_y - entry.top as f32;
                         let u0 = entry.x as f32 / ATLAS_SIZE as f32;
                         let v0 = entry.y as f32 / ATLAS_SIZE as f32;
                         let uw = entry.w as f32 / ATLAS_SIZE as f32;

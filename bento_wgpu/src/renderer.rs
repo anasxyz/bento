@@ -31,6 +31,7 @@ impl Renderer {
                 surface.format,
                 surface.width,
                 surface.height,
+                surface.scale,
             ),
         }
     }
@@ -139,6 +140,6 @@ impl Renderer {
 
     pub fn resize(&mut self, ctx: &RenderContext, surface: &Surface) {
         self.rect.resize(&ctx.queue, surface.width, surface.height);
-        self.text.resize(&ctx.queue, surface.width, surface.height);
+        self.text.resize(&ctx.queue, surface.width, surface.height, surface.scale);
     }
 }

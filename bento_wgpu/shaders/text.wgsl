@@ -47,11 +47,9 @@ fn fs_main(in: VOut) -> @location(0) vec4f {
   let sample = textureSample(atlas_tex, atlas_smp, in.tex_uv);
 
   if in.is_color == 1u {
-    // color emoji, use atlas color directly
-    return sample;
+      return vec4f(sample.rgb * sample.a, sample.a);
   } else {
-    // mask glyph, use red channel as alpha, tint with text color
-    let alpha = sample.r * in.color.a;
-    return vec4f(in.color.rgb * alpha, alpha);
+      let alpha = sample.r * in.color.a;
+      return vec4f(in.color.rgb * alpha, alpha);
   }
 }
