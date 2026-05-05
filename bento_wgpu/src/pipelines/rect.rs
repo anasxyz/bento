@@ -15,9 +15,11 @@ pub struct RectInstance {
 pub struct RectPipeline {
     pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
+    transient_buffer: wgpu::Buffer, // separate buffer for transient draws
     screen_buffer: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
     capacity: usize,
+    transient_capacity: usize,
     instances: Vec<RectInstance>,
     dirty: Vec<bool>,
     next_slot: u32,
@@ -31,55 +33,23 @@ impl RectPipeline {
         screen_w: f32,
         screen_h: f32,
     ) -> Self {
-        // create rect shader module
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("rect shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/rect.wgsl").into()),
         });
 
-        /*
-         * create buffer holding screen size floats, 4 bytes each
-         * shader needs to read it to know screen size to convert pixel
-         * coords to NDC
-         *
-         * UNIFORM = shader can read this buffer
-         * COPY_DST = CPU can write to this buffer
-         */
         let screen_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("rect screen uniform"),
             size: 8,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-
-        /*
-         * convert two screen size floats into raw bytes &[u8]
-         * then upload from CPU memory to GPU buffer created above
-         *
-         * 0 is byte offset to start writing at
-         */
         queue.write_buffer(
             &screen_buffer,
             0,
             bytemuck::cast_slice(&[screen_w, screen_h]),
         );
 
-        /*
-         * bind group layout is the description of what slots exists and
-         * what type of data goes in each one
-         *
-         * binding field is what slot number
-         *
-         * visibility field is which shader is it relevant to between VERTEX or FRAGMENT
-         *
-         * outer ty field is type of resource being stored in this slot, in this case its a buffer
-         *
-         * inner ty field is the type of buffer being stored, in this case a uniform
-         * different types of buffers as far as I know are uniform or storage types:
-         * - uniform buffer: CPU writes it, shader reads it, smaller and faster
-         * - storage buffer: shader both reads and writes to it. the shader can basically modify
-         * values and they can be read back by the CPU
-         */
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("rect bind group layout"),
             entries: &[wgpu::BindGroupLayoutEntry {
@@ -94,11 +64,6 @@ impl RectPipeline {
             }],
         });
 
-        /*
-         * bind group is where resource to binding slot allocation actually happens
-         *
-         * bind screen_buffer to slot 0
-         */
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("rect bind group"),
             layout: &bind_group_layout,
@@ -108,17 +73,6 @@ impl RectPipeline {
             }],
         });
 
-        /*
-         * tells the GPU how to read RectInstance out of vertex buffer
-         *
-         * array_stride is how far for the GPU to jump to the next instance which
-         * is just the size of one instance, in this case 32 bytes, meaning that the next instance
-         * will start at 32 bytes because theyre all 32 bytes
-         *
-         * step_mode tells the GPU when to step to the next entry in the buffer
-         * - Vertex: step to the next entry after every vertex
-         * - Instance: step to the next entry after every instance
-         */
         let vertex_layout = wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<RectInstance>() as u64,
             step_mode: wgpu::VertexStepMode::Instance,
@@ -156,7 +110,6 @@ impl RectPipeline {
             ],
         };
 
-        // tells pipeline which bind group layouts its using
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("rect pipeline layout"),
             bind_group_layouts: &[&bind_group_layout],
@@ -197,12 +150,22 @@ impl RectPipeline {
             mapped_at_creation: false,
         });
 
+        let transient_capacity = 64;
+        let transient_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("rect transient buffer"),
+            size: (transient_capacity * std::mem::size_of::<RectInstance>()) as u64,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
         Self {
             pipeline,
             vertex_buffer,
+            transient_buffer,
             screen_buffer,
             bind_group,
             capacity,
+            transient_capacity,
             instances: Vec::new(),
             dirty: Vec::new(),
             next_slot: 0,
@@ -220,7 +183,6 @@ impl RectPipeline {
     pub fn alloc_slot(&mut self) -> u32 {
         let slot = self.next_slot;
         self.next_slot += 1;
-        // grow instances and dirty vecs
         self.instances.push(RectInstance {
             pos_size: [0.0; 4],
             color: [0.0; 4],
@@ -238,7 +200,6 @@ impl RectPipeline {
         if bytemuck::bytes_of(&self.instances[s]) != bytemuck::bytes_of(&instance) {
             self.instances[s] = instance;
             self.dirty[s] = true;
-            println!("rect slot {} marked dirty", slot);
         }
     }
 
@@ -268,7 +229,6 @@ impl RectPipeline {
 
         for (i, dirty) in self.dirty.iter_mut().enumerate() {
             if *dirty {
-                println!("uploading rect slot {}", i);
                 let offset = (i * std::mem::size_of::<RectInstance>()) as u64;
                 queue.write_buffer(
                     &self.vertex_buffer,
@@ -287,25 +247,35 @@ impl RectPipeline {
         pass.draw(0..6, slot..slot + 1);
     }
 
-    pub fn draw<'pass>(
-        &'pass self,
+    /// Draw a transient slice of rects that don't need persistent slots.
+    /// Used for text decorations (backgrounds, underlines, strikethroughs).
+    /// Must be called during a render pass. Uploads to a separate buffer
+    /// so it never interferes with the persistent slot buffer.
+    pub fn draw_transient<'pass>(
+        &'pass mut self,
         rects: &[RectInstance],
         queue: &wgpu::Queue,
+        device: &wgpu::Device,
         pass: &mut wgpu::RenderPass<'pass>,
     ) {
         if rects.is_empty() {
             return;
         }
 
-        // upload rect data to the GPU
-        queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(rects));
+        if rects.len() > self.transient_capacity {
+            self.transient_capacity = rects.len().next_power_of_two();
+            self.transient_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("rect transient buffer"),
+                size: (self.transient_capacity * std::mem::size_of::<RectInstance>()) as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
 
-        // set up the pipeline and buffers
+        queue.write_buffer(&self.transient_buffer, 0, bytemuck::cast_slice(rects));
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.bind_group, &[]);
-        pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-
-        // draw
+        pass.set_vertex_buffer(0, self.transient_buffer.slice(..));
         pass.draw(0..6, 0..rects.len() as u32);
     }
 }

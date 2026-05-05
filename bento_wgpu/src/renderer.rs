@@ -1,11 +1,10 @@
 use crate::{
-    TextNode,
     context::RenderContext,
     pipelines::{
         rect::{RectInstance, RectPipeline},
-        text::TextPipeline,
+        text::{TextPipeline, TextSpec},
     },
-    scene::{Node, Scene, Span},
+    scene::{Node, Scene},
     surface::Surface,
 };
 use wgpu;
@@ -62,9 +61,8 @@ impl Renderer {
                 label: Some("frame"),
             });
 
-        // prepare phase
+        // ── prepare rects ────────────────────────────────────────────────────
 
-        // assign slots and write rect data
         for node in &mut scene.nodes {
             if let Node::Rect(r) = node {
                 if r.slot == u32::MAX {
@@ -85,52 +83,47 @@ impl Renderer {
         }
         self.rect.upload(&ctx.device, &ctx.queue);
 
-        // prepare text
+        // ── prepare text ─────────────────────────────────────────────────────
+
         let mut text_slot = 0usize;
-        let texts: Vec<(
-            &str,
-            f32,
-            f32,
-            f32,
-            [f32; 4],
-            f32,
-            f32,
-            f32,
-            u16,
-            bool,
-            String,
-            &Vec<Span>,
-            Option<f32>,
-        )> = scene
+        let specs: Vec<TextSpec> = scene
             .nodes
             .iter_mut()
             .filter_map(|n| match n {
                 Node::Text(t) => {
                     t.slot = text_slot;
                     text_slot += 1;
-                    Some((
-                        t.text.as_str(),
-                        t.x,
-                        t.y,
-                        t.size,
-                        t.color,
-                        t.rotate,
-                        t.scale_x,
-                        t.scale_y,
-                        t.weight,
-                        t.italic,
-                        t.font_family.clone(),
-                        &t.spans,
-                        t.max_width,
-                    ))
+                    Some(TextSpec {
+                        text: t.text.as_str(),
+                        x: t.x,
+                        y: t.y,
+                        size: t.size,
+                        color: t.color,
+                        rotate: t.rotate,
+                        scale_x: t.scale_x,
+                        scale_y: t.scale_y,
+                        weight: t.weight,
+                        italic: t.italic,
+                        font_family: t.font_family.as_str(),
+                        max_width: t.max_width,
+
+                        color_ranges: &t.color_ranges,
+                        background_ranges: &t.background_ranges,
+                        underline_ranges: &t.underline_ranges,
+                        strikethrough_ranges: &t.strikethrough_ranges,
+                        weight_ranges: &t.weight_ranges,
+                        italic_ranges: &t.italic_ranges,
+                        font_family_ranges: &t.font_family_ranges,
+                    })
                 }
                 _ => None,
             })
             .collect();
-        self.text
-            .prepare(&texts, font_system, &ctx.device, &ctx.queue);
 
-        // draw phase
+        self.text
+            .prepare(&specs, font_system, &ctx.device, &ctx.queue);
+
+        // ── draw ─────────────────────────────────────────────────────────────
 
         let mut sorted: Vec<&Node> = scene.nodes.iter().collect();
         sorted.sort_by_key(|n| match n {
@@ -162,8 +155,25 @@ impl Renderer {
 
             for node in &sorted {
                 match node {
-                    Node::Rect(r) => self.rect.draw_slot(&mut pass, r.slot),
-                    Node::Text(t) => self.text.draw_range(&mut pass, t.slot),
+                    Node::Rect(r) => {
+                        self.rect.draw_slot(&mut pass, r.slot);
+                    }
+                    Node::Text(t) => {
+                        // 1. background rects — behind glyphs
+                        if let Some(&(start, end)) = self.text.bg_ranges.get(t.slot) {
+                            let rects = self.text.bg_rects[start..end].to_vec();
+                            self.rect
+                                .draw_transient(&rects, &ctx.queue, &ctx.device, &mut pass);
+                        }
+                        // 2. glyphs
+                        self.text.draw_range(&mut pass, t.slot);
+                        // 3. line decorations — in front of glyphs
+                        if let Some(&(start, end)) = self.text.line_ranges.get(t.slot) {
+                            let rects = self.text.line_rects[start..end].to_vec();
+                            self.rect
+                                .draw_transient(&rects, &ctx.queue, &ctx.device, &mut pass);
+                        }
+                    }
                 }
             }
         }

@@ -47,7 +47,6 @@ impl ApplicationHandler for App {
         self.surface = Some(surface);
         self.renderer = Some(renderer);
 
-        /*
         let mut rect = RectNode::new(60.0, 20.0, 200.0, 100.0);
         rect.color = [0.2, 0.5, 1.0, 1.0];
         rect.radii = [0.0; 4];
@@ -58,12 +57,11 @@ impl ApplicationHandler for App {
         // rect.scale_y = 5.0;
         rect.z = 1;
         self.scene.add_rect(rect);
-        */
 
         let mut text = TextNode::new(
             "Enter your name 💁👌🎍😍 Passwordddddddddddddddddddd",
             60.0,
-            60.0,
+            120.0,
             16.0,
         );
         text.scale_x = 1.0;
@@ -74,23 +72,15 @@ impl ApplicationHandler for App {
         text.z = 3;
         text.spans.push(Span {
             start: 0,
-            end: 29,
+            end: 3,
             color: Some([0.0, 0.0, 0.0, 1.0]),
             background: None,
             weight: None,
             italic: None,
             font_family: None,
+            underline: None,
+            strikethrough: Some(true),
         });
-        text.spans.push(Span {
-            start: 29,
-            end: 37,
-            color: Some([1.0, 0.0, 0.0, 0.2]),
-            background: None,
-            weight: None,
-            italic: None,
-            font_family: None,
-        });
-
         self.scene.add_text(text);
     }
 

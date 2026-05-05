@@ -1,15 +1,22 @@
-use crate::scene::Span;
+use crate::{
+    pipelines::rect::RectInstance,
+    scene::{ColorRange, DecorationRange, FontFamilyRange, ItalicRange, WeightRange},
+};
 use bytemuck::{Pod, Zeroable};
-use cosmic_text::{AttrsList, CacheKey, Family, FontSystem, Style as CStyle, SwashCache, Weight};
+use cosmic_text::{
+    Attrs, Buffer, CacheKey, Family, Metrics, Shaping, Style as CStyle, SwashCache, Weight,
+};
 use etagere::{Allocation, AtlasAllocator, size2};
 use std::collections::HashMap;
 use wgpu;
 
+// ─── GPU types ───────────────────────────────────────────────────────────────
+
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct GlyphInstance {
-    pub position: [f32; 2], // glyph position relative to text origin
-    pub origin: [f32; 2],   // text origin in physical pixels
+    pub position: [f32; 2],
+    pub origin: [f32; 2],
     pub size: [f32; 2],
     pub uv: [f32; 2],
     pub uv_size: [f32; 2],
@@ -19,65 +26,37 @@ pub struct GlyphInstance {
     pub _pad: [u32; 3],
 }
 
-struct TextSlot {
-    text: String,
-    x: f32,
-    y: f32,
-    size: f32,
-    color: [f32; 4],
-    rotate: f32,
-    scale_x: f32,
-    scale_y: f32,
-    weight: u16,
-    italic: bool,
-    font_family: String,
-    spans: Vec<Span>,
-    max_width: Option<f32>,
-    cached_instances: Vec<GlyphInstance>,
+// ─── Input type ──────────────────────────────────────────────────────────────
+
+/// Everything needed to draw one piece of text. Constructed by the renderer
+/// from `TextNode` and passed as a slice to `TextPipeline::prepare`.
+pub struct TextSpec<'a> {
+    pub text: &'a str,
+    pub x: f32,
+    pub y: f32,
+    pub size: f32,
+    pub color: [f32; 4],
+    pub rotate: f32,
+    pub scale_x: f32,
+    pub scale_y: f32,
+    pub weight: u16,
+    pub italic: bool,
+    pub font_family: &'a str,
+    pub max_width: Option<f32>,
+
+    // visual-only (no reshape)
+    pub color_ranges: &'a [ColorRange],
+    pub background_ranges: &'a [DecorationRange],
+    pub underline_ranges: &'a [DecorationRange],
+    pub strikethrough_ranges: &'a [DecorationRange],
+
+    // shaping-relevant
+    pub weight_ranges: &'a [WeightRange],
+    pub italic_ranges: &'a [ItalicRange],
+    pub font_family_ranges: &'a [FontFamilyRange],
 }
 
-impl TextSlot {
-    fn matches(
-        &self,
-        text: &str,
-        x: f32,
-        y: f32,
-        size: f32,
-        color: [f32; 4],
-        rotate: f32,
-        scale_x: f32,
-        scale_y: f32,
-        weight: u16,
-        italic: bool,
-        font_family: &str,
-        spans: &Vec<Span>,
-        max_width: Option<f32>,
-    ) -> bool {
-        self.text == text
-            && self.x == x
-            && self.y == y
-            && self.size == size
-            && self.color == color
-            && self.rotate == rotate
-            && self.scale_x == scale_x
-            && self.scale_y == scale_y
-            && self.weight == weight
-            && self.italic == italic
-            && self.font_family == font_family
-            && self.spans.len() == spans.len()
-            && self.spans.len() == spans.len()
-            && self.spans.iter().zip(spans.iter()).all(|(a, b)| {
-                a.start == b.start
-                    && a.end == b.end
-                    && a.color == b.color
-                    && a.background == b.background
-                    && a.weight == b.weight
-                    && a.italic == b.italic
-                    && a.font_family == b.font_family
-            })
-            && self.max_width == max_width
-    }
-}
+// ─── Glyph atlas ─────────────────────────────────────────────────────────────
 
 const ATLAS_SIZE: u32 = 2048;
 
@@ -102,6 +81,17 @@ pub struct GlyphAtlas {
 
 impl GlyphAtlas {
     pub fn new(device: &wgpu::Device) -> Self {
+        let (texture, view) = Self::make_texture(device);
+        Self {
+            texture,
+            view,
+            entries: HashMap::new(),
+            packer: AtlasAllocator::new(size2(ATLAS_SIZE as i32, ATLAS_SIZE as i32)),
+            swash: SwashCache::new(),
+        }
+    }
+
+    fn make_texture(device: &wgpu::Device) -> (wgpu::Texture, wgpu::TextureView) {
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("glyph atlas"),
             size: wgpu::Extent3d {
@@ -117,43 +107,29 @@ impl GlyphAtlas {
             view_formats: &[],
         });
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let packer = AtlasAllocator::new(size2(ATLAS_SIZE as i32, ATLAS_SIZE as i32));
-        let swash = SwashCache::new();
-        Self {
-            texture,
-            view,
-            entries: HashMap::new(),
-            packer,
-            swash,
-        }
+        (texture, view)
     }
 
     pub fn clear(&mut self, device: &wgpu::Device) {
         self.packer = AtlasAllocator::new(size2(ATLAS_SIZE as i32, ATLAS_SIZE as i32));
         self.entries.clear();
         self.swash = SwashCache::new();
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("glyph atlas"),
-            size: wgpu::Extent3d {
-                width: ATLAS_SIZE,
-                height: ATLAS_SIZE,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[],
-        });
-        self.view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let (texture, view) = Self::make_texture(device);
         self.texture = texture;
+        self.view = view;
     }
 
-    pub fn get_or_insert(
+    /// Look up an already-rasterized glyph. Returns None if not in atlas.
+    pub fn get(&self, key: CacheKey) -> Option<&AtlasEntry> {
+        self.entries.get(&key)
+    }
+
+    /// Rasterize a glyph and insert it into the atlas. Returns None if the
+    /// glyph has no pixels (e.g. space). Clears and repacks if atlas is full.
+    pub fn insert(
         &mut self,
         key: CacheKey,
-        font_system: &mut FontSystem,
+        font_system: &mut cosmic_text::FontSystem,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
     ) -> Option<&AtlasEntry> {
@@ -161,16 +137,13 @@ impl GlyphAtlas {
             return self.entries.get(&key);
         }
 
-        // rasterise the glyph on CPU using swash
         let image = self.swash.get_image_uncached(font_system, key)?;
-
         let w = image.placement.width;
         let h = image.placement.height;
         if w == 0 || h == 0 {
             return None;
         }
 
-        // allocate space in the atlas
         let alloc = match self.packer.allocate(size2(w as i32 + 1, h as i32 + 1)) {
             Some(a) => a,
             None => {
@@ -182,7 +155,6 @@ impl GlyphAtlas {
         let x = alloc.rectangle.min.x as u32;
         let y = alloc.rectangle.min.y as u32;
 
-        // convert to rgba
         use cosmic_text::SwashContent;
         let rgba: Vec<u8> = match image.content {
             SwashContent::Color => image.data.to_vec(),
@@ -191,7 +163,6 @@ impl GlyphAtlas {
             }
         };
 
-        // upload to atlas texture
         queue.write_texture(
             wgpu::TexelCopyTextureInfo {
                 texture: &self.texture,
@@ -213,7 +184,6 @@ impl GlyphAtlas {
         );
 
         let is_color = matches!(image.content, SwashContent::Color);
-
         self.entries.insert(
             key,
             AtlasEntry {
@@ -227,10 +197,496 @@ impl GlyphAtlas {
                 allocation: alloc,
             },
         );
-
         self.entries.get(&key)
     }
 }
+
+// ─── Per-slot cache ───────────────────────────────────────────────────────────
+
+struct TextCache {
+    // last-seen values for dirty checking
+    text: String,
+    x: f32,
+    y: f32,
+    size: f32,
+    color: [f32; 4],
+    rotate: f32,
+    scale_x: f32,
+    scale_y: f32,
+    weight: u16,
+    italic: bool,
+    font_family: String,
+    max_width: Option<f32>,
+
+    // last-seen ranges
+    color_ranges: Vec<ColorRange>,
+    background_ranges: Vec<DecorationRange>,
+    underline_ranges: Vec<DecorationRange>,
+    strikethrough_ranges: Vec<DecorationRange>,
+    weight_ranges: Vec<(usize, usize, u16)>,
+    italic_ranges: Vec<(usize, usize)>,
+    font_family_ranges: Vec<(usize, usize, String)>,
+
+    // cached outputs
+    buffer: Option<Buffer>,
+    glyphs: Vec<GlyphInstance>,
+    bg_rects: Vec<RectInstance>,
+    line_rects: Vec<RectInstance>,
+}
+
+impl TextCache {
+    fn empty() -> Self {
+        Self {
+            text: String::new(),
+            x: f32::NAN,
+            y: f32::NAN,
+            size: f32::NAN,
+            color: [f32::NAN; 4],
+            rotate: f32::NAN,
+            scale_x: f32::NAN,
+            scale_y: f32::NAN,
+            weight: 0,
+            italic: false,
+            font_family: String::new(),
+            max_width: None,
+
+            color_ranges: Vec::new(),
+            background_ranges: Vec::new(),
+            underline_ranges: Vec::new(),
+            strikethrough_ranges: Vec::new(),
+            weight_ranges: Vec::new(),
+            italic_ranges: Vec::new(),
+            font_family_ranges: Vec::new(),
+
+            buffer: None,
+            glyphs: Vec::new(),
+            bg_rects: Vec::new(),
+            line_rects: Vec::new(),
+        }
+    }
+
+    fn needs_reshape(&self, s: &TextSpec) -> bool {
+        self.text != s.text
+            || self.size != s.size
+            || self.rotate != s.rotate
+            || self.scale_x != s.scale_x
+            || self.scale_y != s.scale_y
+            || self.weight != s.weight
+            || self.italic != s.italic
+            || self.font_family != s.font_family
+            || self.max_width != s.max_width
+            || self.weight_ranges.len() != s.weight_ranges.len()
+            || self
+                .weight_ranges
+                .iter()
+                .zip(s.weight_ranges.iter())
+                .any(|(a, b)| a.0 != b.start || a.1 != b.end || a.2 != b.weight)
+            || self.italic_ranges.len() != s.italic_ranges.len()
+            || self
+                .italic_ranges
+                .iter()
+                .zip(s.italic_ranges.iter())
+                .any(|(a, b)| a.0 != b.start || a.1 != b.end)
+            || self.font_family_ranges.len() != s.font_family_ranges.len()
+            || self
+                .font_family_ranges
+                .iter()
+                .zip(s.font_family_ranges.iter())
+                .any(|(a, b)| a.0 != b.start || a.1 != b.end || a.2 != b.font_family)
+    }
+
+    fn needs_redraw(&self, s: &TextSpec) -> bool {
+        self.x != s.x
+            || self.y != s.y
+            || self.color != s.color
+            || self.color_ranges != s.color_ranges
+            || self.background_ranges != s.background_ranges
+            || self.underline_ranges != s.underline_ranges
+            || self.strikethrough_ranges != s.strikethrough_ranges
+    }
+
+    fn update_from(&mut self, s: &TextSpec) {
+        self.text = s.text.to_string();
+        self.x = s.x;
+        self.y = s.y;
+        self.size = s.size;
+        self.color = s.color;
+        self.rotate = s.rotate;
+        self.scale_x = s.scale_x;
+        self.scale_y = s.scale_y;
+        self.weight = s.weight;
+        self.italic = s.italic;
+        self.font_family = s.font_family.to_string();
+        self.max_width = s.max_width;
+
+        self.color_ranges = s.color_ranges.to_vec();
+        self.background_ranges = s.background_ranges.to_vec();
+        self.underline_ranges = s.underline_ranges.to_vec();
+        self.strikethrough_ranges = s.strikethrough_ranges.to_vec();
+        self.weight_ranges = s
+            .weight_ranges
+            .iter()
+            .map(|r| (r.start, r.end, r.weight))
+            .collect();
+        self.italic_ranges = s.italic_ranges.iter().map(|r| (r.start, r.end)).collect();
+        self.font_family_ranges = s
+            .font_family_ranges
+            .iter()
+            .map(|r| (r.start, r.end, r.font_family.clone()))
+            .collect();
+    }
+}
+
+// ─── Shaping + rasterization ─────────────────────────────────────────────────
+
+fn shape_and_rasterize(
+    spec: &TextSpec,
+    font_system: &mut cosmic_text::FontSystem,
+    atlas: &mut GlyphAtlas,
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    scale: f32,
+) -> Buffer {
+    let mut buffer = Buffer::new(font_system, Metrics::new(spec.size, spec.size * 1.4));
+    buffer.set_size(font_system, spec.max_width, None);
+
+    let base_attrs = Attrs::new();
+    let node_attrs = {
+        let mut a = Attrs::new().weight(Weight(spec.weight));
+        if spec.italic {
+            a = a.style(CStyle::Italic);
+        }
+        if !spec.font_family.is_empty() {
+            a = a.family(Family::Name(spec.font_family));
+        }
+        a
+    };
+
+    // collect all byte boundaries from shaping ranges
+    let mut boundaries = std::collections::BTreeSet::new();
+    boundaries.insert(0usize);
+    boundaries.insert(spec.text.len());
+    for r in spec.weight_ranges {
+        boundaries.insert(char_to_byte(spec.text, r.start));
+        boundaries.insert(char_to_byte(spec.text, r.end));
+    }
+    for r in spec.italic_ranges {
+        boundaries.insert(char_to_byte(spec.text, r.start));
+        boundaries.insert(char_to_byte(spec.text, r.end));
+    }
+    for r in spec.font_family_ranges {
+        boundaries.insert(char_to_byte(spec.text, r.start));
+        boundaries.insert(char_to_byte(spec.text, r.end));
+    }
+    for (i, c) in spec.text.char_indices() {
+        if is_emoji(c) {
+            boundaries.insert(i);
+            boundaries.insert(i + c.len_utf8());
+        }
+    }
+
+    let boundaries: Vec<usize> = boundaries.into_iter().collect();
+    let mut rich_spans: Vec<(&str, Attrs)> = Vec::new();
+
+    for w in boundaries.windows(2) {
+        let (start, end) = (w[0], w[1]);
+        if start >= end {
+            continue;
+        }
+        let slice = &spec.text[start..end];
+        let first_char = slice.chars().next().unwrap();
+
+        let span_attrs = if is_emoji(first_char) {
+            base_attrs.clone()
+        } else {
+            let mut a = node_attrs.clone();
+            for r in spec.weight_ranges {
+                let sb = char_to_byte(spec.text, r.start);
+                let eb = char_to_byte(spec.text, r.end);
+                if sb <= start && start < eb {
+                    a = a.weight(Weight(r.weight));
+                    break;
+                }
+            }
+            for r in spec.italic_ranges {
+                let sb = char_to_byte(spec.text, r.start);
+                let eb = char_to_byte(spec.text, r.end);
+                if sb <= start && start < eb {
+                    a = a.style(CStyle::Italic);
+                    break;
+                }
+            }
+            for r in spec.font_family_ranges {
+                let sb = char_to_byte(spec.text, r.start);
+                let eb = char_to_byte(spec.text, r.end);
+                if sb <= start && start < eb && !r.font_family.is_empty() {
+                    a = a.family(Family::Name(r.font_family.as_str()));
+                    break;
+                }
+            }
+            a
+        };
+        rich_spans.push((slice, span_attrs));
+    }
+
+    buffer.set_rich_text(
+        font_system,
+        rich_spans.into_iter(),
+        &base_attrs,
+        Shaping::Advanced,
+        None,
+    );
+    buffer.shape_until_scroll(font_system, false);
+
+    // rasterize all glyphs into atlas while we still have font_system
+    let raster_scale = scale * spec.scale_x.max(spec.scale_y);
+    let subpixel_offset = ((spec.x * scale).fract(), (spec.y * scale).fract());
+    for run in buffer.layout_runs() {
+        for glyph in run.glyphs {
+            let physical = glyph.physical(subpixel_offset, raster_scale);
+            atlas.insert(physical.cache_key, font_system, device, queue);
+        }
+    }
+
+    buffer
+}
+
+// ─── Glyph instance building ─────────────────────────────────────────────────
+
+fn build_glyphs(
+    buffer: &Buffer,
+    atlas: &GlyphAtlas,
+    spec: &TextSpec,
+    scale: f32,
+) -> Vec<GlyphInstance> {
+    let raster_scale = scale * spec.scale_x.max(spec.scale_y);
+    let origin_x = (spec.x * scale).floor();
+    let origin_y = (spec.y * scale).floor();
+    let subpixel_offset = ((spec.x * scale).fract(), (spec.y * scale).fract());
+    let (cos_r, sin_r) = (spec.rotate.cos(), spec.rotate.sin());
+    let transform = [
+        cos_r * spec.scale_x,
+        sin_r * spec.scale_x,
+        -sin_r * spec.scale_y,
+        cos_r * spec.scale_y,
+    ];
+
+    let mut instances = Vec::new();
+
+    for run in buffer.layout_runs() {
+        for glyph in run.glyphs {
+            let physical = glyph.physical(subpixel_offset, raster_scale);
+            let Some(entry) = atlas.get(physical.cache_key) else {
+                continue;
+            };
+
+            let gx = (physical.x as f32 + entry.left as f32) / spec.scale_x.max(spec.scale_y);
+            let gy = ((run.line_y * raster_scale).floor() + physical.y as f32 - entry.top as f32)
+                / spec.scale_x.max(spec.scale_y);
+
+            // find color from color_ranges, fall back to spec.color
+            let char_idx = spec.text[..glyph.start].chars().count();
+            let color = spec
+                .color_ranges
+                .iter()
+                .find(|r| r[0] as usize <= char_idx && char_idx < r[1] as usize)
+                .map(|r| [r[2], r[3], r[4], r[5]])
+                .unwrap_or(spec.color);
+
+            instances.push(GlyphInstance {
+                position: [gx, gy],
+                origin: [origin_x, origin_y],
+                size: [
+                    entry.w as f32 / spec.scale_x.max(spec.scale_y),
+                    entry.h as f32 / spec.scale_x.max(spec.scale_y),
+                ],
+                uv: [
+                    entry.x as f32 / ATLAS_SIZE as f32,
+                    entry.y as f32 / ATLAS_SIZE as f32,
+                ],
+                uv_size: [
+                    entry.w as f32 / ATLAS_SIZE as f32,
+                    entry.h as f32 / ATLAS_SIZE as f32,
+                ],
+                color: glyph
+                    .color_opt
+                    .map(|c| {
+                        [
+                            c.r() as f32 / 255.0,
+                            c.g() as f32 / 255.0,
+                            c.b() as f32 / 255.0,
+                            c.a() as f32 / 255.0,
+                        ]
+                    })
+                    .unwrap_or(color),
+                transform,
+                is_color: entry.is_color as u32,
+                _pad: [0; 3],
+            });
+        }
+    }
+    instances
+}
+
+// ─── Decoration building ──────────────────────────────────────────────────────
+
+struct DecorationAccum {
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    color: [f32; 4],
+}
+
+impl DecorationAccum {
+    fn extend(&mut self, glyph_w: f32) {
+        self.w += glyph_w;
+    }
+
+    fn flush(self, out: &mut Vec<RectInstance>) {
+        if self.w > 0.0 {
+            out.push(RectInstance {
+                pos_size: [self.x, self.y, self.w, self.h],
+                color: self.color,
+                radii: [0.0; 4],
+                border_color: [0.0; 4],
+                border_widths: [0.0; 4],
+                transform: [1.0, 0.0, 0.0, 1.0],
+            });
+        }
+    }
+}
+
+/// Accumulate or flush a decoration rect when color changes or line changes.
+fn accum_decoration(
+    accum: &mut Option<DecorationAccum>,
+    color: Option<[f32; 4]>,
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    out: &mut Vec<RectInstance>,
+) {
+    match (color, accum) {
+        (Some(c), Some(a)) if a.color == c => {
+            a.extend(w);
+        }
+        (Some(c), slot) => {
+            if let Some(a) = slot.take() {
+                a.flush(out);
+            }
+            *slot = Some(DecorationAccum {
+                x,
+                y,
+                w,
+                h,
+                color: c,
+            });
+        }
+        (None, slot) => {
+            if let Some(a) = slot.take() {
+                a.flush(out);
+            }
+        }
+    }
+}
+
+/// Walk layout runs and produce background rects and line decoration rects.
+/// Returns (bg_rects, line_rects).
+fn build_decorations(buffer: &Buffer, spec: &TextSpec) -> (Vec<RectInstance>, Vec<RectInstance>) {
+    let mut bg_rects = Vec::new();
+    let mut line_rects = Vec::new();
+
+    let mut bg_accum: Option<DecorationAccum> = None;
+    let mut ul_accum: Option<DecorationAccum> = None;
+    let mut st_accum: Option<DecorationAccum> = None;
+
+    for run in buffer.layout_runs() {
+        let line_top = spec.y + run.line_top;
+        let line_height = run.line_height;
+        let ul_thickness = (spec.size * 0.07).max(1.0);
+        let ul_y = spec.y + run.line_y + ul_thickness;
+        let st_y = spec.y + run.line_y - run.line_height * 0.25;
+
+        // flush accumulators at each new line
+        if let Some(a) = bg_accum.take() {
+            a.flush(&mut bg_rects);
+        }
+        if let Some(a) = ul_accum.take() {
+            a.flush(&mut line_rects);
+        }
+        if let Some(a) = st_accum.take() {
+            a.flush(&mut line_rects);
+        }
+
+        for glyph in run.glyphs {
+            let glyph_x = spec.x + glyph.x;
+            let glyph_w = glyph.w;
+            let char_idx = spec.text[..glyph.start].chars().count();
+
+            let bg_color = spec
+                .background_ranges
+                .iter()
+                .find(|r| r[0] as usize <= char_idx && char_idx < r[1] as usize)
+                .map(|r| [r[2], r[3], r[4], r[5]]);
+
+            let ul_color = spec
+                .underline_ranges
+                .iter()
+                .find(|r| r[0] as usize <= char_idx && char_idx < r[1] as usize)
+                .map(|r| [r[2], r[3], r[4], r[5]]);
+
+            let st_color = spec
+                .strikethrough_ranges
+                .iter()
+                .find(|r| r[0] as usize <= char_idx && char_idx < r[1] as usize)
+                .map(|r| [r[2], r[3], r[4], r[5]]);
+
+            accum_decoration(
+                &mut bg_accum,
+                bg_color,
+                glyph_x,
+                line_top,
+                glyph_w,
+                line_height,
+                &mut bg_rects,
+            );
+            accum_decoration(
+                &mut ul_accum,
+                ul_color,
+                glyph_x,
+                ul_y,
+                glyph_w,
+                ul_thickness,
+                &mut line_rects,
+            );
+            accum_decoration(
+                &mut st_accum,
+                st_color,
+                glyph_x,
+                st_y,
+                glyph_w,
+                ul_thickness,
+                &mut line_rects,
+            );
+        }
+
+        // flush at end of each line
+        if let Some(a) = bg_accum.take() {
+            a.flush(&mut bg_rects);
+        }
+        if let Some(a) = ul_accum.take() {
+            a.flush(&mut line_rects);
+        }
+        if let Some(a) = st_accum.take() {
+            a.flush(&mut line_rects);
+        }
+    }
+
+    (bg_rects, line_rects)
+}
+
+// ─── Pipeline ────────────────────────────────────────────────────────────────
 
 pub struct TextPipeline {
     pub atlas: GlyphAtlas,
@@ -241,10 +697,15 @@ pub struct TextPipeline {
     bind_group_layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
     capacity: usize,
-    count: u32,
     ranges: Vec<(u32, u32)>,
-    slots: Vec<TextSlot>,
+    cache: Vec<TextCache>,
     scale: f32,
+
+    // decoration rects populated by prepare(), read by renderer
+    pub bg_rects: Vec<RectInstance>,
+    pub bg_ranges: Vec<(usize, usize)>,
+    pub line_rects: Vec<RectInstance>,
+    pub line_ranges: Vec<(usize, usize)>,
 }
 
 impl TextPipeline {
@@ -257,7 +718,6 @@ impl TextPipeline {
         scale: f32,
     ) -> Self {
         let atlas = GlyphAtlas::new(device);
-
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("glyph sampler"),
             address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -350,42 +810,42 @@ impl TextPipeline {
                     offset: 0,
                     shader_location: 0,
                     format: wgpu::VertexFormat::Float32x2,
-                }, // position
+                },
                 wgpu::VertexAttribute {
                     offset: 8,
                     shader_location: 1,
                     format: wgpu::VertexFormat::Float32x2,
-                }, // origin
+                },
                 wgpu::VertexAttribute {
                     offset: 16,
                     shader_location: 2,
                     format: wgpu::VertexFormat::Float32x2,
-                }, // size
+                },
                 wgpu::VertexAttribute {
                     offset: 24,
                     shader_location: 3,
                     format: wgpu::VertexFormat::Float32x2,
-                }, // uv
+                },
                 wgpu::VertexAttribute {
                     offset: 32,
                     shader_location: 4,
                     format: wgpu::VertexFormat::Float32x2,
-                }, // uv_size
+                },
                 wgpu::VertexAttribute {
                     offset: 40,
                     shader_location: 5,
                     format: wgpu::VertexFormat::Float32x4,
-                }, // color
+                },
                 wgpu::VertexAttribute {
                     offset: 56,
                     shader_location: 6,
                     format: wgpu::VertexFormat::Float32x4,
-                }, // transform
+                },
                 wgpu::VertexAttribute {
                     offset: 72,
                     shader_location: 7,
                     format: wgpu::VertexFormat::Uint32,
-                }, // is_color
+                },
             ],
         };
 
@@ -432,10 +892,13 @@ impl TextPipeline {
             bind_group_layout,
             sampler,
             capacity,
-            count: 0,
             ranges: Vec::new(),
-            slots: Vec::new(),
+            cache: Vec::new(),
             scale: 1.0,
+            bg_rects: Vec::new(),
+            bg_ranges: Vec::new(),
+            line_rects: Vec::new(),
+            line_ranges: Vec::new(),
         }
     }
 
@@ -446,308 +909,70 @@ impl TextPipeline {
             0,
             bytemuck::cast_slice(&[width * scale, height * scale]),
         );
-        self.slots.clear();
+        self.cache.clear();
     }
 
     pub fn prepare(
         &mut self,
-        texts: &[(
-            &str,
-            f32,
-            f32,
-            f32,
-            [f32; 4],
-            f32,
-            f32,
-            f32,
-            u16,
-            bool,
-            String,
-            &Vec<Span>,
-            Option<f32>,
-        )],
+        specs: &[TextSpec],
         font_system: &mut cosmic_text::FontSystem,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
     ) {
-        use cosmic_text::{Attrs, Buffer, Metrics, Shaping};
-
-        while self.slots.len() < texts.len() {
-            self.slots.push(TextSlot {
-                text: String::new(),
-                x: f32::NAN,
-                y: f32::NAN,
-                size: f32::NAN,
-                color: [f32::NAN; 4],
-                rotate: f32::NAN,
-                scale_x: f32::NAN,
-                scale_y: f32::NAN,
-                weight: 0,
-                italic: false,
-                font_family: String::new(),
-                spans: Vec::new(),
-                max_width: None,
-                cached_instances: Vec::new(),
-            });
+        while self.cache.len() < specs.len() {
+            self.cache.push(TextCache::empty());
         }
 
-        let mut instances: Vec<GlyphInstance> = Vec::new();
+        let mut instances = Vec::<GlyphInstance>::new();
         let mut any_changed = false;
         self.ranges.clear();
+        self.bg_rects.clear();
+        self.bg_ranges.clear();
+        self.line_rects.clear();
+        self.line_ranges.clear();
 
-        for (
-            i,
-            (
-                text,
-                x,
-                y,
-                size,
-                color,
-                rotate,
-                scale_x,
-                scale_y,
-                weight,
-                italic,
-                font_family,
-                spans,
-                max_width,
-            ),
-        ) in texts.iter().enumerate()
-        {
-            let (text, x, y, size, color, rotate, scale_x, scale_y, weight, italic, max_width) = (
-                *text, *x, *y, *size, *color, *rotate, *scale_x, *scale_y, *weight, *italic,
-                *max_width,
-            );
+        for (cache, spec) in self.cache.iter_mut().zip(specs.iter()) {
+            let reshape = cache.needs_reshape(spec);
+            let redraw = reshape || cache.needs_redraw(spec);
 
-            let slot = &mut self.slots[i];
-
-            if !slot.matches(
-                text,
-                x,
-                y,
-                size,
-                color,
-                rotate,
-                scale_x,
-                scale_y,
-                weight,
-                italic,
-                font_family,
-                spans,
-                max_width,
-            ) {
+            if redraw {
                 any_changed = true;
-                slot.cached_instances.clear();
 
-                let mut buffer = Buffer::new(font_system, Metrics::new(size, size * 1.4));
-                buffer.set_size(font_system, max_width.map(|w| w), None);
-
-                // start of attrs section
-                let base_attrs = Attrs::new();
-                let text_attrs = {
-                    let mut a = Attrs::new().weight(Weight(weight));
-                    if italic {
-                        a = a.style(CStyle::Italic);
-                    }
-                    if !font_family.is_empty() {
-                        a = a.family(Family::Name(font_family.as_str()));
-                    }
-                    a
-                };
-
-                let mut boundaries = std::collections::BTreeSet::new();
-                boundaries.insert(0usize);
-                boundaries.insert(text.len());
-                for s in spans.iter() {
-                    let start_byte = text
-                        .char_indices()
-                        .nth(s.start)
-                        .map(|(i, _)| i)
-                        .unwrap_or(text.len());
-                    let end_byte = text
-                        .char_indices()
-                        .nth(s.end)
-                        .map(|(i, _)| i)
-                        .unwrap_or(text.len());
-                    boundaries.insert(start_byte);
-                    boundaries.insert(end_byte);
-                }
-                for (i, c) in text.char_indices() {
-                    if is_emoji(c) {
-                        boundaries.insert(i);
-                        boundaries.insert(i + c.len_utf8());
-                    }
+                if reshape {
+                    cache.buffer = Some(shape_and_rasterize(
+                        spec,
+                        font_system,
+                        &mut self.atlas,
+                        device,
+                        queue,
+                        self.scale,
+                    ));
                 }
 
-                let boundaries: Vec<usize> = boundaries.into_iter().collect();
-                let mut rich_spans: Vec<(&str, Attrs)> = Vec::new();
-
-                for w in boundaries.windows(2) {
-                    let (start, end) = (w[0], w[1]);
-                    if start >= end {
-                        continue;
-                    }
-                    let slice = &text[start..end];
-                    let first_char = slice.chars().next().unwrap();
-                    let span_attrs = if is_emoji(first_char) {
-                        base_attrs.clone()
-                    } else {
-                        let mut a = text_attrs.clone();
-                        for s in spans.iter() {
-                            let start_byte = text
-                                .char_indices()
-                                .nth(s.start)
-                                .map(|(i, _)| i)
-                                .unwrap_or(text.len());
-                            let end_byte = text
-                                .char_indices()
-                                .nth(s.end)
-                                .map(|(i, _)| i)
-                                .unwrap_or(text.len());
-                            if start_byte <= start && start < end_byte {
-                                if let Some(c) = s.color {
-                                    a = a.color(cosmic_text::Color::rgba(
-                                        (c[0] * 255.0) as u8,
-                                        (c[1] * 255.0) as u8,
-                                        (c[2] * 255.0) as u8,
-                                        (c[3] * 255.0) as u8,
-                                    ));
-                                }
-                                if let Some(w) = s.weight {
-                                    a = a.weight(Weight(w));
-                                }
-                                if let Some(it) = s.italic {
-                                    if it {
-                                        a = a.style(CStyle::Italic);
-                                    } else {
-                                        a = a.style(CStyle::Normal);
-                                    }
-                                }
-                                if let Some(ref ff) = s.font_family {
-                                    if !ff.is_empty() {
-                                        a = a.family(Family::Name(ff.as_str()));
-                                    }
-                                }
-                                break;
-                            }
-                        }
-                        a
-                    };
-                    rich_spans.push((slice, span_attrs));
+                if let Some(buffer) = &cache.buffer {
+                    cache.glyphs = build_glyphs(buffer, &self.atlas, spec, self.scale);
+                    let (bg, lines) = build_decorations(buffer, spec);
+                    cache.bg_rects = bg;
+                    cache.line_rects = lines;
                 }
 
-                buffer.set_rich_text(
-                    font_system,
-                    rich_spans.into_iter(),
-                    &base_attrs,
-                    Shaping::Advanced,
-                    None,
-                );
-                // end of attrs section
-
-                buffer.shape_until_scroll(font_system, true);
-
-                let cos_r = rotate.cos();
-                let sin_r = rotate.sin();
-                let transform = [
-                    cos_r * scale_x,
-                    sin_r * scale_x,
-                    -sin_r * scale_y,
-                    cos_r * scale_y,
-                ];
-
-                for run in buffer.layout_runs() {
-                    for glyph in run.glyphs {
-                        let subpixel_offset = ((x * self.scale).fract(), (y * self.scale).fract());
-                        let physical =
-                            glyph.physical(subpixel_offset, self.scale * scale_x.max(scale_y));
-
-                        let Some(entry) = self.atlas.get_or_insert(
-                            physical.cache_key,
-                            font_system,
-                            device,
-                            queue,
-                        ) else {
-                            continue;
-                        };
-
-                        let raster_scale = self.scale * scale_x.max(scale_y);
-                        let origin_x = (x * self.scale).floor();
-                        let origin_y = (y * self.scale).floor();
-                        let gx = (physical.x as f32 + entry.left as f32) / scale_x.max(scale_y);
-                        let gy = ((run.line_y * raster_scale).floor() + physical.y as f32
-                            - entry.top as f32)
-                            / scale_x.max(scale_y);
-
-                        let u0 = entry.x as f32 / ATLAS_SIZE as f32;
-                        let v0 = entry.y as f32 / ATLAS_SIZE as f32;
-                        let uw = entry.w as f32 / ATLAS_SIZE as f32;
-                        let vh = entry.h as f32 / ATLAS_SIZE as f32;
-
-                        slot.cached_instances.push(GlyphInstance {
-                            position: [gx, gy],
-                            origin: [origin_x, origin_y],
-                            size: [
-                                entry.w as f32 / scale_x.max(scale_y),
-                                entry.h as f32 / scale_x.max(scale_y),
-                            ],
-                            uv: [u0, v0],
-                            uv_size: [uw, vh],
-                            color: glyph
-                                .color_opt
-                                .map(|c| {
-                                    [
-                                        c.r() as f32 / 255.0,
-                                        c.g() as f32 / 255.0,
-                                        c.b() as f32 / 255.0,
-                                        c.a() as f32 / 255.0,
-                                    ]
-                                })
-                                .unwrap_or(color),
-                            transform,
-                            is_color: entry.is_color as u32,
-                            _pad: [0; 3],
-                        });
-                    }
-                }
-
-                slot.text = text.to_string();
-                slot.x = x;
-                slot.y = y;
-                slot.size = size;
-                slot.color = color;
-                slot.rotate = rotate;
-                slot.scale_x = scale_x;
-                slot.scale_y = scale_y;
-                slot.weight = weight;
-                slot.italic = italic;
-                slot.font_family = font_family.clone();
-                slot.spans = spans
-                    .iter()
-                    .map(|s| Span {
-                        start: s.start,
-                        end: s.end,
-                        color: s.color,
-                        background: s.background,
-                        weight: s.weight,
-                        italic: s.italic,
-                        font_family: s.font_family.clone(),
-                    })
-                    .collect();
-                slot.max_width = max_width;
+                cache.update_from(spec);
             }
 
             let start = instances.len() as u32;
-            instances.extend_from_slice(&slot.cached_instances);
-            self.ranges
-                .push((start, slot.cached_instances.len() as u32));
+            instances.extend_from_slice(&cache.glyphs);
+            self.ranges.push((start, cache.glyphs.len() as u32));
+
+            let bg_start = self.bg_rects.len();
+            self.bg_rects.extend_from_slice(&cache.bg_rects);
+            self.bg_ranges.push((bg_start, self.bg_rects.len()));
+
+            let line_start = self.line_rects.len();
+            self.line_rects.extend_from_slice(&cache.line_rects);
+            self.line_ranges.push((line_start, self.line_rects.len()));
         }
 
-        self.count = instances.len() as u32;
-        if instances.is_empty() {
-            return;
-        }
-        if !any_changed {
+        if instances.is_empty() || !any_changed {
             return;
         }
 
@@ -762,7 +987,6 @@ impl TextPipeline {
         }
 
         queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&instances));
-        self.count = instances.len() as u32;
     }
 
     pub fn draw_range<'pass>(&'pass self, pass: &mut wgpu::RenderPass<'pass>, index: usize) {
@@ -777,16 +1001,15 @@ impl TextPipeline {
         pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         pass.draw(0..6, start..start + count);
     }
+}
 
-    pub fn draw<'pass>(&'pass self, pass: &mut wgpu::RenderPass<'pass>) {
-        if self.count == 0 {
-            return;
-        }
-        pass.set_pipeline(&self.pipeline);
-        pass.set_bind_group(0, &self.bind_group, &[]);
-        pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        pass.draw(0..6, 0..self.count);
-    }
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+fn char_to_byte(text: &str, char_idx: usize) -> usize {
+    text.char_indices()
+        .nth(char_idx)
+        .map(|(i, _)| i)
+        .unwrap_or(text.len())
 }
 
 fn is_emoji(c: char) -> bool {

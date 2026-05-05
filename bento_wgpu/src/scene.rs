@@ -34,14 +34,29 @@ impl RectNode {
     }
 }
 
-pub struct Span {
+/// A color applied to a character range. `[start, end, r, g, b, a]`
+/// where start/end are char indices (not byte indices).
+pub type ColorRange = [f32; 6]; // start, end as f32 for uniformity
+pub type DecorationRange = [f32; 6]; // start, end, r, g, b, a
+
+/// A weight applied to a character range.
+pub struct WeightRange {
     pub start: usize,
     pub end: usize,
-    pub color: Option<[f32; 4]>,
-    pub background: Option<[f32; 4]>,
-    pub weight: Option<u16>,
-    pub italic: Option<bool>,
-    pub font_family: Option<String>,
+    pub weight: u16,
+}
+
+/// An italic range.
+pub struct ItalicRange {
+    pub start: usize,
+    pub end: usize,
+}
+
+/// A font family range.
+pub struct FontFamilyRange {
+    pub start: usize,
+    pub end: usize,
+    pub font_family: String,
 }
 
 pub struct TextNode {
@@ -57,8 +72,19 @@ pub struct TextNode {
     pub weight: u16,
     pub italic: bool,
     pub font_family: String,
-    pub spans: Vec<Span>,
     pub max_width: Option<f32>,
+
+    // visual-only ranges (no reshape needed)
+    pub color_ranges: Vec<ColorRange>, // [start, end, r, g, b, a]
+    pub background_ranges: Vec<DecorationRange>, // [start, end, r, g, b, a]
+    pub underline_ranges: Vec<DecorationRange>, // [start, end, r, g, b, a]
+    pub strikethrough_ranges: Vec<DecorationRange>, // [start, end, r, g, b, a]
+
+    // shaping-relevant ranges (reshape needed)
+    pub weight_ranges: Vec<WeightRange>,
+    pub italic_ranges: Vec<ItalicRange>,
+    pub font_family_ranges: Vec<FontFamilyRange>,
+
     pub(crate) slot: usize,
 }
 
@@ -78,8 +104,15 @@ impl TextNode {
             weight: 400,
             italic: false,
             font_family: String::new(),
-            spans: Vec::new(),
             max_width: None,
+
+            color_ranges: Vec::new(),
+            background_ranges: Vec::new(),
+            underline_ranges: Vec::new(),
+            strikethrough_ranges: Vec::new(),
+            weight_ranges: Vec::new(),
+            italic_ranges: Vec::new(),
+            font_family_ranges: Vec::new(),
         }
     }
 }
