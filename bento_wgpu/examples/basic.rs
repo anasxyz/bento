@@ -60,7 +60,7 @@ impl ApplicationHandler for App {
         self.scene.add_rect(rect);
         */
 
-        let mut text = TextNode::new("Enter your name 💁👌🎍😍 Password", 60.0, 60.0, 16.0);
+        let mut text = TextNode::new("In the early 20th century, this person did this and did that", 60.0, 60.0, 16.0);
         text.scale_x = 1.0;
         text.scale_y = 1.0;
         text.weight = 400;
