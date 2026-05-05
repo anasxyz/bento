@@ -1,4 +1,4 @@
-use crate::scene::ColorSpan;
+use crate::scene::Span;
 use bytemuck::{Pod, Zeroable};
 use cosmic_text::{AttrsList, CacheKey, Family, FontSystem, Style as CStyle, SwashCache, Weight};
 use etagere::{Allocation, AtlasAllocator, size2};
@@ -31,7 +31,7 @@ struct TextSlot {
     weight: u16,
     italic: bool,
     font_family: String,
-    color_spans: Vec<ColorSpan>,
+    spans: Vec<Span>,
     max_width: Option<f32>,
     cached_instances: Vec<GlyphInstance>,
 }
@@ -50,7 +50,7 @@ impl TextSlot {
         weight: u16,
         italic: bool,
         font_family: &str,
-        color_spans: &Vec<ColorSpan>,
+        spans: &Vec<Span>,
         max_width: Option<f32>,
     ) -> bool {
         self.text == text
@@ -64,12 +64,17 @@ impl TextSlot {
             && self.weight == weight
             && self.italic == italic
             && self.font_family == font_family
-            && self.color_spans.len() == color_spans.len()
-            && self
-                .color_spans
-                .iter()
-                .zip(color_spans.iter())
-                .all(|(a, b)| a.start == b.start && a.end == b.end && a.color == b.color)
+            && self.spans.len() == spans.len()
+            && self.spans.len() == spans.len()
+            && self.spans.iter().zip(spans.iter()).all(|(a, b)| {
+                a.start == b.start
+                    && a.end == b.end
+                    && a.color == b.color
+                    && a.background == b.background
+                    && a.weight == b.weight
+                    && a.italic == b.italic
+                    && a.font_family == b.font_family
+            })
             && self.max_width == max_width
     }
 }
@@ -458,7 +463,7 @@ impl TextPipeline {
             u16,
             bool,
             String,
-            &Vec<ColorSpan>,
+            &Vec<Span>,
             Option<f32>,
         )],
         font_system: &mut cosmic_text::FontSystem,
@@ -480,7 +485,7 @@ impl TextPipeline {
                 weight: 0,
                 italic: false,
                 font_family: String::new(),
-                color_spans: Vec::new(),
+                spans: Vec::new(),
                 max_width: None,
                 cached_instances: Vec::new(),
             });
@@ -504,7 +509,7 @@ impl TextPipeline {
                 weight,
                 italic,
                 font_family,
-                color_spans,
+                spans,
                 max_width,
             ),
         ) in texts.iter().enumerate()
@@ -528,7 +533,7 @@ impl TextPipeline {
                 weight,
                 italic,
                 font_family,
-                color_spans,
+                spans,
                 max_width,
             ) {
                 any_changed = true;
@@ -550,20 +555,18 @@ impl TextPipeline {
                     a
                 };
 
-                // collect all boundary points
                 let mut boundaries = std::collections::BTreeSet::new();
                 boundaries.insert(0usize);
                 boundaries.insert(text.len());
-                // per char not byte
-                for cs in color_spans.iter() {
+                for s in spans.iter() {
                     let start_byte = text
                         .char_indices()
-                        .nth(cs.start)
+                        .nth(s.start)
                         .map(|(i, _)| i)
                         .unwrap_or(text.len());
                     let end_byte = text
                         .char_indices()
-                        .nth(cs.end)
+                        .nth(s.end)
                         .map(|(i, _)| i)
                         .unwrap_or(text.len());
                     boundaries.insert(start_byte);
@@ -577,7 +580,7 @@ impl TextPipeline {
                 }
 
                 let boundaries: Vec<usize> = boundaries.into_iter().collect();
-                let mut spans: Vec<(&str, Attrs)> = Vec::new();
+                let mut rich_spans: Vec<(&str, Attrs)> = Vec::new();
 
                 for w in boundaries.windows(2) {
                     let (start, end) = (w[0], w[1]);
@@ -590,35 +593,52 @@ impl TextPipeline {
                         base_attrs.clone()
                     } else {
                         let mut a = text_attrs.clone();
-                        for cs in color_spans.iter() {
+                        for s in spans.iter() {
                             let start_byte = text
                                 .char_indices()
-                                .nth(cs.start)
+                                .nth(s.start)
                                 .map(|(i, _)| i)
                                 .unwrap_or(text.len());
                             let end_byte = text
                                 .char_indices()
-                                .nth(cs.end)
+                                .nth(s.end)
                                 .map(|(i, _)| i)
                                 .unwrap_or(text.len());
                             if start_byte <= start && start < end_byte {
-                                a = a.color(cosmic_text::Color::rgba(
-                                    (cs.color[0] * 255.0) as u8,
-                                    (cs.color[1] * 255.0) as u8,
-                                    (cs.color[2] * 255.0) as u8,
-                                    (cs.color[3] * 255.0) as u8,
-                                ));
+                                if let Some(c) = s.color {
+                                    a = a.color(cosmic_text::Color::rgba(
+                                        (c[0] * 255.0) as u8,
+                                        (c[1] * 255.0) as u8,
+                                        (c[2] * 255.0) as u8,
+                                        (c[3] * 255.0) as u8,
+                                    ));
+                                }
+                                if let Some(w) = s.weight {
+                                    a = a.weight(Weight(w));
+                                }
+                                if let Some(it) = s.italic {
+                                    if it {
+                                        a = a.style(CStyle::Italic);
+                                    } else {
+                                        a = a.style(CStyle::Normal);
+                                    }
+                                }
+                                if let Some(ref ff) = s.font_family {
+                                    if !ff.is_empty() {
+                                        a = a.family(Family::Name(ff.as_str()));
+                                    }
+                                }
                                 break;
                             }
                         }
                         a
                     };
-                    spans.push((slice, span_attrs));
+                    rich_spans.push((slice, span_attrs));
                 }
 
                 buffer.set_rich_text(
                     font_system,
-                    spans.into_iter(),
+                    rich_spans.into_iter(),
                     &base_attrs,
                     Shaping::Advanced,
                     None,
@@ -702,12 +722,16 @@ impl TextPipeline {
                 slot.weight = weight;
                 slot.italic = italic;
                 slot.font_family = font_family.clone();
-                slot.color_spans = color_spans
+                slot.spans = spans
                     .iter()
-                    .map(|s| ColorSpan {
+                    .map(|s| Span {
                         start: s.start,
                         end: s.end,
                         color: s.color,
+                        background: s.background,
+                        weight: s.weight,
+                        italic: s.italic,
+                        font_family: s.font_family.clone(),
                     })
                     .collect();
                 slot.max_width = max_width;

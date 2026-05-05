@@ -34,10 +34,14 @@ impl RectNode {
     }
 }
 
-pub struct ColorSpan {
+pub struct Span {
     pub start: usize,
     pub end: usize,
-    pub color: [f32; 4],
+    pub color: Option<[f32; 4]>,
+    pub background: Option<[f32; 4]>,
+    pub weight: Option<u16>,
+    pub italic: Option<bool>,
+    pub font_family: Option<String>,
 }
 
 pub struct TextNode {
@@ -53,8 +57,8 @@ pub struct TextNode {
     pub weight: u16,
     pub italic: bool,
     pub font_family: String,
-    pub color_spans: Vec<ColorSpan>,
-    pub max_width: Option<f32>,  
+    pub spans: Vec<Span>,
+    pub max_width: Option<f32>,
     pub(crate) slot: usize,
 }
 
@@ -74,7 +78,7 @@ impl TextNode {
             weight: 400,
             italic: false,
             font_family: String::new(),
-            color_spans: Vec::new(),
+            spans: Vec::new(),
             max_width: None,
         }
     }

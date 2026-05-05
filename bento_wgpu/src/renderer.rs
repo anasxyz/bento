@@ -5,7 +5,7 @@ use crate::{
         rect::{RectInstance, RectPipeline},
         text::TextPipeline,
     },
-    scene::{ColorSpan, Node, Scene},
+    scene::{Node, Scene, Span},
     surface::Surface,
 };
 use wgpu;
@@ -99,7 +99,7 @@ impl Renderer {
             u16,
             bool,
             String,
-            &Vec<ColorSpan>,
+            &Vec<Span>,
             Option<f32>,
         )> = scene
             .nodes
@@ -120,8 +120,8 @@ impl Renderer {
                         t.weight,
                         t.italic,
                         t.font_family.clone(),
-                        &t.color_spans,
-                        t.max_width, // add this
+                        &t.spans,
+                        t.max_width,
                     ))
                 }
                 _ => None,
