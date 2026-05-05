@@ -4,7 +4,7 @@
 #![allow(unused_mut)]
 
 use bento_wgpu::math::transform;
-use bento_wgpu::{RectInstance, RectNode, RenderContext, Scene, TextNode};
+use bento_wgpu::{RectInstance, RectNode, RenderContext, Scene, TextNode, ColorSpan};
 use cosmic_text::FontSystem;
 use std::sync::Arc;
 use std::time::Instant;
@@ -58,11 +58,12 @@ impl ApplicationHandler for App {
         rect.z = 1;
         self.scene.add_rect(rect);
 
-        let mut text = TextNode::new("Enter your name 💁👌🎍😍 Password", 200.0, 500.0, 12.0);
+        let mut text = TextNode::new("Enter your name 💁👌🎍😍 Password", 200.0, 300.0, 16.0);
         text.scale_x = 1.0;
         text.scale_y = 1.0;
         text.weight = 400;
         text.z = 3;
+        text.color_spans.push(ColorSpan { start: 0, end: 29, color: [1.0, 1.0, 0.0, 1.0] });
         self.scene.add_text(text);
     }
 
