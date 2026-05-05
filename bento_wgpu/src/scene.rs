@@ -54,6 +54,7 @@ pub struct TextNode {
     pub italic: bool,
     pub font_family: String,
     pub color_spans: Vec<ColorSpan>,
+    pub max_width: Option<f32>,  
     pub(crate) slot: usize,
 }
 
@@ -74,6 +75,7 @@ impl TextNode {
             italic: false,
             font_family: String::new(),
             color_spans: Vec::new(),
+            max_width: None,
         }
     }
 }

@@ -1,8 +1,12 @@
 use crate::{
-    TextNode, context::RenderContext, pipelines::{
+    TextNode,
+    context::RenderContext,
+    pipelines::{
         rect::{RectInstance, RectPipeline},
         text::TextPipeline,
-    }, scene::{Node, Scene, ColorSpan}, surface::Surface
+    },
+    scene::{ColorSpan, Node, Scene},
+    surface::Surface,
 };
 use wgpu;
 
@@ -96,6 +100,7 @@ impl Renderer {
             bool,
             String,
             &Vec<ColorSpan>,
+            Option<f32>,
         )> = scene
             .nodes
             .iter_mut()
@@ -116,6 +121,7 @@ impl Renderer {
                         t.italic,
                         t.font_family.clone(),
                         &t.color_spans,
+                        t.max_width, // add this
                     ))
                 }
                 _ => None,

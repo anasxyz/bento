@@ -60,13 +60,14 @@ impl ApplicationHandler for App {
         self.scene.add_rect(rect);
         */
 
-        let mut text = TextNode::new("In the early 20th century, this person did this and did that", 60.0, 60.0, 16.0);
+        let mut text = TextNode::new("Enter your name 💁👌🎍😍 Passwordddddddddddddddddddd", 60.0, 60.0, 16.0);
         text.scale_x = 1.0;
         text.scale_y = 1.0;
         text.weight = 400;
         text.font_family = "Times New Roman".to_string();
+        text.max_width = Some(200.0);
         text.z = 3;
-        text.color_spans.push(ColorSpan { start: 0, end: 29, color: [0.0, 0.0, 0.0, 1.0] });
+        text.color_spans.push(ColorSpan { start: 0, end: text.text.len(), color: [0.0, 0.0, 0.0, 1.0] });
         self.scene.add_text(text);
     }
 
