@@ -41,7 +41,7 @@ pub struct TextSpec<'a> {
     pub font_family: &'a str,
     pub max_width: Option<f32>,
 
-    // visual only 
+    // visual only
     pub color_ranges: &'a [ColorRange],
     pub background_ranges: &'a [DecorationRange],
     pub underline_ranges: &'a [DecorationRange],
@@ -442,7 +442,7 @@ fn shape_and_rasterise(
     buffer
 }
 
-// glyph instance building 
+// glyph instance building
 
 fn build_glyphs(
     buffer: &Buffer,
@@ -518,7 +518,7 @@ fn build_glyphs(
     instances
 }
 
-// decoration building 
+// decoration building
 
 struct DecorationAccum {
     x: f32,
@@ -673,7 +673,7 @@ fn build_decorations(buffer: &Buffer, spec: &TextSpec) -> (Vec<RectInstance>, Ve
     (bg_rects, line_rects)
 }
 
-// text pipeline 
+// text pipeline
 
 pub struct TextPipeline {
     pub atlas: GlyphAtlas,
@@ -917,9 +917,17 @@ impl TextPipeline {
         self.line_rects.clear();
         self.line_ranges.clear();
 
-        for (cache, spec) in self.cache.iter_mut().zip(specs.iter()) {
+        for (i, (cache, spec)) in self.cache.iter_mut().zip(specs.iter()).enumerate() {
             let reshape = cache.needs_reshape(spec);
             let redraw = reshape || cache.needs_redraw(spec);
+
+            if reshape {
+                println!("[text] slot {} reshaping", i);
+            } else if redraw {
+                println!("[text] slot {} redraw only (no reshape)", i);
+            } else {
+                println!("[text] slot {} fully cached, skipping", i);
+            }
 
             if redraw {
                 any_changed = true;

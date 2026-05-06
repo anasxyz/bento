@@ -200,6 +200,9 @@ impl RectPipeline {
         if bytemuck::bytes_of(&self.instances[s]) != bytemuck::bytes_of(&instance) {
             self.instances[s] = instance;
             self.dirty[s] = true;
+            println!("[rect] slot {} marked dirty", slot);
+        } else {
+            println!("[rect] slot {} fully cached, skipping", slot);
         }
     }
 
@@ -229,6 +232,7 @@ impl RectPipeline {
 
         for (i, dirty) in self.dirty.iter_mut().enumerate() {
             if *dirty {
+                println!("[rect] uploading slot {}", i);
                 let offset = (i * std::mem::size_of::<RectInstance>()) as u64;
                 queue.write_buffer(
                     &self.vertex_buffer,
