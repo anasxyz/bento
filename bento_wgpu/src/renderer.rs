@@ -282,6 +282,7 @@ impl Renderer {
                         italic: t.italic,
                         font_family: t.font_family.as_str(),
                         max_width: t.max_width,
+                        line_height: t.line_height,
                         opacity: t.opacity * acc.opacity,
                         clip: final_clip,
 

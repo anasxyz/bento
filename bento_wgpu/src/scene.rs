@@ -182,6 +182,7 @@ pub struct TextNode {
     pub(crate) italic: bool,
     pub(crate) font_family: String,
     pub(crate) max_width: Option<f32>,
+    pub(crate) line_height: Option<f32>,
     pub(crate) opacity: f32,
     pub(crate) clip: Option<[f32; 4]>,
 
@@ -213,6 +214,7 @@ impl TextNode {
             italic: false,
             font_family: String::new(),
             max_width: None,
+            line_height: None,
             opacity: 1.0,
             clip: None,
 
@@ -290,6 +292,14 @@ impl TextNode {
     }
     pub fn no_max_width(&mut self) -> &mut Self {
         self.max_width = None;
+        self
+    }
+    pub fn line_height(&mut self, height: f32) -> &mut Self {
+        self.line_height = Some(height);
+        self
+    }
+    pub fn no_line_height(&mut self) -> &mut Self {
+        self.line_height = None;
         self
     }
     pub fn opacity(&mut self, opacity: f32) -> &mut Self {

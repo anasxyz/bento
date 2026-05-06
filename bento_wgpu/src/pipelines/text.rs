@@ -41,6 +41,7 @@ pub struct TextSpec<'a> {
     pub italic: bool,
     pub font_family: &'a str,
     pub max_width: Option<f32>,
+    pub line_height: Option<f32>,
     pub opacity: f32,
     pub clip: Option<[f32; 4]>,
 
@@ -216,6 +217,7 @@ struct TextCache {
     italic: bool,
     font_family: String,
     max_width: Option<f32>,
+    line_height: Option<f32>,
     opacity: f32,
     clip: Option<[f32; 4]>,
 
@@ -249,6 +251,7 @@ impl TextCache {
             italic: false,
             font_family: String::new(),
             max_width: None,
+            line_height: None,
             opacity: 1.0,
             clip: None,
 
@@ -277,6 +280,7 @@ impl TextCache {
             || self.italic != s.italic
             || self.font_family != s.font_family
             || self.max_width != s.max_width
+            || self.line_height != s.line_height
             || self.weight_ranges.len() != s.weight_ranges.len()
             || self
                 .weight_ranges
@@ -322,6 +326,7 @@ impl TextCache {
         self.italic = s.italic;
         self.font_family = s.font_family.to_string();
         self.max_width = s.max_width;
+        self.line_height = s.line_height;
         self.opacity = s.opacity;
         self.clip = s.clip;
 
@@ -351,7 +356,8 @@ fn shape_and_rasterise(
     queue: &wgpu::Queue,
     scale: f32,
 ) -> Buffer {
-    let mut buffer = Buffer::new(font_system, Metrics::new(spec.size, spec.size * 1.4));
+    let line_height = spec.line_height.unwrap_or(spec.size * 1.4);
+    let mut buffer = Buffer::new(font_system, Metrics::new(spec.size, line_height));
     buffer.set_size(font_system, spec.max_width, None);
 
     let base_attrs = Attrs::new();
