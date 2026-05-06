@@ -15,7 +15,7 @@ pub struct RectInstance {
 pub struct RectPipeline {
     pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
-    transient_buffer: wgpu::Buffer, // separate buffer for transient draws
+    transient_buffer: wgpu::Buffer,
     screen_buffer: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
     capacity: usize,
@@ -247,21 +247,16 @@ impl RectPipeline {
         pass.draw(0..6, slot..slot + 1);
     }
 
-    /// Draw a transient slice of rects that don't need persistent slots.
-    /// Used for text decorations (backgrounds, underlines, strikethroughs).
-    /// Must be called during a render pass. Uploads to a separate buffer
-    /// so it never interferes with the persistent slot buffer.
-    pub fn draw_transient<'pass>(
-        &'pass mut self,
+    /// upload all transient rects before the render pass begins
+    pub fn prepare_transient(
+        &mut self,
         rects: &[RectInstance],
-        queue: &wgpu::Queue,
         device: &wgpu::Device,
-        pass: &mut wgpu::RenderPass<'pass>,
+        queue: &wgpu::Queue,
     ) {
         if rects.is_empty() {
             return;
         }
-
         if rects.len() > self.transient_capacity {
             self.transient_capacity = rects.len().next_power_of_two();
             self.transient_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -271,11 +266,22 @@ impl RectPipeline {
                 mapped_at_creation: false,
             });
         }
-
         queue.write_buffer(&self.transient_buffer, 0, bytemuck::cast_slice(rects));
+    }
+
+    /// draw a range of already uploaded transient rects during a render pass
+    pub fn draw_transient_range<'pass>(
+        &'pass self,
+        pass: &mut wgpu::RenderPass<'pass>,
+        start: u32,
+        count: u32,
+    ) {
+        if count == 0 {
+            return;
+        }
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.bind_group, &[]);
         pass.set_vertex_buffer(0, self.transient_buffer.slice(..));
-        pass.draw(0..6, 0..rects.len() as u32);
+        pass.draw(0..6, start..start + count);
     }
 }

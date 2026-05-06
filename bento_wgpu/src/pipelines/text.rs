@@ -10,8 +10,6 @@ use etagere::{Allocation, AtlasAllocator, size2};
 use std::collections::HashMap;
 use wgpu;
 
-// ─── GPU types ───────────────────────────────────────────────────────────────
-
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct GlyphInstance {
@@ -26,10 +24,9 @@ pub struct GlyphInstance {
     pub _pad: [u32; 3],
 }
 
-// ─── Input type ──────────────────────────────────────────────────────────────
-
-/// Everything needed to draw one piece of text. Constructed by the renderer
-/// from `TextNode` and passed as a slice to `TextPipeline::prepare`.
+// everything needed to draw one piece of text
+// constructed by the renderer
+// from TextNode and passed as a slice to TextPipeline::prepare
 pub struct TextSpec<'a> {
     pub text: &'a str,
     pub x: f32,
@@ -44,19 +41,17 @@ pub struct TextSpec<'a> {
     pub font_family: &'a str,
     pub max_width: Option<f32>,
 
-    // visual-only (no reshape)
+    // visual only 
     pub color_ranges: &'a [ColorRange],
     pub background_ranges: &'a [DecorationRange],
     pub underline_ranges: &'a [DecorationRange],
     pub strikethrough_ranges: &'a [DecorationRange],
 
-    // shaping-relevant
+    // shaping relevant
     pub weight_ranges: &'a [WeightRange],
     pub italic_ranges: &'a [ItalicRange],
     pub font_family_ranges: &'a [FontFamilyRange],
 }
-
-// ─── Glyph atlas ─────────────────────────────────────────────────────────────
 
 const ATLAS_SIZE: u32 = 2048;
 
@@ -119,13 +114,16 @@ impl GlyphAtlas {
         self.view = view;
     }
 
-    /// Look up an already-rasterized glyph. Returns None if not in atlas.
+    // look up an already rasterised glyph
+    // returns none if not in atlas
     pub fn get(&self, key: CacheKey) -> Option<&AtlasEntry> {
         self.entries.get(&key)
     }
 
-    /// Rasterize a glyph and insert it into the atlas. Returns None if the
-    /// glyph has no pixels (e.g. space). Clears and repacks if atlas is full.
+    // rasterise a glyph and insert it into the atlas
+    // returns none if the
+    // glyph has no pixels (for ex space)
+    // clears and repacks if atlas is full
     pub fn insert(
         &mut self,
         key: CacheKey,
@@ -201,10 +199,8 @@ impl GlyphAtlas {
     }
 }
 
-// ─── Per-slot cache ───────────────────────────────────────────────────────────
-
 struct TextCache {
-    // last-seen values for dirty checking
+    // last seen values for dirty checking
     text: String,
     x: f32,
     y: f32,
@@ -218,7 +214,6 @@ struct TextCache {
     font_family: String,
     max_width: Option<f32>,
 
-    // last-seen ranges
     color_ranges: Vec<ColorRange>,
     background_ranges: Vec<DecorationRange>,
     underline_ranges: Vec<DecorationRange>,
@@ -337,9 +332,7 @@ impl TextCache {
     }
 }
 
-// ─── Shaping + rasterization ─────────────────────────────────────────────────
-
-fn shape_and_rasterize(
+fn shape_and_rasterise(
     spec: &TextSpec,
     font_system: &mut cosmic_text::FontSystem,
     atlas: &mut GlyphAtlas,
@@ -362,7 +355,6 @@ fn shape_and_rasterize(
         a
     };
 
-    // collect all byte boundaries from shaping ranges
     let mut boundaries = std::collections::BTreeSet::new();
     boundaries.insert(0usize);
     boundaries.insert(spec.text.len());
@@ -438,7 +430,6 @@ fn shape_and_rasterize(
     );
     buffer.shape_until_scroll(font_system, false);
 
-    // rasterize all glyphs into atlas while we still have font_system
     let raster_scale = scale * spec.scale_x.max(spec.scale_y);
     let subpixel_offset = ((spec.x * scale).fract(), (spec.y * scale).fract());
     for run in buffer.layout_runs() {
@@ -451,7 +442,7 @@ fn shape_and_rasterize(
     buffer
 }
 
-// ─── Glyph instance building ─────────────────────────────────────────────────
+// glyph instance building 
 
 fn build_glyphs(
     buffer: &Buffer,
@@ -484,13 +475,12 @@ fn build_glyphs(
             let gy = ((run.line_y * raster_scale).floor() + physical.y as f32 - entry.top as f32)
                 / spec.scale_x.max(spec.scale_y);
 
-            // find color from color_ranges, fall back to spec.color
             let char_idx = spec.text[..glyph.start].chars().count();
             let color = spec
                 .color_ranges
                 .iter()
-                .find(|r| r[0] as usize <= char_idx && char_idx < r[1] as usize)
-                .map(|r| [r[2], r[3], r[4], r[5]])
+                .find(|r| r.start <= char_idx && char_idx < r.end)
+                .map(|r| r.color)
                 .unwrap_or(spec.color);
 
             instances.push(GlyphInstance {
@@ -528,7 +518,7 @@ fn build_glyphs(
     instances
 }
 
-// ─── Decoration building ──────────────────────────────────────────────────────
+// decoration building 
 
 struct DecorationAccum {
     x: f32,
@@ -557,7 +547,6 @@ impl DecorationAccum {
     }
 }
 
-/// Accumulate or flush a decoration rect when color changes or line changes.
 fn accum_decoration(
     accum: &mut Option<DecorationAccum>,
     color: Option<[f32; 4]>,
@@ -591,8 +580,8 @@ fn accum_decoration(
     }
 }
 
-/// Walk layout runs and produce background rects and line decoration rects.
-/// Returns (bg_rects, line_rects).
+// walk layout runs and produce background rects and line decoration rects
+// returns (bg_rects, line_rects)
 fn build_decorations(buffer: &Buffer, spec: &TextSpec) -> (Vec<RectInstance>, Vec<RectInstance>) {
     let mut bg_rects = Vec::new();
     let mut line_rects = Vec::new();
@@ -608,7 +597,6 @@ fn build_decorations(buffer: &Buffer, spec: &TextSpec) -> (Vec<RectInstance>, Ve
         let ul_y = spec.y + run.line_y + ul_thickness;
         let st_y = spec.y + run.line_y - run.line_height * 0.25;
 
-        // flush accumulators at each new line
         if let Some(a) = bg_accum.take() {
             a.flush(&mut bg_rects);
         }
@@ -627,20 +615,20 @@ fn build_decorations(buffer: &Buffer, spec: &TextSpec) -> (Vec<RectInstance>, Ve
             let bg_color = spec
                 .background_ranges
                 .iter()
-                .find(|r| r[0] as usize <= char_idx && char_idx < r[1] as usize)
-                .map(|r| [r[2], r[3], r[4], r[5]]);
+                .find(|r| r.start <= char_idx && char_idx < r.end)
+                .map(|r| r.color);
 
             let ul_color = spec
                 .underline_ranges
                 .iter()
-                .find(|r| r[0] as usize <= char_idx && char_idx < r[1] as usize)
-                .map(|r| [r[2], r[3], r[4], r[5]]);
+                .find(|r| r.start <= char_idx && char_idx < r.end)
+                .map(|r| r.color);
 
             let st_color = spec
                 .strikethrough_ranges
                 .iter()
-                .find(|r| r[0] as usize <= char_idx && char_idx < r[1] as usize)
-                .map(|r| [r[2], r[3], r[4], r[5]]);
+                .find(|r| r.start <= char_idx && char_idx < r.end)
+                .map(|r| r.color);
 
             accum_decoration(
                 &mut bg_accum,
@@ -671,7 +659,6 @@ fn build_decorations(buffer: &Buffer, spec: &TextSpec) -> (Vec<RectInstance>, Ve
             );
         }
 
-        // flush at end of each line
         if let Some(a) = bg_accum.take() {
             a.flush(&mut bg_rects);
         }
@@ -686,7 +673,7 @@ fn build_decorations(buffer: &Buffer, spec: &TextSpec) -> (Vec<RectInstance>, Ve
     (bg_rects, line_rects)
 }
 
-// ─── Pipeline ────────────────────────────────────────────────────────────────
+// text pipeline 
 
 pub struct TextPipeline {
     pub atlas: GlyphAtlas,
@@ -701,7 +688,6 @@ pub struct TextPipeline {
     cache: Vec<TextCache>,
     scale: f32,
 
-    // decoration rects populated by prepare(), read by renderer
     pub bg_rects: Vec<RectInstance>,
     pub bg_ranges: Vec<(usize, usize)>,
     pub line_rects: Vec<RectInstance>,
@@ -939,7 +925,7 @@ impl TextPipeline {
                 any_changed = true;
 
                 if reshape {
-                    cache.buffer = Some(shape_and_rasterize(
+                    cache.buffer = Some(shape_and_rasterise(
                         spec,
                         font_system,
                         &mut self.atlas,
@@ -1002,8 +988,6 @@ impl TextPipeline {
         pass.draw(0..6, start..start + count);
     }
 }
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 fn char_to_byte(text: &str, char_idx: usize) -> usize {
     text.char_indices()

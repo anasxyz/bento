@@ -61,7 +61,7 @@ impl Renderer {
                 label: Some("frame"),
             });
 
-        // ── prepare rects ────────────────────────────────────────────────────
+        // prepare rects 
 
         for node in &mut scene.nodes {
             if let Node::Rect(r) = node {
@@ -83,7 +83,7 @@ impl Renderer {
         }
         self.rect.upload(&ctx.device, &ctx.queue);
 
-        // ── prepare text ─────────────────────────────────────────────────────
+        // prepare text 
 
         let mut text_slot = 0usize;
         let specs: Vec<TextSpec> = scene
@@ -123,7 +123,16 @@ impl Renderer {
         self.text
             .prepare(&specs, font_system, &ctx.device, &ctx.queue);
 
-        // ── draw ─────────────────────────────────────────────────────────────
+        // upload all decoration rects into transient buffer before pass begins
+        let all_bg_rects: Vec<RectInstance> = self.text.bg_rects.clone();
+        let all_line_rects: Vec<RectInstance> = self.text.line_rects.clone();
+        let mut combined = all_bg_rects.clone();
+        combined.extend_from_slice(&all_line_rects);
+        self.rect
+            .prepare_transient(&combined, &ctx.device, &ctx.queue);
+        let line_offset = all_bg_rects.len() as u32;
+
+        // draw 
 
         let mut sorted: Vec<&Node> = scene.nodes.iter().collect();
         sorted.sort_by_key(|n| match n {
@@ -159,19 +168,26 @@ impl Renderer {
                         self.rect.draw_slot(&mut pass, r.slot);
                     }
                     Node::Text(t) => {
-                        // 1. background rects — behind glyphs
+                        // this is in order of which to be drawn first 
+                        // so backgrounds first, then glyphs, then decorations
+                        
+                        // background rects
                         if let Some(&(start, end)) = self.text.bg_ranges.get(t.slot) {
-                            let rects = self.text.bg_rects[start..end].to_vec();
-                            self.rect
-                                .draw_transient(&rects, &ctx.queue, &ctx.device, &mut pass);
+                            self.rect.draw_transient_range(
+                                &mut pass,
+                                start as u32,
+                                (end - start) as u32,
+                            );
                         }
-                        // 2. glyphs
+                        // glyphs
                         self.text.draw_range(&mut pass, t.slot);
-                        // 3. line decorations — in front of glyphs
+                        // line decorations
                         if let Some(&(start, end)) = self.text.line_ranges.get(t.slot) {
-                            let rects = self.text.line_rects[start..end].to_vec();
-                            self.rect
-                                .draw_transient(&rects, &ctx.queue, &ctx.device, &mut pass);
+                            self.rect.draw_transient_range(
+                                &mut pass,
+                                line_offset + start as u32,
+                                (end - start) as u32,
+                            );
                         }
                     }
                 }

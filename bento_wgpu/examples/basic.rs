@@ -3,11 +3,9 @@
 #![allow(unused_imports)]
 #![allow(unused_mut)]
 
-use bento_wgpu::math::transform;
-use bento_wgpu::{RectInstance, RectNode, RenderContext, Scene, Span, TextNode};
+use bento_wgpu::{RectNode, RenderContext, Scene, TextNode};
 use cosmic_text::FontSystem;
 use std::sync::Arc;
-use std::time::Instant;
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -21,7 +19,7 @@ struct App {
     surface: Option<bento_wgpu::Surface<'static>>,
     renderer: Option<bento_wgpu::Renderer>,
     scene: Scene,
-    font_system: cosmic_text::FontSystem,
+    font_system: FontSystem,
 }
 
 impl ApplicationHandler for App {
@@ -48,39 +46,29 @@ impl ApplicationHandler for App {
         self.renderer = Some(renderer);
 
         let mut rect = RectNode::new(60.0, 20.0, 200.0, 100.0);
-        rect.color = [0.2, 0.5, 1.0, 1.0];
-        rect.radii = [0.0; 4];
-        rect.border_color = [0.0, 0.0, 0.0, 1.0];
-        rect.border_widths = [3.0; 4];
-        // rect.radii = [14.0; 4];
-        // rect.scale_x = 5.0;
-        // rect.scale_y = 5.0;
-        rect.z = 1;
+        rect.color([0.2, 0.5, 1.0, 1.0])
+            .radius(8.0)
+            .border([0.0, 0.0, 0.0, 1.0], [2.0; 4])
+            .z(1);
         self.scene.add_rect(rect);
 
         let mut text = TextNode::new(
-            "Enter your name 💁👌🎍😍 Passwordddddddddddddddddddd",
+            "In the early 20th century 💁👌🎍😍, this person did this and did that",
             60.0,
-            120.0,
+            160.0,
             16.0,
         );
-        text.scale_x = 1.0;
-        text.scale_y = 1.0;
-        text.weight = 400;
-        text.font_family = "Times New Roman".to_string();
-        text.max_width = Some(200.0);
-        text.z = 3;
-        text.spans.push(Span {
-            start: 0,
-            end: 3,
-            color: Some([0.0, 0.0, 0.0, 1.0]),
-            background: None,
-            weight: None,
-            italic: None,
-            font_family: None,
-            underline: None,
-            strikethrough: Some(true),
-        });
+        text.color([0.0, 0.0, 0.0, 1.0])
+            .font_family("Times New Roman")
+            .max_width(300.0)
+            .z(2);
+        text.add_color(7, 23, [0.8, 0.1, 0.1, 1.0]);
+        text.add_background(25, 36, [0.2, 0.5, 1.0, 0.3]);
+        text.add_underline(37, 45, [0.0, 0.0, 0.0, 1.0]);
+        text.add_strikethrough(50, 58, [0.8, 0.1, 0.1, 1.0]);
+        text.add_weight(7, 12, 700);
+        text.add_italic(13, 25);
+
         self.scene.add_text(text);
     }
 
@@ -96,7 +84,7 @@ impl ApplicationHandler for App {
                     &mut self.ctx,
                     &mut self.font_system,
                     surface,
-                    [0.2, 0.2, 0.2, 1.0],
+                    [1.0, 1.0, 1.0, 1.0],
                     &mut self.scene,
                 );
             }
@@ -124,12 +112,12 @@ fn main() {
     let event_loop = EventLoop::new().unwrap();
     event_loop
         .run_app(&mut App {
-            ctx: ctx,
+            ctx,
             window: None,
             surface: None,
             renderer: None,
             scene: Scene::new(),
-            font_system: cosmic_text::FontSystem::new(),
+            font_system,
         })
         .unwrap();
 }
