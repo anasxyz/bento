@@ -3,7 +3,7 @@
 #![allow(unused_imports)]
 #![allow(unused_mut)]
 
-use bento_wgpu::{RectNode, RenderContext, Scene, TextNode, GroupNode};
+use bento_wgpu::{GroupNode, RectNode, RenderContext, Scene, TextNode};
 use cosmic_text::FontSystem;
 use std::sync::Arc;
 use winit::{
@@ -45,18 +45,21 @@ impl ApplicationHandler for App {
         self.surface = Some(surface);
         self.renderer = Some(renderer);
 
-        let mut group = GroupNode::new();
-        group.pos(100.0, 100.0).opacity(0.5);
-
-        let mut rect = RectNode::new(0.0, 0.0, 200.0, 100.0);
+        let mut scroll_area = GroupNode::new();
+        scroll_area.pos(0.0, 0.0).clip(0.0, 0.0, 300.0, 200.0);
+        let mut rect = RectNode::new(0.0, 0.0, 300.0, 200.0);
         rect.color([0.2, 0.5, 1.0, 1.0]);
-        group.add_rect(rect);
+        scroll_area.add_rect(rect);
+
+        let mut content = GroupNode::new();
+        content.pos(0.0, 188.0);
 
         let mut text = TextNode::new("hello", 0.0, 0.0, 16.0);
         text.color([0.0, 0.0, 0.0, 1.0]);
-        group.add_text(text);
+        content.add_text(text);
 
-        self.scene.add_group(group);
+        scroll_area.add_group(content);
+        self.scene.add_group(scroll_area);
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {

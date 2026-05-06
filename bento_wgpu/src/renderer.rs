@@ -9,7 +9,7 @@ use crate::{
 };
 use wgpu;
 
-// accumulated group state 
+// accumulated group state
 
 struct Accumulated {
     x: f32,
@@ -35,6 +35,10 @@ impl Accumulated {
     }
 
     fn combine_with_group(&self, g: &GroupNode) -> Self {
+        let g_clip_offset = g
+            .clip
+            .map(|c| [c[0] + self.x + g.x, c[1] + self.y + g.y, c[2], c[3]]);
+
         Self {
             x: self.x + g.x,
             y: self.y + g.y,
@@ -42,7 +46,7 @@ impl Accumulated {
             scale_x: self.scale_x * g.scale_x,
             scale_y: self.scale_y * g.scale_y,
             opacity: self.opacity * g.opacity.unwrap_or(1.0),
-            clip: merge_clip(self.clip, g.clip),
+            clip: merge_clip(self.clip, g_clip_offset),
         }
     }
 }
@@ -69,7 +73,7 @@ fn scale_clip(clip: Option<[f32; 4]>, scale: f32) -> [f32; 4] {
         .unwrap_or([0.0, 0.0, f32::MAX, f32::MAX])
 }
 
-// renderer 
+// renderer
 
 pub struct Renderer {
     rect: RectPipeline,
@@ -123,7 +127,7 @@ impl Renderer {
                 label: Some("frame"),
             });
 
-        // traverse scene 
+        // traverse scene
 
         let mut specs: Vec<TextSpec> = Vec::new();
         let mut text_slot: usize = 0;
@@ -149,7 +153,7 @@ impl Renderer {
             .prepare_transient(&combined, &ctx.device, &ctx.queue);
         let line_offset = all_bg_rects.len() as u32;
 
-        // draw 
+        // draw
 
         let [r, g, b, a] = clear_color;
         {
@@ -207,7 +211,8 @@ impl Renderer {
                     if r.slot == u32::MAX {
                         r.slot = rect.alloc_slot();
                     }
-                    let final_clip = merge_clip(acc.clip, r.clip);
+                    let r_clip_offset = r.clip.map(|c| [c[0] + acc.x, c[1] + acc.y, c[2], c[3]]);
+                    let final_clip = merge_clip(acc.clip, r_clip_offset);
                     rect.write_slot(
                         r.slot,
                         RectInstance {
@@ -239,7 +244,8 @@ impl Renderer {
                 Node::Text(t) => {
                     t.slot = *text_slot;
                     *text_slot += 1;
-                    let final_clip = merge_clip(acc.clip, t.clip);
+                    let t_clip_offset = t.clip.map(|c| [c[0] + acc.x, c[1] + acc.y, c[2], c[3]]);
+                    let final_clip = merge_clip(acc.clip, t_clip_offset);
                     specs.push(TextSpec {
                         text: t.text.as_str(),
                         x: t.x + acc.x,
@@ -273,7 +279,6 @@ impl Renderer {
             }
         }
     }
-
 
     // draws all nodes recursively in traversal order
     fn draw_nodes<'pass>(
