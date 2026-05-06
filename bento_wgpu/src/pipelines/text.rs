@@ -627,6 +627,7 @@ fn build_decorations(buffer: &Buffer, spec: &TextSpec) -> (Vec<RectInstance>, Ve
             let bg_color = spec
                 .background_ranges
                 .iter()
+                .rev()
                 .find(|r| r.start <= char_idx && char_idx < r.end)
                 .map(|r| r.color);
 

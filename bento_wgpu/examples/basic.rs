@@ -45,13 +45,6 @@ impl ApplicationHandler for App {
         self.surface = Some(surface);
         self.renderer = Some(renderer);
 
-        let mut rect = RectNode::new(60.0, 20.0, 200.0, 100.0);
-        rect.color([0.2, 0.5, 1.0, 1.0])
-            .radius(8.0)
-            .border([0.0, 0.0, 0.0, 1.0], [2.0; 4])
-            .z(1);
-        self.scene.add_rect(rect);
-
         let mut text = TextNode::new(
             "In the early 20th century 💁👌🎍😍, this person did this and did that",
             60.0,
@@ -62,8 +55,8 @@ impl ApplicationHandler for App {
             .font_family("Times New Roman")
             .max_width(300.0)
             .z(2);
-        text.opacity(0.8);
         text.add_color(7, 23, [0.8, 0.1, 0.1, 1.0]);
+        text.add_background(20, 45, [1.0, 1.0, 0.0, 1.0]);
         text.add_background(25, 36, [0.2, 0.5, 1.0, 0.3]);
         text.add_underline(37, 45, [0.0, 0.0, 0.0, 1.0]);
         text.add_strikethrough(50, 58, [0.8, 0.1, 0.1, 1.0]);
