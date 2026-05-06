@@ -3,7 +3,7 @@
 #![allow(unused_imports)]
 #![allow(unused_mut)]
 
-use bento_wgpu::{RectNode, RenderContext, Scene, TextNode};
+use bento_wgpu::{RectNode, RenderContext, Scene, TextNode, GroupNode};
 use cosmic_text::FontSystem;
 use std::sync::Arc;
 use winit::{
@@ -45,33 +45,18 @@ impl ApplicationHandler for App {
         self.surface = Some(surface);
         self.renderer = Some(renderer);
 
-        let mut rect = RectNode::new(60.0, 20.0, 200.0, 100.0);
-        rect.color([0.2, 0.5, 1.0, 1.0])
-            .radius(8.0)
-            .border([0.0, 0.0, 0.0, 1.0], [2.0; 4])
-            .z(1);
-        rect.clip([60.0, 20.0, 100.0, 100.0]);
-        self.scene.add_rect(rect);
+        let mut group = GroupNode::new();
+        group.pos(100.0, 100.0).opacity(0.5);
 
-        let mut text = TextNode::new(
-            "In the early 20th century 💁👌🎍😍, this person did this and did that",
-            60.0,
-            60.0,
-            16.0,
-        );
-        text.color([0.0, 0.0, 0.0, 1.0])
-            .font_family("Times New Roman")
-            .max_width(300.0)
-            .z(2);
-        text.add_color(7, 23, [0.8, 0.1, 0.1, 1.0]);
-        text.add_background(25, 36, [0.2, 0.5, 1.0, 0.3]);
-        text.add_background(20, 45, [0.0, 1.0, 1.0, 0.3]);
-        text.add_underline(37, 45, [0.0, 0.0, 0.0, 1.0]);
-        text.add_strikethrough(50, 58, [0.8, 0.1, 0.1, 1.0]);
-        text.add_weight(7, 12, 700);
-        text.add_italic(13, 25);
+        let mut rect = RectNode::new(0.0, 0.0, 200.0, 100.0);
+        rect.color([0.2, 0.5, 1.0, 1.0]);
+        group.add_rect(rect);
 
-        self.scene.add_text(text);
+        let mut text = TextNode::new("hello", 0.0, 0.0, 16.0);
+        text.color([0.0, 0.0, 0.0, 1.0]);
+        group.add_text(text);
+
+        self.scene.add_group(group);
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {

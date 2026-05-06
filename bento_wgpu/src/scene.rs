@@ -388,9 +388,102 @@ impl TextNode {
     }
 }
 
+pub struct GroupNode {
+    pub(crate) x: f32,
+    pub(crate) y: f32,
+    pub(crate) rotate: f32,
+    pub(crate) scale_x: f32,
+    pub(crate) scale_y: f32,
+    pub(crate) opacity: Option<f32>,
+    pub(crate) clip: Option<[f32; 4]>,
+    pub(crate) z: i32,
+    pub children: Vec<Node>,
+}
+
+impl GroupNode {
+    pub fn new() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            rotate: 0.0,
+            scale_x: 1.0,
+            scale_y: 1.0,
+            opacity: None,
+            clip: None,
+            z: 1,
+            children: Vec::new(),
+        }
+    }
+
+    pub fn x(&mut self, x: f32) -> &mut Self {
+        self.x = x;
+        self
+    }
+    pub fn y(&mut self, y: f32) -> &mut Self {
+        self.y = y;
+        self
+    }
+    pub fn pos(&mut self, x: f32, y: f32) -> &mut Self {
+        self.x = x;
+        self.y = y;
+        self
+    }
+    pub fn rotate(&mut self, angle: f32) -> &mut Self {
+        self.rotate = angle;
+        self
+    }
+    pub fn scale(&mut self, x: f32, y: f32) -> &mut Self {
+        self.scale_x = x;
+        self.scale_y = y;
+        self
+    }
+    pub fn scale_x(&mut self, x: f32) -> &mut Self {
+        self.scale_x = x;
+        self
+    }
+    pub fn scale_y(&mut self, y: f32) -> &mut Self {
+        self.scale_y = y;
+        self
+    }
+    pub fn opacity(&mut self, opacity: f32) -> &mut Self {
+        self.opacity = Some(opacity);
+        self
+    }
+    pub fn no_opacity(&mut self) -> &mut Self {
+        self.opacity = None;
+        self
+    }
+    pub fn clip(&mut self, x: f32, y: f32, w: f32, h: f32) -> &mut Self {
+        self.clip = Some([x, y, w, h]);
+        self
+    }
+    pub fn no_clip(&mut self) -> &mut Self {
+        self.clip = None;
+        self
+    }
+    pub fn z(&mut self, z: i32) -> &mut Self {
+        self.z = z;
+        self
+    }
+
+    pub fn add_rect(&mut self, rect: RectNode) -> &mut Self {
+        self.children.push(Node::Rect(rect));
+        self
+    }
+    pub fn add_text(&mut self, text: TextNode) -> &mut Self {
+        self.children.push(Node::Text(text));
+        self
+    }
+    pub fn add_group(&mut self, group: GroupNode) -> &mut Self {
+        self.children.push(Node::Group(group));
+        self
+    }
+}
+
 pub enum Node {
     Rect(RectNode),
     Text(TextNode),
+    Group(GroupNode),
 }
 
 pub struct Scene {
@@ -408,5 +501,10 @@ impl Scene {
 
     pub fn add_text(&mut self, text: TextNode) {
         self.nodes.push(Node::Text(text));
+    }
+
+    pub fn add_group(&mut self, group: GroupNode) -> &mut Self {
+        self.nodes.push(Node::Group(group));
+        self
     }
 }
