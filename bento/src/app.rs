@@ -10,9 +10,9 @@ use winit::{
 };
 
 use crate::{
+    fonts::Fonts,
     ui::Ui,
     window::{WindowConfig, WindowInstance},
-    fonts::Fonts,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -90,9 +90,16 @@ impl Default for App {
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        /*
+        *  tokio later if needed
+        *
+        *  if self.ctx.is_none() {
+        *      let rt = tokio::runtime::Runtime::new().expect("tokio runtime");
+        *      self.ctx = Some(rt.block_on(RenderContext::new()));
+        *  }
+        */
         if self.ctx.is_none() {
-            let rt = tokio::runtime::Runtime::new().expect("tokio runtime");
-            self.ctx = Some(rt.block_on(RenderContext::new()));
+            self.ctx = Some(pollster::block_on(RenderContext::new()));
         }
 
         for (handle, config, ui) in std::mem::take(&mut self.pending) {
@@ -108,15 +115,7 @@ impl ApplicationHandler for App {
         };
 
         match event {
-            WindowEvent::RedrawRequested => {
-                let clear = win.config.clear_color.to_array();
-                let ctx = self.ctx.as_mut().unwrap();
-                win.renderer.render(
-                    ctx,
-                    &mut win.surface,
-                    clear,
-                );
-            }
+            WindowEvent::RedrawRequested => {}
 
             WindowEvent::CursorMoved { position, .. } => {}
 
