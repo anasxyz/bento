@@ -23,7 +23,10 @@ impl<'window> Surface<'window> {
     ) -> Self {
         let surface = ctx.instance.create_surface(window).unwrap();
         let caps    = surface.get_capabilities(&ctx.adapter);
-        let format  = caps.formats[0];
+        let format = caps.formats.iter()
+            .find(|f| **f == wgpu::TextureFormat::Rgba8UnormSrgb)
+            .copied()
+            .unwrap_or(caps.formats[0]);
 
         // skould prefer PreMultiplied if supported for correct compositing
         let alpha_mode = if caps.alpha_modes.contains(&wgpu::CompositeAlphaMode::PreMultiplied) {

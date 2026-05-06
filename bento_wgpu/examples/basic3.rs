@@ -45,31 +45,63 @@ impl ApplicationHandler for App {
         self.surface = Some(surface);
         self.renderer = Some(renderer);
 
-        if let Some(renderer) = &mut self.renderer {
-            let img = image::open("/home/anas/Claude-logo.jpeg")
-                .unwrap()
-                .to_rgba8();
-            let (w, h) = img.dimensions();
-            renderer.upload_image(1, &img, w, h, &self.ctx);
-        }
+        let mut text = TextNode::new(
+            "The quick brown fox jumps over the lazy dog and then some more words follow here",
+            60.0,
+            60.0,
+            20.0,
+        );
+        text.color([0.3, 0.3, 0.3, 1.0])
+            .font_family("Times New Roman")
+            .max_width(350.0)
+            .z(1);
 
-        let mut group = GroupNode::new();
-        group.pos(60.0, 200.0).clip(0.0, 0.0, 200.0, 200.0);
-        let mut rect = RectNode::new(0.0, 0.0, 200.0, 200.0);
-        rect.pos(60.0, 200.0).color([0.2, 0.5, 1.0, 1.0]);
-        self.scene.add_rect(rect);
+        // red + bold on "quick"
+        text.add_color(4, 9, [0.8, 0.1, 0.1, 1.0]);
+        text.add_weight(4, 9, 700);
 
-        let mut img_node = ImageNode::new(0.0, 0.0, 200.0, 200.0, 1);
-        img_node
-            .radius(8.0)
-            .border([0.0, 0.0, 0.0, 1.0], [3.0, 3.0, 3.0, 3.0]);
-        group.add_image(img_node);
+        // blue background + italic on "brown fox"
+        text.add_background(10, 19, [0.2, 0.5, 1.0, 0.3]);
+        text.add_italic(10, 19);
 
-        let mut text = TextNode::new("This world", 60.0, 60.0, 18.0);
-        text.color([0.0, 0.0, 0.0, 1.0]).max_width(400.0).z(1000);
+        // yellow background + underline on "jumps over"
+        text.add_background(20, 30, [1.0, 0.85, 0.0, 0.4]);
+        text.add_underline(20, 30, [0.8, 0.6, 0.0, 1.0]);
+
+        // green + bold + italic on "the lazy"
+        text.add_color(31, 39, [0.1, 0.6, 0.2, 1.0]);
+        text.add_weight(31, 39, 700);
+        text.add_italic(31, 39);
+
+        // red background + white text + strikethrough on "dog"
+        text.add_background(40, 43, [0.8, 0.1, 0.1, 1.0]);
+        text.add_color(40, 43, [1.0, 1.0, 1.0, 1.0]);
+        text.add_strikethrough(40, 43, [1.0, 1.0, 1.0, 1.0]);
+
+        // different font + underline on "and then"
+        text.add_font_family(44, 52, "Georgia");
+        text.add_underline(44, 52, [0.4, 0.0, 0.8, 1.0]);
+
+        // heavy weight + color on "some more"
+        text.add_weight(53, 62, 900);
+        text.add_color(53, 62, [0.9, 0.4, 0.0, 1.0]);
+
+        // overlapping background ranges — blue under orange
+        text.add_background(58, 70, [0.2, 0.5, 1.0, 0.2]);
+        text.add_background(65, 75, [1.0, 0.5, 0.0, 0.3]);
+
+        // underline + strikethrough on same range "words"
+        text.add_underline(69, 74, [0.0, 0.0, 0.0, 1.0]);
+        text.add_strikethrough(69, 74, [0.8, 0.0, 0.0, 0.8]);
+
+        // fade out the end with opacity handled at node level
+        // last section bold + italic + colored
+        text.add_weight(75, 82, 700);
+        text.add_italic(75, 82);
+        text.add_color(75, 82, [0.5, 0.0, 0.8, 1.0]);
+        text.add_underline(75, 82, [0.5, 0.0, 0.8, 1.0]);
+
         self.scene.add_text(text);
-
-        self.scene.add_group(group);
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
@@ -121,3 +153,4 @@ fn main() {
         })
         .unwrap();
 }
+

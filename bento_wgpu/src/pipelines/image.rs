@@ -1,27 +1,106 @@
 use bytemuck::{Pod, Zeroable};
 use std::collections::HashMap;
-use std::mem;
 use wgpu;
 
-use crate::nodes::ImageKey;
-
-struct CachedImage {
-    #[allow(dead_code)]
-    texture: wgpu::Texture,
-    #[allow(dead_code)]
-    view: wgpu::TextureView,
-    bind_group: wgpu::BindGroup,
+#[repr(C)]
+#[derive(Copy, Clone, Pod, Zeroable)]
+pub struct ImageInstance {
+    pub pos_size: [f32; 4],
+    pub radii: [f32; 4],
+    pub border_color: [f32; 4],
+    pub border_widths: [f32; 4],
+    pub transform: [f32; 4],
+    pub clip: [f32; 4],
+    pub opacity: f32,
+    pub _pad: [f32; 3],
 }
 
-pub struct ImageCache {
-    entries: HashMap<ImageKey, CachedImage>,
+pub struct ImagePipeline {
+    pipeline: wgpu::RenderPipeline,
+    screen_buffer: wgpu::Buffer,
     bind_group_layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
+    screen_bind_group_layout: wgpu::BindGroupLayout,
+    screen_bind_group: wgpu::BindGroup,
+    vertex_buffer: wgpu::Buffer,
+    capacity: usize,
+    textures: HashMap<u64, (wgpu::Texture, wgpu::TextureView, wgpu::BindGroup)>,
+    instances: Vec<ImageInstance>,
+    dirty: Vec<bool>,
+    // slot -> image_id
+    image_ids: Vec<u64>,
+    next_slot: usize,
 }
 
-impl ImageCache {
-    pub fn new(device: &wgpu::Device) -> Self {
-        let bind_group_layout = Self::make_bgl(device);
+impl ImagePipeline {
+    pub fn new(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        format: wgpu::TextureFormat,
+        screen_w: f32,
+        screen_h: f32,
+        scale: f32,
+    ) -> Self {
+        let screen_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("image screen uniform"),
+            size: 8,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        queue.write_buffer(
+            &screen_buffer,
+            0,
+            bytemuck::cast_slice(&[screen_w, screen_h]),
+        );
+
+        // layout for screen uniform
+        let screen_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("image screen bgl"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+
+        let screen_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("image screen bind group"),
+            layout: &screen_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: screen_buffer.as_entire_binding(),
+            }],
+        });
+
+        // layout for per image texture + sampler
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("image texture bgl"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
+        });
+
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("image sampler"),
             address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -31,31 +110,129 @@ impl ImageCache {
             mipmap_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
+
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("image shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/image.wgsl").into()),
+        });
+
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("image pipeline layout"),
+            bind_group_layouts: &[&screen_bind_group_layout, &bind_group_layout],
+            push_constant_ranges: &[],
+        });
+
+        let vertex_layout = wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<ImageInstance>() as u64,
+            step_mode: wgpu::VertexStepMode::Instance,
+            attributes: &[
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 0,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: 16,
+                    shader_location: 1,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: 32,
+                    shader_location: 2,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: 48,
+                    shader_location: 3,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: 64,
+                    shader_location: 4,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: 80,
+                    shader_location: 5,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: 96,
+                    shader_location: 6,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+            ],
+        };
+
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("image pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_main"),
+                buffers: &[vertex_layout],
+                compilation_options: Default::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format,
+                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: Default::default(),
+            }),
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+            cache: None,
+        });
+
+        let capacity = 64;
+        let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("image vertex buffer"),
+            size: (capacity * std::mem::size_of::<ImageInstance>()) as u64,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
         Self {
-            entries: HashMap::new(),
+            pipeline,
+            screen_buffer,
             bind_group_layout,
             sampler,
+            screen_bind_group_layout,
+            screen_bind_group,
+            vertex_buffer,
+            capacity,
+            textures: HashMap::new(),
+            instances: Vec::new(),
+            dirty: Vec::new(),
+            image_ids: Vec::new(),
+            next_slot: 0,
         }
     }
 
-    pub fn upload(
+    pub fn resize(&mut self, queue: &wgpu::Queue, width: f32, height: f32, scale: f32) {
+        queue.write_buffer(
+            &self.screen_buffer,
+            0,
+            bytemuck::cast_slice(&[width, height]),
+        );
+    }
+
+    // upload or replace a texture by image_id
+    pub fn upload_image(
         &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        key: ImageKey,
-        rgba: &[u8],
+        id: u64,
+        bytes: &[u8],
         width: u32,
         height: u32,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
     ) {
-        if self.entries.contains_key(&key) {
-            return;
-        }
-        assert_eq!(
-            rgba.len() as u32,
-            width * height * 4,
-            "rgba length mismatch"
-        );
-
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("image texture"),
             size: wgpu::Extent3d {
@@ -70,6 +247,7 @@ impl ImageCache {
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         });
+
         queue.write_texture(
             wgpu::TexelCopyTextureInfo {
                 texture: &texture,
@@ -77,11 +255,11 @@ impl ImageCache {
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
-            rgba,
+            bytes,
             wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(width * 4),
-                rows_per_image: Some(height),
+                rows_per_image: None,
             },
             wgpu::Extent3d {
                 width,
@@ -89,9 +267,10 @@ impl ImageCache {
                 depth_or_array_layers: 1,
             },
         );
+
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("image bind group"),
+            label: Some("image texture bind group"),
             layout: &self.bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
@@ -99,337 +278,93 @@ impl ImageCache {
                     resource: wgpu::BindingResource::TextureView(&view),
                 },
                 wgpu::BindGroupEntry {
-                    binding: 1,
+                    binding: 2,
                     resource: wgpu::BindingResource::Sampler(&self.sampler),
                 },
             ],
         });
-        self.entries.insert(
-            key,
-            CachedImage {
-                texture,
-                view,
-                bind_group,
-            },
-        );
+
+        self.textures.insert(id, (texture, view, bind_group));
     }
 
-    pub fn free(&mut self, key: ImageKey) {
-        self.entries.remove(&key);
-    }
-
-    pub fn bind_group_of(&self, key: ImageKey) -> Option<&wgpu::BindGroup> {
-        self.entries.get(&key).map(|e| &e.bind_group)
-    }
-
-    pub fn bind_group_layout(&self) -> &wgpu::BindGroupLayout {
-        &self.bind_group_layout
-    }
-
-    fn make_bgl(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("image bgl"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        multisampled: false,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-            ],
-        })
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, Debug, Pod, Zeroable)]
-struct Instance {
-    pos_size: [f32; 4],
-    uv: [f32; 4],
-    tint: [f32; 4],
-    clip: [f32; 4],
-    params: [f32; 4],
-}
-
-const INSTANCE_SIZE: usize = mem::size_of::<Instance>();
-const INITIAL_CAPACITY: usize = 64;
-
-const INSTANCE_ATTRS: &[wgpu::VertexAttribute] = &[
-    wgpu::VertexAttribute {
-        offset: 0,
-        shader_location: 0,
-        format: wgpu::VertexFormat::Float32x4,
-    },
-    wgpu::VertexAttribute {
-        offset: 16,
-        shader_location: 1,
-        format: wgpu::VertexFormat::Float32x4,
-    },
-    wgpu::VertexAttribute {
-        offset: 32,
-        shader_location: 2,
-        format: wgpu::VertexFormat::Float32x4,
-    },
-    wgpu::VertexAttribute {
-        offset: 48,
-        shader_location: 3,
-        format: wgpu::VertexFormat::Float32x4,
-    },
-    wgpu::VertexAttribute {
-        offset: 64,
-        shader_location: 4,
-        format: wgpu::VertexFormat::Float32x4,
-    },
-];
-
-pub struct ImageCall {
-    pub x: f32,
-    pub y: f32,
-    pub w: f32,
-    pub h: f32,
-    pub uv: [f32; 4],
-    pub tint: [f32; 4],
-    pub radius: f32,
-    pub image_key: ImageKey,
-    pub clip: Option<[f32; 4]>,
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, Pod, Zeroable)]
-struct ScreenUniform {
-    size: [f32; 2],
-    _pad: [f32; 2],
-}
-
-pub struct ImagePipeline {
-    pipeline: wgpu::RenderPipeline,
-    screen_uniform: wgpu::Buffer,
-    screen_bg: wgpu::BindGroup,
-    instance_buffer: wgpu::Buffer,
-    instance_cap: usize,
-    staged: Vec<Instance>,
-    screen_w: f32,
-    screen_h: f32,
-}
-
-impl ImagePipeline {
-    pub fn new(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        format: wgpu::TextureFormat,
-        screen_w: f32,
-        screen_h: f32,
-        cache: &ImageCache,
-    ) -> Self {
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("bento_wgpu::image shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/image.wgsl").into()),
+    pub fn alloc_slot(&mut self) -> usize {
+        let slot = self.next_slot;
+        self.next_slot += 1;
+        self.instances.push(ImageInstance {
+            pos_size: [0.0; 4],
+            radii: [0.0; 4],
+            border_color: [0.0; 4],
+            border_widths: [0.0; 4],
+            transform: [1.0, 0.0, 0.0, 1.0],
+            clip: [0.0, 0.0, f32::MAX, f32::MAX],
+            opacity: 1.0,
+            _pad: [0.0; 3],
         });
-
-        let screen_uniform = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("image screen uniform"),
-            size: mem::size_of::<ScreenUniform>() as u64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
-        let screen_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("image screen bgl"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            }],
-        });
-
-        let screen_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("image screen bg"),
-            layout: &screen_bgl,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: screen_uniform.as_entire_binding(),
-            }],
-        });
-
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("image pipeline layout"),
-            bind_group_layouts: &[&screen_bgl, cache.bind_group_layout()],
-            push_constant_ranges: &[],
-        });
-
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("bento_wgpu::image pipeline"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vs_main"),
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-                buffers: &[wgpu::VertexBufferLayout {
-                    array_stride: INSTANCE_SIZE as wgpu::BufferAddress,
-                    step_mode: wgpu::VertexStepMode::Instance,
-                    attributes: INSTANCE_ATTRS,
-                }],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fs_main"),
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                ..Default::default()
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-            cache: None,
-        });
-
-        let instance_buffer = Self::make_buffer(device, INITIAL_CAPACITY);
-
-        let mut s = Self {
-            pipeline,
-            screen_uniform,
-            screen_bg,
-            instance_buffer,
-            instance_cap: INITIAL_CAPACITY,
-            staged: Vec::new(),
-            screen_w,
-            screen_h,
-        };
-        s.write_screen(queue);
-        s
+        self.dirty.push(true);
+        self.image_ids.push(0);
+        slot
     }
 
-    pub fn begin_frame(&mut self) {
-        self.staged.clear();
+    pub fn write_slot(&mut self, slot: usize, instance: ImageInstance, image_id: u64) {
+        if bytemuck::bytes_of(&self.instances[slot]) != bytemuck::bytes_of(&instance)
+            || self.image_ids[slot] != image_id
+        {
+            self.instances[slot] = instance;
+            self.image_ids[slot] = image_id;
+            self.dirty[slot] = true;
+            println!("[image] slot {} marked dirty", slot);
+        } else {
+            println!("[image] slot {} fully cached, skipping", slot);
+        }
     }
 
-    pub fn prepare_layer(&mut self, calls: &[ImageCall], scale: f32) -> Vec<(u32, u32, ImageKey)> {
-        if calls.is_empty() {
-            return vec![];
+    pub fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
+        if self.instances.is_empty() {
+            return;
         }
 
-        let base = self.staged.len() as u32;
-
-        for c in calls {
-            let s = scale;
-            let px = (c.x * s).round();
-            let py = (c.y * s).round();
-            let pw = ((c.x + c.w) * s).round() - px;
-            let ph = ((c.y + c.h) * s).round() - py;
-            let r = (c.radius * s).round().min(pw * 0.5).min(ph * 0.5);
-            let clip_arr = match c.clip {
-                Some([cx, cy, cx2, cy2]) => [
-                    (cx * s).round(),
-                    (cy * s).round(),
-                    (cx2 * s).round(),
-                    (cy2 * s).round(),
-                ],
-                None => [0.0; 4],
-            };
-            self.staged.push(Instance {
-                pos_size: [px, py, pw, ph],
-                uv: c.uv,
-                tint: c.tint,
-                clip: clip_arr,
-                params: [r, 0.0, 0.0, 0.0],
+        if self.instances.len() > self.capacity {
+            self.capacity = self.instances.len().next_power_of_two();
+            self.vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("image vertex buffer"),
+                size: (self.capacity * std::mem::size_of::<ImageInstance>()) as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
             });
-        }
-
-        let mut ranges = Vec::new();
-        let mut i = 0usize;
-        while i < calls.len() {
-            let key = calls[i].image_key;
-            let start = base + i as u32;
-            while i < calls.len() && calls[i].image_key == key {
-                i += 1;
+            queue.write_buffer(
+                &self.vertex_buffer,
+                0,
+                bytemuck::cast_slice(&self.instances),
+            );
+            for d in &mut self.dirty {
+                *d = false;
             }
-            ranges.push((start, i as u32 - (start - base), key));
-        }
-        ranges
-    }
-
-    pub fn upload_staged(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
-        if self.staged.is_empty() {
             return;
         }
-        self.write_screen(queue);
-        if self.staged.len() > self.instance_cap {
-            let new_cap = self.staged.len().next_power_of_two();
-            self.instance_buffer = Self::make_buffer(device, new_cap);
-            self.instance_cap = new_cap;
+
+        for (i, dirty) in self.dirty.iter_mut().enumerate() {
+            if *dirty {
+                println!("[image] uploading slot {}", i);
+                let offset = (i * std::mem::size_of::<ImageInstance>()) as u64;
+                queue.write_buffer(
+                    &self.vertex_buffer,
+                    offset,
+                    bytemuck::bytes_of(&self.instances[i]),
+                );
+                *dirty = false;
+            }
         }
-        queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&self.staged));
     }
 
-    pub fn draw_layer<'pass>(
-        &'pass self,
-        pass: &mut wgpu::RenderPass<'pass>,
-        cache: &'pass ImageCache,
-        ranges: &[(u32, u32, ImageKey)],
-    ) {
-        if ranges.is_empty() || self.staged.is_empty() {
+    pub fn draw_slot<'pass>(&'pass self, pass: &mut wgpu::RenderPass<'pass>, slot: usize) {
+        let image_id = self.image_ids[slot];
+        let Some((_, _, bind_group)) = self.textures.get(&image_id) else {
             return;
-        }
+        };
         pass.set_pipeline(&self.pipeline);
-        pass.set_bind_group(0, &self.screen_bg, &[]);
-        pass.set_vertex_buffer(0, self.instance_buffer.slice(..));
-        for &(start, count, key) in ranges {
-            if count == 0 {
-                continue;
-            }
-            let Some(bg) = cache.bind_group_of(key) else {
-                continue;
-            };
-            pass.set_bind_group(1, bg, &[]);
-            pass.draw(0..6, start..start + count);
-        }
-    }
-
-    pub fn resize(&mut self, queue: &wgpu::Queue, screen_w: f32, screen_h: f32) {
-        self.screen_w = screen_w;
-        self.screen_h = screen_h;
-        self.write_screen(queue);
-    }
-
-    fn write_screen(&self, queue: &wgpu::Queue) {
-        queue.write_buffer(
-            &self.screen_uniform,
-            0,
-            bytemuck::bytes_of(&ScreenUniform {
-                size: [self.screen_w, self.screen_h],
-                _pad: [0.0; 2],
-            }),
-        );
-    }
-
-    fn make_buffer(device: &wgpu::Device, capacity: usize) -> wgpu::Buffer {
-        device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("bento_wgpu::image instances"),
-            size: (capacity * INSTANCE_SIZE).max(INSTANCE_SIZE) as u64,
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        })
+        pass.set_bind_group(0, &self.screen_bind_group, &[]);
+        pass.set_bind_group(1, bind_group, &[]);
+        pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        pass.draw(0..6, slot as u32..slot as u32 + 1);
     }
 }

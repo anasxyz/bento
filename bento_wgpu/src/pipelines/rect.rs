@@ -1,73 +1,58 @@
-// instanced rounded rect pipeline
-//
-// each rect node gets a stable slot in the gpu instance buffer.
-// only dirty slots are uploaded each frame, meaning a changed rect costs
-// one write_buffer call of ~112 bytes, everything else is skipped
-//
-// slots are assigned by the Renderer via the SlotAllocator and written
-// into RectNode::slot
-//
-// this pipeline just owns the gpu buffer and draws
-
 use bytemuck::{Pod, Zeroable};
-use std::mem;
 use wgpu;
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug, Pod, Zeroable)]
-pub struct Instance {
-    pos_size: [f32; 4],
-    params: [f32; 4],
-    fill_color: [f32; 4],
-    border_color: [f32; 4],
-    clip: [f32; 4],
-    border_widths: [f32; 4],
-}
-
-#[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
-struct ScreenUniform {
-    size: [f32; 2],
-    _pad: [f32; 2],
+pub struct RectInstance {
+    pub pos_size: [f32; 4],
+    pub color: [f32; 4],
+    pub radii: [f32; 4],
+    pub border_color: [f32; 4],
+    pub border_widths: [f32; 4],
+    pub transform: [f32; 4],
+    pub clip: [f32; 4],
 }
-
-const INSTANCE_SIZE: usize = mem::size_of::<Instance>();
-const INITIAL_CAPACITY: usize = 512;
 
 pub struct RectPipeline {
     pipeline: wgpu::RenderPipeline,
-    instance_buffer: wgpu::Buffer,
-    instance_cap: usize,
-    pub instances: Vec<Instance>,
-    dirty: Vec<bool>,
-    screen_uniform: wgpu::Buffer,
+    vertex_buffer: wgpu::Buffer,
+    transient_buffer: wgpu::Buffer,
+    screen_buffer: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
-    screen_w: f32,
-    screen_h: f32,
-    pub upload_count: u32,
+    capacity: usize,
+    transient_capacity: usize,
+    instances: Vec<RectInstance>,
+    dirty: Vec<bool>,
+    next_slot: u32,
 }
 
 impl RectPipeline {
     pub fn new(
         device: &wgpu::Device,
+        queue: &wgpu::Queue,
         format: wgpu::TextureFormat,
         screen_w: f32,
         screen_h: f32,
     ) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("bento_wgpu::rect shader"),
+            label: Some("rect shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/rect.wgsl").into()),
         });
 
-        let screen_uniform = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("bento_wgpu::rect screen uniform"),
-            size: mem::size_of::<ScreenUniform>() as u64,
+        let screen_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("rect screen uniform"),
+            size: 8,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
+        queue.write_buffer(
+            &screen_buffer,
+            0,
+            bytemuck::cast_slice(&[screen_w, screen_h]),
+        );
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("bento_wgpu::rect bind group layout"),
+            label: Some("rect bind group layout"),
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
                 visibility: wgpu::ShaderStages::VERTEX,
@@ -81,175 +66,150 @@ impl RectPipeline {
         });
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("bento_wgpu::rect bind group"),
+            label: Some("rect bind group"),
             layout: &bind_group_layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
-                resource: screen_uniform.as_entire_binding(),
+                resource: screen_buffer.as_entire_binding(),
             }],
         });
 
+        let vertex_layout = wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<RectInstance>() as u64,
+            step_mode: wgpu::VertexStepMode::Instance,
+            attributes: &[
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 0,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: 16,
+                    shader_location: 1,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: 32,
+                    shader_location: 2,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: 48,
+                    shader_location: 3,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: 64,
+                    shader_location: 4,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: 80,
+                    shader_location: 5,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: 96,
+                    shader_location: 6,
+                    format: wgpu::VertexFormat::Float32x4,
+                }, 
+            ],
+        };
+
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("bento_wgpu::rect pipeline layout"),
+            label: Some("rect pipeline layout"),
             bind_group_layouts: &[&bind_group_layout],
             push_constant_ranges: &[],
         });
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("bento_wgpu::rect pipeline"),
+            label: Some("rect pipeline"),
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: Some("vs_main"),
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-                buffers: &[wgpu::VertexBufferLayout {
-                    array_stride: INSTANCE_SIZE as wgpu::BufferAddress,
-                    step_mode: wgpu::VertexStepMode::Instance,
-                    attributes: INSTANCE_ATTRS,
-                }],
+                buffers: &[vertex_layout],
+                compilation_options: Default::default(),
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
                 entry_point: Some("fs_main"),
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
                 targets: &[Some(wgpu::ColorTargetState {
                     format,
                     blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
+                compilation_options: Default::default(),
             }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                ..Default::default()
-            },
+            primitive: wgpu::PrimitiveState::default(),
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
             cache: None,
         });
 
-        let instance_buffer = Self::make_buffer(device, INITIAL_CAPACITY);
+        let capacity = 64;
+        let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("rect vertex buffer"),
+            size: (capacity * std::mem::size_of::<RectInstance>()) as u64,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
 
-        let mut s = Self {
+        let transient_capacity = 64;
+        let transient_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("rect transient buffer"),
+            size: (transient_capacity * std::mem::size_of::<RectInstance>()) as u64,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        Self {
             pipeline,
-            instance_buffer,
-            instance_cap: INITIAL_CAPACITY,
+            vertex_buffer,
+            transient_buffer,
+            screen_buffer,
+            bind_group,
+            capacity,
+            transient_capacity,
             instances: Vec::new(),
             dirty: Vec::new(),
-            screen_uniform,
-            bind_group,
-            screen_w,
-            screen_h,
-            upload_count: 0,
-        };
-
-        // write initial screen size
-        s.screen_w = screen_w;
-        s.screen_h = screen_h;
-        s
-    }
-
-    pub fn ensure_slot(&mut self, slot: usize) {
-        while self.instances.len() <= slot {
-            self.instances.push(Instance {
-                pos_size: [0.0; 4],
-                params: [0.0; 4],
-                fill_color: [0.0; 4],
-                border_color: [0.0; 4],
-                clip: [0.0; 4],
-                border_widths: [0.0; 4],
-            });
-            self.dirty.push(true);
+            next_slot: 0,
         }
     }
 
-    pub fn write_slot(
-        &mut self,
-        slot: usize,
-        x: f32,
-        y: f32,
-        w: f32,
-        h: f32,
-        color: [f32; 4],
-        radius: f32,
-        border_color: [f32; 4],
-        border_widths: [f32; 4],
-        clip: Option<[f32; 4]>,
-        scale: f32,
-    ) {
-        let s = scale;
-        let px = (x * s).round();
-        let py = (y * s).round();
-        let px2 = ((x + w) * s).round();
-        let py2 = ((y + h) * s).round();
-        let pw = px2 - px;
-        let ph = py2 - py;
-        let radius = (radius * s).round().min(pw * 0.5).min(ph * 0.5);
-        let clip_arr = match clip {
-            Some([cx, cy, cx2, cy2]) => [
-                (cx * s).round(),
-                (cy * s).round(),
-                (cx2 * s).round(),
-                (cy2 * s).round(),
-            ],
-            None => [0.0; 4],
-        };
-        // fix 1 pixel bleeding
-        // let aa = if scale > 1.0 && pw > 2.0 { 1.0 } else { 0.0 };
-        let aa = if pw > 2.0 { 1.0 } else { 0.0 };
-        let new_inst = Instance {
-            pos_size: [px, py, pw, ph],
-            params: [radius, aa, 0.0, 0.0],
-            fill_color: color,
-            border_color,
-            clip: clip_arr,
-            border_widths: [
-                (border_widths[0] * s).round(),
-                (border_widths[1] * s).round(),
-                (border_widths[2] * s).round(),
-                (border_widths[3] * s).round(),
-            ],
-        };
-        if bytemuck::bytes_of(&self.instances[slot]) != bytemuck::bytes_of(&new_inst) {
-            self.instances[slot] = new_inst;
-            self.dirty[slot] = true;
-        }
-    }
-
-    pub fn clear_slot(&mut self, slot: usize) {
-        if slot >= self.instances.len() {
-            return;
-        }
-        let zero = Instance {
-            pos_size: [0.0; 4],
-            params: [0.0; 4],
-            fill_color: [0.0; 4],
-            border_color: [0.0; 4],
-            clip: [0.0; 4],
-            border_widths: [0.0; 4],
-        };
-        if bytemuck::bytes_of(&self.instances[slot]) != bytemuck::bytes_of(&zero) {
-            self.instances[slot] = zero;
-            self.dirty[slot] = true;
-        }
-    }
-
-    pub fn resize(&mut self, queue: &wgpu::Queue, screen_w: f32, screen_h: f32) {
-        self.screen_w = screen_w;
-        self.screen_h = screen_h;
+    pub fn resize(&mut self, queue: &wgpu::Queue, width: f32, height: f32) {
         queue.write_buffer(
-            &self.screen_uniform,
+            &self.screen_buffer,
             0,
-            bytemuck::bytes_of(&ScreenUniform {
-                size: [screen_w, screen_h],
-                _pad: [0.0; 2],
-            }),
+            bytemuck::cast_slice(&[width, height]),
         );
     }
 
-    pub fn invalidate(&mut self) {
-        for d in &mut self.dirty {
-            *d = true;
+    pub fn alloc_slot(&mut self) -> u32 {
+        let slot = self.next_slot;
+        self.next_slot += 1;
+        self.instances.push(RectInstance {
+            pos_size: [0.0; 4],
+            color: [0.0; 4],
+            radii: [0.0; 4],
+            border_color: [0.0; 4],
+            border_widths: [0.0; 4],
+            transform: [1.0, 0.0, 0.0, 1.0],
+            clip: [0.0, 0.0, f32::MAX, f32::MAX],
+        });
+        self.dirty.push(true);
+        slot
+    }
+
+    pub fn write_slot(&mut self, slot: u32, instance: RectInstance) {
+        let s = slot as usize;
+        if bytemuck::bytes_of(&self.instances[s]) != bytemuck::bytes_of(&instance) {
+            self.instances[s] = instance;
+            self.dirty[s] = true;
+            println!("[rect] slot {} marked dirty", slot);
+        } else {
+            println!("[rect] slot {} fully cached, skipping", slot);
         }
     }
 
@@ -257,128 +217,82 @@ impl RectPipeline {
         if self.instances.is_empty() {
             return;
         }
-        self.upload_count = 0;
 
-        if self.instances.len() > self.instance_cap {
-            let new_cap = self.instances.len().next_power_of_two();
-            self.instance_buffer = Self::make_buffer(device, new_cap);
-            self.instance_cap = new_cap;
+        if self.instances.len() > self.capacity {
+            self.capacity = self.instances.len().next_power_of_two();
+            self.vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("rect vertex buffer"),
+                size: (self.capacity * std::mem::size_of::<RectInstance>()) as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
             queue.write_buffer(
-                &self.instance_buffer,
+                &self.vertex_buffer,
                 0,
                 bytemuck::cast_slice(&self.instances),
             );
-            self.upload_count = self.instances.len() as u32;
             for d in &mut self.dirty {
                 *d = false;
             }
-        } else {
-            let mut range_start: Option<usize> = None;
-            for i in 0..=self.instances.len() {
-                let is_dirty = i < self.instances.len() && self.dirty[i];
-                match (is_dirty, range_start) {
-                    (true, None) => range_start = Some(i),
-                    (false, Some(start)) => {
-                        queue.write_buffer(
-                            &self.instance_buffer,
-                            (start * INSTANCE_SIZE) as u64,
-                            bytemuck::cast_slice(&self.instances[start..i]),
-                        );
-                        self.upload_count += (i - start) as u32;
-                        range_start = None;
-                    }
-                    _ => {}
-                }
-                if i < self.instances.len() {
-                    self.dirty[i] = false;
-                }
-            }
-        }
-    }
-
-    pub fn draw_slots<'pass>(&'pass self, pass: &mut wgpu::RenderPass<'pass>, slots: &[usize]) {
-        if slots.is_empty() || self.instances.is_empty() {
             return;
         }
-        pass.set_pipeline(&self.pipeline);
-        pass.set_bind_group(0, &self.bind_group, &[]);
-        pass.set_vertex_buffer(0, self.instance_buffer.slice(..));
 
-        // sort slots and merge contiguous runs into single draw calls
-        let mut sorted = slots.to_vec();
-        sorted.sort_unstable();
-
-        let mut i = 0;
-        while i < sorted.len() {
-            let start = sorted[i];
-            let mut end = start + 1;
-            while i + 1 < sorted.len() && sorted[i + 1] == end {
-                end += 1;
-                i += 1;
+        for (i, dirty) in self.dirty.iter_mut().enumerate() {
+            if *dirty {
+                println!("[rect] uploading slot {}", i);
+                let offset = (i * std::mem::size_of::<RectInstance>()) as u64;
+                queue.write_buffer(
+                    &self.vertex_buffer,
+                    offset,
+                    bytemuck::bytes_of(&self.instances[i]),
+                );
+                *dirty = false;
             }
-            if start < self.instances.len() {
-                let clamped_end = end.min(self.instances.len());
-                pass.draw(0..6, start as u32..clamped_end as u32);
-            }
-            i += 1;
         }
     }
 
-    pub fn render<'pass>(
-        &'pass mut self,
+    pub fn draw_slot<'pass>(&'pass self, pass: &mut wgpu::RenderPass<'pass>, slot: u32) {
+        pass.set_pipeline(&self.pipeline);
+        pass.set_bind_group(0, &self.bind_group, &[]);
+        pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        pass.draw(0..6, slot..slot + 1);
+    }
+
+    /// upload all transient rects before the render pass begins
+    pub fn prepare_transient(
+        &mut self,
+        rects: &[RectInstance],
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        pass: &mut wgpu::RenderPass<'pass>,
     ) {
-        if self.instances.is_empty() {
+        if rects.is_empty() {
             return;
         }
-        self.upload(device, queue);
+        if rects.len() > self.transient_capacity {
+            self.transient_capacity = rects.len().next_power_of_two();
+            self.transient_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("rect transient buffer"),
+                size: (self.transient_capacity * std::mem::size_of::<RectInstance>()) as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+        queue.write_buffer(&self.transient_buffer, 0, bytemuck::cast_slice(rects));
+    }
+
+    /// draw a range of already uploaded transient rects during a render pass
+    pub fn draw_transient_range<'pass>(
+        &'pass self,
+        pass: &mut wgpu::RenderPass<'pass>,
+        start: u32,
+        count: u32,
+    ) {
+        if count == 0 {
+            return;
+        }
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.bind_group, &[]);
-        pass.set_vertex_buffer(0, self.instance_buffer.slice(..));
-        pass.draw(0..6, 0..self.instances.len() as u32);
-    }
-
-    fn make_buffer(device: &wgpu::Device, capacity: usize) -> wgpu::Buffer {
-        device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("bento_wgpu::rect instances"),
-            size: (capacity * INSTANCE_SIZE) as u64,
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        })
+        pass.set_vertex_buffer(0, self.transient_buffer.slice(..));
+        pass.draw(0..6, start..start + count);
     }
 }
-
-const INSTANCE_ATTRS: &[wgpu::VertexAttribute] = &[
-    wgpu::VertexAttribute {
-        offset: 0,
-        shader_location: 0,
-        format: wgpu::VertexFormat::Float32x4,
-    },
-    wgpu::VertexAttribute {
-        offset: 16,
-        shader_location: 1,
-        format: wgpu::VertexFormat::Float32x4,
-    },
-    wgpu::VertexAttribute {
-        offset: 32,
-        shader_location: 2,
-        format: wgpu::VertexFormat::Float32x4,
-    },
-    wgpu::VertexAttribute {
-        offset: 48,
-        shader_location: 3,
-        format: wgpu::VertexFormat::Float32x4,
-    },
-    wgpu::VertexAttribute {
-        offset: 64,
-        shader_location: 4,
-        format: wgpu::VertexFormat::Float32x4,
-    },
-    wgpu::VertexAttribute {
-        offset: 80,
-        shader_location: 5,
-        format: wgpu::VertexFormat::Float32x4,
-    },
-];

@@ -1,115 +1,118 @@
 struct Screen {
-    size: vec2f,
+  size: vec2f,
 }
 @group(0) @binding(0) var<uniform> screen: Screen;
 
+struct Instance {
+  @location(0) pos_size: vec4f,
+  @location(1) color: vec4f,
+  @location(2) radii: vec4f,
+  @location(3) border_color: vec4f,
+  @location(4) border_widths: vec4f,
+  @location(5) transform_ab: vec4f, // a, b, c, d
+  @location(6) clip: vec4f,
+}
+
+struct VOut {
+  @builtin(position) pos: vec4f,
+  @location(0) color: vec4f,
+  @location(1) local_pos: vec2f,
+  @location(2) half_size: vec2f,
+  @location(3) radii: vec4f,
+  @location(4) border_color: vec4f,
+  @location(5) border_widths: vec4f,
+  @location(6) scale: f32,
+  @location(7) clip: vec4f,
+}
+
 var<private> QUAD: array<vec2f, 6> = array<vec2f, 6>(
-    vec2f(0.0, 0.0),
-    vec2f(1.0, 0.0),
-    vec2f(0.0, 1.0),
-    vec2f(1.0, 0.0),
-    vec2f(1.0, 1.0),
-    vec2f(0.0, 1.0),
+    vec2f(0.0, 0.0), vec2f(1.0, 0.0), vec2f(0.0, 1.0),
+    vec2f(1.0, 0.0), vec2f(1.0, 1.0), vec2f(0.0, 1.0),
 );
 
-struct VertexOut {
-    @builtin(position) frag_coord  : vec4f,
-    @location(0) local_pos         : vec2f,
-    @location(1) half_size         : vec2f,
-    @location(2) radius            : f32,
-    @location(3) aa_width          : f32,
-    @location(4) fill_color        : vec4f,
-    @location(5) border_color      : vec4f,
-    @location(6) clip              : vec4f,
-    @location(7) border_widths     : vec4f,
-}
-
 @vertex
-fn vs_main(
-    @builtin(vertex_index) vi : u32,
-    @location(0) pos_size     : vec4f,
-    @location(1) params       : vec4f,
-    @location(2) fill_color   : vec4f,
-    @location(3) border_color : vec4f,
-    @location(4) clip         : vec4f,
-    @location(5) border_widths: vec4f,
-) -> VertexOut {
-    let x  = pos_size.x;  let y  = pos_size.y;
-    let w  = pos_size.z;  let h  = pos_size.w;
-    let sw = screen.size.x;  let sh = screen.size.y;
-    let radius   = params.x;
-    let aa_width = params.y;
-    let b  = aa_width;
-    let qx = x - b;  let qy = y - b;
-    let qw = w + b * 2.0;  let qh = h + b * 2.0;
-    let c  = QUAD[vi];
-    let px = floor(qx + c.x * qw + 0.5);
-    let py = floor(qy + c.y * qh + 0.5);
-    let ndcx =  px / sw * 2.0 - 1.0;
-    let ndcy = -(py / sh * 2.0 - 1.0);
-    let cx = x + w * 0.5;
-    let cy = y + h * 0.5;
-    var out: VertexOut;
-    out.frag_coord    = vec4f(ndcx, ndcy, 0.0, 1.0);
-    out.local_pos     = vec2f(px - cx, py - cy);
-    out.half_size     = vec2f(w * 0.5, h * 0.5);
-    out.radius        = radius;
-    out.aa_width      = aa_width;
-    out.fill_color    = fill_color;
-    out.border_color  = border_color;
-    out.clip          = clip;
-    out.border_widths = border_widths;
-    return out;
+fn vs_main(@builtin(vertex_index) vi: u32, inst: Instance) -> VOut {
+  let q = QUAD[vi];
+
+  // local corner position relative to the rect center
+  let half = inst.pos_size.zw * 0.5;
+  let local = (q - vec2f(0.5)) * inst.pos_size.zw;
+
+  // apply transform matrix
+  let a = inst.transform_ab.x;
+  let b = inst.transform_ab.y;
+  let c = inst.transform_ab.z;
+  let d = inst.transform_ab.w;
+
+  // rotate/scale around center
+  // translate to top left position
+  let px = a * local.x + c * local.y + inst.pos_size.x + half.x;
+  let py = b * local.x + d * local.y + inst.pos_size.y + half.y;
+
+  let ndcx = (px / screen.size.x) * 2.0 - 1.0;
+  let ndcy = -(py / screen.size.y) * 2.0 + 1.0;
+
+  var out: VOut;
+  out.pos = vec4f(ndcx, ndcy, 0.0, 1.0);
+  out.color = inst.color;
+  out.local_pos = local;
+  out.half_size = half;
+  out.radii = inst.radii;
+  out.border_color = inst.border_color;
+  out.border_widths = inst.border_widths;
+  out.scale = length(vec2f(inst.transform_ab.x, inst.transform_ab.y));
+  out.clip = inst.clip;
+
+  return out;
 }
 
-fn sdf_rrect(p: vec2f, half_size: vec2f, radius: f32) -> f32 {
-    let q = abs(p) - half_size + radius;
-    return length(max(q, vec2f(0.0))) + min(max(q.x, q.y), 0.0) - radius;
-}
-
-fn aa_coverage(d: f32) -> f32 {
-    return clamp(0.5 - d, 0.0, 1.0);
+fn sdf_rect(p: vec2f, half_size: vec2f, radius: f32) -> f32 {
+  let q = abs(p) - half_size + radius;
+  return length(max(q, vec2f(0.0))) + min(max(q.x, q.y), 0.0) - radius;
 }
 
 @fragment
-fn fs_main(in: VertexOut) -> @location(0) vec4f {
-    let cl = in.clip;
-    if cl.x != 0.0 || cl.y != 0.0 || cl.z != 0.0 || cl.w != 0.0 {
-        if in.frag_coord.x < cl.x || in.frag_coord.y < cl.y ||
-           in.frag_coord.x > cl.z || in.frag_coord.y > cl.w {
-            discard;
-        }
-    }
+fn fs_main(in: VOut) -> @location(0) vec4f {
+  // discrd if outside clip
+  if in.pos.x < in.clip.x || in.pos.y < in.clip.y ||
+    in.pos.x > in.clip.x + in.clip.z || in.pos.y > in.clip.y + in.clip.w {
+    discard;
+  }
 
-    let d = sdf_rrect(in.local_pos, in.half_size, in.radius);
-    let outer = aa_coverage(d);
-    if outer <= 0.0 { discard; }
-
-    let bw_top    = in.border_widths.x;
-    let bw_right  = in.border_widths.y;
-    let bw_bottom = in.border_widths.z;
-    let bw_left   = in.border_widths.w;
-
-    let has_border = (bw_top + bw_right + bw_bottom + bw_left) > 0.0
-                   && in.border_color.a > 0.0;
-
-    var color: vec4f;
-    if has_border {
-        let inner_half = vec2f(
-            in.half_size.x - (bw_left + bw_right) * 0.5,
-            in.half_size.y - (bw_top  + bw_bottom) * 0.5
-        );
-        let offset = vec2f(
-            (bw_left - bw_right) * 0.5,
-            (bw_top  - bw_bottom) * 0.5
-        );
-        let inner_radius = max(in.radius - max(max(bw_top, bw_bottom), max(bw_left, bw_right)), 0.0);
-        let d_inner = sdf_rrect(in.local_pos - offset, inner_half, inner_radius);
-        let inner = aa_coverage(d_inner);
-        color = mix(in.border_color, in.fill_color, inner);
+  let r = select(
+    select(in.radii.x, in.radii.y, in.local_pos.x > 0.0),
+    select(in.radii.w, in.radii.z, in.local_pos.x > 0.0),
+    in.local_pos.y > 0.0
+  );
+  let aa = 0.5 / in.scale;
+  let d = sdf_rect(in.local_pos, in.half_size, r);
+  let alpha = clamp(-d + aa, 0.0, 1.0);
+  if alpha <= 0.0 { discard; }
+  let has_border = (in.border_widths.x + in.border_widths.y +
+                    in.border_widths.z + in.border_widths.w) > 0.0;
+  var out_color: vec4f;
+  if !has_border {
+    out_color = vec4f(in.color.rgb, in.color.a * alpha);
+  } else {
+    let bw = (in.border_widths.x + in.border_widths.y +
+                   in.border_widths.z + in.border_widths.w) * 0.25;
+    let inner_r = max(r - bw, 0.0);
+    let d_inner = sdf_rect(in.local_pos, in.half_size - bw, inner_r);
+    let inner_aa = 0.5;
+    if in.color.a <= 0.0 {
+      out_color = vec4f(in.border_color.rgb, in.border_color.a * clamp(-d_inner + inner_aa, 0.0, 1.0) * alpha);
+    } else if d_inner >= inner_aa {
+      out_color = vec4f(in.border_color.rgb, in.border_color.a * alpha);
+    } else if d_inner <= -inner_aa {
+      out_color = vec4f(in.color.rgb, in.color.a * alpha);
     } else {
-        color = in.fill_color;
+      let t = (d_inner + inner_aa) / (2.0 * inner_aa);
+      out_color = vec4f(
+        mix(in.border_color.rgb, in.color.rgb, 1.0 - t),
+        mix(in.border_color.a, in.color.a, 1.0 - t) * alpha
+      );
     }
-
-    return vec4f(color.rgb, color.a * outer);
+  }
+  if out_color.a <= 0.0 { discard; }
+  return out_color;
 }

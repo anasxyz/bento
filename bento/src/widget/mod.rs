@@ -1,7 +1,4 @@
 mod base;
-mod handle;
-mod widget;
+mod types;
 
-pub use base::{Base, HasBase, LayoutExt};
-pub use handle::Handle;
-pub use widget::{AsAny, AnyWidget, Widget};
+pub use base::Base;

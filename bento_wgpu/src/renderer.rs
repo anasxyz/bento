@@ -1,178 +1,113 @@
-use crate::allocator::SlotAllocator;
-use crate::context::RenderContext;
-use crate::nodes::*;
-use crate::pipelines::{
-    image::{ImageCache, ImageCall, ImagePipeline},
-    rect::RectPipeline,
-    shadow::ShadowPipeline,
-    text::TextPipeline,
+use crate::{
+    context::RenderContext,
+    pipelines::{
+        image::{ImageInstance, ImagePipeline},
+        rect::{RectInstance, RectPipeline},
+        text::{TextPipeline, TextSpec},
+    },
+    scene::{GroupNode, Node, Scene},
+    surface::Surface,
 };
-use crate::scene::{SceneGraph, TraversalState};
-use crate::surface::Surface;
-use std::collections::BTreeMap;
 use wgpu;
 
-pub struct RendererStats {
-    pub rect_uploads: u32,
-    pub rects_culled: u32,
-    pub texts_culled: u32,
-    pub images_culled: u32,
+// accumulated group state
+
+struct Accumulated {
+    x: f32,
+    y: f32,
+    rotate: f32,
+    scale_x: f32,
+    scale_y: f32,
+    opacity: f32,
+    clip: Option<[f32; 4]>,
 }
+
+impl Accumulated {
+    fn identity() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            rotate: 0.0,
+            scale_x: 1.0,
+            scale_y: 1.0,
+            opacity: 1.0,
+            clip: None,
+        }
+    }
+
+    fn combine_with_group(&self, g: &GroupNode) -> Self {
+        let g_clip_offset = g
+            .clip
+            .map(|c| [c[0] + self.x + g.x, c[1] + self.y + g.y, c[2], c[3]]);
+
+        Self {
+            x: self.x + g.x,
+            y: self.y + g.y,
+            rotate: self.rotate + g.rotate,
+            scale_x: self.scale_x * g.scale_x,
+            scale_y: self.scale_y * g.scale_y,
+            opacity: self.opacity * g.opacity.unwrap_or(1.0),
+            clip: merge_clip(self.clip, g_clip_offset),
+        }
+    }
+}
+
+fn merge_clip(a: Option<[f32; 4]>, b: Option<[f32; 4]>) -> Option<[f32; 4]> {
+    match (a, b) {
+        (Some(a), Some(b)) => Some(intersect_clip(a, b)),
+        (Some(a), None) => Some(a),
+        (None, Some(b)) => Some(b),
+        (None, None) => None,
+    }
+}
+
+fn intersect_clip(a: [f32; 4], b: [f32; 4]) -> [f32; 4] {
+    let x = a[0].max(b[0]);
+    let y = a[1].max(b[1]);
+    let x2 = (a[0] + a[2]).min(b[0] + b[2]);
+    let y2 = (a[1] + a[3]).min(b[1] + b[3]);
+    [x, y, (x2 - x).max(0.0), (y2 - y).max(0.0)]
+}
+
+fn scale_clip(clip: Option<[f32; 4]>, scale: f32) -> [f32; 4] {
+    clip.map(|c| [c[0] * scale, c[1] * scale, c[2] * scale, c[3] * scale])
+        .unwrap_or([0.0, 0.0, f32::MAX, f32::MAX])
+}
+
+// renderer
 
 pub struct Renderer {
-    rect_pipeline: RectPipeline,
-    text_pipeline: TextPipeline,
-    shadow_pipeline: ShadowPipeline,
-    image_pipeline: ImagePipeline,
-    image_cache: ImageCache,
-    rect_alloc: SlotAllocator,
-    shadow_alloc: SlotAllocator,
-    sel_slots_last_frame: Vec<u32>,
-    sel_slots_this_frame: Vec<u32>,
-    layers: BTreeMap<
-        u32,
-        (
-            Vec<ShadowCall>,
-            Vec<RectCall>,
-            Vec<ImageCall>,
-            Vec<TextCall>,
-        ),
-    >,
-    layer_image_ranges: BTreeMap<u32, Vec<(u32, u32, ImageKey)>>,
-    layer_text_ranges: BTreeMap<u32, (usize, usize)>,
-    layer_sel_slots: BTreeMap<u32, Vec<u32>>,
-    culled_rect_nodes: Vec<usize>,
-    pub stats: RendererStats,
-}
-
-struct RectCall {
-    node_idx: usize,
-    x: f32,
-    y: f32,
-    w: f32,
-    h: f32,
-    color: [f32; 4],
-    radius: f32,
-    border_color: [f32; 4],
-    border_widths: [f32; 4],
-    clip: Option<[f32; 4]>,
-}
-
-struct ShadowCall {
-    node_idx: usize,
-    x: f32,
-    y: f32,
-    w: f32,
-    h: f32,
-    color: [f32; 4],
-    blur: f32,
-    radius: f32,
-    offset_x: f32,
-    offset_y: f32,
-    clip: Option<[f32; 4]>,
-}
-
-struct TextCall {
-    x: f32,
-    y: f32,
-    content: String,
-    family: String,
-    size: f32,
-    weight: u16,
-    italic: bool,
-    color: [f32; 4],
-    width: f32,
-    clip: Option<[f32; 4]>,
-    layer: u32,
-    selection_start: Option<usize>,
-    selection_end: Option<usize>,
-    selection_color: [f32; 4],
-    underlines: Vec<crate::nodes::TextDecoration>,
-    strikethroughs: Vec<crate::nodes::TextDecoration>,
+    rect: RectPipeline,
+    text: TextPipeline,
+    image: ImagePipeline,
 }
 
 impl Renderer {
     pub fn new(ctx: &RenderContext, surface: &Surface) -> Self {
-        let fmt = surface.format;
-        let sw = surface.physical_width() as f32;
-        let sh = surface.physical_height() as f32;
-
-        let image_cache = ImageCache::new(&ctx.device);
-        let image_pipeline = ImagePipeline::new(&ctx.device, &ctx.queue, fmt, sw, sh, &image_cache);
-
-        let mut r = Self {
-            rect_pipeline: RectPipeline::new(&ctx.device, fmt, sw, sh),
-            shadow_pipeline: ShadowPipeline::new(&ctx.device, &ctx.queue, fmt, sw, sh),
-            text_pipeline: TextPipeline::new(
+        Self {
+            rect: RectPipeline::new(
                 &ctx.device,
                 &ctx.queue,
-                fmt,
+                surface.format,
+                surface.width,
+                surface.height,
+            ),
+            text: TextPipeline::new(
+                &ctx.device,
+                &ctx.queue,
+                surface.format,
                 surface.width,
                 surface.height,
                 surface.scale,
             ),
-            image_pipeline,
-            image_cache,
-            rect_alloc: SlotAllocator::new(),
-            shadow_alloc: SlotAllocator::new(),
-            sel_slots_last_frame: Vec::new(),
-            sel_slots_this_frame: Vec::new(),
-            layers: BTreeMap::new(),
-            layer_image_ranges: BTreeMap::new(),
-            layer_text_ranges: BTreeMap::new(),
-            layer_sel_slots: BTreeMap::new(),
-            culled_rect_nodes: Vec::new(),
-            stats: RendererStats {
-                rect_uploads: 0,
-                rects_culled: 0,
-                texts_culled: 0,
-                images_culled: 0,
-            },
-        };
-        r.rect_pipeline.resize(&ctx.queue, sw, sh);
-        r
-    }
-
-    pub fn upload_image(
-        &mut self,
-        ctx: &RenderContext,
-        key: ImageKey,
-        rgba: &[u8],
-        width: u32,
-        height: u32,
-    ) {
-        self.image_cache
-            .upload(&ctx.device, &ctx.queue, key, rgba, width, height);
-    }
-
-    pub fn free_image(&mut self, key: ImageKey) {
-        self.image_cache.free(key);
-    }
-
-    pub fn resize(&mut self, ctx: &RenderContext, surface: &Surface, scene: &mut SceneGraph) {
-        let sw = surface.physical_width() as f32;
-        let sh = surface.physical_height() as f32;
-        self.rect_pipeline.resize(&ctx.queue, sw, sh);
-        self.shadow_pipeline.resize(&ctx.queue, sw, sh);
-        self.text_pipeline.resize(
-            &ctx.device,
-            &ctx.queue,
-            surface.width,
-            surface.height,
-            surface.scale,
-        );
-        self.image_pipeline.resize(&ctx.queue, sw, sh);
-    }
-
-    pub fn invalidate(&mut self, scene: &mut SceneGraph) {
-        self.rect_pipeline.invalidate();
-        self.shadow_pipeline.invalidate();
-        for (_, node) in &mut scene.nodes {
-            match node {
-                SceneNode::Rect(n) => n.slot = u32::MAX,
-                SceneNode::Shadow(n) => n.slot = u32::MAX,
-                _ => {}
-            }
+            image: ImagePipeline::new(
+                &ctx.device,
+                &ctx.queue,
+                surface.format,
+                surface.width,
+                surface.height,
+                surface.scale,
+            ),
         }
     }
 
@@ -181,8 +116,8 @@ impl Renderer {
         ctx: &mut RenderContext,
         font_system: &mut cosmic_text::FontSystem,
         surface: &mut Surface,
-        scene: &mut SceneGraph,
         clear_color: [f32; 4],
+        scene: &mut Scene,
     ) {
         let frame = match surface.surface.get_current_texture() {
             Ok(f) => f,
@@ -193,394 +128,51 @@ impl Renderer {
             Err(_) => return,
         };
 
-        let scale = surface.scale;
-        let screen_w = surface.width;
-        let screen_h = surface.height;
-
-        self.stats = RendererStats {
-            rect_uploads: 0,
-            rects_culled: 0,
-            texts_culled: 0,
-            images_culled: 0,
-        };
-        self.sel_slots_this_frame.clear();
-        self.culled_rect_nodes.clear();
-        self.image_pipeline.begin_frame();
-
-        for (_, (shadows, rects, images, texts)) in self.layers.iter_mut() {
-            shadows.clear();
-            rects.clear();
-            images.clear();
-            texts.clear();
-        }
-
-        let mut culled_rects = 0u32;
-        let mut culled_texts = 0u32;
-        let mut culled_images = 0u32;
-
-        let root = scene.root;
-        scene.traverse(
-            root,
-            TraversalState::new(),
-            &mut |node, node_idx, state| match node {
-                SceneNode::Rect(n) if n.visible => {
-                    let layer = n.z.max(0) as u32;
-                    let bucket = self
-                        .layers
-                        .entry(layer)
-                        .or_insert_with(|| (vec![], vec![], vec![], vec![]));
-                    let x = n.x + state.offset_x;
-                    let y = n.y + state.offset_y;
-                    if is_visible(x, y, n.w, n.h, screen_w, screen_h, state.clip) {
-                        bucket.1.push(RectCall {
-                            node_idx,
-                            x,
-                            y,
-                            w: n.w,
-                            h: n.h,
-                            color: apply_opacity(n.color, state.opacity),
-                            radius: n.radius,
-                            border_color: apply_opacity(n.border_color, state.opacity),
-                            border_widths: n.border_widths,
-                            clip: state.clip,
-                        });
-                    } else {
-                        culled_rects += 1;
-                        self.culled_rect_nodes.push(node_idx);
-                    }
-                }
-                SceneNode::Shadow(n) if n.visible => {
-                    let layer = n.z.max(0) as u32;
-                    let bucket = self
-                        .layers
-                        .entry(layer)
-                        .or_insert_with(|| (vec![], vec![], vec![], vec![]));
-                    let x = n.x + state.offset_x;
-                    let y = n.y + state.offset_y;
-                    if is_visible(x, y, n.w, n.h, screen_w, screen_h, state.clip) {
-                        bucket.0.push(ShadowCall {
-                            node_idx,
-                            x,
-                            y,
-                            w: n.w,
-                            h: n.h,
-                            color: apply_opacity(n.color, state.opacity),
-                            blur: n.blur,
-                            radius: n.radius,
-                            offset_x: n.offset_x,
-                            offset_y: n.offset_y,
-                            clip: state.clip,
-                        });
-                    }
-                }
-                SceneNode::Image(n) if n.visible => {
-                    let layer = n.z.max(0) as u32;
-                    let bucket = self
-                        .layers
-                        .entry(layer)
-                        .or_insert_with(|| (vec![], vec![], vec![], vec![]));
-                    let x = n.x + state.offset_x;
-                    let y = n.y + state.offset_y;
-                    if is_visible(x, y, n.w, n.h, screen_w, screen_h, state.clip) {
-                        bucket.2.push(ImageCall {
-                            x,
-                            y,
-                            w: n.w,
-                            h: n.h,
-                            uv: n.uv,
-                            tint: apply_opacity(n.tint, state.opacity),
-                            radius: n.radius,
-                            image_key: n.image_key,
-                            clip: state.clip,
-                        });
-                    } else {
-                        culled_images += 1;
-                    }
-                }
-                SceneNode::Text(n) if n.visible && !n.content.is_empty() => {
-                    let layer = n.z.max(0) as u32;
-                    let bucket = self
-                        .layers
-                        .entry(layer)
-                        .or_insert_with(|| (vec![], vec![], vec![], vec![]));
-                    let x = n.x + state.offset_x;
-                    let y = n.y + state.offset_y;
-                    if is_visible(x, y, n.width, n.size * 20.0, screen_w, screen_h, state.clip) {
-                        bucket.3.push(TextCall {
-                            x,
-                            y,
-                            content: n.content.clone(),
-                            family: n.family.clone(),
-                            size: n.size,
-                            weight: n.weight,
-                            italic: n.italic,
-                            color: apply_opacity(n.color, state.opacity),
-                            width: n.width,
-                            clip: state.clip,
-                            layer,
-                            selection_start: n.selection_start,
-                            selection_end: n.selection_end,
-                            selection_color: apply_opacity(n.selection_color, state.opacity),
-                            underlines: n
-                                .underlines
-                                .iter()
-                                .map(|d| crate::nodes::TextDecoration {
-                                    start: d.start,
-                                    end: d.end,
-                                    color: apply_opacity(d.color, state.opacity),
-                                    thickness: d.thickness,
-                                })
-                                .collect(),
-                            strikethroughs: n
-                                .strikethroughs
-                                .iter()
-                                .map(|d| crate::nodes::TextDecoration {
-                                    start: d.start,
-                                    end: d.end,
-                                    color: apply_opacity(d.color, state.opacity),
-                                    thickness: d.thickness,
-                                })
-                                .collect(),
-                        });
-                    } else {
-                        culled_texts += 1;
-                    }
-                }
-                _ => {}
-            },
-        );
-
-        self.stats.rects_culled = culled_rects;
-        self.stats.texts_culled = culled_texts;
-        self.stats.images_culled = culled_images;
-
-        for (_, (shadow_calls, rect_calls, _, _)) in &self.layers {
-            for c in rect_calls {
-                let n = match &mut scene.nodes[c.node_idx] {
-                    SceneNode::Rect(n) => n,
-                    _ => continue,
-                };
-                if n.slot == u32::MAX {
-                    n.slot = self.rect_alloc.alloc();
-                }
-                let slot = n.slot as usize;
-                self.rect_pipeline.ensure_slot(slot);
-                self.rect_pipeline.write_slot(
-                    slot,
-                    c.x,
-                    c.y,
-                    c.w,
-                    c.h,
-                    c.color,
-                    c.radius,
-                    c.border_color,
-                    c.border_widths,
-                    c.clip,
-                    scale,
-                );
-            }
-            for c in shadow_calls {
-                let n = match &mut scene.nodes[c.node_idx] {
-                    SceneNode::Shadow(n) => n,
-                    _ => continue,
-                };
-                if n.slot == u32::MAX {
-                    n.slot = self.shadow_alloc.alloc();
-                }
-                let slot = n.slot as usize;
-                self.shadow_pipeline.ensure_slot(slot);
-                self.shadow_pipeline.write_slot(
-                    slot, c.x, c.y, c.w, c.h, c.color, c.blur, c.radius, c.offset_x, c.offset_y,
-                    scale,
-                );
-            }
-        }
-
-        for slot in self.sel_slots_last_frame.drain(..) {
-            self.rect_pipeline.clear_slot(slot as usize);
-            self.rect_alloc.free(slot);
-        }
-        for (_, node) in &mut scene.nodes {
-            if let SceneNode::Rect(n) = node {
-                if !n.visible && n.slot != u32::MAX {
-                    self.rect_pipeline.clear_slot(n.slot as usize);
-                }
-            }
-        }
-        for &node_idx in &self.culled_rect_nodes {
-            if let SceneNode::Rect(n) = &mut scene.nodes[node_idx] {
-                if n.slot != u32::MAX {
-                    self.rect_pipeline.clear_slot(n.slot as usize);
-                }
-            }
-        }
-        for (_, node) in &mut scene.nodes {
-            if let SceneNode::Shadow(n) = node {
-                if !n.visible && n.slot != u32::MAX {
-                    self.shadow_pipeline.clear_slot(n.slot as usize);
-                }
-            }
-        }
-
-        self.layer_image_ranges.clear();
-        for (&layer, (_, _, image_calls, _)) in &self.layers {
-            if !image_calls.is_empty() {
-                let ranges = self.image_pipeline.prepare_layer(image_calls, scale);
-                self.layer_image_ranges.insert(layer, ranges);
-            }
-        }
-        self.image_pipeline.upload_staged(&ctx.device, &ctx.queue);
-
-        self.text_pipeline.begin_frame();
-        let mut text_call_index = 0usize;
-        self.layer_text_ranges.clear();
-
-        for (&layer, (_, _, _, text_calls)) in &self.layers {
-            let range_start = text_call_index;
-            for call in text_calls {
-                self.text_pipeline.submit(
-                    font_system,
-                    call.x,
-                    call.y,
-                    &call.content,
-                    &call.family,
-                    call.size,
-                    call.weight,
-                    call.italic,
-                    call.color,
-                    call.width,
-                    call.clip,
-                );
-                text_call_index += 1;
-            }
-            self.layer_text_ranges
-                .insert(layer, (range_start, text_call_index));
-        }
-
-        self.layer_sel_slots.clear();
-        let mut text_idx = 0usize;
-        for (_, (_, _, _, text_calls)) in &self.layers {
-            for call in text_calls {
-                let sel_slots = self.layer_sel_slots.entry(call.layer).or_default();
-                if let (Some(s), Some(e)) = (call.selection_start, call.selection_end) {
-                    for (rx, ry, rw, rh) in self
-                        .text_pipeline
-                        .compute_selection_rects(text_idx, s, e, 0.0, 0.0, scale)
-                    {
-                        if call.clip.map_or(true, |[cx, cy, cx2, cy2]| {
-                            rx < cx2 && ry < cy2 && rx + rw > cx && ry + rh > cy
-                        }) {
-                            let slot = self.rect_alloc.alloc();
-                            self.rect_pipeline.ensure_slot(slot as usize);
-                            self.rect_pipeline.write_slot(
-                                slot as usize,
-                                rx,
-                                ry,
-                                rw,
-                                rh,
-                                call.selection_color,
-                                0.0,
-                                [0.0; 4],
-                                [0.0; 4],
-                                call.clip,
-                                scale,
-                            );
-                            sel_slots.push(slot);
-                            self.sel_slots_this_frame.push(slot);
-                        }
-                    }
-                }
-                for dec in &call.underlines {
-                    for (rx, ry, rw, rh) in self.text_pipeline.compute_decoration_rects(
-                        text_idx,
-                        dec.start,
-                        dec.end,
-                        dec.thickness,
-                        crate::pipelines::text::DecorationKind::Underline,
-                        0.0,
-                        0.0,
-                        scale,
-                    ) {
-                        if call.clip.map_or(true, |[cx, cy, cx2, cy2]| {
-                            rx < cx2 && ry < cy2 && rx + rw > cx && ry + rh > cy
-                        }) {
-                            let slot = self.rect_alloc.alloc();
-                            self.rect_pipeline.ensure_slot(slot as usize);
-                            self.rect_pipeline.write_slot(
-                                slot as usize,
-                                rx,
-                                ry,
-                                rw,
-                                rh,
-                                dec.color,
-                                0.0,
-                                [0.0; 4],
-                                [0.0; 4],
-                                call.clip,
-                                scale,
-                            );
-                            sel_slots.push(slot);
-                            self.sel_slots_this_frame.push(slot);
-                        }
-                    }
-                }
-                for dec in &call.strikethroughs {
-                    for (rx, ry, rw, rh) in self.text_pipeline.compute_decoration_rects(
-                        text_idx,
-                        dec.start,
-                        dec.end,
-                        dec.thickness,
-                        crate::pipelines::text::DecorationKind::Strikethrough,
-                        0.0,
-                        0.0,
-                        scale,
-                    ) {
-                        if call.clip.map_or(true, |[cx, cy, cx2, cy2]| {
-                            rx < cx2 && ry < cy2 && rx + rw > cx && ry + rh > cy
-                        }) {
-                            let slot = self.rect_alloc.alloc();
-                            self.rect_pipeline.ensure_slot(slot as usize);
-                            self.rect_pipeline.write_slot(
-                                slot as usize,
-                                rx,
-                                ry,
-                                rw,
-                                rh,
-                                dec.color,
-                                0.0,
-                                [0.0; 4],
-                                [0.0; 4],
-                                call.clip,
-                                scale,
-                            );
-                            sel_slots.push(slot);
-                            self.sel_slots_this_frame.push(slot);
-                        }
-                    }
-                }
-                text_idx += 1;
-            }
-        }
-
-        self.rect_pipeline.upload(&ctx.device, &ctx.queue);
-        self.shadow_pipeline.upload(&ctx.device, &ctx.queue);
-        self.text_pipeline
-            .prepare(font_system, &ctx.device, &ctx.queue);
-
-        let frame_view = frame
+        let view = frame
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder = ctx
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("bento frame"),
+                label: Some("frame"),
             });
+
+        // traverse scene
+
+        let mut specs: Vec<TextSpec> = Vec::new();
+        let mut text_slot: usize = 0;
+
+        Self::traverse(
+            &mut scene.nodes,
+            &Accumulated::identity(),
+            &mut self.rect,
+            &mut self.image,
+            surface.scale,
+            &mut specs,
+            &mut text_slot,
+        );
+        self.rect.upload(&ctx.device, &ctx.queue);
+        self.text
+            .prepare(&specs, font_system, &ctx.device, &ctx.queue);
+        self.image.upload(&ctx.device, &ctx.queue);
+
+        // upload decoration rects into transient buffer before pass begins
+        let all_bg_rects: Vec<RectInstance> = self.text.bg_rects.clone();
+        let all_line_rects: Vec<RectInstance> = self.text.line_rects.clone();
+        let mut combined = all_bg_rects.clone();
+        combined.extend_from_slice(&all_line_rects);
+        self.rect
+            .prepare_transient(&combined, &ctx.device, &ctx.queue);
+        let line_offset = all_bg_rects.len() as u32;
+
+        // draw
+
         let [r, g, b, a] = clear_color;
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("bento pass"),
+                label: Some("main pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &frame_view,
+                    view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
@@ -597,82 +189,207 @@ impl Renderer {
                 occlusion_query_set: None,
             });
 
-            for (&layer, (shadow_calls, rect_calls, _, _)) in &self.layers {
-                let shadow_slots: Vec<usize> = shadow_calls
-                    .iter()
-                    .filter_map(|c| match &scene.nodes[c.node_idx] {
-                        SceneNode::Shadow(n) if n.slot != u32::MAX => Some(n.slot as usize),
-                        _ => None,
-                    })
-                    .collect();
-                self.shadow_pipeline.draw_slots(&mut pass, &shadow_slots);
-
-                let mut rect_slots: Vec<usize> = rect_calls
-                    .iter()
-                    .filter_map(|c| match &scene.nodes[c.node_idx] {
-                        SceneNode::Rect(n) if n.slot != u32::MAX => Some(n.slot as usize),
-                        _ => None,
-                    })
-                    .collect();
-                if let Some(extra) = self.layer_sel_slots.get(&layer) {
-                    rect_slots.extend(extra.iter().map(|&s| s as usize));
-                }
-                self.rect_pipeline.draw_slots(&mut pass, &rect_slots);
-
-                if let Some(ranges) = self.layer_image_ranges.get(&layer) {
-                    self.image_pipeline
-                        .draw_layer(&mut pass, &self.image_cache, ranges);
-                }
-
-                if let Some(&(range_start, range_end)) = self.layer_text_ranges.get(&layer) {
-                    if range_end > range_start {
-                        let (inst_start, _) = self.text_pipeline.instance_range(range_start);
-                        let (last_start, last_count) =
-                            self.text_pipeline.instance_range(range_end - 1);
-                        self.text_pipeline.draw_range(
-                            &mut pass,
-                            inst_start,
-                            last_start + last_count - inst_start,
-                        );
-                    }
-                }
-            }
+            Self::draw_nodes(
+                &scene.nodes,
+                &self.rect,
+                &self.text,
+                &self.image,
+                &mut pass,
+                line_offset,
+            );
         }
 
         ctx.queue.submit(Some(encoder.finish()));
         frame.present();
-        self.text_pipeline.trim_atlas();
-        self.text_pipeline.end_frame();
-        self.stats.rect_uploads = self.rect_pipeline.upload_count;
-        std::mem::swap(
-            &mut self.sel_slots_last_frame,
-            &mut self.sel_slots_this_frame,
-        );
     }
 
-    pub fn free_rect_slot(&mut self, slot: u32) {
-        if slot != u32::MAX {
-            self.rect_pipeline.clear_slot(slot as usize);
-            self.rect_alloc.free(slot);
+    pub fn resize(&mut self, ctx: &RenderContext, surface: &Surface) {
+        self.rect.resize(&ctx.queue, surface.width, surface.height);
+        self.text
+            .resize(&ctx.queue, surface.width, surface.height, surface.scale);
+        self.image
+            .resize(&ctx.queue, surface.width, surface.height, surface.scale);
+    }
+
+    // traverses the scene and prepares all nodes recursively
+    fn traverse<'a>(
+        nodes: &'a mut Vec<Node>,
+        acc: &Accumulated,
+        rect: &mut RectPipeline,
+        image: &mut ImagePipeline,
+        scale: f32,
+        specs: &mut Vec<TextSpec<'a>>,
+        text_slot: &mut usize,
+    ) {
+        nodes.sort_by_key(|n| match n {
+            Node::Rect(r) => r.z,
+            Node::Text(t) => t.z,
+            Node::Image(i) => i.z,
+            Node::Group(g) => g.z,
+        });
+
+        for node in nodes.iter_mut() {
+            match node {
+                Node::Rect(r) => {
+                    if r.slot == u32::MAX {
+                        r.slot = rect.alloc_slot();
+                    }
+                    let r_clip_offset = r.clip.map(|c| [c[0] + acc.x, c[1] + acc.y, c[2], c[3]]);
+                    let final_clip = merge_clip(acc.clip, r_clip_offset);
+                    rect.write_slot(
+                        r.slot,
+                        RectInstance {
+                            pos_size: [r.x + acc.x, r.y + acc.y, r.w, r.h],
+                            color: [
+                                r.color[0],
+                                r.color[1],
+                                r.color[2],
+                                r.color[3] * r.opacity * acc.opacity,
+                            ],
+                            radii: r.radii,
+                            border_color: [
+                                r.border_color[0],
+                                r.border_color[1],
+                                r.border_color[2],
+                                r.border_color[3] * r.opacity * acc.opacity,
+                            ],
+                            border_widths: r.border_widths,
+                            transform: crate::math::transform(
+                                r.rotate + acc.rotate,
+                                r.scale_x * acc.scale_x,
+                                r.scale_y * acc.scale_y,
+                            ),
+                            clip: scale_clip(final_clip, scale),
+                        },
+                    );
+                }
+
+                Node::Text(t) => {
+                    t.slot = *text_slot;
+                    *text_slot += 1;
+                    let t_clip_offset = t.clip.map(|c| [c[0] + acc.x, c[1] + acc.y, c[2], c[3]]);
+                    let final_clip = merge_clip(acc.clip, t_clip_offset);
+                    specs.push(TextSpec {
+                        text: t.text.as_str(),
+                        x: t.x + acc.x,
+                        y: t.y + acc.y,
+                        size: t.size,
+                        color: t.color,
+                        rotate: t.rotate + acc.rotate,
+                        scale_x: t.scale_x * acc.scale_x,
+                        scale_y: t.scale_y * acc.scale_y,
+                        weight: t.weight,
+                        italic: t.italic,
+                        font_family: t.font_family.as_str(),
+                        max_width: t.max_width,
+                        opacity: t.opacity * acc.opacity,
+                        clip: final_clip,
+
+                        color_ranges: &t.color_ranges,
+                        background_ranges: &t.background_ranges,
+                        underline_ranges: &t.underline_ranges,
+                        strikethrough_ranges: &t.strikethrough_ranges,
+                        weight_ranges: &t.weight_ranges,
+                        italic_ranges: &t.italic_ranges,
+                        font_family_ranges: &t.font_family_ranges,
+                    });
+                }
+
+                Node::Image(img) => {
+                    if img.slot == usize::MAX {
+                        img.slot = image.alloc_slot();
+                    }
+                    let final_clip = merge_clip(
+                        acc.clip,
+                        img.clip.map(|c| [c[0] + acc.x, c[1] + acc.y, c[2], c[3]]),
+                    );
+                    image.write_slot(
+                        img.slot,
+                        ImageInstance {
+                            pos_size: [img.x + acc.x, img.y + acc.y, img.w, img.h],
+                            radii: img.radii,
+                            border_color: [
+                                img.border_color[0],
+                                img.border_color[1],
+                                img.border_color[2],
+                                img.border_color[3] * img.opacity * acc.opacity,
+                            ],
+                            border_widths: img.border_widths,
+                            transform: crate::math::transform(
+                                img.rotate + acc.rotate,
+                                img.scale_x * acc.scale_x,
+                                img.scale_y * acc.scale_y,
+                            ),
+                            clip: scale_clip(final_clip, scale),
+                            opacity: img.opacity * acc.opacity,
+                            _pad: [0.0; 3],
+                        },
+                        img.image_id,
+                    );
+                }
+
+                Node::Group(g) => {
+                    let child_acc = acc.combine_with_group(g);
+                    Self::traverse(
+                        &mut g.children,
+                        &child_acc,
+                        rect,
+                        image,
+                        scale,
+                        specs,
+                        text_slot,
+                    );
+                }
+            }
         }
     }
 
-    pub fn free_shadow_slot(&mut self, slot: u32) {
-        if slot != u32::MAX {
-            self.shadow_pipeline.clear_slot(slot as usize);
-            self.shadow_alloc.free(slot);
+    // draws all nodes recursively in traversal order
+    fn draw_nodes<'pass>(
+        nodes: &'pass Vec<Node>,
+        rect: &'pass RectPipeline,
+        text: &'pass TextPipeline,
+        image: &'pass ImagePipeline,
+        pass: &mut wgpu::RenderPass<'pass>,
+        line_offset: u32,
+    ) {
+        for node in nodes {
+            match node {
+                Node::Rect(r) => {
+                    rect.draw_slot(pass, r.slot);
+                }
+                Node::Text(t) => {
+                    if let Some(&(start, end)) = text.bg_ranges.get(t.slot) {
+                        rect.draw_transient_range(pass, start as u32, (end - start) as u32);
+                    }
+                    text.draw_range(pass, t.slot);
+                    if let Some(&(start, end)) = text.line_ranges.get(t.slot) {
+                        rect.draw_transient_range(
+                            pass,
+                            line_offset + start as u32,
+                            (end - start) as u32,
+                        );
+                    }
+                }
+                Node::Image(img) => {
+                    image.draw_slot(pass, img.slot);
+                }
+                Node::Group(g) => {
+                    Self::draw_nodes(&g.children, rect, text, image, pass, line_offset);
+                }
+            }
         }
     }
-}
 
-fn is_visible(x: f32, y: f32, w: f32, h: f32, sw: f32, sh: f32, clip: Option<[f32; 4]>) -> bool {
-    let in_window = x < sw && y < sh && x + w > 0.0 && y + h > 0.0;
-    let in_clip = clip.map_or(true, |[cx, cy, cx2, cy2]| {
-        x < cx2 && y < cy2 && x + w > cx && y + h > cy
-    });
-    in_window && in_clip
-}
-
-fn apply_opacity(color: [f32; 4], opacity: f32) -> [f32; 4] {
-    [color[0], color[1], color[2], color[3] * opacity]
+    pub fn upload_image(
+        &mut self,
+        id: u64,
+        bytes: &[u8],
+        width: u32,
+        height: u32,
+        ctx: &RenderContext,
+    ) {
+        self.image
+            .upload_image(id, bytes, width, height, &ctx.device, &ctx.queue);
+    }
 }

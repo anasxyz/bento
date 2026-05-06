@@ -1,241 +1,636 @@
-use crate::nodes::*;
-use slab::Slab;
+pub struct RectNode {
+    pub(crate) x: f32,
+    pub(crate) y: f32,
+    pub(crate) w: f32,
+    pub(crate) h: f32,
+    pub(crate) color: [f32; 4],
+    pub(crate) radii: [f32; 4],
+    pub(crate) border_color: [f32; 4],
+    pub(crate) border_widths: [f32; 4],
+    pub(crate) rotate: f32,
+    pub(crate) scale_x: f32,
+    pub(crate) scale_y: f32,
+    pub(crate) z: i32,
+    pub(crate) opacity: f32,
+    pub(crate) clip: Option<[f32; 4]>,
+    pub(crate) slot: u32,
+}
 
-pub struct SceneGraph {
-    pub nodes: Slab<SceneNode>,
-    pub root: SceneNodeId,
+impl RectNode {
+    pub fn new(x: f32, y: f32, w: f32, h: f32) -> Self {
+        Self {
+            x,
+            y,
+            w,
+            h,
+            color: [1.0, 1.0, 1.0, 1.0],
+            radii: [0.0; 4],
+            border_color: [0.0; 4],
+            border_widths: [0.0; 4],
+            rotate: 0.0,
+            scale_x: 1.0,
+            scale_y: 1.0,
+            z: 1,
+            opacity: 1.0,
+            clip: None,
+            slot: u32::MAX,
+        }
+    }
+
+    pub fn x(&mut self, x: f32) -> &mut Self {
+        self.x = x;
+        self
+    }
+    pub fn y(&mut self, y: f32) -> &mut Self {
+        self.y = y;
+        self
+    }
+    pub fn w(&mut self, w: f32) -> &mut Self {
+        self.w = w;
+        self
+    }
+    pub fn h(&mut self, h: f32) -> &mut Self {
+        self.h = h;
+        self
+    }
+
+    pub fn pos(&mut self, x: f32, y: f32) -> &mut Self {
+        self.x = x;
+        self.y = y;
+        self
+    }
+    pub fn size(&mut self, w: f32, h: f32) -> &mut Self {
+        self.w = w;
+        self.h = h;
+        self
+    }
+
+    pub fn color(&mut self, color: [f32; 4]) -> &mut Self {
+        self.color = color;
+        self
+    }
+    pub fn radii(&mut self, radii: [f32; 4]) -> &mut Self {
+        self.radii = radii;
+        self
+    }
+    pub fn radius(&mut self, r: f32) -> &mut Self {
+        self.radii = [r; 4];
+        self
+    }
+
+    pub fn border(&mut self, color: [f32; 4], widths: [f32; 4]) -> &mut Self {
+        self.border_color = color;
+        self.border_widths = widths;
+        self
+    }
+    pub fn border_color(&mut self, color: [f32; 4]) -> &mut Self {
+        self.border_color = color;
+        self
+    }
+    pub fn border_widths(&mut self, widths: [f32; 4]) -> &mut Self {
+        self.border_widths = widths;
+        self
+    }
+    pub fn border_width(&mut self, w: f32) -> &mut Self {
+        self.border_widths = [w; 4];
+        self
+    }
+
+    pub fn rotate(&mut self, angle: f32) -> &mut Self {
+        self.rotate = angle;
+        self
+    }
+    pub fn scale(&mut self, x: f32, y: f32) -> &mut Self {
+        self.scale_x = x;
+        self.scale_y = y;
+        self
+    }
+    pub fn scale_x(&mut self, x: f32) -> &mut Self {
+        self.scale_x = x;
+        self
+    }
+    pub fn scale_y(&mut self, y: f32) -> &mut Self {
+        self.scale_y = y;
+        self
+    }
+
+    pub fn z(&mut self, z: i32) -> &mut Self {
+        self.z = z;
+        self
+    }
+
+    pub fn opacity(&mut self, opacity: f32) -> &mut Self {
+        self.opacity = opacity;
+        self
+    }
+
+    pub fn clip(&mut self, clip: [f32; 4]) -> &mut Self {
+        self.clip = Some(clip);
+        self
+    }
+    pub fn no_clip(&mut self) -> &mut Self {
+        self.clip = None;
+        self
+    }
+}
+
+#[derive(Clone, PartialEq)]
+pub(crate) struct ColorRange {
+    pub(crate) start: usize,
+    pub(crate) end: usize,
+    pub(crate) color: [f32; 4],
+}
+
+#[derive(Clone, PartialEq)]
+pub(crate) struct DecorationRange {
+    pub(crate) start: usize,
+    pub(crate) end: usize,
+    pub(crate) color: [f32; 4],
 }
 
 #[derive(Clone)]
-pub struct TraversalState {
-    pub offset_x: f32,
-    pub offset_y: f32,
-    pub opacity: f32,
-    pub clip: Option<[f32; 4]>,
+pub(crate) struct WeightRange {
+    pub(crate) start: usize,
+    pub(crate) end: usize,
+    pub(crate) weight: u16,
 }
 
-impl TraversalState {
-    pub fn new() -> Self {
+#[derive(Clone)]
+pub(crate) struct ItalicRange {
+    pub(crate) start: usize,
+    pub(crate) end: usize,
+}
+
+#[derive(Clone)]
+pub(crate) struct FontFamilyRange {
+    pub(crate) start: usize,
+    pub(crate) end: usize,
+    pub(crate) font_family: String,
+}
+
+pub struct TextNode {
+    pub(crate) text: String,
+    pub(crate) x: f32,
+    pub(crate) y: f32,
+    pub(crate) size: f32,
+    pub(crate) color: [f32; 4],
+    pub(crate) z: i32,
+    pub(crate) rotate: f32,
+    pub(crate) scale_x: f32,
+    pub(crate) scale_y: f32,
+    pub(crate) weight: u16,
+    pub(crate) italic: bool,
+    pub(crate) font_family: String,
+    pub(crate) max_width: Option<f32>,
+    pub(crate) opacity: f32,
+    pub(crate) clip: Option<[f32; 4]>,
+
+    pub(crate) color_ranges: Vec<ColorRange>,
+    pub(crate) background_ranges: Vec<DecorationRange>,
+    pub(crate) underline_ranges: Vec<DecorationRange>,
+    pub(crate) strikethrough_ranges: Vec<DecorationRange>,
+    pub(crate) weight_ranges: Vec<WeightRange>,
+    pub(crate) italic_ranges: Vec<ItalicRange>,
+    pub(crate) font_family_ranges: Vec<FontFamilyRange>,
+
+    pub(crate) slot: usize,
+}
+
+impl TextNode {
+    pub fn new(text: &str, x: f32, y: f32, size: f32) -> Self {
         Self {
-            offset_x: 0.0,
-            offset_y: 0.0,
+            text: text.to_string(),
+            x,
+            y,
+            size,
+            color: [1.0, 1.0, 1.0, 1.0],
+            z: 1,
+            slot: usize::MAX,
+            rotate: 0.0,
+            scale_x: 1.0,
+            scale_y: 1.0,
+            weight: 400,
+            italic: false,
+            font_family: String::new(),
+            max_width: None,
             opacity: 1.0,
             clip: None,
+
+            color_ranges: Vec::new(),
+            background_ranges: Vec::new(),
+            underline_ranges: Vec::new(),
+            strikethrough_ranges: Vec::new(),
+            weight_ranges: Vec::new(),
+            italic_ranges: Vec::new(),
+            font_family_ranges: Vec::new(),
         }
     }
 
-    pub fn add_offset(&self, x: f32, y: f32) -> Self {
-        Self {
-            offset_x: self.offset_x + x,
-            offset_y: self.offset_y + y,
-            ..self.clone()
-        }
+    pub fn text(&mut self, text: &str) -> &mut Self {
+        self.text = text.to_string();
+        self
+    }
+    pub fn x(&mut self, x: f32) -> &mut Self {
+        self.x = x;
+        self
+    }
+    pub fn y(&mut self, y: f32) -> &mut Self {
+        self.y = y;
+        self
+    }
+    pub fn pos(&mut self, x: f32, y: f32) -> &mut Self {
+        self.x = x;
+        self.y = y;
+        self
+    }
+    pub fn size(&mut self, size: f32) -> &mut Self {
+        self.size = size;
+        self
+    }
+    pub fn color(&mut self, color: [f32; 4]) -> &mut Self {
+        self.color = color;
+        self
+    }
+    pub fn z(&mut self, z: i32) -> &mut Self {
+        self.z = z;
+        self
+    }
+    pub fn rotate(&mut self, angle: f32) -> &mut Self {
+        self.rotate = angle;
+        self
+    }
+    pub fn scale(&mut self, x: f32, y: f32) -> &mut Self {
+        self.scale_x = x;
+        self.scale_y = y;
+        self
+    }
+    pub fn scale_x(&mut self, x: f32) -> &mut Self {
+        self.scale_x = x;
+        self
+    }
+    pub fn scale_y(&mut self, y: f32) -> &mut Self {
+        self.scale_y = y;
+        self
+    }
+    pub fn weight(&mut self, weight: u16) -> &mut Self {
+        self.weight = weight;
+        self
+    }
+    pub fn italic(&mut self, italic: bool) -> &mut Self {
+        self.italic = italic;
+        self
+    }
+    pub fn font_family(&mut self, family: &str) -> &mut Self {
+        self.font_family = family.to_string();
+        self
+    }
+    pub fn max_width(&mut self, width: f32) -> &mut Self {
+        self.max_width = Some(width);
+        self
+    }
+    pub fn no_max_width(&mut self) -> &mut Self {
+        self.max_width = None;
+        self
+    }
+    pub fn opacity(&mut self, opacity: f32) -> &mut Self {
+        self.opacity = opacity;
+        self
+    }
+    pub fn clip(&mut self, x: f32, y: f32, w: f32, h: f32) -> &mut Self {
+        self.clip = Some([x, y, w, h]);
+        self
+    }
+    pub fn no_clip(&mut self) -> &mut Self {
+        self.clip = None;
+        self
     }
 
-    pub fn multiply_opacity(&self, o: f32) -> Self {
-        Self {
-            opacity: self.opacity * o,
-            ..self.clone()
-        }
+    pub fn add_color(&mut self, start: usize, end: usize, color: [f32; 4]) -> &mut Self {
+        self.color_ranges.push(ColorRange { start, end, color });
+        self
     }
 
-    pub fn intersect_clip(&self, x: f32, y: f32, w: f32, h: f32) -> Self {
-        let new_clip = [x, y, x + w, y + h];
-        let clip = match self.clip {
-            None => new_clip,
-            Some([cx, cy, cx2, cy2]) => [
-                cx.max(new_clip[0]),
-                cy.max(new_clip[1]),
-                cx2.min(new_clip[2]),
-                cy2.min(new_clip[3]),
-            ],
-        };
-        Self {
-            clip: Some(clip),
-            ..self.clone()
-        }
+    pub fn add_background(&mut self, start: usize, end: usize, color: [f32; 4]) -> &mut Self {
+        self.background_ranges
+            .push(DecorationRange { start, end, color });
+        self
+    }
+
+    pub fn add_underline(&mut self, start: usize, end: usize, color: [f32; 4]) -> &mut Self {
+        self.underline_ranges
+            .push(DecorationRange { start, end, color });
+        self
+    }
+
+    pub fn add_strikethrough(&mut self, start: usize, end: usize, color: [f32; 4]) -> &mut Self {
+        self.strikethrough_ranges
+            .push(DecorationRange { start, end, color });
+        self
+    }
+
+    pub fn add_weight(&mut self, start: usize, end: usize, weight: u16) -> &mut Self {
+        self.weight_ranges.push(WeightRange { start, end, weight });
+        self
+    }
+
+    pub fn add_italic(&mut self, start: usize, end: usize) -> &mut Self {
+        self.italic_ranges.push(ItalicRange { start, end });
+        self
+    }
+
+    pub fn add_font_family(&mut self, start: usize, end: usize, family: &str) -> &mut Self {
+        self.font_family_ranges.push(FontFamilyRange {
+            start,
+            end,
+            font_family: family.to_string(),
+        });
+        self
+    }
+
+    pub fn clear_colors(&mut self) -> &mut Self {
+        self.color_ranges.clear();
+        self
+    }
+    pub fn clear_backgrounds(&mut self) -> &mut Self {
+        self.background_ranges.clear();
+        self
+    }
+    pub fn clear_underlines(&mut self) -> &mut Self {
+        self.underline_ranges.clear();
+        self
+    }
+    pub fn clear_strikethroughs(&mut self) -> &mut Self {
+        self.strikethrough_ranges.clear();
+        self
+    }
+    pub fn clear_weights(&mut self) -> &mut Self {
+        self.weight_ranges.clear();
+        self
+    }
+    pub fn clear_italics(&mut self) -> &mut Self {
+        self.italic_ranges.clear();
+        self
+    }
+    pub fn clear_font_families(&mut self) -> &mut Self {
+        self.font_family_ranges.clear();
+        self
+    }
+
+    pub fn clear_all_ranges(&mut self) -> &mut Self {
+        self.color_ranges.clear();
+        self.background_ranges.clear();
+        self.underline_ranges.clear();
+        self.strikethrough_ranges.clear();
+        self.weight_ranges.clear();
+        self.italic_ranges.clear();
+        self.font_family_ranges.clear();
+        self
     }
 }
 
-impl SceneGraph {
+pub struct ImageNode {
+    pub(crate) x: f32,
+    pub(crate) y: f32,
+    pub(crate) w: f32,
+    pub(crate) h: f32,
+    pub(crate) image_id: u64,
+    pub(crate) radii: [f32; 4],
+    pub(crate) border_color: [f32; 4],
+    pub(crate) border_widths: [f32; 4],
+    pub(crate) rotate: f32,
+    pub(crate) scale_x: f32,
+    pub(crate) scale_y: f32,
+    pub(crate) opacity: f32,
+    pub(crate) clip: Option<[f32; 4]>,
+    pub(crate) z: i32,
+    pub(crate) slot: usize,
+}
+
+impl ImageNode {
+    pub fn new(x: f32, y: f32, w: f32, h: f32, image_id: u64) -> Self {
+        Self {
+            x,
+            y,
+            w,
+            h,
+            image_id,
+            radii: [0.0; 4],
+            border_color: [0.0; 4],
+            border_widths: [0.0; 4],
+            rotate: 0.0,
+            scale_x: 1.0,
+            scale_y: 1.0,
+            opacity: 1.0,
+            clip: None,
+            z: 1,
+            slot: usize::MAX,
+        }
+    }
+
+    pub fn x(&mut self, x: f32) -> &mut Self {
+        self.x = x;
+        self
+    }
+    pub fn y(&mut self, y: f32) -> &mut Self {
+        self.y = y;
+        self
+    }
+    pub fn pos(&mut self, x: f32, y: f32) -> &mut Self {
+        self.x = x;
+        self.y = y;
+        self
+    }
+    pub fn size(&mut self, w: f32, h: f32) -> &mut Self {
+        self.w = w;
+        self.h = h;
+        self
+    }
+    pub fn radii(&mut self, radii: [f32; 4]) -> &mut Self {
+        self.radii = radii;
+        self
+    }
+    pub fn radius(&mut self, r: f32) -> &mut Self {
+        self.radii = [r; 4];
+        self
+    }
+    pub fn border(&mut self, color: [f32; 4], widths: [f32; 4]) -> &mut Self {
+        self.border_color = color;
+        self.border_widths = widths;
+        self
+    }
+    pub fn border_color(&mut self, color: [f32; 4]) -> &mut Self {
+        self.border_color = color;
+        self
+    }
+    pub fn border_widths(&mut self, widths: [f32; 4]) -> &mut Self {
+        self.border_widths = widths;
+        self
+    }
+    pub fn border_width(&mut self, w: f32) -> &mut Self {
+        self.border_widths = [w; 4];
+        self
+    }
+    pub fn rotate(&mut self, angle: f32) -> &mut Self {
+        self.rotate = angle;
+        self
+    }
+    pub fn scale(&mut self, x: f32, y: f32) -> &mut Self {
+        self.scale_x = x;
+        self.scale_y = y;
+        self
+    }
+    pub fn scale_x(&mut self, x: f32) -> &mut Self {
+        self.scale_x = x;
+        self
+    }
+    pub fn scale_y(&mut self, y: f32) -> &mut Self {
+        self.scale_y = y;
+        self
+    }
+    pub fn opacity(&mut self, opacity: f32) -> &mut Self {
+        self.opacity = opacity;
+        self
+    }
+    pub fn clip(&mut self, x: f32, y: f32, w: f32, h: f32) -> &mut Self {
+        self.clip = Some([x, y, w, h]);
+        self
+    }
+    pub fn no_clip(&mut self) -> &mut Self {
+        self.clip = None;
+        self
+    }
+    pub fn z(&mut self, z: i32) -> &mut Self {
+        self.z = z;
+        self
+    }
+}
+
+pub struct GroupNode {
+    pub(crate) x: f32,
+    pub(crate) y: f32,
+    pub(crate) rotate: f32,
+    pub(crate) scale_x: f32,
+    pub(crate) scale_y: f32,
+    pub(crate) opacity: Option<f32>,
+    pub(crate) clip: Option<[f32; 4]>,
+    pub(crate) z: i32,
+    pub children: Vec<Node>,
+}
+
+impl GroupNode {
     pub fn new() -> Self {
-        let mut nodes = Slab::new();
-        let root_id = nodes.insert(SceneNode::Transform(TransformNode::new()));
         Self {
-            nodes,
-            root: SceneNodeId(root_id),
+            x: 0.0,
+            y: 0.0,
+            rotate: 0.0,
+            scale_x: 1.0,
+            scale_y: 1.0,
+            opacity: None,
+            clip: None,
+            z: 1,
+            children: Vec::new(),
         }
     }
 
-    pub fn track_build<F: FnMut(&mut Self)>(&mut self, mut f: F) -> Vec<SceneNodeId> {
-        let before: std::collections::HashSet<usize> = self.nodes.iter().map(|(i, _)| i).collect();
-        f(self);
-        self.nodes
-            .iter()
-            .map(|(i, _)| SceneNodeId(i))
-            .filter(|id| !before.contains(&id.0))
-            .collect()
+    pub fn x(&mut self, x: f32) -> &mut Self {
+        self.x = x;
+        self
+    }
+    pub fn y(&mut self, y: f32) -> &mut Self {
+        self.y = y;
+        self
+    }
+    pub fn pos(&mut self, x: f32, y: f32) -> &mut Self {
+        self.x = x;
+        self.y = y;
+        self
+    }
+    pub fn rotate(&mut self, angle: f32) -> &mut Self {
+        self.rotate = angle;
+        self
+    }
+    pub fn scale(&mut self, x: f32, y: f32) -> &mut Self {
+        self.scale_x = x;
+        self.scale_y = y;
+        self
+    }
+    pub fn scale_x(&mut self, x: f32) -> &mut Self {
+        self.scale_x = x;
+        self
+    }
+    pub fn scale_y(&mut self, y: f32) -> &mut Self {
+        self.scale_y = y;
+        self
+    }
+    pub fn opacity(&mut self, opacity: f32) -> &mut Self {
+        self.opacity = Some(opacity);
+        self
+    }
+    pub fn no_opacity(&mut self) -> &mut Self {
+        self.opacity = None;
+        self
+    }
+    pub fn clip(&mut self, x: f32, y: f32, w: f32, h: f32) -> &mut Self {
+        self.clip = Some([x, y, w, h]);
+        self
+    }
+    pub fn no_clip(&mut self) -> &mut Self {
+        self.clip = None;
+        self
+    }
+    pub fn z(&mut self, z: i32) -> &mut Self {
+        self.z = z;
+        self
     }
 
-    pub fn add_rect(&mut self) -> RectId {
-        RectId(self.nodes.insert(SceneNode::Rect(RectNode::new())))
+    pub fn add_rect(&mut self, rect: RectNode) -> &mut Self {
+        self.children.push(Node::Rect(rect));
+        self
     }
-
-    pub fn add_text(&mut self) -> TextId {
-        TextId(self.nodes.insert(SceneNode::Text(TextNode::new())))
+    pub fn add_text(&mut self, text: TextNode) -> &mut Self {
+        self.children.push(Node::Text(text));
+        self
     }
-
-    pub fn add_shadow(&mut self) -> ShadowId {
-        ShadowId(self.nodes.insert(SceneNode::Shadow(ShadowNode::new())))
+    pub fn add_image(&mut self, image: ImageNode) -> &mut Self {
+        self.children.push(Node::Image(image));
+        self
     }
-
-    pub fn add_clip(&mut self) -> ClipId {
-        ClipId(self.nodes.insert(SceneNode::Clip(ClipNode::new())))
-    }
-
-    pub fn add_transform(&mut self) -> TransformId {
-        TransformId(
-            self.nodes
-                .insert(SceneNode::Transform(TransformNode::new())),
-        )
-    }
-
-    pub fn add_opacity(&mut self) -> OpacityId {
-        OpacityId(self.nodes.insert(SceneNode::Opacity(OpacityNode::new())))
-    }
-
-    pub fn add_image(&mut self) -> ImageId {
-        ImageId(self.nodes.insert(SceneNode::Image(ImageNode::new())))
-    }
-
-    pub fn rect(&self, id: RectId) -> &RectNode {
-        match &self.nodes[id.0] {
-            SceneNode::Rect(n) => n,
-            _ => panic!("not a rect"),
-        }
-    }
-
-    pub fn rect_mut(&mut self, id: RectId) -> &mut RectNode {
-        match &mut self.nodes[id.0] {
-            SceneNode::Rect(n) => n,
-            _ => panic!("not a rect"),
-        }
-    }
-
-    pub fn text(&self, id: TextId) -> &TextNode {
-        match &self.nodes[id.0] {
-            SceneNode::Text(n) => n,
-            _ => panic!("not a text"),
-        }
-    }
-
-    pub fn text_mut(&mut self, id: TextId) -> &mut TextNode {
-        match &mut self.nodes[id.0] {
-            SceneNode::Text(n) => n,
-            _ => panic!("not a text"),
-        }
-    }
-
-    pub fn shadow(&self, id: ShadowId) -> &ShadowNode {
-        match &self.nodes[id.0] {
-            SceneNode::Shadow(n) => n,
-            _ => panic!("not a shadow"),
-        }
-    }
-
-    pub fn shadow_mut(&mut self, id: ShadowId) -> &mut ShadowNode {
-        match &mut self.nodes[id.0] {
-            SceneNode::Shadow(n) => n,
-            _ => panic!("not a shadow"),
-        }
-    }
-
-    pub fn clip_mut(&mut self, id: ClipId) -> &mut ClipNode {
-        match &mut self.nodes[id.0] {
-            SceneNode::Clip(n) => n,
-            _ => panic!("not a clip"),
-        }
-    }
-
-    pub fn transform_mut(&mut self, id: TransformId) -> &mut TransformNode {
-        match &mut self.nodes[id.0] {
-            SceneNode::Transform(n) => n,
-            _ => panic!("not a transform"),
-        }
-    }
-
-    pub fn opacity_mut(&mut self, id: OpacityId) -> &mut OpacityNode {
-        match &mut self.nodes[id.0] {
-            SceneNode::Opacity(n) => n,
-            _ => panic!("not an opacity"),
-        }
-    }
-
-    pub fn image_mut(&mut self, id: ImageId) -> &mut ImageNode {
-        match &mut self.nodes[id.0] {
-            SceneNode::Image(n) => n,
-            _ => panic!("not an image"),
-        }
-    }
-
-    pub fn add_child(&mut self, parent: SceneNodeId, child: SceneNodeId) {
-        match &mut self.nodes[parent.0] {
-            SceneNode::Transform(n) => n.children.push(child),
-            SceneNode::Clip(n) => n.children.push(child),
-            SceneNode::Opacity(n) => n.children.push(child),
-            _ => panic!("can only add children to group nodes"),
-        }
-    }
-
-    pub fn remove_child(&mut self, parent: SceneNodeId, child: SceneNodeId) {
-        match &mut self.nodes[parent.0] {
-            SceneNode::Transform(n) => n.children.retain(|c| *c != child),
-            SceneNode::Clip(n) => n.children.retain(|c| *c != child),
-            SceneNode::Opacity(n) => n.children.retain(|c| *c != child),
-            _ => {}
-        }
-    }
-
-    pub fn remove_node(&mut self, id: SceneNodeId) {
-        self.nodes.remove(id.0);
-    }
-
-    pub fn traverse<F>(&self, node_id: SceneNodeId, state: TraversalState, f: &mut F)
-    where
-        F: FnMut(&SceneNode, usize, &TraversalState),
-    {
-        let node = &self.nodes[node_id.0];
-        match node {
-            SceneNode::Rect(_)
-            | SceneNode::Text(_)
-            | SceneNode::Shadow(_)
-            | SceneNode::Image(_) => {
-                f(node, node_id.0, &state);
-            }
-            SceneNode::Transform(n) => {
-                let new_state = state.add_offset(n.offset_x, n.offset_y);
-                for &child in &n.children {
-                    self.traverse(child, new_state.clone(), f);
-                }
-            }
-            SceneNode::Clip(n) => {
-                let new_state = state.intersect_clip(n.x, n.y, n.w, n.h);
-                for &child in &n.children {
-                    self.traverse(child, new_state.clone(), f);
-                }
-            }
-            SceneNode::Opacity(n) => {
-                let new_state = state.multiply_opacity(n.opacity);
-                for &child in &n.children {
-                    self.traverse(child, new_state.clone(), f);
-                }
-            }
-        }
+    pub fn add_group(&mut self, group: GroupNode) -> &mut Self {
+        self.children.push(Node::Group(group));
+        self
     }
 }
 
-impl Default for SceneGraph {
-    fn default() -> Self {
-        Self::new()
+pub enum Node {
+    Rect(RectNode),
+    Text(TextNode),
+    Image(ImageNode),
+    Group(GroupNode),
+}
+
+pub struct Scene {
+    pub nodes: Vec<Node>,
+}
+
+impl Scene {
+    pub fn new() -> Self {
+        Self { nodes: Vec::new() }
+    }
+
+    pub fn add_rect(&mut self, rect: RectNode) {
+        self.nodes.push(Node::Rect(rect));
+    }
+
+    pub fn add_text(&mut self, text: TextNode) {
+        self.nodes.push(Node::Text(text));
+    }
+
+    pub fn add_image(&mut self, image: ImageNode) {
+        self.nodes.push(Node::Image(image));
+    }
+
+    pub fn add_group(&mut self, group: GroupNode) -> &mut Self {
+        self.nodes.push(Node::Group(group));
+        self
     }
 }
