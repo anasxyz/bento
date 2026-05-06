@@ -487,6 +487,22 @@ fn build_glyphs(
     spec: &TextSpec,
     scale: f32,
 ) -> Vec<GlyphInstance> {
+    let byte_to_char: Vec<usize> = {
+        let mut map = vec![0usize; spec.text.len() + 1];
+        for (char_idx, (byte_idx, _)) in spec.text.char_indices().enumerate() {
+            map[byte_idx] = char_idx;
+        }
+        // fill in non boundary bytes with the char they belong to
+        let mut last = 0;
+        for i in 0..map.len() {
+            if spec.text.is_char_boundary(i) {
+                last = map[i];
+            } else {
+                map[i] = last;
+            }
+        }
+        map
+    };
     let raster_scale = scale * spec.scale_x.max(spec.scale_y);
     let origin_x = (spec.x * scale).floor();
     let origin_y = (spec.y * scale).floor();
@@ -512,7 +528,7 @@ fn build_glyphs(
             let gy = ((run.line_y * raster_scale).floor() + physical.y as f32 - entry.top as f32)
                 / spec.scale_x.max(spec.scale_y);
 
-            let char_idx = spec.text[..glyph.start].chars().count();
+            let char_idx = byte_to_char[glyph.start.min(spec.text.len())];
             let base_color = spec
                 .color_ranges
                 .iter()
@@ -635,6 +651,22 @@ fn accum_decoration(
 // walk layout runs and produce background rects and line decoration rects
 // returns (bg_rects, line_rects)
 fn build_decorations(buffer: &Buffer, spec: &TextSpec) -> (Vec<RectInstance>, Vec<RectInstance>) {
+    let byte_to_char: Vec<usize> = {
+        let mut map = vec![0usize; spec.text.len() + 1];
+        for (char_idx, (byte_idx, _)) in spec.text.char_indices().enumerate() {
+            map[byte_idx] = char_idx;
+        }
+        // fill in non boundary bytes with the char they belong to
+        let mut last = 0;
+        for i in 0..map.len() {
+            if spec.text.is_char_boundary(i) {
+                last = map[i];
+            } else {
+                map[i] = last;
+            }
+        }
+        map
+    };
     let mut bg_rects = Vec::new();
     let mut line_rects = Vec::new();
 
@@ -662,7 +694,7 @@ fn build_decorations(buffer: &Buffer, spec: &TextSpec) -> (Vec<RectInstance>, Ve
         for glyph in run.glyphs {
             let glyph_x = spec.x + glyph.x;
             let glyph_w = glyph.w;
-            let char_idx = spec.text[..glyph.start].chars().count();
+            let char_idx = byte_to_char[glyph.start.min(spec.text.len())];
 
             let bg_color = spec
                 .background_ranges
@@ -1072,6 +1104,14 @@ fn char_to_byte(text: &str, char_idx: usize) -> usize {
         .nth(char_idx)
         .map(|(i, _)| i)
         .unwrap_or(text.len())
+}
+
+fn floor_char_boundary(text: &str, byte_pos: usize) -> usize {
+    let byte_pos = byte_pos.min(text.len());
+    (0..=byte_pos)
+        .rev()
+        .find(|&i| text.is_char_boundary(i))
+        .unwrap_or(0)
 }
 
 fn is_emoji(c: char) -> bool {
