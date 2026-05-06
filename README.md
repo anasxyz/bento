@@ -3,14 +3,4 @@
 
 > Warning: Bento is in early development. The API is unstable and will change between versions. Not recommended for production use.
 
-## Features
-
-- Cross-platform, runs on Windows, macOS, and Linux
-- Optimised, high performance, GPU-accelerated rendering with low overhead at scale
-
-Bento is built on top of:
-* **[`winit`](https://github.com/rust-windowing/winit)** for window handling
-* **[`wgpu`](https://github.com/gfx-rs/wgpu)** for 2D rendering
-* **[`cosmic-text`](https://github.com/pop-os/cosmic-text)** for text rendering
-
-![screenshot](screenshots/screenshot.png)
+Bento is built on top the [bento_wgpu](https://github.com/oganas/bento/tree/main/bento_wgpu) renderer, which uses [wgpu](https://github.com/gfx-rs/wgpu) and [cosmic_text](https://github.com/pop-os/cosmic-text) under the hood.
