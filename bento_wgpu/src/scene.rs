@@ -168,6 +168,13 @@ pub(crate) struct FontFamilyRange {
     pub(crate) font_family: String,
 }
 
+#[derive(Clone, PartialEq)]
+pub enum TextAlign {
+    Left,
+    Center,
+    Right,
+}
+
 pub struct TextNode {
     pub(crate) text: String,
     pub(crate) x: f32,
@@ -183,6 +190,8 @@ pub struct TextNode {
     pub(crate) font_family: String,
     pub(crate) max_width: Option<f32>,
     pub(crate) line_height: Option<f32>,
+    pub(crate) align: TextAlign,
+    pub(crate) letter_spacing: f32,
     pub(crate) opacity: f32,
     pub(crate) clip: Option<[f32; 4]>,
 
@@ -215,6 +224,8 @@ impl TextNode {
             font_family: String::new(),
             max_width: None,
             line_height: None,
+            align: TextAlign::Left,
+            letter_spacing: 0.0,
             opacity: 1.0,
             clip: None,
 
@@ -300,6 +311,14 @@ impl TextNode {
     }
     pub fn no_line_height(&mut self) -> &mut Self {
         self.line_height = None;
+        self
+    }
+    pub fn align(&mut self, align: TextAlign) -> &mut Self {
+        self.align = align;
+        self
+    }
+    pub fn letter_spacing(&mut self, spacing: f32) -> &mut Self {
+        self.letter_spacing = spacing;
         self
     }
     pub fn opacity(&mut self, opacity: f32) -> &mut Self {

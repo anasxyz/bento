@@ -1,4 +1,5 @@
 use crate::{
+    TextAlign,
     pipelines::rect::RectInstance,
     scene::{ColorRange, DecorationRange, FontFamilyRange, ItalicRange, WeightRange},
 };
@@ -42,6 +43,8 @@ pub struct TextSpec<'a> {
     pub font_family: &'a str,
     pub max_width: Option<f32>,
     pub line_height: Option<f32>,
+    pub letter_spacing: f32,
+    pub align: TextAlign,
     pub opacity: f32,
     pub clip: Option<[f32; 4]>,
 
@@ -218,6 +221,8 @@ struct TextCache {
     font_family: String,
     max_width: Option<f32>,
     line_height: Option<f32>,
+    letter_spacing: f32,
+    align: TextAlign,
     opacity: f32,
     clip: Option<[f32; 4]>,
 
@@ -252,6 +257,8 @@ impl TextCache {
             font_family: String::new(),
             max_width: None,
             line_height: None,
+            letter_spacing: 0.0,
+            align: TextAlign::Left,
             opacity: 1.0,
             clip: None,
 
@@ -281,6 +288,8 @@ impl TextCache {
             || self.font_family != s.font_family
             || self.max_width != s.max_width
             || self.line_height != s.line_height
+            || self.letter_spacing != s.letter_spacing
+            || self.align != s.align
             || self.weight_ranges.len() != s.weight_ranges.len()
             || self
                 .weight_ranges
@@ -327,6 +336,8 @@ impl TextCache {
         self.font_family = s.font_family.to_string();
         self.max_width = s.max_width;
         self.line_height = s.line_height;
+        self.letter_spacing = s.letter_spacing;
+        self.align = s.align.clone();
         self.opacity = s.opacity;
         self.clip = s.clip;
 
@@ -360,6 +371,12 @@ fn shape_and_rasterise(
     let mut buffer = Buffer::new(font_system, Metrics::new(spec.size, line_height));
     buffer.set_size(font_system, spec.max_width, None);
 
+    let align = match spec.align {
+        TextAlign::Left => Some(cosmic_text::Align::Left),
+        TextAlign::Center => Some(cosmic_text::Align::Center),
+        TextAlign::Right => Some(cosmic_text::Align::Right),
+    };
+
     let base_attrs = Attrs::new();
     let node_attrs = {
         let mut a = Attrs::new().weight(Weight(spec.weight));
@@ -368,6 +385,9 @@ fn shape_and_rasterise(
         }
         if !spec.font_family.is_empty() {
             a = a.family(Family::Name(spec.font_family));
+        }
+        if spec.letter_spacing != 0.0 {
+            a = a.letter_spacing(spec.letter_spacing);
         }
         a
     };
@@ -443,7 +463,7 @@ fn shape_and_rasterise(
         rich_spans.into_iter(),
         &base_attrs,
         Shaping::Advanced,
-        None,
+        align,
     );
     buffer.shape_until_scroll(font_system, false);
 
