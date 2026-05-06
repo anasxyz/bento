@@ -40,6 +40,7 @@ pub struct TextSpec<'a> {
     pub italic: bool,
     pub font_family: &'a str,
     pub max_width: Option<f32>,
+    pub opacity: f32,
 
     // visual only
     pub color_ranges: &'a [ColorRange],
@@ -213,6 +214,7 @@ struct TextCache {
     italic: bool,
     font_family: String,
     max_width: Option<f32>,
+    opacity: f32,
 
     color_ranges: Vec<ColorRange>,
     background_ranges: Vec<DecorationRange>,
@@ -244,6 +246,7 @@ impl TextCache {
             italic: false,
             font_family: String::new(),
             max_width: None,
+            opacity: 1.0,
 
             color_ranges: Vec::new(),
             background_ranges: Vec::new(),
@@ -294,6 +297,7 @@ impl TextCache {
         self.x != s.x
             || self.y != s.y
             || self.color != s.color
+            || self.opacity != s.opacity
             || self.color_ranges != s.color_ranges
             || self.background_ranges != s.background_ranges
             || self.underline_ranges != s.underline_ranges
@@ -313,6 +317,7 @@ impl TextCache {
         self.italic = s.italic;
         self.font_family = s.font_family.to_string();
         self.max_width = s.max_width;
+        self.opacity = s.opacity;
 
         self.color_ranges = s.color_ranges.to_vec();
         self.background_ranges = s.background_ranges.to_vec();
@@ -476,12 +481,18 @@ fn build_glyphs(
                 / spec.scale_x.max(spec.scale_y);
 
             let char_idx = spec.text[..glyph.start].chars().count();
-            let color = spec
+            let base_color = spec
                 .color_ranges
                 .iter()
                 .find(|r| r.start <= char_idx && char_idx < r.end)
                 .map(|r| r.color)
                 .unwrap_or(spec.color);
+            let color = [
+                base_color[0],
+                base_color[1],
+                base_color[2],
+                base_color[3] * spec.opacity,
+            ];
 
             instances.push(GlyphInstance {
                 position: [gx, gy],
@@ -505,7 +516,7 @@ fn build_glyphs(
                             c.r() as f32 / 255.0,
                             c.g() as f32 / 255.0,
                             c.b() as f32 / 255.0,
-                            c.a() as f32 / 255.0,
+                            c.a() as f32 / 255.0 * spec.opacity,
                         ]
                     })
                     .unwrap_or(color),
@@ -554,6 +565,7 @@ fn accum_decoration(
     y: f32,
     w: f32,
     h: f32,
+    opacity: f32,
     out: &mut Vec<RectInstance>,
 ) {
     match (color, accum) {
@@ -569,7 +581,7 @@ fn accum_decoration(
                 y,
                 w,
                 h,
-                color: c,
+                color: [c[0], c[1], c[2], c[3] * opacity],
             });
         }
         (None, slot) => {
@@ -637,6 +649,7 @@ fn build_decorations(buffer: &Buffer, spec: &TextSpec) -> (Vec<RectInstance>, Ve
                 line_top,
                 glyph_w,
                 line_height,
+                spec.opacity,
                 &mut bg_rects,
             );
             accum_decoration(
@@ -646,6 +659,7 @@ fn build_decorations(buffer: &Buffer, spec: &TextSpec) -> (Vec<RectInstance>, Ve
                 ul_y,
                 glyph_w,
                 ul_thickness,
+                spec.opacity,
                 &mut line_rects,
             );
             accum_decoration(
@@ -655,6 +669,7 @@ fn build_decorations(buffer: &Buffer, spec: &TextSpec) -> (Vec<RectInstance>, Ve
                 st_y,
                 glyph_w,
                 ul_thickness,
+                spec.opacity,
                 &mut line_rects,
             );
         }

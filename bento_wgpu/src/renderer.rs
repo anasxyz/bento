@@ -61,7 +61,7 @@ impl Renderer {
                 label: Some("frame"),
             });
 
-        // prepare rects 
+        // prepare rects
 
         for node in &mut scene.nodes {
             if let Node::Rect(r) = node {
@@ -72,9 +72,14 @@ impl Renderer {
                     r.slot,
                     RectInstance {
                         pos_size: [r.x, r.y, r.w, r.h],
-                        color: r.color,
+                        color: [r.color[0], r.color[1], r.color[2], r.color[3] * r.opacity],
                         radii: r.radii,
-                        border_color: r.border_color,
+                        border_color: [
+                            r.border_color[0],
+                            r.border_color[1],
+                            r.border_color[2],
+                            r.border_color[3] * r.opacity,
+                        ],
                         border_widths: r.border_widths,
                         transform: crate::math::transform(r.rotate, r.scale_x, r.scale_y),
                     },
@@ -83,7 +88,7 @@ impl Renderer {
         }
         self.rect.upload(&ctx.device, &ctx.queue);
 
-        // prepare text 
+        // prepare text
 
         let mut text_slot = 0usize;
         let specs: Vec<TextSpec> = scene
@@ -106,6 +111,7 @@ impl Renderer {
                         italic: t.italic,
                         font_family: t.font_family.as_str(),
                         max_width: t.max_width,
+                        opacity: t.opacity,
 
                         color_ranges: &t.color_ranges,
                         background_ranges: &t.background_ranges,
@@ -132,7 +138,7 @@ impl Renderer {
             .prepare_transient(&combined, &ctx.device, &ctx.queue);
         let line_offset = all_bg_rects.len() as u32;
 
-        // draw 
+        // draw
 
         let mut sorted: Vec<&Node> = scene.nodes.iter().collect();
         sorted.sort_by_key(|n| match n {
@@ -168,9 +174,9 @@ impl Renderer {
                         self.rect.draw_slot(&mut pass, r.slot);
                     }
                     Node::Text(t) => {
-                        // this is in order of which to be drawn first 
+                        // this is in order of which to be drawn first
                         // so backgrounds first, then glyphs, then decorations
-                        
+
                         // background rects
                         if let Some(&(start, end)) = self.text.bg_ranges.get(t.slot) {
                             self.rect.draw_transient_range(

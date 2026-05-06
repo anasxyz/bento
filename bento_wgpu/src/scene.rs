@@ -11,6 +11,8 @@ pub struct RectNode {
     pub(crate) scale_x: f32,
     pub(crate) scale_y: f32,
     pub(crate) z: i32,
+    pub(crate) opacity: f32,
+    pub(crate) clip: Option<[f32; 4]>,
     pub(crate) slot: u32,
 }
 
@@ -29,6 +31,8 @@ impl RectNode {
             scale_x: 1.0,
             scale_y: 1.0,
             z: 1,
+            opacity: 1.0,
+            clip: None,
             slot: u32::MAX,
         }
     }
@@ -114,6 +118,20 @@ impl RectNode {
         self.z = z;
         self
     }
+
+    pub fn opacity(&mut self, opacity: f32) -> &mut Self {
+        self.opacity = opacity;
+        self
+    }
+
+    pub fn clip(&mut self, clip: [f32; 4]) -> &mut Self {
+        self.clip = Some(clip);
+        self
+    }
+    pub fn no_clip(&mut self) -> &mut Self {
+        self.clip = None;
+        self
+    }
 }
 
 #[derive(Clone, PartialEq)]
@@ -164,6 +182,8 @@ pub struct TextNode {
     pub(crate) italic: bool,
     pub(crate) font_family: String,
     pub(crate) max_width: Option<f32>,
+    pub(crate) opacity: f32,
+    pub(crate) clip: Option<[f32; 4]>,
 
     pub(crate) color_ranges: Vec<ColorRange>,
     pub(crate) background_ranges: Vec<DecorationRange>,
@@ -193,6 +213,8 @@ impl TextNode {
             italic: false,
             font_family: String::new(),
             max_width: None,
+            opacity: 1.0,
+            clip: None,
 
             color_ranges: Vec::new(),
             background_ranges: Vec::new(),
@@ -268,6 +290,18 @@ impl TextNode {
     }
     pub fn no_max_width(&mut self) -> &mut Self {
         self.max_width = None;
+        self
+    }
+    pub fn opacity(&mut self, opacity: f32) -> &mut Self {
+        self.opacity = opacity;
+        self
+    }
+    pub fn clip(&mut self, x: f32, y: f32, w: f32, h: f32) -> &mut Self {
+        self.clip = Some([x, y, w, h]);
+        self
+    }
+    pub fn no_clip(&mut self) -> &mut Self {
+        self.clip = None;
         self
     }
 

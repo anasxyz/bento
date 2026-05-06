@@ -49,13 +49,14 @@ impl ApplicationHandler for App {
         rect.color([0.2, 0.5, 1.0, 1.0])
             .radius(8.0)
             .border([0.0, 0.0, 0.0, 1.0], [2.0; 4])
-            .z(1);
+            .z(3);
+        rect.opacity(0.5);
         self.scene.add_rect(rect);
 
         let mut text = TextNode::new(
             "In the early 20th century 💁👌🎍😍, this person did this and did that",
             60.0,
-            160.0,
+            60.0,
             16.0,
         );
         text.color([0.0, 0.0, 0.0, 1.0])
