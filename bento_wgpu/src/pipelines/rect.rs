@@ -10,6 +10,7 @@ pub struct RectInstance {
     pub border_color: [f32; 4],
     pub border_widths: [f32; 4],
     pub transform: [f32; 4],
+    pub clip: [f32; 4],
 }
 
 pub struct RectPipeline {
@@ -107,6 +108,11 @@ impl RectPipeline {
                     shader_location: 5,
                     format: wgpu::VertexFormat::Float32x4,
                 },
+                wgpu::VertexAttribute {
+                    offset: 96,
+                    shader_location: 6,
+                    format: wgpu::VertexFormat::Float32x4,
+                }, 
             ],
         };
 
@@ -190,6 +196,7 @@ impl RectPipeline {
             border_color: [0.0; 4],
             border_widths: [0.0; 4],
             transform: [1.0, 0.0, 0.0, 1.0],
+            clip: [0.0, 0.0, f32::MAX, f32::MAX],
         });
         self.dirty.push(true);
         slot

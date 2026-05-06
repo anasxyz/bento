@@ -10,6 +10,7 @@ struct Instance {
   @location(3) border_color: vec4f,
   @location(4) border_widths: vec4f,
   @location(5) transform_ab: vec4f, // a, b, c, d
+  @location(6) clip: vec4f,
 }
 
 struct VOut {
@@ -21,6 +22,7 @@ struct VOut {
   @location(4) border_color: vec4f,
   @location(5) border_widths: vec4f,
   @location(6) scale: f32,
+  @location(7) clip: vec4f,
 }
 
 var<private> QUAD: array<vec2f, 6> = array<vec2f, 6>(
@@ -59,6 +61,7 @@ fn vs_main(@builtin(vertex_index) vi: u32, inst: Instance) -> VOut {
   out.border_color = inst.border_color;
   out.border_widths = inst.border_widths;
   out.scale = length(vec2f(inst.transform_ab.x, inst.transform_ab.y));
+  out.clip = inst.clip;
 
   return out;
 }
@@ -70,6 +73,12 @@ fn sdf_rect(p: vec2f, half_size: vec2f, radius: f32) -> f32 {
 
 @fragment
 fn fs_main(in: VOut) -> @location(0) vec4f {
+  // discrd if outside clip
+  if in.pos.x < in.clip.x || in.pos.y < in.clip.y ||
+    in.pos.x > in.clip.x + in.clip.z || in.pos.y > in.clip.y + in.clip.w {
+    discard;
+  }
+
   let r = select(
     select(in.radii.x, in.radii.y, in.local_pos.x > 0.0),
     select(in.radii.w, in.radii.z, in.local_pos.x > 0.0),

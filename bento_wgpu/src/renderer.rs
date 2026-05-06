@@ -82,6 +82,7 @@ impl Renderer {
                         ],
                         border_widths: r.border_widths,
                         transform: crate::math::transform(r.rotate, r.scale_x, r.scale_y),
+                        clip: r.clip.unwrap_or([0.0, 0.0, f32::MAX, f32::MAX]),
                     },
                 );
             }
@@ -112,6 +113,7 @@ impl Renderer {
                         font_family: t.font_family.as_str(),
                         max_width: t.max_width,
                         opacity: t.opacity,
+                        clip: t.clip,
 
                         color_ranges: &t.color_ranges,
                         background_ranges: &t.background_ranges,

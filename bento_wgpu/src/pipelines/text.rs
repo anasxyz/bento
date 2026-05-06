@@ -22,6 +22,7 @@ pub struct GlyphInstance {
     pub transform: [f32; 4],
     pub is_color: u32,
     pub _pad: [u32; 3],
+    pub clip: [f32; 4],
 }
 
 // everything needed to draw one piece of text
@@ -41,6 +42,7 @@ pub struct TextSpec<'a> {
     pub font_family: &'a str,
     pub max_width: Option<f32>,
     pub opacity: f32,
+    pub clip: Option<[f32; 4]>,
 
     // visual only
     pub color_ranges: &'a [ColorRange],
@@ -215,6 +217,7 @@ struct TextCache {
     font_family: String,
     max_width: Option<f32>,
     opacity: f32,
+    clip: Option<[f32; 4]>,
 
     color_ranges: Vec<ColorRange>,
     background_ranges: Vec<DecorationRange>,
@@ -247,6 +250,7 @@ impl TextCache {
             font_family: String::new(),
             max_width: None,
             opacity: 1.0,
+            clip: None,
 
             color_ranges: Vec::new(),
             background_ranges: Vec::new(),
@@ -298,6 +302,7 @@ impl TextCache {
             || self.y != s.y
             || self.color != s.color
             || self.opacity != s.opacity
+            || self.clip != s.clip
             || self.color_ranges != s.color_ranges
             || self.background_ranges != s.background_ranges
             || self.underline_ranges != s.underline_ranges
@@ -318,6 +323,7 @@ impl TextCache {
         self.font_family = s.font_family.to_string();
         self.max_width = s.max_width;
         self.opacity = s.opacity;
+        self.clip = s.clip;
 
         self.color_ranges = s.color_ranges.to_vec();
         self.background_ranges = s.background_ranges.to_vec();
@@ -523,6 +529,7 @@ fn build_glyphs(
                 transform,
                 is_color: entry.is_color as u32,
                 _pad: [0; 3],
+                clip: spec.clip.unwrap_or([0.0, 0.0, f32::MAX, f32::MAX]),
             });
         }
     }
@@ -537,6 +544,7 @@ struct DecorationAccum {
     w: f32,
     h: f32,
     color: [f32; 4],
+    clip: [f32; 4],
 }
 
 impl DecorationAccum {
@@ -553,6 +561,7 @@ impl DecorationAccum {
                 border_color: [0.0; 4],
                 border_widths: [0.0; 4],
                 transform: [1.0, 0.0, 0.0, 1.0],
+                clip: self.clip,
             });
         }
     }
@@ -566,6 +575,7 @@ fn accum_decoration(
     w: f32,
     h: f32,
     opacity: f32,
+    clip: [f32; 4],
     out: &mut Vec<RectInstance>,
 ) {
     match (color, accum) {
@@ -582,6 +592,7 @@ fn accum_decoration(
                 w,
                 h,
                 color: [c[0], c[1], c[2], c[3] * opacity],
+                clip,
             });
         }
         (None, slot) => {
@@ -643,6 +654,8 @@ fn build_decorations(buffer: &Buffer, spec: &TextSpec) -> (Vec<RectInstance>, Ve
                 .find(|r| r.start <= char_idx && char_idx < r.end)
                 .map(|r| r.color);
 
+            let clip = spec.clip.unwrap_or([0.0, 0.0, f32::MAX, f32::MAX]);
+
             accum_decoration(
                 &mut bg_accum,
                 bg_color,
@@ -651,6 +664,7 @@ fn build_decorations(buffer: &Buffer, spec: &TextSpec) -> (Vec<RectInstance>, Ve
                 glyph_w,
                 line_height,
                 spec.opacity,
+                clip,
                 &mut bg_rects,
             );
             accum_decoration(
@@ -661,6 +675,7 @@ fn build_decorations(buffer: &Buffer, spec: &TextSpec) -> (Vec<RectInstance>, Ve
                 glyph_w,
                 ul_thickness,
                 spec.opacity,
+                clip,
                 &mut line_rects,
             );
             accum_decoration(
@@ -671,6 +686,7 @@ fn build_decorations(buffer: &Buffer, spec: &TextSpec) -> (Vec<RectInstance>, Ve
                 glyph_w,
                 ul_thickness,
                 spec.opacity,
+                clip,
                 &mut line_rects,
             );
         }
@@ -847,6 +863,12 @@ impl TextPipeline {
                     offset: 72,
                     shader_location: 7,
                     format: wgpu::VertexFormat::Uint32,
+                },
+                // account for _pad being [u32; 3] so 72 + 4 + 12 = 88
+                wgpu::VertexAttribute {
+                    offset: 88,
+                    shader_location: 8,
+                    format: wgpu::VertexFormat::Float32x4,
                 },
             ],
         };

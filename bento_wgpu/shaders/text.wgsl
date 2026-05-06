@@ -14,6 +14,7 @@ struct Instance {
   @location(5) color: vec4f,
   @location(6) transform: vec4f,
   @location(7) is_color: u32,
+  @location(8) clip: vec4f,
 }
 
 struct VOut {
@@ -21,6 +22,7 @@ struct VOut {
   @location(0) tex_uv: vec2f,
   @location(1) color: vec4f,
   @location(2) @interpolate(flat) is_color: u32,
+  @location(3) clip: vec4f,
 }
 
 var<private> QUAD: array<vec2f, 6> = array<vec2f, 6>(
@@ -50,11 +52,19 @@ fn vs_main(@builtin(vertex_index) vi: u32, inst: Instance) -> VOut {
   out.tex_uv = inst.uv_pos + q * inst.uv_size;
   out.color = inst.color;
   out.is_color = inst.is_color;
+  out.clip = inst.clip;
+
   return out;
 }
 
 @fragment
 fn fs_main(in: VOut) -> @location(0) vec4f {
+  // discrd if outside clip
+  if in.pos.x < in.clip.x || in.pos.y < in.clip.y ||
+    in.pos.x > in.clip.x + in.clip.z || in.pos.y > in.clip.y + in.clip.w {
+    discard;
+  }
+
   let sample = textureSample(atlas_tex, atlas_smp, in.tex_uv);
 
   if in.is_color == 1u {
