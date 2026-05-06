@@ -2,6 +2,7 @@
 members = [
   "bento", 
   "bento_derive",
-  "bento_wgpu"  
+  "bento_wgpu",
+  "bento_winit",
 ]
 resolver = "2"
