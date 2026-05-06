@@ -58,7 +58,7 @@ fn fs_main(in: VOut) -> @location(0) vec4f {
   let sample = textureSample(atlas_tex, atlas_smp, in.tex_uv);
 
   if in.is_color == 1u {
-    return vec4f(sample.rgb * sample.a, sample.a);
+    return vec4f(sample.rgb * sample.a * in.color.a, sample.a * in.color.a);
   } else {
     // 0.3 is for how full the text looks
     // + gamma correction for how strong the colour is
