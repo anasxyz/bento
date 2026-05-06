@@ -6,26 +6,26 @@ struct Screen {
 @group(1) @binding(2) var image_smp: sampler;
 
 struct Instance {
-  @location(0) pos_size:      vec4f,
-  @location(1) radii:         vec4f,
-  @location(2) border_color:  vec4f,
+  @location(0) pos_size: vec4f,
+  @location(1) radii: vec4f,
+  @location(2) border_color: vec4f,
   @location(3) border_widths: vec4f,
-  @location(4) transform:     vec4f,
-  @location(5) clip:          vec4f,
-  @location(6) opacity_pad:   vec4f,
+  @location(4) transform: vec4f,
+  @location(5) clip: vec4f,
+  @location(6) opacity_pad: vec4f,
 }
 
 struct VOut {
-  @builtin(position) pos:          vec4f,
-  @location(0) uv:           vec2f,
-  @location(1) local_pos:    vec2f,
-  @location(2) half_size:    vec2f,
-  @location(3) radii:        vec4f,
+  @builtin(position) pos: vec4f,
+  @location(0) uv: vec2f,
+  @location(1) local_pos: vec2f,
+  @location(2) half_size: vec2f,
+  @location(3) radii: vec4f,
   @location(4) border_color: vec4f,
-  @location(5) border_widths:vec4f,
-  @location(6) clip:         vec4f,
-  @location(7) opacity:      f32,
-  @location(8) scale:        f32,
+  @location(5) border_widths: vec4f,
+  @location(6) clip: vec4f,
+  @location(7) opacity: f32,
+  @location(8) scale: f32,
 }
 
 var<private> QUAD: array<vec2f, 6> = array<vec2f, 6>(
