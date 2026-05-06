@@ -12,7 +12,10 @@ Only primitive for rendering shapes is `RectNode`
 ## Text rendering: 
 `TextNode`   
 
+<img src="../screenshots/text.png" width="400" height="200"/>
+
 Full unicode, emoji, and bidirectional support, relying on [cosmic-text](https://github.com/pop-os/cosmic-text).   
+
 Customisable with per character ranges:
 - Foreground color
 - Background color
