@@ -52,7 +52,7 @@ impl ApplicationHandler for App {
         }
 
         let mut img_node = ImageNode::new(60.0, 200.0, 200.0, 200.0, 1);
-        img_node.radius(8.0);
+        img_node.radius(8.0).border([0.0, 0.0, 0.0, 1.0], [3.0, 3.0, 3.0, 3.0]);
 
         let mut rect = RectNode::new(0.0, 0.0, 200.0, 200.0);
         rect.color([0.2, 0.5, 1.0, 1.0]);

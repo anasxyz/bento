@@ -62,7 +62,7 @@ impl ImagePipeline {
         queue.write_buffer(
             &screen_buffer,
             0,
-            bytemuck::cast_slice(&[screen_w * scale, screen_h * scale]),
+            bytemuck::cast_slice(&[screen_w, screen_h]),
         );
 
         // layout for screen uniform
@@ -147,22 +147,22 @@ impl ImagePipeline {
                     offset: 16,
                     shader_location: 1,
                     format: wgpu::VertexFormat::Float32x4,
-                }, 
+                },
                 wgpu::VertexAttribute {
                     offset: 32,
                     shader_location: 2,
                     format: wgpu::VertexFormat::Float32x4,
-                }, 
+                },
                 wgpu::VertexAttribute {
                     offset: 48,
                     shader_location: 3,
                     format: wgpu::VertexFormat::Float32x4,
-                }, 
+                },
                 wgpu::VertexAttribute {
                     offset: 64,
                     shader_location: 4,
                     format: wgpu::VertexFormat::Float32x4,
-                }, 
+                },
                 wgpu::VertexAttribute {
                     offset: 80,
                     shader_location: 5,
@@ -172,7 +172,7 @@ impl ImagePipeline {
                     offset: 96,
                     shader_location: 6,
                     format: wgpu::VertexFormat::Float32x4,
-                }, 
+                },
             ],
         };
 
@@ -229,7 +229,7 @@ impl ImagePipeline {
         queue.write_buffer(
             &self.screen_buffer,
             0,
-            bytemuck::cast_slice(&[width * scale, height * scale]),
+            bytemuck::cast_slice(&[width, height]),
         );
     }
 
