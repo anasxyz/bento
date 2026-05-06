@@ -17,15 +17,15 @@ struct Instance {
 
 struct VOut {
   @builtin(position) pos:          vec4f,
-  @location(0)       uv:           vec2f,
-  @location(1)       local_pos:    vec2f,
-  @location(2)       half_size:    vec2f,
-  @location(3)       radii:        vec4f,
-  @location(4)       border_color: vec4f,
-  @location(5)       border_widths:vec4f,
-  @location(6)       clip:         vec4f,
-  @location(7)       opacity:      f32,
-  @location(8)       scale:        f32,
+  @location(0) uv:           vec2f,
+  @location(1) local_pos:    vec2f,
+  @location(2) half_size:    vec2f,
+  @location(3) radii:        vec4f,
+  @location(4) border_color: vec4f,
+  @location(5) border_widths:vec4f,
+  @location(6) clip:         vec4f,
+  @location(7) opacity:      f32,
+  @location(8) scale:        f32,
 }
 
 var<private> QUAD: array<vec2f, 6> = array<vec2f, 6>(
@@ -35,8 +35,8 @@ var<private> QUAD: array<vec2f, 6> = array<vec2f, 6>(
 
 @vertex
 fn vs_main(@builtin(vertex_index) vi: u32, inst: Instance) -> VOut {
-  let q     = QUAD[vi];
-  let half  = inst.pos_size.zw * 0.5;
+  let q = QUAD[vi];
+  let half = inst.pos_size.zw * 0.5;
   let local = (q - vec2f(0.5)) * inst.pos_size.zw;
 
   let a = inst.transform.x;
@@ -51,16 +51,17 @@ fn vs_main(@builtin(vertex_index) vi: u32, inst: Instance) -> VOut {
   let ndcy = -(py / screen.size.y) * 2.0 + 1.0;
 
   var out: VOut;
-  out.pos          = vec4f(ndcx, ndcy, 0.0, 1.0);
-  out.uv           = q;
-  out.local_pos    = local;
-  out.half_size    = half;
-  out.radii        = inst.radii;
+  out.pos = vec4f(ndcx, ndcy, 0.0, 1.0);
+  out.uv = q;
+  out.local_pos = local;
+  out.half_size = half;
+  out.radii = inst.radii;
   out.border_color = inst.border_color;
   out.border_widths= inst.border_widths;
-  out.clip         = inst.clip;
-  out.opacity      = inst.opacity_pad.x;
-  out.scale        = length(vec2f(inst.transform.x, inst.transform.y));
+  out.clip = inst.clip;
+  out.opacity = inst.opacity_pad.x;
+  out.scale = length(vec2f(inst.transform.x, inst.transform.y));
+
   return out;
 }
 
@@ -83,8 +84,8 @@ fn fs_main(in: VOut) -> @location(0) vec4f {
     select(in.radii.w, in.radii.z, in.local_pos.x > 0.0),
     in.local_pos.y > 0.0
   );
-  let aa    = 0.5 / in.scale;
-  let d     = sdf_rect(in.local_pos, in.half_size, r);
+  let aa = 0.5 / in.scale;
+  let d = sdf_rect(in.local_pos, in.half_size, r);
   let alpha = clamp(-d + aa, 0.0, 1.0);
   if alpha <= 0.0 { discard; }
 
@@ -98,7 +99,7 @@ fn fs_main(in: VOut) -> @location(0) vec4f {
   if !has_border {
     out_color = vec4f(color.rgb * color.a, color.a) * in.opacity * alpha;
   } else {
-    let bw      = (in.border_widths.x + in.border_widths.y +
+    let bw = (in.border_widths.x + in.border_widths.y +
                    in.border_widths.z + in.border_widths.w) * 0.25;
     let inner_r = max(r - bw, 0.0);
     let d_inner = sdf_rect(in.local_pos, in.half_size - bw, inner_r);
