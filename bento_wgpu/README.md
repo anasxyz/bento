@@ -25,7 +25,11 @@ Customisable with per character ranges:
 - Italic
 - Font   
 
-Text wrapping with `max_width`.
+Text wrapping with `max_width`.   
+
+Text alignment with `align`.   
+
+Text letter spacing with `letter_spacing`.   
 
 ## Image rendering:
 `ImageNode`   
