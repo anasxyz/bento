@@ -930,13 +930,16 @@ impl TextPipeline {
     }
 
     pub fn resize(&mut self, queue: &wgpu::Queue, width: f32, height: f32, scale: f32) {
-        self.scale = scale;
         queue.write_buffer(
             &self.screen_buffer,
             0,
             bytemuck::cast_slice(&[width * scale, height * scale]),
         );
-        self.cache.clear();
+        // only clear cache if scale changes
+        if scale != self.scale {
+            self.scale = scale;
+            self.cache.clear();
+        }
     }
 
     pub fn prepare(
