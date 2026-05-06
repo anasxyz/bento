@@ -656,7 +656,6 @@ fn build_decorations(buffer: &Buffer, spec: &TextSpec) -> (Vec<RectInstance>, Ve
         for (char_idx, (byte_idx, _)) in spec.text.char_indices().enumerate() {
             map[byte_idx] = char_idx;
         }
-        // fill in non boundary bytes with the char they belong to
         let mut last = 0;
         for i in 0..map.len() {
             if spec.text.is_char_boundary(i) {
@@ -667,12 +666,10 @@ fn build_decorations(buffer: &Buffer, spec: &TextSpec) -> (Vec<RectInstance>, Ve
         }
         map
     };
+
     let mut bg_rects = Vec::new();
     let mut line_rects = Vec::new();
-
-    let mut bg_accum: Option<DecorationAccum> = None;
-    let mut ul_accum: Option<DecorationAccum> = None;
-    let mut st_accum: Option<DecorationAccum> = None;
+    let clip = spec.clip.unwrap_or([0.0, 0.0, f32::MAX, f32::MAX]);
 
     for run in buffer.layout_runs() {
         let line_top = spec.y + run.line_top;
@@ -681,86 +678,65 @@ fn build_decorations(buffer: &Buffer, spec: &TextSpec) -> (Vec<RectInstance>, Ve
         let ul_y = spec.y + run.line_y + ul_thickness;
         let st_y = spec.y + run.line_y - run.line_height * 0.25;
 
-        if let Some(a) = bg_accum.take() {
-            a.flush(&mut bg_rects);
-        }
-        if let Some(a) = ul_accum.take() {
-            a.flush(&mut line_rects);
-        }
-        if let Some(a) = st_accum.take() {
-            a.flush(&mut line_rects);
+        // collect per glyph info for this run
+        struct GlyphInfo {
+            char_idx: usize,
+            x: f32,
+            w: f32,
         }
 
-        for glyph in run.glyphs {
-            let glyph_x = spec.x + glyph.x;
-            let glyph_w = glyph.w;
-            let char_idx = byte_to_char[glyph.start.min(spec.text.len())];
+        let glyph_infos: Vec<GlyphInfo> = run
+            .glyphs
+            .iter()
+            .map(|g| GlyphInfo {
+                char_idx: byte_to_char[g.start.min(spec.text.len())],
+                x: spec.x + g.x,
+                w: g.w,
+            })
+            .collect();
 
-            let bg_color = spec
-                .background_ranges
-                .iter()
-                .rev()
-                .find(|r| r.start <= char_idx && char_idx < r.end)
-                .map(|r| r.color);
+        // helper
+        // emit one rect per contiguous range of matching glyphs
+        // works for both ltr and rtl by using min/max of x positions
+        let emit = |ranges: &[DecorationRange], y: f32, h: f32, out: &mut Vec<RectInstance>| {
+            for range in ranges {
+                let mut min_x = f32::MAX;
+                let mut max_x = f32::MIN;
+                for g in run.glyphs {
+                    let char_idx = byte_to_char[g.start.min(spec.text.len())];
+                    if range.start <= char_idx && char_idx < range.end {
+                        min_x = min_x.min(spec.x + g.x);
+                        max_x = max_x.max(spec.x + g.x + g.w);
+                    }
+                }
+                if min_x >= max_x {
+                    continue;
+                }
+                out.push(RectInstance {
+                    pos_size: [min_x, y, max_x - min_x, h],
+                    color: [
+                        range.color[0],
+                        range.color[1],
+                        range.color[2],
+                        range.color[3] * spec.opacity,
+                    ],
+                    radii: [0.0; 4],
+                    border_color: [0.0; 4],
+                    border_widths: [0.0; 4],
+                    transform: [1.0, 0.0, 0.0, 1.0],
+                    clip,
+                });
+            }
+        };
 
-            let ul_color = spec
-                .underline_ranges
-                .iter()
-                .find(|r| r.start <= char_idx && char_idx < r.end)
-                .map(|r| r.color);
-
-            let st_color = spec
-                .strikethrough_ranges
-                .iter()
-                .find(|r| r.start <= char_idx && char_idx < r.end)
-                .map(|r| r.color);
-
-            let clip = spec.clip.unwrap_or([0.0, 0.0, f32::MAX, f32::MAX]);
-
-            accum_decoration(
-                &mut bg_accum,
-                bg_color,
-                glyph_x,
-                line_top,
-                glyph_w,
-                line_height,
-                spec.opacity,
-                clip,
-                &mut bg_rects,
-            );
-            accum_decoration(
-                &mut ul_accum,
-                ul_color,
-                glyph_x,
-                ul_y,
-                glyph_w,
-                ul_thickness,
-                spec.opacity,
-                clip,
-                &mut line_rects,
-            );
-            accum_decoration(
-                &mut st_accum,
-                st_color,
-                glyph_x,
-                st_y,
-                glyph_w,
-                ul_thickness,
-                spec.opacity,
-                clip,
-                &mut line_rects,
-            );
-        }
-
-        if let Some(a) = bg_accum.take() {
-            a.flush(&mut bg_rects);
-        }
-        if let Some(a) = ul_accum.take() {
-            a.flush(&mut line_rects);
-        }
-        if let Some(a) = st_accum.take() {
-            a.flush(&mut line_rects);
-        }
+        emit(spec.background_ranges, line_top, line_height, &mut bg_rects);
+        emit(spec.underline_ranges, ul_y, ul_thickness, &mut line_rects);
+        emit(
+            spec.strikethrough_ranges,
+            st_y,
+            ul_thickness,
+            &mut line_rects,
+        );
     }
 
     (bg_rects, line_rects)

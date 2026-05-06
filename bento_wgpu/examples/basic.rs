@@ -45,7 +45,7 @@ impl ApplicationHandler for App {
         self.surface = Some(surface);
         self.renderer = Some(renderer);
 
-        let mut text = TextNode::new("こんにちは、元気ですか。\n你好，你今天怎么样？\n안녕하세요, 잘 지내세요?\nمرحبًا، كيف حالك؟\nनमस्ते, कथं भवति?", 200.0, 200.0, 18.0);
+        let mut text = TextNode::new("اهلا وسهلا اهلا وسهلا اهلا وسهلا اهلا وسهلا اهلا وسهلا", 200.0, 200.0, 18.0);
         text.color([0.0, 0.0, 0.0, 1.0]);
         text.add_strikethrough(0, 5, [0.0, 0.0, 0.0, 1.0]);
         self.scene.add_text(text);
