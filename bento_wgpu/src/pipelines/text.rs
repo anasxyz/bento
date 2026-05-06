@@ -581,73 +581,6 @@ fn build_glyphs(
     instances
 }
 
-// decoration building
-
-struct DecorationAccum {
-    x: f32,
-    y: f32,
-    w: f32,
-    h: f32,
-    color: [f32; 4],
-    clip: [f32; 4],
-}
-
-impl DecorationAccum {
-    fn extend(&mut self, glyph_w: f32) {
-        self.w += glyph_w;
-    }
-
-    fn flush(self, out: &mut Vec<RectInstance>) {
-        if self.w > 0.0 {
-            out.push(RectInstance {
-                pos_size: [self.x, self.y, self.w, self.h],
-                color: self.color,
-                radii: [0.0; 4],
-                border_color: [0.0; 4],
-                border_widths: [0.0; 4],
-                transform: [1.0, 0.0, 0.0, 1.0],
-                clip: self.clip,
-            });
-        }
-    }
-}
-
-fn accum_decoration(
-    accum: &mut Option<DecorationAccum>,
-    color: Option<[f32; 4]>,
-    x: f32,
-    y: f32,
-    w: f32,
-    h: f32,
-    opacity: f32,
-    clip: [f32; 4],
-    out: &mut Vec<RectInstance>,
-) {
-    match (color, accum) {
-        (Some(c), Some(a)) if a.color == c => {
-            a.extend(w);
-        }
-        (Some(c), slot) => {
-            if let Some(a) = slot.take() {
-                a.flush(out);
-            }
-            *slot = Some(DecorationAccum {
-                x,
-                y,
-                w,
-                h,
-                color: [c[0], c[1], c[2], c[3] * opacity],
-                clip,
-            });
-        }
-        (None, slot) => {
-            if let Some(a) = slot.take() {
-                a.flush(out);
-            }
-        }
-    }
-}
-
 // walk layout runs and produce background rects and line decoration rects
 // returns (bg_rects, line_rects)
 fn build_decorations(buffer: &Buffer, spec: &TextSpec) -> (Vec<RectInstance>, Vec<RectInstance>) {
@@ -1080,14 +1013,6 @@ fn char_to_byte(text: &str, char_idx: usize) -> usize {
         .nth(char_idx)
         .map(|(i, _)| i)
         .unwrap_or(text.len())
-}
-
-fn floor_char_boundary(text: &str, byte_pos: usize) -> usize {
-    let byte_pos = byte_pos.min(text.len());
-    (0..=byte_pos)
-        .rev()
-        .find(|&i| text.is_char_boundary(i))
-        .unwrap_or(0)
 }
 
 fn is_emoji(c: char) -> bool {
