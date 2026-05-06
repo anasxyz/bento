@@ -529,7 +529,10 @@ fn build_glyphs(
                 transform,
                 is_color: entry.is_color as u32,
                 _pad: [0; 3],
-                clip: spec.clip.unwrap_or([0.0, 0.0, f32::MAX, f32::MAX]),
+                clip: spec
+                    .clip
+                    .map(|c| [c[0] * scale, c[1] * scale, c[2] * scale, c[3] * scale])
+                    .unwrap_or([0.0, 0.0, f32::MAX, f32::MAX]),
             });
         }
     }

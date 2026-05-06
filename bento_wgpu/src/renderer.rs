@@ -82,7 +82,17 @@ impl Renderer {
                         ],
                         border_widths: r.border_widths,
                         transform: crate::math::transform(r.rotate, r.scale_x, r.scale_y),
-                        clip: r.clip.unwrap_or([0.0, 0.0, f32::MAX, f32::MAX]),
+                        clip: r
+                            .clip
+                            .map(|c| {
+                                [
+                                    c[0] * surface.scale,
+                                    c[1] * surface.scale,
+                                    c[2] * surface.scale,
+                                    c[3] * surface.scale,
+                                ]
+                            })
+                            .unwrap_or([0.0, 0.0, f32::MAX, f32::MAX]),
                     },
                 );
             }
