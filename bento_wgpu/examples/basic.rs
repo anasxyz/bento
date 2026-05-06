@@ -46,19 +46,30 @@ impl ApplicationHandler for App {
         self.renderer = Some(renderer);
 
         if let Some(renderer) = &mut self.renderer {
-            let img = image::open("/home/anas/Claude-logo.jpeg").unwrap().to_rgba8();
+            let img = image::open("/home/anas/Claude-logo.jpeg")
+                .unwrap()
+                .to_rgba8();
             let (w, h) = img.dimensions();
             renderer.upload_image(1, &img, w, h, &self.ctx);
         }
 
-        let mut img_node = ImageNode::new(60.0, 200.0, 200.0, 200.0, 1);
-        img_node.radius(8.0).border([0.0, 0.0, 0.0, 1.0], [3.0, 3.0, 3.0, 3.0]);
-
+        let mut group = GroupNode::new();
+        group.pos(60.0, 200.0).clip(0.0, 0.0, 200.0, 200.0);
         let mut rect = RectNode::new(0.0, 0.0, 200.0, 200.0);
-        rect.color([0.2, 0.5, 1.0, 1.0]);
+        rect.pos(60.0, 200.0).color([0.2, 0.5, 1.0, 1.0]);
         self.scene.add_rect(rect);
 
-        self.scene.add_image(img_node);
+        let mut img_node = ImageNode::new(0.0, 0.0, 200.0, 200.0, 1);
+        img_node
+            .radius(8.0)
+            .border([0.0, 0.0, 0.0, 1.0], [3.0, 3.0, 3.0, 3.0]);
+        group.add_image(img_node);
+
+        let mut text = TextNode::new("This world", 60.0, 60.0, 18.0);
+        text.color([0.0, 0.0, 0.0, 1.0]).max_width(400.0).z(1000);
+        self.scene.add_text(text);
+
+        self.scene.add_group(group);
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {

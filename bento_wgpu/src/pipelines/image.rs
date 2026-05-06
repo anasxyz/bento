@@ -15,20 +15,6 @@ pub struct ImageInstance {
     pub _pad: [f32; 3],
 }
 
-pub struct ImageSpec {
-    pub x: f32,
-    pub y: f32,
-    pub w: f32,
-    pub h: f32,
-    pub image_id: u64,
-    pub radii: [f32; 4],
-    pub border_color: [f32; 4],
-    pub border_widths: [f32; 4],
-    pub transform: [f32; 4],
-    pub clip: [f32; 4],
-    pub opacity: f32,
-}
-
 pub struct ImagePipeline {
     pipeline: wgpu::RenderPipeline,
     screen_buffer: wgpu::Buffer,
@@ -40,8 +26,10 @@ pub struct ImagePipeline {
     capacity: usize,
     textures: HashMap<u64, (wgpu::Texture, wgpu::TextureView, wgpu::BindGroup)>,
     instances: Vec<ImageInstance>,
-    // maps slot index to image_id to know which texture to bind per draw
-    slots: Vec<u64>,
+    dirty: Vec<bool>,
+    // slot -> image_id
+    image_ids: Vec<u64>,
+    next_slot: usize,
 }
 
 impl ImagePipeline {
@@ -221,7 +209,9 @@ impl ImagePipeline {
             capacity,
             textures: HashMap::new(),
             instances: Vec::new(),
-            slots: Vec::new(),
+            dirty: Vec::new(),
+            image_ids: Vec::new(),
+            next_slot: 0,
         }
     }
 
@@ -297,25 +287,38 @@ impl ImagePipeline {
         self.textures.insert(id, (texture, view, bind_group));
     }
 
-    // prepare instances from specs
-    pub fn prepare(&mut self, specs: &[ImageSpec], device: &wgpu::Device, queue: &wgpu::Queue) {
-        self.instances.clear();
-        self.slots.clear();
+    pub fn alloc_slot(&mut self) -> usize {
+        let slot = self.next_slot;
+        self.next_slot += 1;
+        self.instances.push(ImageInstance {
+            pos_size: [0.0; 4],
+            radii: [0.0; 4],
+            border_color: [0.0; 4],
+            border_widths: [0.0; 4],
+            transform: [1.0, 0.0, 0.0, 1.0],
+            clip: [0.0, 0.0, f32::MAX, f32::MAX],
+            opacity: 1.0,
+            _pad: [0.0; 3],
+        });
+        self.dirty.push(true);
+        self.image_ids.push(0);
+        slot
+    }
 
-        for spec in specs {
-            self.slots.push(spec.image_id);
-            self.instances.push(ImageInstance {
-                pos_size: [spec.x, spec.y, spec.w, spec.h],
-                radii: spec.radii,
-                border_color: spec.border_color,
-                border_widths: spec.border_widths,
-                transform: spec.transform,
-                clip: spec.clip,
-                opacity: spec.opacity,
-                _pad: [0.0; 3],
-            });
+    pub fn write_slot(&mut self, slot: usize, instance: ImageInstance, image_id: u64) {
+        if bytemuck::bytes_of(&self.instances[slot]) != bytemuck::bytes_of(&instance)
+            || self.image_ids[slot] != image_id
+        {
+            self.instances[slot] = instance;
+            self.image_ids[slot] = image_id;
+            self.dirty[slot] = true;
+            println!("[image] slot {} marked dirty", slot);
+        } else {
+            println!("[image] slot {} fully cached, skipping", slot);
         }
+    }
 
+    pub fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
         if self.instances.is_empty() {
             return;
         }
@@ -328,18 +331,33 @@ impl ImagePipeline {
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
+            queue.write_buffer(
+                &self.vertex_buffer,
+                0,
+                bytemuck::cast_slice(&self.instances),
+            );
+            for d in &mut self.dirty {
+                *d = false;
+            }
+            return;
         }
 
-        queue.write_buffer(
-            &self.vertex_buffer,
-            0,
-            bytemuck::cast_slice(&self.instances),
-        );
+        for (i, dirty) in self.dirty.iter_mut().enumerate() {
+            if *dirty {
+                println!("[image] uploading slot {}", i);
+                let offset = (i * std::mem::size_of::<ImageInstance>()) as u64;
+                queue.write_buffer(
+                    &self.vertex_buffer,
+                    offset,
+                    bytemuck::bytes_of(&self.instances[i]),
+                );
+                *dirty = false;
+            }
+        }
     }
 
-    // draws a single image instance by slot index
     pub fn draw_slot<'pass>(&'pass self, pass: &mut wgpu::RenderPass<'pass>, slot: usize) {
-        let image_id = self.slots[slot];
+        let image_id = self.image_ids[slot];
         let Some((_, _, bind_group)) = self.textures.get(&image_id) else {
             return;
         };

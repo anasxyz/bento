@@ -1,7 +1,7 @@
 use crate::{
     context::RenderContext,
     pipelines::{
-        image::{ImagePipeline, ImageSpec},
+        image::{ImageInstance, ImagePipeline},
         rect::{RectInstance, RectPipeline},
         text::{TextPipeline, TextSpec},
     },
@@ -140,24 +140,21 @@ impl Renderer {
         // traverse scene
 
         let mut specs: Vec<TextSpec> = Vec::new();
-        let mut image_specs: Vec<ImageSpec> = Vec::new();
         let mut text_slot: usize = 0;
-        let mut image_slot: usize = 0;
 
         Self::traverse(
             &mut scene.nodes,
             &Accumulated::identity(),
             &mut self.rect,
+            &mut self.image,
             surface.scale,
             &mut specs,
-            &mut image_specs,
             &mut text_slot,
-            &mut image_slot,
         );
         self.rect.upload(&ctx.device, &ctx.queue);
         self.text
             .prepare(&specs, font_system, &ctx.device, &ctx.queue);
-        self.image.prepare(&image_specs, &ctx.device, &ctx.queue);
+        self.image.upload(&ctx.device, &ctx.queue);
 
         // upload decoration rects into transient buffer before pass begins
         let all_bg_rects: Vec<RectInstance> = self.text.bg_rects.clone();
@@ -219,11 +216,10 @@ impl Renderer {
         nodes: &'a mut Vec<Node>,
         acc: &Accumulated,
         rect: &mut RectPipeline,
+        image: &mut ImagePipeline,
         scale: f32,
         specs: &mut Vec<TextSpec<'a>>,
-        image_specs: &mut Vec<ImageSpec>,
         text_slot: &mut usize,
-        image_slot: &mut usize,
     ) {
         nodes.sort_by_key(|n| match n {
             Node::Rect(r) => r.z,
@@ -300,34 +296,36 @@ impl Renderer {
                 }
 
                 Node::Image(img) => {
-                    img.slot = *image_slot;
-                    *image_slot += 1;
+                    if img.slot == usize::MAX {
+                        img.slot = image.alloc_slot();
+                    }
                     let final_clip = merge_clip(
                         acc.clip,
                         img.clip.map(|c| [c[0] + acc.x, c[1] + acc.y, c[2], c[3]]),
                     );
-                    image_specs.push(ImageSpec {
-                        x: img.x + acc.x,
-                        y: img.y + acc.y,
-                        w: img.w,
-                        h: img.h,
-                        image_id: img.image_id,
-                        radii: img.radii,
-                        border_color: [
-                            img.border_color[0],
-                            img.border_color[1],
-                            img.border_color[2],
-                            img.border_color[3] * img.opacity * acc.opacity,
-                        ],
-                        border_widths: img.border_widths,
-                        transform: crate::math::transform(
-                            img.rotate + acc.rotate,
-                            img.scale_x * acc.scale_x,
-                            img.scale_y * acc.scale_y,
-                        ),
-                        clip: scale_clip(final_clip, scale),
-                        opacity: img.opacity * acc.opacity,
-                    });
+                    image.write_slot(
+                        img.slot,
+                        ImageInstance {
+                            pos_size: [img.x + acc.x, img.y + acc.y, img.w, img.h],
+                            radii: img.radii,
+                            border_color: [
+                                img.border_color[0],
+                                img.border_color[1],
+                                img.border_color[2],
+                                img.border_color[3] * img.opacity * acc.opacity,
+                            ],
+                            border_widths: img.border_widths,
+                            transform: crate::math::transform(
+                                img.rotate + acc.rotate,
+                                img.scale_x * acc.scale_x,
+                                img.scale_y * acc.scale_y,
+                            ),
+                            clip: scale_clip(final_clip, scale),
+                            opacity: img.opacity * acc.opacity,
+                            _pad: [0.0; 3],
+                        },
+                        img.image_id,
+                    );
                 }
 
                 Node::Group(g) => {
@@ -336,11 +334,10 @@ impl Renderer {
                         &mut g.children,
                         &child_acc,
                         rect,
+                        image,
                         scale,
                         specs,
-                        image_specs,
                         text_slot,
-                        image_slot,
                     );
                 }
             }
