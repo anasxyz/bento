@@ -3,7 +3,7 @@
 #![allow(unused_imports)]
 #![allow(unused_mut)]
 
-use bento_wgpu::{GroupNode, RectNode, RenderContext, Scene, TextNode};
+use bento_wgpu::{GroupNode, ImageNode, RectNode, RenderContext, Scene, TextNode};
 use cosmic_text::FontSystem;
 use std::sync::Arc;
 use winit::{
@@ -45,21 +45,20 @@ impl ApplicationHandler for App {
         self.surface = Some(surface);
         self.renderer = Some(renderer);
 
-        let mut scroll_area = GroupNode::new();
-        scroll_area.pos(0.0, 0.0).clip(0.0, 0.0, 300.0, 200.0);
-        let mut rect = RectNode::new(0.0, 0.0, 300.0, 200.0);
+        if let Some(renderer) = &mut self.renderer {
+            let img = image::open("/home/anas/Claude-logo.jpeg").unwrap().to_rgba8();
+            let (w, h) = img.dimensions();
+            renderer.upload_image(1, &img, w, h, &self.ctx);
+        }
+
+        let mut img_node = ImageNode::new(60.0, 200.0, 200.0, 200.0, 1);
+        img_node.radius(8.0);
+
+        let mut rect = RectNode::new(0.0, 0.0, 200.0, 200.0);
         rect.color([0.2, 0.5, 1.0, 1.0]);
-        scroll_area.add_rect(rect);
+        self.scene.add_rect(rect);
 
-        let mut content = GroupNode::new();
-        content.pos(0.0, 188.0);
-
-        let mut text = TextNode::new("hello", 0.0, 0.0, 16.0);
-        text.color([0.0, 0.0, 0.0, 1.0]);
-        content.add_text(text);
-
-        scroll_area.add_group(content);
-        self.scene.add_group(scroll_area);
+        self.scene.add_image(img_node);
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {

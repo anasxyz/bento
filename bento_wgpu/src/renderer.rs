@@ -1,6 +1,7 @@
 use crate::{
     context::RenderContext,
     pipelines::{
+        image::{ImagePipeline, ImageSpec},
         rect::{RectInstance, RectPipeline},
         text::{TextPipeline, TextSpec},
     },
@@ -78,6 +79,7 @@ fn scale_clip(clip: Option<[f32; 4]>, scale: f32) -> [f32; 4] {
 pub struct Renderer {
     rect: RectPipeline,
     text: TextPipeline,
+    image: ImagePipeline,
 }
 
 impl Renderer {
@@ -91,6 +93,14 @@ impl Renderer {
                 surface.height,
             ),
             text: TextPipeline::new(
+                &ctx.device,
+                &ctx.queue,
+                surface.format,
+                surface.width,
+                surface.height,
+                surface.scale,
+            ),
+            image: ImagePipeline::new(
                 &ctx.device,
                 &ctx.queue,
                 surface.format,
@@ -130,7 +140,9 @@ impl Renderer {
         // traverse scene
 
         let mut specs: Vec<TextSpec> = Vec::new();
+        let mut image_specs: Vec<ImageSpec> = Vec::new();
         let mut text_slot: usize = 0;
+        let mut image_slot: usize = 0;
 
         Self::traverse(
             &mut scene.nodes,
@@ -138,11 +150,14 @@ impl Renderer {
             &mut self.rect,
             surface.scale,
             &mut specs,
+            &mut image_specs,
             &mut text_slot,
+            &mut image_slot,
         );
         self.rect.upload(&ctx.device, &ctx.queue);
         self.text
             .prepare(&specs, font_system, &ctx.device, &ctx.queue);
+        self.image.prepare(&image_specs, &ctx.device, &ctx.queue);
 
         // upload decoration rects into transient buffer before pass begins
         let all_bg_rects: Vec<RectInstance> = self.text.bg_rects.clone();
@@ -177,7 +192,14 @@ impl Renderer {
                 occlusion_query_set: None,
             });
 
-            Self::draw_nodes(&scene.nodes, &self.rect, &self.text, &mut pass, line_offset);
+            Self::draw_nodes(
+                &scene.nodes,
+                &self.rect,
+                &self.text,
+                &self.image,
+                &mut pass,
+                line_offset,
+            );
         }
 
         ctx.queue.submit(Some(encoder.finish()));
@@ -188,6 +210,8 @@ impl Renderer {
         self.rect.resize(&ctx.queue, surface.width, surface.height);
         self.text
             .resize(&ctx.queue, surface.width, surface.height, surface.scale);
+        self.image
+            .resize(&ctx.queue, surface.width, surface.height, surface.scale);
     }
 
     // traverses the scene and prepares all nodes recursively
@@ -197,11 +221,14 @@ impl Renderer {
         rect: &mut RectPipeline,
         scale: f32,
         specs: &mut Vec<TextSpec<'a>>,
+        image_specs: &mut Vec<ImageSpec>,
         text_slot: &mut usize,
+        image_slot: &mut usize,
     ) {
         nodes.sort_by_key(|n| match n {
             Node::Rect(r) => r.z,
             Node::Text(t) => t.z,
+            Node::Image(i) => i.z,
             Node::Group(g) => g.z,
         });
 
@@ -272,9 +299,49 @@ impl Renderer {
                     });
                 }
 
+                Node::Image(img) => {
+                    img.slot = *image_slot;
+                    *image_slot += 1;
+                    let final_clip = merge_clip(
+                        acc.clip,
+                        img.clip.map(|c| [c[0] + acc.x, c[1] + acc.y, c[2], c[3]]),
+                    );
+                    image_specs.push(ImageSpec {
+                        x: img.x + acc.x,
+                        y: img.y + acc.y,
+                        w: img.w,
+                        h: img.h,
+                        image_id: img.image_id,
+                        radii: img.radii,
+                        border_color: [
+                            img.border_color[0],
+                            img.border_color[1],
+                            img.border_color[2],
+                            img.border_color[3] * img.opacity * acc.opacity,
+                        ],
+                        border_widths: img.border_widths,
+                        transform: crate::math::transform(
+                            img.rotate + acc.rotate,
+                            img.scale_x * acc.scale_x,
+                            img.scale_y * acc.scale_y,
+                        ),
+                        clip: scale_clip(final_clip, scale),
+                        opacity: img.opacity * acc.opacity,
+                    });
+                }
+
                 Node::Group(g) => {
                     let child_acc = acc.combine_with_group(g);
-                    Self::traverse(&mut g.children, &child_acc, rect, scale, specs, text_slot);
+                    Self::traverse(
+                        &mut g.children,
+                        &child_acc,
+                        rect,
+                        scale,
+                        specs,
+                        image_specs,
+                        text_slot,
+                        image_slot,
+                    );
                 }
             }
         }
@@ -285,6 +352,7 @@ impl Renderer {
         nodes: &'pass Vec<Node>,
         rect: &'pass RectPipeline,
         text: &'pass TextPipeline,
+        image: &'pass ImagePipeline,
         pass: &mut wgpu::RenderPass<'pass>,
         line_offset: u32,
     ) {
@@ -306,10 +374,25 @@ impl Renderer {
                         );
                     }
                 }
+                Node::Image(img) => {
+                    image.draw_slot(pass, img.slot);
+                }
                 Node::Group(g) => {
-                    Self::draw_nodes(&g.children, rect, text, pass, line_offset);
+                    Self::draw_nodes(&g.children, rect, text, image, pass, line_offset);
                 }
             }
         }
+    }
+
+    pub fn upload_image(
+        &mut self,
+        id: u64,
+        bytes: &[u8],
+        width: u32,
+        height: u32,
+        ctx: &RenderContext,
+    ) {
+        self.image
+            .upload_image(id, bytes, width, height, &ctx.device, &ctx.queue);
     }
 }
