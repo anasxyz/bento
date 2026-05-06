@@ -388,6 +388,123 @@ impl TextNode {
     }
 }
 
+pub struct ImageNode {
+    pub(crate) x: f32,
+    pub(crate) y: f32,
+    pub(crate) w: f32,
+    pub(crate) h: f32,
+    pub(crate) image_id: u64,
+    pub(crate) radii: [f32; 4],
+    pub(crate) border_color: [f32; 4],
+    pub(crate) border_widths: [f32; 4],
+    pub(crate) rotate: f32,
+    pub(crate) scale_x: f32,
+    pub(crate) scale_y: f32,
+    pub(crate) opacity: f32,
+    pub(crate) clip: Option<[f32; 4]>,
+    pub(crate) z: i32,
+    pub(crate) slot: usize,
+}
+
+impl ImageNode {
+    pub fn new(x: f32, y: f32, w: f32, h: f32, image_id: u64) -> Self {
+        Self {
+            x,
+            y,
+            w,
+            h,
+            image_id,
+            radii: [0.0; 4],
+            border_color: [0.0; 4],
+            border_widths: [0.0; 4],
+            rotate: 0.0,
+            scale_x: 1.0,
+            scale_y: 1.0,
+            opacity: 1.0,
+            clip: None,
+            z: 1,
+            slot: usize::MAX,
+        }
+    }
+
+    pub fn x(&mut self, x: f32) -> &mut Self {
+        self.x = x;
+        self
+    }
+    pub fn y(&mut self, y: f32) -> &mut Self {
+        self.y = y;
+        self
+    }
+    pub fn pos(&mut self, x: f32, y: f32) -> &mut Self {
+        self.x = x;
+        self.y = y;
+        self
+    }
+    pub fn size(&mut self, w: f32, h: f32) -> &mut Self {
+        self.w = w;
+        self.h = h;
+        self
+    }
+    pub fn radii(&mut self, radii: [f32; 4]) -> &mut Self {
+        self.radii = radii;
+        self
+    }
+    pub fn radius(&mut self, r: f32) -> &mut Self {
+        self.radii = [r; 4];
+        self
+    }
+    pub fn border(&mut self, color: [f32; 4], widths: [f32; 4]) -> &mut Self {
+        self.border_color = color;
+        self.border_widths = widths;
+        self
+    }
+    pub fn border_color(&mut self, color: [f32; 4]) -> &mut Self {
+        self.border_color = color;
+        self
+    }
+    pub fn border_widths(&mut self, widths: [f32; 4]) -> &mut Self {
+        self.border_widths = widths;
+        self
+    }
+    pub fn border_width(&mut self, w: f32) -> &mut Self {
+        self.border_widths = [w; 4];
+        self
+    }
+    pub fn rotate(&mut self, angle: f32) -> &mut Self {
+        self.rotate = angle;
+        self
+    }
+    pub fn scale(&mut self, x: f32, y: f32) -> &mut Self {
+        self.scale_x = x;
+        self.scale_y = y;
+        self
+    }
+    pub fn scale_x(&mut self, x: f32) -> &mut Self {
+        self.scale_x = x;
+        self
+    }
+    pub fn scale_y(&mut self, y: f32) -> &mut Self {
+        self.scale_y = y;
+        self
+    }
+    pub fn opacity(&mut self, opacity: f32) -> &mut Self {
+        self.opacity = opacity;
+        self
+    }
+    pub fn clip(&mut self, x: f32, y: f32, w: f32, h: f32) -> &mut Self {
+        self.clip = Some([x, y, w, h]);
+        self
+    }
+    pub fn no_clip(&mut self) -> &mut Self {
+        self.clip = None;
+        self
+    }
+    pub fn z(&mut self, z: i32) -> &mut Self {
+        self.z = z;
+        self
+    }
+}
+
 pub struct GroupNode {
     pub(crate) x: f32,
     pub(crate) y: f32,
@@ -474,6 +591,10 @@ impl GroupNode {
         self.children.push(Node::Text(text));
         self
     }
+    pub fn add_image(&mut self, image: ImageNode) -> &mut Self {
+        self.children.push(Node::Image(image));
+        self
+    }
     pub fn add_group(&mut self, group: GroupNode) -> &mut Self {
         self.children.push(Node::Group(group));
         self
@@ -483,6 +604,7 @@ impl GroupNode {
 pub enum Node {
     Rect(RectNode),
     Text(TextNode),
+    Image(ImageNode),
     Group(GroupNode),
 }
 
@@ -501,6 +623,10 @@ impl Scene {
 
     pub fn add_text(&mut self, text: TextNode) {
         self.nodes.push(Node::Text(text));
+    }
+
+    pub fn add_image(&mut self, image: ImageNode) {
+        self.nodes.push(Node::Image(image));
     }
 
     pub fn add_group(&mut self, group: GroupNode) -> &mut Self {
