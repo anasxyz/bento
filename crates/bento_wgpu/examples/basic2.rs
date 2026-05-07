@@ -49,7 +49,11 @@ impl ApplicationHandler for App {
         self.surface = Some(surface);
         self.renderer = Some(renderer);
 
-        self.build_scene();
+        let mut rect = RectNode::new(0.0, 0.0, 100.0, 100.0);
+        rect.color = [0.2, 0.5, 1.0, 1.0];
+        rect.border_color = [0.0, 0.0, 0.0, 1.0];
+        rect.border_widths = [3.0; 4];
+        self.scene.add_rect(rect);
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {

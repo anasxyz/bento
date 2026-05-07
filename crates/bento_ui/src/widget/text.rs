@@ -1,5 +1,8 @@
 use crate::widget::Widget;
-use bento_shared::{TextMeasurer, scene::{Node, Scene, SceneNodeId, TextAlign, TextNode}};
+use bento_shared::{
+    TextMeasurer,
+    scene::{Node, Scene, SceneNodeId, TextAlign, TextNode},
+};
 
 pub struct Text {
     pub x: f32,
@@ -10,6 +13,11 @@ pub struct Text {
     pub opacity: f32,
     pub max_width: Option<f32>,
     pub align: TextAlign,
+    pub font_family: String,
+    pub weight: u16,
+    pub italic: bool,
+    pub letter_spacing: f32,
+
     id: Option<SceneNodeId>,
 }
 
@@ -24,6 +32,11 @@ impl Text {
             opacity: 1.0,
             max_width: None,
             align: TextAlign::Left,
+            font_family: String::new(),
+            weight: 400,
+            italic: false,
+            letter_spacing: 0.0,
+
             id: None,
         }
     }
@@ -36,6 +49,11 @@ impl Widget for Text {
         node.opacity = self.opacity;
         node.max_width = self.max_width;
         node.align = self.align.clone();
+        node.font_family = self.font_family.clone();
+        node.weight = self.weight;
+        node.italic = self.italic;
+        node.letter_spacing = self.letter_spacing;
+
         self.id = Some(scene.add_text(node));
     }
 
@@ -44,6 +62,7 @@ impl Widget for Text {
         let Some(Node::Text(t)) = scene.get_mut(id) else {
             return;
         };
+
         t.x = self.x;
         t.y = self.y;
         t.text = self.text.clone();
@@ -52,5 +71,9 @@ impl Widget for Text {
         t.opacity = self.opacity;
         t.max_width = self.max_width;
         t.align = self.align.clone();
+        t.font_family = self.font_family.clone();
+        t.weight = self.weight;
+        t.italic = self.italic;
+        t.letter_spacing = self.letter_spacing;
     }
 }

@@ -1,5 +1,8 @@
 use crate::widget::Widget;
-use bento_shared::{TextMeasurer, scene::{Node, RectNode, Scene, SceneNodeId}};
+use bento_shared::{
+    TextMeasurer,
+    scene::{Node, RectNode, Scene, SceneNodeId},
+};
 
 pub struct Rect {
     pub x: f32,
@@ -8,7 +11,10 @@ pub struct Rect {
     pub h: f32,
     pub color: [f32; 4],
     pub radii: [f32; 4],
+    pub border_color: [f32; 4],
+    pub border_widths: [f32; 4],
     pub opacity: f32,
+
     id: Option<SceneNodeId>,
 }
 
@@ -22,6 +28,9 @@ impl Rect {
             color: [1.0, 1.0, 1.0, 1.0],
             radii: [0.0; 4],
             opacity: 1.0,
+            border_color: [0.0; 4],
+            border_widths: [0.0; 4],
+
             id: None,
         }
     }
@@ -33,6 +42,9 @@ impl Widget for Rect {
         node.color = self.color;
         node.radii = self.radii;
         node.opacity = self.opacity;
+        node.border_color = self.border_color;
+        node.border_widths = self.border_widths;
+
         self.id = Some(scene.add_rect(node));
     }
 
@@ -41,6 +53,7 @@ impl Widget for Rect {
         let Some(Node::Rect(r)) = scene.get_mut(id) else {
             return;
         };
+
         r.x = self.x;
         r.y = self.y;
         r.w = self.w;
@@ -48,5 +61,7 @@ impl Widget for Rect {
         r.color = self.color;
         r.radii = self.radii;
         r.opacity = self.opacity;
+        r.border_color = self.border_color;
+        r.border_widths = self.border_widths;
     }
 }
