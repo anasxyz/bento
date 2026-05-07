@@ -1,8 +1,89 @@
+[package]
+name = "bento"
+description = "Rust GUI framework"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
 [workspace]
 members = [
-  "bento", 
-  "bento_wgpu",
-  "bento_winit",
-  "bento_shared",
+    "crates/bento_shared",
+    "crates/bento_winit",
+    "crates/bento_wgpu",
 ]
 resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+repository = "https://github.com/oganas/bento"
+keywords = ["gui", "ui", "graphics", "wgpu"]
+categories = ["gui", "graphics", "rendering"]
+
+[workspace.dependencies]
+bento_shared = { version = "0.1.0", path = "crates/bento_shared" }
+bento_wgpu = { version = "0.1.0", path = "crates/bento_wgpu" }
+bento_winit = { version = "0.1.0", path = "crates/bento_winit" }
+
+wgpu = "25"
+bytemuck = { version = "1.14", features = ["derive"] }
+etagere = "0.2"
+swash = "0.2"
+
+# text
+cosmic-text = "0.18"
+
+# image
+image = "0.25"
+resvg = "0.44"
+
+# windowing
+winit = "0.30"
+pollster = "0.3"
+
+# layout
+taffy = "0.9.2"
+
+# async
+tokio = { version = "1", features = ["full"] }
+
+# utils
+slab = "0.4"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+type-complexity = "allow"
+large-enum-variant = "allow"
+semicolon_if_nothing_returned = "deny"
+trivially-copy-pass-by-ref = "deny"
+default_trait_access = "deny"
+redundant-closure-for-method-calls = "deny"
+manual_let_else = "deny"
+unused_async = "deny"
+needless_borrow = "deny"
+new_without_default = "deny"
+useless_conversion = "deny"
+
+[workspace.lints.rustdoc]
+broken_intra_doc_links = "forbid"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+
+[profile.release-debug]
+inherits = "release"
+strip = "none"
+debug = true

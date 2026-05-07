@@ -1,9 +1,10 @@
 use crate::{config::WindowConfig, window::Window};
 use bento_shared::{
-    FontFamilyRange, ItalicRange, WeightRange,
+    scene::{FontFamilyRange, ItalicRange, WeightRange},
     measure::{TextMeasureRequest, TextMeasurer},
+    measurer::CosmicTextMeasurer,
 };
-use bento_wgpu::{RenderContext, WgpuTextMeasurer};
+use bento_wgpu::{RenderContext};
 use std::collections::HashMap;
 use winit::{
     application::ApplicationHandler,
