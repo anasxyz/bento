@@ -238,9 +238,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "bento_shared"
+version = "0.1.0"
+dependencies = [
+ "cosmic-text",
+]
+
+[[package]]
 name = "bento_wgpu"
 version = "0.5.3"
 dependencies = [
+ "bento_shared",
  "bytemuck",
  "cosmic-text",
  "etagere",
