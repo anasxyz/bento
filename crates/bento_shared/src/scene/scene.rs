@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub struct RectNode {
     pub x: f32,
     pub y: f32,
@@ -134,47 +135,48 @@ impl RectNode {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct ColorRange {
     pub start: usize,
     pub end: usize,
     pub color: [f32; 4],
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct DecorationRange {
     pub start: usize,
     pub end: usize,
     pub color: [f32; 4],
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct WeightRange {
     pub start: usize,
     pub end: usize,
     pub weight: u16,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ItalicRange {
     pub start: usize,
     pub end: usize,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FontFamilyRange {
     pub start: usize,
     pub end: usize,
     pub font_family: String,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum TextAlign {
     Left,
     Center,
     Right,
 }
 
+#[derive(Debug)]
 pub struct TextNode {
     pub text: String,
     pub x: f32,
@@ -417,6 +419,7 @@ impl TextNode {
     }
 }
 
+#[derive(Debug)]
 pub struct ImageNode {
     pub x: f32,
     pub y: f32,
@@ -534,6 +537,7 @@ impl ImageNode {
     }
 }
 
+#[derive(Debug)]
 pub struct GroupNode {
     pub rotate: f32,
     pub scale_x: f32,
@@ -613,6 +617,7 @@ impl GroupNode {
     }
 }
 
+#[derive(Debug)]
 pub enum Node {
     Rect(RectNode),
     Text(TextNode),
@@ -620,6 +625,7 @@ pub enum Node {
     Group(GroupNode),
 }
 
+#[derive(Debug)]
 pub struct Scene {
     pub nodes: Vec<Node>,
 }

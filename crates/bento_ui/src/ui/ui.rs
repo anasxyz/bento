@@ -1,4 +1,5 @@
-use bento_shared::scene::{RectNode, Scene};
+use crate::widget::Button;
+use bento_shared::scene::Scene;
 
 pub struct Ui {
     pub scene: Scene,
@@ -6,13 +7,9 @@ pub struct Ui {
 
 impl Ui {
     pub fn new() -> Self {
-        let mut scene = Scene::new();
-
-        let mut rect = RectNode::new(0.0, 0.0, 100.0, 100.0);
-        rect.color([0.0, 0.0, 0.0, 1.0]);
-        scene.add_rect(rect);
-
-        Self { scene }
+        Self {
+            scene: Scene::new(),
+        }
     }
 
     // returns reference to the scene
@@ -23,5 +20,11 @@ impl Ui {
     // returns mutable reference to the scene
     pub fn scene_mut(&mut self) -> &mut Scene {
         &mut self.scene
+    }
+
+    pub fn add_button(&mut self, button: Button) {
+        println!("add button called");
+        button.build(&mut self.scene);
+        println!("scene nodes after build: {}", self.scene.nodes.len());
     }
 }

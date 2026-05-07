@@ -45,6 +45,7 @@ impl ApplicationHandler for App {
         for (config, ui) in std::mem::take(&mut self.pending) {
             let ctx = self.ctx.as_ref().unwrap();
             let win = Window::new(ctx, event_loop, config, ui);
+            win.request_redraw();
             self.windows.insert(win.id(), win);
         }
     }
@@ -61,6 +62,18 @@ impl ApplicationHandler for App {
                 let scene = win.ui.scene_mut();
                 win.renderer
                     .render(ctx, &mut win.font_system, &mut win.surface, clear, scene);
+            }
+            WindowEvent::KeyboardInput {
+                event:
+                    winit::event::KeyEvent {
+                        physical_key:
+                            winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::KeyD),
+                        state: winit::event::ElementState::Pressed,
+                        ..
+                    },
+                ..
+            } => {
+                println!("{:#?}", win.ui.scene);
             }
             WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {
                 win.resize(ctx);
