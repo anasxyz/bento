@@ -87,3 +87,6 @@ strip = "symbols"
 inherits = "release"
 strip = "none"
 debug = true
+
+[dependencies]
+cargo-bloat = "0.12.1"
