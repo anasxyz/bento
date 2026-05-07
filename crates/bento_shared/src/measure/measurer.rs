@@ -1,10 +1,8 @@
 use crate::measure::{LineMetrics, TextMeasureRequest, TextMeasureResult, TextMeasurer};
 use cosmic_text::{Attrs, Buffer, Family, Metrics, Shaping, Style as CStyle, Weight};
 
-pub struct CosmicTextMeasurer<'a> {
-    pub font_system: &'a mut cosmic_text::FontSystem,
+pub struct MeasureCache {
     buffer: Buffer,
-    // cached inputs
     last_text: String,
     last_size: f32,
     last_line_height: f32,
@@ -16,15 +14,13 @@ pub struct CosmicTextMeasurer<'a> {
     last_weight_ranges: Vec<(usize, usize, u16)>,
     last_italic_ranges: Vec<(usize, usize)>,
     last_font_family_ranges: Vec<(usize, usize, String)>,
-    // cached result
     last_result: Option<TextMeasureResult>,
 }
 
-impl<'a> CosmicTextMeasurer<'a> {
-    pub fn new(font_system: &'a mut cosmic_text::FontSystem) -> Self {
+impl MeasureCache {
+    pub fn new(font_system: &mut cosmic_text::FontSystem) -> Self {
         Self {
             buffer: Buffer::new(font_system, Metrics::new(16.0, 22.4)),
-            font_system,
             last_text: String::new(),
             last_size: 0.0,
             last_line_height: 0.0,
@@ -41,73 +37,90 @@ impl<'a> CosmicTextMeasurer<'a> {
     }
 }
 
+pub struct CosmicTextMeasurer<'a> {
+    pub font_system: &'a mut cosmic_text::FontSystem,
+    cache: &'a mut MeasureCache,
+}
+
+impl<'a> CosmicTextMeasurer<'a> {
+    pub fn new(font_system: &'a mut cosmic_text::FontSystem, cache: &'a mut MeasureCache) -> Self {
+        Self { font_system, cache }
+    }
+}
+
 impl<'a> TextMeasurer for CosmicTextMeasurer<'a> {
-    fn measure(&mut self, req: TextMeasureRequest) -> TextMeasureResult {
+    fn measure(&mut self, req: TextMeasureRequest<'_>) -> TextMeasureResult {
         let line_height = req.line_height.unwrap_or(req.size * 1.4);
 
-        // check if everything matches including max_width, full cache hit
-        let full_hit = self.last_result.is_some()
-            && self.last_text == req.text
-            && self.last_size == req.size
-            && self.last_line_height == line_height
-            && self.last_max_width == req.max_width
-            && self.last_weight == req.weight
-            && self.last_italic == req.italic
-            && self.last_font_family == req.font_family
-            && self.last_letter_spacing == req.letter_spacing
-            && self.last_weight_ranges.len() == req.weight_ranges.len()
-            && self.last_italic_ranges.len() == req.italic_ranges.len()
-            && self.last_font_family_ranges.len() == req.font_family_ranges.len()
+        let full_hit = self.cache.last_result.is_some()
+            && self.cache.last_text == req.text
+            && self.cache.last_size == req.size
+            && self.cache.last_line_height == line_height
+            && self.cache.last_max_width == req.max_width
+            && self.cache.last_weight == req.weight
+            && self.cache.last_italic == req.italic
+            && self.cache.last_font_family == req.font_family
+            && self.cache.last_letter_spacing == req.letter_spacing
+            && self.cache.last_weight_ranges.len() == req.weight_ranges.len()
+            && self.cache.last_italic_ranges.len() == req.italic_ranges.len()
+            && self.cache.last_font_family_ranges.len() == req.font_family_ranges.len()
             && self
+                .cache
                 .last_weight_ranges
                 .iter()
                 .zip(req.weight_ranges.iter())
                 .all(|(a, b)| a.0 == b.start && a.1 == b.end && a.2 == b.weight)
             && self
+                .cache
                 .last_italic_ranges
                 .iter()
                 .zip(req.italic_ranges.iter())
                 .all(|(a, b)| a.0 == b.start && a.1 == b.end)
             && self
+                .cache
                 .last_font_family_ranges
                 .iter()
                 .zip(req.font_family_ranges.iter())
                 .all(|(a, b)| a.0 == b.start && a.1 == b.end && a.2 == b.font_family);
 
         if full_hit {
-            return self.last_result.clone().unwrap();
+            return self.cache.last_result.clone().unwrap();
         }
 
-        // check if only max_width/size/line_height changed
-        // skip set_rich_text, only relayout
-        let layout_only = self.last_result.is_some()
-            && self.last_text == req.text
-            && self.last_weight == req.weight
-            && self.last_italic == req.italic
-            && self.last_font_family == req.font_family
-            && self.last_letter_spacing == req.letter_spacing
-            && self.last_weight_ranges.len() == req.weight_ranges.len()
-            && self.last_italic_ranges.len() == req.italic_ranges.len()
-            && self.last_font_family_ranges.len() == req.font_family_ranges.len()
+        let layout_only = self.cache.last_result.is_some()
+            && self.cache.last_text == req.text
+            && self.cache.last_weight == req.weight
+            && self.cache.last_italic == req.italic
+            && self.cache.last_font_family == req.font_family
+            && self.cache.last_letter_spacing == req.letter_spacing
+            && self.cache.last_weight_ranges.len() == req.weight_ranges.len()
+            && self.cache.last_italic_ranges.len() == req.italic_ranges.len()
+            && self.cache.last_font_family_ranges.len() == req.font_family_ranges.len()
             && self
+                .cache
                 .last_weight_ranges
                 .iter()
                 .zip(req.weight_ranges.iter())
                 .all(|(a, b)| a.0 == b.start && a.1 == b.end && a.2 == b.weight)
             && self
+                .cache
                 .last_italic_ranges
                 .iter()
                 .zip(req.italic_ranges.iter())
                 .all(|(a, b)| a.0 == b.start && a.1 == b.end)
             && self
+                .cache
                 .last_font_family_ranges
                 .iter()
                 .zip(req.font_family_ranges.iter())
                 .all(|(a, b)| a.0 == b.start && a.1 == b.end && a.2 == b.font_family);
 
-        self.buffer
+        self.cache
+            .buffer
             .set_metrics(self.font_system, Metrics::new(req.size, line_height));
-        self.buffer.set_size(self.font_system, req.max_width, None);
+        self.cache
+            .buffer
+            .set_size(self.font_system, req.max_width, None);
 
         if !layout_only {
             let node_attrs = {
@@ -183,7 +196,7 @@ impl<'a> TextMeasurer for CosmicTextMeasurer<'a> {
                 || !req.font_family_ranges.is_empty();
 
             if has_ranges {
-                self.buffer.set_rich_text(
+                self.cache.buffer.set_rich_text(
                     self.font_system,
                     rich_spans.into_iter(),
                     &base_attrs,
@@ -191,17 +204,24 @@ impl<'a> TextMeasurer for CosmicTextMeasurer<'a> {
                     None,
                 );
             } else {
-                self.buffer
-                    .set_text(self.font_system, req.text, &node_attrs, Shaping::Advanced, None);
+                self.cache.buffer.set_text(
+                    self.font_system,
+                    req.text,
+                    &node_attrs,
+                    Shaping::Advanced,
+                    None,
+                );
             }
         }
 
-        self.buffer.shape_until_scroll(self.font_system, false);
+        self.cache
+            .buffer
+            .shape_until_scroll(self.font_system, false);
 
         let mut lines: Vec<LineMetrics> = Vec::new();
         let mut total_width: f32 = 0.0;
 
-        for run in self.buffer.layout_runs() {
+        for run in self.cache.buffer.layout_runs() {
             let line_w = run.glyphs.iter().fold(0.0f32, |acc, g| acc.max(g.x + g.w));
             let lm = LineMetrics {
                 width: line_w,
@@ -221,27 +241,27 @@ impl<'a> TextMeasurer for CosmicTextMeasurer<'a> {
             lines,
         };
 
-        // update cache
-        self.last_text = req.text.to_string();
-        self.last_size = req.size;
-        self.last_line_height = line_height;
-        self.last_max_width = req.max_width;
-        self.last_weight = req.weight;
-        self.last_italic = req.italic;
-        self.last_font_family = req.font_family.to_string();
-        self.last_letter_spacing = req.letter_spacing;
-        self.last_weight_ranges = req
+        self.cache.last_text = req.text.to_string();
+        self.cache.last_size = req.size;
+        self.cache.last_line_height = line_height;
+        self.cache.last_max_width = req.max_width;
+        self.cache.last_weight = req.weight;
+        self.cache.last_italic = req.italic;
+        self.cache.last_font_family = req.font_family.to_string();
+        self.cache.last_letter_spacing = req.letter_spacing;
+        self.cache.last_weight_ranges = req
             .weight_ranges
             .iter()
             .map(|r| (r.start, r.end, r.weight))
             .collect();
-        self.last_italic_ranges = req.italic_ranges.iter().map(|r| (r.start, r.end)).collect();
-        self.last_font_family_ranges = req
+        self.cache.last_italic_ranges =
+            req.italic_ranges.iter().map(|r| (r.start, r.end)).collect();
+        self.cache.last_font_family_ranges = req
             .font_family_ranges
             .iter()
             .map(|r| (r.start, r.end, r.font_family.clone()))
             .collect();
-        self.last_result = Some(result.clone());
+        self.cache.last_result = Some(result.clone());
 
         result
     }
@@ -262,8 +282,11 @@ mod tests {
         scene::{FontFamilyRange, ItalicRange, WeightRange},
     };
 
-    fn make_measurer(fs: &mut cosmic_text::FontSystem) -> CosmicTextMeasurer<'_> {
-        CosmicTextMeasurer::new(fs)
+    fn make_measurer<'a>(
+        fs: &'a mut cosmic_text::FontSystem,
+        cache: &'a mut MeasureCache,
+    ) -> CosmicTextMeasurer<'a> {
+        CosmicTextMeasurer::new(fs, cache)
     }
 
     fn req<'a>(text: &'a str, size: f32, max_width: Option<f32>) -> TextMeasureRequest<'a> {
@@ -285,7 +308,8 @@ mod tests {
     #[test]
     fn empty_string() {
         let mut fs = cosmic_text::FontSystem::new();
-        let mut m = make_measurer(&mut fs);
+        let mut cache = MeasureCache::new(&mut fs);
+        let mut m = make_measurer(&mut fs, &mut cache);
         let r = m.measure(req("", 16.0, None));
         assert_eq!(r.width, 0.0, "empty string should have zero width");
         for line in &r.lines {
@@ -296,7 +320,8 @@ mod tests {
     #[test]
     fn whitespace_only() {
         let mut fs = cosmic_text::FontSystem::new();
-        let mut m = make_measurer(&mut fs);
+        let mut cache = MeasureCache::new(&mut fs);
+        let mut m = make_measurer(&mut fs, &mut cache);
         let r = m.measure(req("   ", 16.0, None));
         assert!(r.height > 0.0, "whitespace should still have line height");
     }
@@ -304,7 +329,8 @@ mod tests {
     #[test]
     fn single_char() {
         let mut fs = cosmic_text::FontSystem::new();
-        let mut m = make_measurer(&mut fs);
+        let mut cache = MeasureCache::new(&mut fs);
+        let mut m = make_measurer(&mut fs, &mut cache);
         let r = m.measure(req("A", 16.0, None));
         assert_eq!(r.line_count, 1);
         assert!(r.width > 0.0);
@@ -314,7 +340,8 @@ mod tests {
     #[test]
     fn no_wrap_without_max_width() {
         let mut fs = cosmic_text::FontSystem::new();
-        let mut m = make_measurer(&mut fs);
+        let mut cache = MeasureCache::new(&mut fs);
+        let mut m = make_measurer(&mut fs, &mut cache);
         let r = m.measure(req(
             "The quick brown fox jumps over the lazy dog",
             16.0,
@@ -326,7 +353,8 @@ mod tests {
     #[test]
     fn wraps_with_max_width() {
         let mut fs = cosmic_text::FontSystem::new();
-        let mut m = make_measurer(&mut fs);
+        let mut cache = MeasureCache::new(&mut fs);
+        let mut m = make_measurer(&mut fs, &mut cache);
         let r = m.measure(req(
             "The quick brown fox jumps over the lazy dog",
             16.0,
@@ -345,7 +373,8 @@ mod tests {
     #[test]
     fn height_equals_sum_of_line_heights() {
         let mut fs = cosmic_text::FontSystem::new();
-        let mut m = make_measurer(&mut fs);
+        let mut cache = MeasureCache::new(&mut fs);
+        let mut m = make_measurer(&mut fs, &mut cache);
         let r = m.measure(req(
             "The quick brown fox jumps over the lazy dog",
             16.0,
@@ -363,7 +392,8 @@ mod tests {
     #[test]
     fn line_count_matches_lines_vec() {
         let mut fs = cosmic_text::FontSystem::new();
-        let mut m = make_measurer(&mut fs);
+        let mut cache = MeasureCache::new(&mut fs);
+        let mut m = make_measurer(&mut fs, &mut cache);
         let r = m.measure(req(
             "The quick brown fox jumps over the lazy dog",
             16.0,
@@ -375,7 +405,8 @@ mod tests {
     #[test]
     fn larger_size_produces_larger_dimensions() {
         let mut fs = cosmic_text::FontSystem::new();
-        let mut m = make_measurer(&mut fs);
+        let mut cache = MeasureCache::new(&mut fs);
+        let mut m = make_measurer(&mut fs, &mut cache);
         let small = m.measure(req("Hello world", 12.0, None));
         let large = m.measure(req("Hello world", 24.0, None));
         assert!(large.width > small.width, "larger font should be wider");
@@ -385,7 +416,8 @@ mod tests {
     #[test]
     fn bold_is_wider_than_regular() {
         let mut fs = cosmic_text::FontSystem::new();
-        let mut m = make_measurer(&mut fs);
+        let mut cache = MeasureCache::new(&mut fs);
+        let mut m = make_measurer(&mut fs, &mut cache);
         let regular = m.measure(req("Hello world", 16.0, None));
         let bold_ranges = [WeightRange {
             start: 0,
@@ -405,7 +437,8 @@ mod tests {
     #[test]
     fn italic_range_does_not_crash() {
         let mut fs = cosmic_text::FontSystem::new();
-        let mut m = make_measurer(&mut fs);
+        let mut cache = MeasureCache::new(&mut fs);
+        let mut m = make_measurer(&mut fs, &mut cache);
         let ranges = [ItalicRange { start: 0, end: 5 }];
         let r = m.measure(TextMeasureRequest {
             italic_ranges: &ranges,
@@ -418,7 +451,8 @@ mod tests {
     #[test]
     fn font_family_range_does_not_crash() {
         let mut fs = cosmic_text::FontSystem::new();
-        let mut m = make_measurer(&mut fs);
+        let mut cache = MeasureCache::new(&mut fs);
+        let mut m = make_measurer(&mut fs, &mut cache);
         let ranges = [FontFamilyRange {
             start: 0,
             end: 5,
@@ -435,7 +469,8 @@ mod tests {
     #[test]
     fn deterministic() {
         let mut fs = cosmic_text::FontSystem::new();
-        let mut m = make_measurer(&mut fs);
+        let mut cache = MeasureCache::new(&mut fs);
+        let mut m = make_measurer(&mut fs, &mut cache);
         let r1 = m.measure(req("Hello world", 16.0, Some(80.0)));
         let r2 = m.measure(req("Hello world", 16.0, Some(80.0)));
         assert_eq!(r1.width, r2.width);
@@ -451,7 +486,8 @@ mod tests {
     #[test]
     fn very_long_word_does_not_panic() {
         let mut fs = cosmic_text::FontSystem::new();
-        let mut m = make_measurer(&mut fs);
+        let mut cache = MeasureCache::new(&mut fs);
+        let mut m = make_measurer(&mut fs, &mut cache);
         let long = "a".repeat(500);
         let r = m.measure(req(&long, 16.0, Some(100.0)));
         assert!(r.width > 0.0);
@@ -461,7 +497,8 @@ mod tests {
     #[test]
     fn multiline_explicit_newline() {
         let mut fs = cosmic_text::FontSystem::new();
-        let mut m = make_measurer(&mut fs);
+        let mut cache = MeasureCache::new(&mut fs);
+        let mut m = make_measurer(&mut fs, &mut cache);
         let r = m.measure(req("line one\nline two\nline three", 16.0, None));
         assert_eq!(r.line_count, 3, "explicit newlines should produce 3 lines");
     }
@@ -469,7 +506,8 @@ mod tests {
     #[test]
     fn buffer_reuse_gives_same_results() {
         let mut fs = cosmic_text::FontSystem::new();
-        let mut m = make_measurer(&mut fs);
+        let mut cache = MeasureCache::new(&mut fs);
+        let mut m = make_measurer(&mut fs, &mut cache);
 
         let _ = m.measure(req(
             "The quick brown fox jumps over the lazy dog and more text here",
@@ -482,7 +520,8 @@ mod tests {
         assert!(r.width > 0.0);
 
         let mut fs2 = cosmic_text::FontSystem::new();
-        let mut m2 = make_measurer(&mut fs2);
+        let mut cache2 = MeasureCache::new(&mut fs2);
+        let mut m2 = make_measurer(&mut fs2, &mut cache2);
         let expected = m2.measure(req(
             "The quick brown fox jumps over the lazy dog and more text here",
             24.0,
@@ -501,7 +540,8 @@ mod tests {
     #[test]
     fn cache_returns_same_result() {
         let mut fs = cosmic_text::FontSystem::new();
-        let mut m = make_measurer(&mut fs);
+        let mut cache = MeasureCache::new(&mut fs);
+        let mut m = make_measurer(&mut fs, &mut cache);
         let r1 = m.measure(req("Hello world", 16.0, Some(80.0)));
         let r2 = m.measure(req("Hello world", 16.0, Some(80.0)));
         assert_eq!(r1.width, r2.width);
@@ -512,7 +552,8 @@ mod tests {
     #[test]
     fn cache_invalidates_on_text_change() {
         let mut fs = cosmic_text::FontSystem::new();
-        let mut m = make_measurer(&mut fs);
+        let mut cache = MeasureCache::new(&mut fs);
+        let mut m = make_measurer(&mut fs, &mut cache);
         let r1 = m.measure(req("Hello", 16.0, None));
         let r2 = m.measure(req("Hello world", 16.0, None));
         assert!(
@@ -524,7 +565,8 @@ mod tests {
     #[test]
     fn cache_invalidates_on_size_change() {
         let mut fs = cosmic_text::FontSystem::new();
-        let mut m = make_measurer(&mut fs);
+        let mut cache = MeasureCache::new(&mut fs);
+        let mut m = make_measurer(&mut fs, &mut cache);
         let r1 = m.measure(req("Hello world", 16.0, None));
         let r2 = m.measure(req("Hello world", 24.0, None));
         assert!(
@@ -536,7 +578,8 @@ mod tests {
     #[test]
     fn bench_measure_performance() {
         let mut fs = cosmic_text::FontSystem::new();
-        let mut m = make_measurer(&mut fs);
+        let mut cache = MeasureCache::new(&mut fs);
+        let mut m = make_measurer(&mut fs, &mut cache);
 
         let weight_ranges = [
             WeightRange {
@@ -594,8 +637,7 @@ mod tests {
             let _ = m.measure(TextMeasureRequest { ..request });
         }
 
-        // timed runs
-        // same input every time, should hit cache
+        // timed runs — same input every time, should hit cache
         let iterations = 1000;
         let start = std::time::Instant::now();
         for _ in 0..iterations {
@@ -610,10 +652,10 @@ mod tests {
             (iterations as f64 / elapsed.as_secs_f64()) as u64
         );
 
-        // timed runs
-        // alternating two inputs with ranges, forces reshape every call
+        // timed runs — alternating two inputs with ranges, forces reshape every call
         let mut fs2 = cosmic_text::FontSystem::new();
-        let mut m2 = make_measurer(&mut fs2);
+        let mut cache2 = MeasureCache::new(&mut fs2);
+        let mut m2 = make_measurer(&mut fs2, &mut cache2);
         let start = std::time::Instant::now();
         for i in 0..iterations {
             let text = if i % 2 == 0 {
@@ -631,12 +673,10 @@ mod tests {
             (iterations as f64 / elapsed.as_secs_f64()) as u64
         );
 
-        // timed runs
-        // same text, alternating max_width only
-        // layout only path
+        // timed runs — same text, alternating max_width only (layout-only path)
         let mut fs4 = cosmic_text::FontSystem::new();
-        let mut m4 = make_measurer(&mut fs4);
-        // prime the buffer with the text first
+        let mut cache4 = MeasureCache::new(&mut fs4);
+        let mut m4 = make_measurer(&mut fs4, &mut cache4);
         let _ = m4.measure(TextMeasureRequest { ..request });
         let start = std::time::Instant::now();
         for i in 0..iterations {
@@ -653,8 +693,10 @@ mod tests {
             elapsed / iterations,
             (iterations as f64 / elapsed.as_secs_f64()) as u64
         );
+
         let mut fs3 = cosmic_text::FontSystem::new();
-        let mut m3 = make_measurer(&mut fs3);
+        let mut cache3 = MeasureCache::new(&mut fs3);
+        let mut m3 = make_measurer(&mut fs3, &mut cache3);
         let start = std::time::Instant::now();
         for i in 0..iterations {
             let text = if i % 2 == 0 {
@@ -673,6 +715,50 @@ mod tests {
         let elapsed = start.elapsed();
         println!(
             "uncached unstyled — total: {:?}, per call: {:?}, calls/sec: {}",
+            elapsed,
+            elapsed / iterations,
+            (iterations as f64 / elapsed.as_secs_f64()) as u64
+        );
+    }
+
+    #[test]
+    fn bench_cold_start_per_call() {
+        let weight_ranges = [
+            WeightRange {
+                start: 0,
+                end: 10,
+                weight: 700,
+            },
+            WeightRange {
+                start: 50,
+                end: 70,
+                weight: 900,
+            },
+        ];
+
+        let iterations = 100u32; // fewer because this is slow
+        let start = std::time::Instant::now();
+        for _ in 0..iterations {
+            let mut fs = cosmic_text::FontSystem::new();
+            let mut cache = MeasureCache::new(&mut fs);
+            let mut m = CosmicTextMeasurer::new(&mut fs, &mut cache);
+            let _ = m.measure(TextMeasureRequest {
+                text: "The quick brown fox jumps over the lazy dog and then some more words.",
+                font_family: "",
+                size: 16.0,
+                weight: 400,
+                italic: false,
+                letter_spacing: 0.0,
+                line_height: None,
+                max_width: Some(300.0),
+                weight_ranges: &weight_ranges,
+                italic_ranges: &[],
+                font_family_ranges: &[],
+            });
+        }
+        let elapsed = start.elapsed();
+        println!(
+            "cold start per call — total: {:?}, per call: {:?}, calls/sec: {}",
             elapsed,
             elapsed / iterations,
             (iterations as f64 / elapsed.as_secs_f64()) as u64

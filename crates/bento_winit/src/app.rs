@@ -1,6 +1,3 @@
-use crate::{config::WindowConfig, window::Window};
-use bento_ui::Ui;
-use bento_wgpu::RenderContext;
 use std::collections::HashMap;
 use winit::{
     application::ApplicationHandler,
@@ -8,6 +5,11 @@ use winit::{
     event_loop::{ActiveEventLoop, EventLoop},
     window::WindowId,
 };
+
+use crate::{config::WindowConfig, window::Window};
+use bento_ui::Ui;
+use bento_wgpu::RenderContext;
+use bento_shared::CosmicTextMeasurer;
 
 pub struct App {
     ctx: Option<RenderContext>,
@@ -58,10 +60,17 @@ impl ApplicationHandler for App {
 
         match event {
             WindowEvent::RedrawRequested => {
+                let mut measurer =
+                    CosmicTextMeasurer::new(&mut win.font_system, &mut win.measure_cache);
+                win.ui.build(&mut measurer);
                 let clear = win.config.clear_color;
-                let scene = win.ui.scene_mut();
-                win.renderer
-                    .render(ctx, &mut win.font_system, &mut win.surface, clear, scene);
+                win.renderer.render(
+                    ctx,
+                    &mut win.font_system,
+                    &mut win.surface,
+                    clear,
+                    win.ui.scene_mut(),
+                );
             }
             WindowEvent::KeyboardInput {
                 event:

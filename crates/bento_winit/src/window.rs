@@ -1,21 +1,28 @@
 use crate::config::WindowConfig;
+use bento_shared::MeasureCache;
+use bento_ui::Ui;
 use bento_wgpu::{RenderContext, Renderer, Surface};
 use cosmic_text::FontSystem;
 use std::sync::Arc;
 use winit::{dpi::LogicalSize, event_loop::ActiveEventLoop, window::WindowId};
-use bento_ui::{Ui};
 
 pub struct Window {
     pub config: WindowConfig,
     pub renderer: Renderer,
     pub surface: Surface<'static>,
     pub font_system: FontSystem,
+    pub measure_cache: MeasureCache,
     pub ui: Ui,
     window: Arc<winit::window::Window>,
 }
 
 impl Window {
-    pub fn new(ctx: &RenderContext, event_loop: &ActiveEventLoop, config: WindowConfig, ui: Ui) -> Self {
+    pub fn new(
+        ctx: &RenderContext,
+        event_loop: &ActiveEventLoop,
+        config: WindowConfig,
+        ui: Ui,
+    ) -> Self {
         let window = Arc::new(
             event_loop
                 .create_window(
@@ -31,12 +38,17 @@ impl Window {
         let h = size.height as f32 / scale;
         let surface = Surface::new(ctx, Arc::clone(&window), w, h, scale);
         let renderer = Renderer::new(ctx, &surface);
+
+        let mut font_system = FontSystem::new();
+        let measure_cache = MeasureCache::new(&mut font_system);
+
         Self {
             config,
             renderer,
             surface,
-            font_system: FontSystem::new(),
-            ui: ui,
+            font_system,
+            measure_cache,
+            ui,
             window,
         }
     }

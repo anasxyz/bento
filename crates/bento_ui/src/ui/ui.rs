@@ -1,14 +1,16 @@
 use crate::widget::Button;
-use bento_shared::scene::Scene;
+use bento_shared::{measure::TextMeasurer, scene::Scene};
 
 pub struct Ui {
     pub scene: Scene,
+    buttons: Vec<Button>,
 }
 
 impl Ui {
     pub fn new() -> Self {
         Self {
             scene: Scene::new(),
+            buttons: Vec::new(),
         }
     }
 
@@ -23,8 +25,12 @@ impl Ui {
     }
 
     pub fn add_button(&mut self, button: Button) {
-        println!("add button called");
-        button.build(&mut self.scene);
-        println!("scene nodes after build: {}", self.scene.nodes.len());
+        self.buttons.push(button);
+    }
+
+    pub fn build(&mut self, measurer: &mut dyn TextMeasurer) {
+        for button in &self.buttons {
+            button.build(&mut self.scene, measurer);
+        }
     }
 }
