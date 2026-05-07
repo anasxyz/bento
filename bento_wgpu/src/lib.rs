@@ -9,7 +9,7 @@ mod renderer;
 mod pipelines;
 pub mod measurer;
 
-pub use measurer::BentoTextMeasurer;
+pub use measurer::WgpuTextMeasurer;
 pub use context::RenderContext;
 pub use surface::Surface;
 pub use renderer::Renderer;

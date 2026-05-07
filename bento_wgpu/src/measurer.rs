@@ -1,11 +1,11 @@
 use bento_shared::measure::{LineMetrics, TextMeasureRequest, TextMeasureResult, TextMeasurer};
 use cosmic_text::{Attrs, Buffer, Family, Metrics, Shaping, Style as CStyle, Weight};
 
-pub struct BentoTextMeasurer<'a> {
+pub struct WgpuTextMeasurer<'a> {
     pub font_system: &'a mut cosmic_text::FontSystem,
 }
 
-impl<'a> TextMeasurer for BentoTextMeasurer<'a> {
+impl<'a> TextMeasurer for WgpuTextMeasurer<'a> {
     fn measure(&mut self, req: TextMeasureRequest) -> TextMeasureResult {
         let line_height = req.line_height.unwrap_or(req.size * 1.4);
         let mut buffer = Buffer::new(self.font_system, Metrics::new(req.size, line_height));
@@ -149,7 +149,7 @@ mod tests {
     #[test]
     fn empty_string() {
         let (mut fs,) = measurer();
-        let mut m = BentoTextMeasurer {
+        let mut m = WgpuTextMeasurer {
             font_system: &mut fs,
         };
         let r = m.measure(req("", 16.0, None));
@@ -164,7 +164,7 @@ mod tests {
     #[test]
     fn whitespace_only() {
         let (mut fs,) = measurer();
-        let mut m = BentoTextMeasurer {
+        let mut m = WgpuTextMeasurer {
             font_system: &mut fs,
         };
         let r = m.measure(req("   ", 16.0, None));
@@ -175,7 +175,7 @@ mod tests {
     #[test]
     fn single_char() {
         let (mut fs,) = measurer();
-        let mut m = BentoTextMeasurer {
+        let mut m = WgpuTextMeasurer {
             font_system: &mut fs,
         };
         let r = m.measure(req("A", 16.0, None));
@@ -187,7 +187,7 @@ mod tests {
     #[test]
     fn no_wrap_without_max_width() {
         let (mut fs,) = measurer();
-        let mut m = BentoTextMeasurer {
+        let mut m = WgpuTextMeasurer {
             font_system: &mut fs,
         };
         let r = m.measure(req(
@@ -201,7 +201,7 @@ mod tests {
     #[test]
     fn wraps_with_max_width() {
         let (mut fs,) = measurer();
-        let mut m = BentoTextMeasurer {
+        let mut m = WgpuTextMeasurer {
             font_system: &mut fs,
         };
         let r = m.measure(req(
@@ -223,7 +223,7 @@ mod tests {
     #[test]
     fn height_equals_sum_of_line_heights() {
         let (mut fs,) = measurer();
-        let mut m = BentoTextMeasurer {
+        let mut m = WgpuTextMeasurer {
             font_system: &mut fs,
         };
         let r = m.measure(req(
@@ -243,7 +243,7 @@ mod tests {
     #[test]
     fn line_count_matches_lines_vec() {
         let (mut fs,) = measurer();
-        let mut m = BentoTextMeasurer {
+        let mut m = WgpuTextMeasurer {
             font_system: &mut fs,
         };
         let r = m.measure(req(
@@ -257,7 +257,7 @@ mod tests {
     #[test]
     fn larger_size_produces_larger_dimensions() {
         let (mut fs,) = measurer();
-        let mut m = BentoTextMeasurer {
+        let mut m = WgpuTextMeasurer {
             font_system: &mut fs,
         };
         let small = m.measure(req("Hello world", 12.0, None));
@@ -269,7 +269,7 @@ mod tests {
     #[test]
     fn bold_is_wider_than_regular() {
         let (mut fs,) = measurer();
-        let mut m = BentoTextMeasurer {
+        let mut m = WgpuTextMeasurer {
             font_system: &mut fs,
         };
 
@@ -294,7 +294,7 @@ mod tests {
     #[test]
     fn italic_range_does_not_crash() {
         let (mut fs,) = measurer();
-        let mut m = BentoTextMeasurer {
+        let mut m = WgpuTextMeasurer {
             font_system: &mut fs,
         };
         let ranges = [ItalicRange { start: 0, end: 5 }];
@@ -309,7 +309,7 @@ mod tests {
     #[test]
     fn font_family_range_does_not_crash() {
         let (mut fs,) = measurer();
-        let mut m = BentoTextMeasurer {
+        let mut m = WgpuTextMeasurer {
             font_system: &mut fs,
         };
         let ranges = [FontFamilyRange {
@@ -328,7 +328,7 @@ mod tests {
     #[test]
     fn deterministic() {
         let (mut fs,) = measurer();
-        let mut m = BentoTextMeasurer {
+        let mut m = WgpuTextMeasurer {
             font_system: &mut fs,
         };
         let r1 = m.measure(req("Hello world", 16.0, Some(80.0)));
@@ -346,7 +346,7 @@ mod tests {
     #[test]
     fn very_long_word_does_not_panic() {
         let (mut fs,) = measurer();
-        let mut m = BentoTextMeasurer {
+        let mut m = WgpuTextMeasurer {
             font_system: &mut fs,
         };
         let long = "a".repeat(500);
@@ -358,7 +358,7 @@ mod tests {
     #[test]
     fn multiline_explicit_newline() {
         let (mut fs,) = measurer();
-        let mut m = BentoTextMeasurer {
+        let mut m = WgpuTextMeasurer {
             font_system: &mut fs,
         };
         let r = m.measure(req("line one\nline two\nline three", 16.0, None));
