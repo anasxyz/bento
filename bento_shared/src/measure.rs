@@ -15,12 +15,14 @@ pub struct TextMeasureRequest<'a> {
     pub font_family_ranges: &'a [FontFamilyRange],
 }
 
+#[derive(Clone)]
 pub struct LineMetrics {
     pub width: f32,
     pub height: f32,
     pub baseline: f32,
 }
 
+#[derive(Clone)]
 pub struct TextMeasureResult {
     pub width: f32,
     pub height: f32,
