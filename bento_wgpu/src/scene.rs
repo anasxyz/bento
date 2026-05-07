@@ -535,8 +535,6 @@ impl ImageNode {
 }
 
 pub struct GroupNode {
-    pub(crate) x: f32,
-    pub(crate) y: f32,
     pub(crate) rotate: f32,
     pub(crate) scale_x: f32,
     pub(crate) scale_y: f32,
@@ -549,8 +547,6 @@ pub struct GroupNode {
 impl GroupNode {
     pub fn new() -> Self {
         Self {
-            x: 0.0,
-            y: 0.0,
             rotate: 0.0,
             scale_x: 1.0,
             scale_y: 1.0,
@@ -561,19 +557,6 @@ impl GroupNode {
         }
     }
 
-    pub fn x(&mut self, x: f32) -> &mut Self {
-        self.x = x;
-        self
-    }
-    pub fn y(&mut self, y: f32) -> &mut Self {
-        self.y = y;
-        self
-    }
-    pub fn pos(&mut self, x: f32, y: f32) -> &mut Self {
-        self.x = x;
-        self.y = y;
-        self
-    }
     pub fn rotate(&mut self, angle: f32) -> &mut Self {
         self.rotate = angle;
         self
