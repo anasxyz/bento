@@ -1,4 +1,4 @@
-use bento_shared::{RectNode, Scene};
+use crate::scene::{RectNode, Scene};
 
 pub struct Ui {
     pub scene: Scene,

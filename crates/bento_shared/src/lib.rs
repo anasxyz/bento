@@ -1,9 +1,8 @@
 pub mod math;
-pub mod measure;
-pub mod measurer;
+mod measure;
 pub mod scene;
+mod ui;
 
-pub use measure::{LineMetrics, TextMeasureRequest, TextMeasureResult, TextMeasurer};
-pub use measurer::CosmicTextMeasurer;
+pub use measure::{LineMetrics, TextMeasureRequest, TextMeasureResult, TextMeasurer, CosmicTextMeasurer};
 pub use scene::{GroupNode, ImageNode, Node, RectNode, Scene, TextAlign, TextNode};
-
+pub use ui::Ui;

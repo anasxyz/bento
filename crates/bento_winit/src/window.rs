@@ -3,7 +3,7 @@ use bento_wgpu::{RenderContext, Renderer, Surface};
 use cosmic_text::FontSystem;
 use std::sync::Arc;
 use winit::{dpi::LogicalSize, event_loop::ActiveEventLoop, window::WindowId};
-use bento::{Ui};
+use bento_shared::{Ui};
 
 pub struct Window {
     pub config: WindowConfig,
