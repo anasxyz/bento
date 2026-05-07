@@ -1,9 +1,4 @@
 use crate::{config::WindowConfig, window::Window};
-use bento_shared::{
-    scene::{FontFamilyRange, ItalicRange, WeightRange},
-    measure::{TextMeasureRequest, TextMeasurer},
-    measurer::CosmicTextMeasurer,
-};
 use bento_wgpu::{RenderContext};
 use std::collections::HashMap;
 use winit::{
@@ -62,12 +57,13 @@ impl ApplicationHandler for App {
         match event {
             WindowEvent::RedrawRequested => {
                 let clear = win.config.clear_color;
+                let scene = &mut win.ui.scene;
                 win.renderer.render(
                     ctx,
                     &mut win.font_system,
                     &mut win.surface,
                     clear,
-                    &mut win.scene,
+                    scene,
                 );
             }
             WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {

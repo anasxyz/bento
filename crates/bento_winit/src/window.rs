@@ -1,15 +1,16 @@
 use crate::config::WindowConfig;
-use bento_wgpu::{RenderContext, Renderer, Scene, Surface};
+use bento_wgpu::{RenderContext, Renderer, Surface};
 use cosmic_text::FontSystem;
 use std::sync::Arc;
 use winit::{dpi::LogicalSize, event_loop::ActiveEventLoop, window::WindowId};
+use bento::{Ui};
 
 pub struct Window {
     pub config: WindowConfig,
     pub renderer: Renderer,
     pub surface: Surface<'static>,
     pub font_system: FontSystem,
-    pub scene: Scene,
+    pub ui: Ui,
     window: Arc<winit::window::Window>,
 }
 
@@ -35,7 +36,7 @@ impl Window {
             renderer,
             surface,
             font_system: FontSystem::new(),
-            scene: Scene::new(),
+            ui: Ui::new(),
             window,
         }
     }

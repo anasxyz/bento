@@ -13,6 +13,7 @@ workspace = true
 [dependencies]
 bento_shared = { workspace = true }
 bento_wgpu = { workspace = true }
+bento = { workspace = true }
 winit = { workspace = true }
 pollster = { workspace = true }
 cosmic-text  = { workspace = true }
