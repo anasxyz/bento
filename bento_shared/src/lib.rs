@@ -1,11 +1,9 @@
-pub mod scene;
 pub mod math;
-pub mod measure;
+mod measure;
+mod measurer;
+pub mod scene;
 
-pub use scene::{
-    Scene, Node, RectNode, TextNode, ImageNode, GroupNode, TextAlign,
-};
-pub use measure::{
-    TextMeasurer, TextMeasureRequest, TextMeasureResult,
-    LineMetrics, WeightRange, ItalicRange, FontFamilyRange,
-};
+pub use measure::{LineMetrics, TextMeasureRequest, TextMeasureResult, TextMeasurer};
+pub use measurer::CosmicTextMeasurer;
+pub use scene::{GroupNode, ImageNode, Node, RectNode, Scene, TextAlign, TextNode};
+

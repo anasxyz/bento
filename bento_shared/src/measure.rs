@@ -1,19 +1,4 @@
-pub struct WeightRange {
-    pub start: usize,
-    pub end: usize,
-    pub weight: u16,
-}
-
-pub struct ItalicRange {
-    pub start: usize,
-    pub end: usize,
-}
-
-pub struct FontFamilyRange {
-    pub start: usize,
-    pub end: usize,
-    pub font_family: String,
-}
+use crate::scene::{FontFamilyRange, ItalicRange, WeightRange};
 
 pub struct TextMeasureRequest<'a> {
     pub text: &'a str,

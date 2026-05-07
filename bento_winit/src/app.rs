@@ -1,5 +1,9 @@
 use crate::{config::WindowConfig, window::Window};
-use bento_wgpu::RenderContext;
+use bento_shared::{
+    FontFamilyRange, ItalicRange, WeightRange,
+    measure::{TextMeasureRequest, TextMeasurer},
+};
+use bento_wgpu::{RenderContext, WgpuTextMeasurer};
 use std::collections::HashMap;
 use winit::{
     application::ApplicationHandler,

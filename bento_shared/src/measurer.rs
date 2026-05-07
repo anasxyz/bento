@@ -1,15 +1,27 @@
-use bento_shared::measure::{LineMetrics, TextMeasureRequest, TextMeasureResult, TextMeasurer};
+use crate::measure::{LineMetrics, TextMeasureRequest, TextMeasureResult, TextMeasurer};
 use cosmic_text::{Attrs, Buffer, Family, Metrics, Shaping, Style as CStyle, Weight};
 
-pub struct WgpuTextMeasurer<'a> {
+pub struct CosmicTextMeasurer<'a> {
     pub font_system: &'a mut cosmic_text::FontSystem,
+    buffer: Buffer,
 }
 
-impl<'a> TextMeasurer for WgpuTextMeasurer<'a> {
+impl<'a> CosmicTextMeasurer<'a> {
+    pub fn new(font_system: &'a mut cosmic_text::FontSystem) -> Self {
+        Self {
+            buffer: Buffer::new(font_system, Metrics::new(16.0, 22.4)),
+            font_system,
+        }
+    }
+}
+
+impl<'a> TextMeasurer for CosmicTextMeasurer<'a> {
     fn measure(&mut self, req: TextMeasureRequest) -> TextMeasureResult {
         let line_height = req.line_height.unwrap_or(req.size * 1.4);
         let mut buffer = Buffer::new(self.font_system, Metrics::new(req.size, line_height));
-        buffer.set_size(self.font_system, req.max_width, None);
+        self.buffer
+            .set_metrics(self.font_system, Metrics::new(req.size, line_height));
+        self.buffer.set_size(self.font_system, req.max_width, None);
 
         let node_attrs = {
             let mut a = Attrs::new().weight(Weight(req.weight));
@@ -124,10 +136,10 @@ fn char_to_byte(text: &str, char_idx: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bento_shared::measure::{FontFamilyRange, ItalicRange, TextMeasureRequest, WeightRange};
+    use crate::{measure::TextMeasureRequest, scene::{FontFamilyRange, ItalicRange, WeightRange}};
 
-    fn measurer() -> (cosmic_text::FontSystem,) {
-        (cosmic_text::FontSystem::new(),)
+    fn make_measurer(fs: &mut cosmic_text::FontSystem) -> CosmicTextMeasurer<'_> {
+        CosmicTextMeasurer::new(fs)
     }
 
     fn req<'a>(text: &'a str, size: f32, max_width: Option<f32>) -> TextMeasureRequest<'a> {
@@ -148,14 +160,10 @@ mod tests {
 
     #[test]
     fn empty_string() {
-        let (mut fs,) = measurer();
-        let mut m = WgpuTextMeasurer {
-            font_system: &mut fs,
-        };
+        let mut fs = cosmic_text::FontSystem::new();
+        let mut m = make_measurer(&mut fs);
         let r = m.measure(req("", 16.0, None));
         assert_eq!(r.width, 0.0, "empty string should have zero width");
-        // cosmic_text may still produce a line run for the empty buffer
-        // but it should have no visible content
         for line in &r.lines {
             assert_eq!(line.width, 0.0, "empty string lines should have zero width");
         }
@@ -163,21 +171,16 @@ mod tests {
 
     #[test]
     fn whitespace_only() {
-        let (mut fs,) = measurer();
-        let mut m = WgpuTextMeasurer {
-            font_system: &mut fs,
-        };
+        let mut fs = cosmic_text::FontSystem::new();
+        let mut m = make_measurer(&mut fs);
         let r = m.measure(req("   ", 16.0, None));
-        // should produce a line but with near zero or small width
         assert!(r.height > 0.0, "whitespace should still have line height");
     }
 
     #[test]
     fn single_char() {
-        let (mut fs,) = measurer();
-        let mut m = WgpuTextMeasurer {
-            font_system: &mut fs,
-        };
+        let mut fs = cosmic_text::FontSystem::new();
+        let mut m = make_measurer(&mut fs);
         let r = m.measure(req("A", 16.0, None));
         assert_eq!(r.line_count, 1);
         assert!(r.width > 0.0);
@@ -186,10 +189,8 @@ mod tests {
 
     #[test]
     fn no_wrap_without_max_width() {
-        let (mut fs,) = measurer();
-        let mut m = WgpuTextMeasurer {
-            font_system: &mut fs,
-        };
+        let mut fs = cosmic_text::FontSystem::new();
+        let mut m = make_measurer(&mut fs);
         let r = m.measure(req(
             "The quick brown fox jumps over the lazy dog",
             16.0,
@@ -200,10 +201,8 @@ mod tests {
 
     #[test]
     fn wraps_with_max_width() {
-        let (mut fs,) = measurer();
-        let mut m = WgpuTextMeasurer {
-            font_system: &mut fs,
-        };
+        let mut fs = cosmic_text::FontSystem::new();
+        let mut m = make_measurer(&mut fs);
         let r = m.measure(req(
             "The quick brown fox jumps over the lazy dog",
             16.0,
@@ -212,8 +211,7 @@ mod tests {
         assert!(r.line_count > 1, "should wrap within max_width");
         for line in &r.lines {
             assert!(
-                // +1 for floating point tolerance
-                line.width <= 100.0 + 1.0, 
+                line.width <= 100.0 + 1.0,
                 "line width {} exceeds max_width 100.0",
                 line.width
             );
@@ -222,10 +220,8 @@ mod tests {
 
     #[test]
     fn height_equals_sum_of_line_heights() {
-        let (mut fs,) = measurer();
-        let mut m = WgpuTextMeasurer {
-            font_system: &mut fs,
-        };
+        let mut fs = cosmic_text::FontSystem::new();
+        let mut m = make_measurer(&mut fs);
         let r = m.measure(req(
             "The quick brown fox jumps over the lazy dog",
             16.0,
@@ -242,10 +238,8 @@ mod tests {
 
     #[test]
     fn line_count_matches_lines_vec() {
-        let (mut fs,) = measurer();
-        let mut m = WgpuTextMeasurer {
-            font_system: &mut fs,
-        };
+        let mut fs = cosmic_text::FontSystem::new();
+        let mut m = make_measurer(&mut fs);
         let r = m.measure(req(
             "The quick brown fox jumps over the lazy dog",
             16.0,
@@ -256,10 +250,8 @@ mod tests {
 
     #[test]
     fn larger_size_produces_larger_dimensions() {
-        let (mut fs,) = measurer();
-        let mut m = WgpuTextMeasurer {
-            font_system: &mut fs,
-        };
+        let mut fs = cosmic_text::FontSystem::new();
+        let mut m = make_measurer(&mut fs);
         let small = m.measure(req("Hello world", 12.0, None));
         let large = m.measure(req("Hello world", 24.0, None));
         assert!(large.width > small.width, "larger font should be wider");
@@ -268,13 +260,9 @@ mod tests {
 
     #[test]
     fn bold_is_wider_than_regular() {
-        let (mut fs,) = measurer();
-        let mut m = WgpuTextMeasurer {
-            font_system: &mut fs,
-        };
-
+        let mut fs = cosmic_text::FontSystem::new();
+        let mut m = make_measurer(&mut fs);
         let regular = m.measure(req("Hello world", 16.0, None));
-
         let bold_ranges = [WeightRange {
             start: 0,
             end: 11,
@@ -284,7 +272,6 @@ mod tests {
             weight_ranges: &bold_ranges,
             ..req("Hello world", 16.0, None)
         });
-
         assert!(
             bold.width >= regular.width,
             "bold should be at least as wide as regular"
@@ -293,10 +280,8 @@ mod tests {
 
     #[test]
     fn italic_range_does_not_crash() {
-        let (mut fs,) = measurer();
-        let mut m = WgpuTextMeasurer {
-            font_system: &mut fs,
-        };
+        let mut fs = cosmic_text::FontSystem::new();
+        let mut m = make_measurer(&mut fs);
         let ranges = [ItalicRange { start: 0, end: 5 }];
         let r = m.measure(TextMeasureRequest {
             italic_ranges: &ranges,
@@ -308,10 +293,8 @@ mod tests {
 
     #[test]
     fn font_family_range_does_not_crash() {
-        let (mut fs,) = measurer();
-        let mut m = WgpuTextMeasurer {
-            font_system: &mut fs,
-        };
+        let mut fs = cosmic_text::FontSystem::new();
+        let mut m = make_measurer(&mut fs);
         let ranges = [FontFamilyRange {
             start: 0,
             end: 5,
@@ -327,10 +310,8 @@ mod tests {
 
     #[test]
     fn deterministic() {
-        let (mut fs,) = measurer();
-        let mut m = WgpuTextMeasurer {
-            font_system: &mut fs,
-        };
+        let mut fs = cosmic_text::FontSystem::new();
+        let mut m = make_measurer(&mut fs);
         let r1 = m.measure(req("Hello world", 16.0, Some(80.0)));
         let r2 = m.measure(req("Hello world", 16.0, Some(80.0)));
         assert_eq!(r1.width, r2.width);
@@ -345,10 +326,8 @@ mod tests {
 
     #[test]
     fn very_long_word_does_not_panic() {
-        let (mut fs,) = measurer();
-        let mut m = WgpuTextMeasurer {
-            font_system: &mut fs,
-        };
+        let mut fs = cosmic_text::FontSystem::new();
+        let mut m = make_measurer(&mut fs);
         let long = "a".repeat(500);
         let r = m.measure(req(&long, 16.0, Some(100.0)));
         assert!(r.width > 0.0);
@@ -357,11 +336,44 @@ mod tests {
 
     #[test]
     fn multiline_explicit_newline() {
-        let (mut fs,) = measurer();
-        let mut m = WgpuTextMeasurer {
-            font_system: &mut fs,
-        };
+        let mut fs = cosmic_text::FontSystem::new();
+        let mut m = make_measurer(&mut fs);
         let r = m.measure(req("line one\nline two\nline three", 16.0, None));
         assert_eq!(r.line_count, 3, "explicit newlines should produce 3 lines");
+    }
+
+    #[test]
+    fn buffer_reuse_gives_same_results() {
+        let mut fs = cosmic_text::FontSystem::new();
+        let mut m = make_measurer(&mut fs);
+
+        // measure something large first to dirty the buffer
+        let _ = m.measure(req(
+            "The quick brown fox jumps over the lazy dog and more text here",
+            24.0,
+            Some(100.0),
+        ));
+
+        // then measure something small — should not be affected by previous call
+        let r = m.measure(req("Hi", 16.0, None));
+        assert_eq!(r.line_count, 1);
+        assert!(r.width > 0.0);
+
+        // and back to the large one — should match a fresh measurement
+        let mut fs2 = cosmic_text::FontSystem::new();
+        let mut m2 = make_measurer(&mut fs2);
+        let expected = m2.measure(req(
+            "The quick brown fox jumps over the lazy dog and more text here",
+            24.0,
+            Some(100.0),
+        ));
+        let actual = m.measure(req(
+            "The quick brown fox jumps over the lazy dog and more text here",
+            24.0,
+            Some(100.0),
+        ));
+        assert_eq!(actual.width, expected.width);
+        assert_eq!(actual.height, expected.height);
+        assert_eq!(actual.line_count, expected.line_count);
     }
 }
