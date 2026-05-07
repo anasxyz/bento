@@ -1,6 +1,6 @@
 [package]
-name = "bento"
-description = "Rust GUI framework"
+name = "bento_ui"
+description = ""
 version.workspace = true
 edition.workspace = true
 repository.workspace = true

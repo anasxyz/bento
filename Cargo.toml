@@ -3,7 +3,7 @@ members = [
   "crates/bento_shared",
   "crates/bento_winit",
   "crates/bento_wgpu",
-  "crates/bento",
+  "crates/bento_ui",
 ]
 resolver = "2"
 
@@ -15,7 +15,7 @@ keywords = ["gui", "ui", "graphics", "wgpu"]
 categories = ["gui", "graphics", "rendering"]
 
 [workspace.dependencies]
-bento = { path = "crates/bento" }
+bento_ui = { path = "crates/bento_ui" }
 bento_shared = { path = "crates/bento_shared" }
 bento_wgpu = { path = "crates/bento_wgpu" }
 bento_winit = { path = "crates/bento_winit" }
