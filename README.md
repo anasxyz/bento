@@ -3,6 +3,4 @@
 
 > Warning: Bento is in early development. The API is unstable and will change between versions. Not recommended for production use.
 
-Bento is built on top the [bento_wgpu](https://github.com/oganas/bento/tree/main/bento_wgpu) renderer, which uses [wgpu](https://github.com/gfx-rs/wgpu) and [cosmic_text](https://github.com/pop-os/cosmic-text) under the hood.
-
-!(Diagram)[screenshots/diagram.png]
+<img src="screenshots/diagram.png" width="500" height="300"/>
