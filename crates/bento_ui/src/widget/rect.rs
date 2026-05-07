@@ -1,5 +1,5 @@
-use bento_shared::scene::{Node, RectNode, Scene, SceneNodeId};
 use crate::widget::Widget;
+use bento_shared::scene::{Node, RectNode, Scene, SceneNodeId};
 
 pub struct Rect {
     pub x: f32,
@@ -15,7 +15,10 @@ pub struct Rect {
 impl Rect {
     pub fn new(x: f32, y: f32, w: f32, h: f32) -> Self {
         Self {
-            x, y, w, h,
+            x,
+            y,
+            w,
+            h,
             color: [1.0, 1.0, 1.0, 1.0],
             radii: [0.0; 4],
             opacity: 1.0,
@@ -35,7 +38,9 @@ impl Widget for Rect {
 
     fn update(&mut self, scene: &mut Scene) {
         let Some(id) = self.id else { return };
-        let Some(Node::Rect(r)) = scene.get_mut(id) else { return };
+        let Some(Node::Rect(r)) = scene.get_mut(id) else {
+            return;
+        };
         r.x = self.x;
         r.y = self.y;
         r.w = self.w;
