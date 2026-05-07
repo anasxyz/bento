@@ -215,7 +215,6 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 name = "bento"
 version = "0.5.3"
 dependencies = [
- "bento_derive",
  "bento_wgpu",
  "bytemuck",
  "cosmic-text",
@@ -226,15 +225,6 @@ dependencies = [
  "tokio",
  "wgpu",
  "winit",
-]
-
-[[package]]
-name = "bento_derive"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
