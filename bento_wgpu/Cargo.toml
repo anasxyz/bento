@@ -4,6 +4,7 @@ version = "0.5.3"
 edition = "2024"
 
 [dependencies]
+bento_shared = { path = "../bento_shared" }
 wgpu = "25"
 bytemuck = { version = "1.14", features = ["derive"] }
 slab = "0.4"

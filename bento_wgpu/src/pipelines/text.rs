@@ -1,6 +1,6 @@
-use crate::{
+use crate::pipelines::rect::RectInstance;
+use bento_shared::{
     TextAlign,
-    pipelines::rect::RectInstance,
     scene::{ColorRange, DecorationRange, FontFamilyRange, ItalicRange, WeightRange},
 };
 use bytemuck::{Pod, Zeroable};

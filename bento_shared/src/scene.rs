@@ -1,19 +1,19 @@
 pub struct RectNode {
-    pub(crate) x: f32,
-    pub(crate) y: f32,
-    pub(crate) w: f32,
-    pub(crate) h: f32,
-    pub(crate) color: [f32; 4],
-    pub(crate) radii: [f32; 4],
-    pub(crate) border_color: [f32; 4],
-    pub(crate) border_widths: [f32; 4],
-    pub(crate) rotate: f32,
-    pub(crate) scale_x: f32,
-    pub(crate) scale_y: f32,
-    pub(crate) z: i32,
-    pub(crate) opacity: f32,
-    pub(crate) clip: Option<[f32; 4]>,
-    pub(crate) slot: u32,
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+    pub color: [f32; 4],
+    pub radii: [f32; 4],
+    pub border_color: [f32; 4],
+    pub border_widths: [f32; 4],
+    pub rotate: f32,
+    pub scale_x: f32,
+    pub scale_y: f32,
+    pub z: i32,
+    pub opacity: f32,
+    pub clip: Option<[f32; 4]>,
+    pub slot: u32,
 }
 
 impl RectNode {
@@ -135,37 +135,37 @@ impl RectNode {
 }
 
 #[derive(Clone, PartialEq)]
-pub(crate) struct ColorRange {
-    pub(crate) start: usize,
-    pub(crate) end: usize,
-    pub(crate) color: [f32; 4],
+pub struct ColorRange {
+    pub start: usize,
+    pub end: usize,
+    pub color: [f32; 4],
 }
 
 #[derive(Clone, PartialEq)]
-pub(crate) struct DecorationRange {
-    pub(crate) start: usize,
-    pub(crate) end: usize,
-    pub(crate) color: [f32; 4],
+pub struct DecorationRange {
+    pub start: usize,
+    pub end: usize,
+    pub color: [f32; 4],
 }
 
 #[derive(Clone)]
-pub(crate) struct WeightRange {
-    pub(crate) start: usize,
-    pub(crate) end: usize,
-    pub(crate) weight: u16,
+pub struct WeightRange {
+    pub start: usize,
+    pub end: usize,
+    pub weight: u16,
 }
 
 #[derive(Clone)]
-pub(crate) struct ItalicRange {
-    pub(crate) start: usize,
-    pub(crate) end: usize,
+pub struct ItalicRange {
+    pub start: usize,
+    pub end: usize,
 }
 
 #[derive(Clone)]
-pub(crate) struct FontFamilyRange {
-    pub(crate) start: usize,
-    pub(crate) end: usize,
-    pub(crate) font_family: String,
+pub struct FontFamilyRange {
+    pub start: usize,
+    pub end: usize,
+    pub font_family: String,
 }
 
 #[derive(Clone, PartialEq)]
@@ -176,34 +176,34 @@ pub enum TextAlign {
 }
 
 pub struct TextNode {
-    pub(crate) text: String,
-    pub(crate) x: f32,
-    pub(crate) y: f32,
-    pub(crate) size: f32,
-    pub(crate) color: [f32; 4],
-    pub(crate) z: i32,
-    pub(crate) rotate: f32,
-    pub(crate) scale_x: f32,
-    pub(crate) scale_y: f32,
-    pub(crate) weight: u16,
-    pub(crate) italic: bool,
-    pub(crate) font_family: String,
-    pub(crate) max_width: Option<f32>,
-    pub(crate) line_height: Option<f32>,
-    pub(crate) align: TextAlign,
-    pub(crate) letter_spacing: f32,
-    pub(crate) opacity: f32,
-    pub(crate) clip: Option<[f32; 4]>,
+    pub text: String,
+    pub x: f32,
+    pub y: f32,
+    pub size: f32,
+    pub color: [f32; 4],
+    pub z: i32,
+    pub rotate: f32,
+    pub scale_x: f32,
+    pub scale_y: f32,
+    pub weight: u16,
+    pub italic: bool,
+    pub font_family: String,
+    pub max_width: Option<f32>,
+    pub line_height: Option<f32>,
+    pub align: TextAlign,
+    pub letter_spacing: f32,
+    pub opacity: f32,
+    pub clip: Option<[f32; 4]>,
 
-    pub(crate) color_ranges: Vec<ColorRange>,
-    pub(crate) background_ranges: Vec<DecorationRange>,
-    pub(crate) underline_ranges: Vec<DecorationRange>,
-    pub(crate) strikethrough_ranges: Vec<DecorationRange>,
-    pub(crate) weight_ranges: Vec<WeightRange>,
-    pub(crate) italic_ranges: Vec<ItalicRange>,
-    pub(crate) font_family_ranges: Vec<FontFamilyRange>,
+    pub color_ranges: Vec<ColorRange>,
+    pub background_ranges: Vec<DecorationRange>,
+    pub underline_ranges: Vec<DecorationRange>,
+    pub strikethrough_ranges: Vec<DecorationRange>,
+    pub weight_ranges: Vec<WeightRange>,
+    pub italic_ranges: Vec<ItalicRange>,
+    pub font_family_ranges: Vec<FontFamilyRange>,
 
-    pub(crate) slot: usize,
+    pub slot: usize,
 }
 
 impl TextNode {
@@ -418,21 +418,21 @@ impl TextNode {
 }
 
 pub struct ImageNode {
-    pub(crate) x: f32,
-    pub(crate) y: f32,
-    pub(crate) w: f32,
-    pub(crate) h: f32,
-    pub(crate) image_id: u64,
-    pub(crate) radii: [f32; 4],
-    pub(crate) border_color: [f32; 4],
-    pub(crate) border_widths: [f32; 4],
-    pub(crate) rotate: f32,
-    pub(crate) scale_x: f32,
-    pub(crate) scale_y: f32,
-    pub(crate) opacity: f32,
-    pub(crate) clip: Option<[f32; 4]>,
-    pub(crate) z: i32,
-    pub(crate) slot: usize,
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+    pub image_id: u64,
+    pub radii: [f32; 4],
+    pub border_color: [f32; 4],
+    pub border_widths: [f32; 4],
+    pub rotate: f32,
+    pub scale_x: f32,
+    pub scale_y: f32,
+    pub opacity: f32,
+    pub clip: Option<[f32; 4]>,
+    pub z: i32,
+    pub slot: usize,
 }
 
 impl ImageNode {
@@ -535,22 +535,18 @@ impl ImageNode {
 }
 
 pub struct GroupNode {
-    pub(crate) x: f32,
-    pub(crate) y: f32,
-    pub(crate) rotate: f32,
-    pub(crate) scale_x: f32,
-    pub(crate) scale_y: f32,
-    pub(crate) opacity: Option<f32>,
-    pub(crate) clip: Option<[f32; 4]>,
-    pub(crate) z: i32,
+    pub rotate: f32,
+    pub scale_x: f32,
+    pub scale_y: f32,
+    pub opacity: Option<f32>,
+    pub clip: Option<[f32; 4]>,
+    pub z: i32,
     pub children: Vec<Node>,
 }
 
 impl GroupNode {
     pub fn new() -> Self {
         Self {
-            x: 0.0,
-            y: 0.0,
             rotate: 0.0,
             scale_x: 1.0,
             scale_y: 1.0,
@@ -561,19 +557,6 @@ impl GroupNode {
         }
     }
 
-    pub fn x(&mut self, x: f32) -> &mut Self {
-        self.x = x;
-        self
-    }
-    pub fn y(&mut self, y: f32) -> &mut Self {
-        self.y = y;
-        self
-    }
-    pub fn pos(&mut self, x: f32, y: f32) -> &mut Self {
-        self.x = x;
-        self.y = y;
-        self
-    }
     pub fn rotate(&mut self, angle: f32) -> &mut Self {
         self.rotate = angle;
         self

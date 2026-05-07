@@ -5,16 +5,14 @@ use crate::{
         rect::{RectInstance, RectPipeline},
         text::{TextPipeline, TextSpec},
     },
-    scene::{GroupNode, Node, Scene},
     surface::Surface,
 };
+use bento_shared::{GroupNode, Node, Scene};
 use wgpu;
 
 // accumulated group state
 
 struct Accumulated {
-    x: f32,
-    y: f32,
     rotate: f32,
     scale_x: f32,
     scale_y: f32,
@@ -25,8 +23,6 @@ struct Accumulated {
 impl Accumulated {
     fn identity() -> Self {
         Self {
-            x: 0.0,
-            y: 0.0,
             rotate: 0.0,
             scale_x: 1.0,
             scale_y: 1.0,
@@ -36,18 +32,12 @@ impl Accumulated {
     }
 
     fn combine_with_group(&self, g: &GroupNode) -> Self {
-        let g_clip_offset = g
-            .clip
-            .map(|c| [c[0] + self.x + g.x, c[1] + self.y + g.y, c[2], c[3]]);
-
         Self {
-            x: self.x + g.x,
-            y: self.y + g.y,
             rotate: self.rotate + g.rotate,
             scale_x: self.scale_x * g.scale_x,
             scale_y: self.scale_y * g.scale_y,
             opacity: self.opacity * g.opacity.unwrap_or(1.0),
-            clip: merge_clip(self.clip, g_clip_offset),
+            clip: merge_clip(self.clip, g.clip),
         }
     }
 }
@@ -234,12 +224,11 @@ impl Renderer {
                     if r.slot == u32::MAX {
                         r.slot = rect.alloc_slot();
                     }
-                    let r_clip_offset = r.clip.map(|c| [c[0] + acc.x, c[1] + acc.y, c[2], c[3]]);
-                    let final_clip = merge_clip(acc.clip, r_clip_offset);
+                    let final_clip = merge_clip(acc.clip, r.clip);
                     rect.write_slot(
                         r.slot,
                         RectInstance {
-                            pos_size: [r.x + acc.x, r.y + acc.y, r.w, r.h],
+                            pos_size: [r.x, r.y, r.w, r.h],
                             color: [
                                 r.color[0],
                                 r.color[1],
@@ -254,7 +243,7 @@ impl Renderer {
                                 r.border_color[3] * r.opacity * acc.opacity,
                             ],
                             border_widths: r.border_widths,
-                            transform: crate::math::transform(
+                            transform: bento_shared::math::transform(
                                 r.rotate + acc.rotate,
                                 r.scale_x * acc.scale_x,
                                 r.scale_y * acc.scale_y,
@@ -267,12 +256,11 @@ impl Renderer {
                 Node::Text(t) => {
                     t.slot = *text_slot;
                     *text_slot += 1;
-                    let t_clip_offset = t.clip.map(|c| [c[0] + acc.x, c[1] + acc.y, c[2], c[3]]);
-                    let final_clip = merge_clip(acc.clip, t_clip_offset);
+                    let final_clip = merge_clip(acc.clip, t.clip);
                     specs.push(TextSpec {
                         text: t.text.as_str(),
-                        x: t.x + acc.x,
-                        y: t.y + acc.y,
+                        x: t.x,
+                        y: t.y,
                         size: t.size,
                         color: t.color,
                         rotate: t.rotate + acc.rotate,
@@ -302,14 +290,11 @@ impl Renderer {
                     if img.slot == usize::MAX {
                         img.slot = image.alloc_slot();
                     }
-                    let final_clip = merge_clip(
-                        acc.clip,
-                        img.clip.map(|c| [c[0] + acc.x, c[1] + acc.y, c[2], c[3]]),
-                    );
+                    let final_clip = merge_clip(acc.clip, img.clip);
                     image.write_slot(
                         img.slot,
                         ImageInstance {
-                            pos_size: [img.x + acc.x, img.y + acc.y, img.w, img.h],
+                            pos_size: [img.x, img.y, img.w, img.h],
                             radii: img.radii,
                             border_color: [
                                 img.border_color[0],
@@ -318,7 +303,7 @@ impl Renderer {
                                 img.border_color[3] * img.opacity * acc.opacity,
                             ],
                             border_widths: img.border_widths,
-                            transform: crate::math::transform(
+                            transform: bento_shared::math::transform(
                                 img.rotate + acc.rotate,
                                 img.scale_x * acc.scale_x,
                                 img.scale_y * acc.scale_y,

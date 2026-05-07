@@ -1,0 +1,13 @@
+[package]
+name = "bento_winit"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bento_shared = { path = "../bento_shared" }
+bento_wgpu  = { path = "../bento_wgpu" }
+winit       = "0.30"
+pollster    = "0.3"
+cosmic-text = "0.18"
+
+[dev-dependencies]
