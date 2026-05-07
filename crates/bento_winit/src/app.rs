@@ -58,7 +58,7 @@ impl ApplicationHandler for App {
         match event {
             WindowEvent::RedrawRequested => {
                 let clear = win.config.clear_color;
-                let scene = &mut win.ui.scene;
+                let scene = win.ui.scene_mut();
                 win.renderer
                     .render(ctx, &mut win.font_system, &mut win.surface, clear, scene);
             }

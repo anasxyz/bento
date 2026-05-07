@@ -14,4 +14,14 @@ impl Ui {
 
         Self { scene }
     }
+
+    // returns reference to the scene
+    pub fn scene(&self) -> &Scene {
+        &self.scene
+    }
+
+    // returns mutable reference to the scene
+    pub fn scene_mut(&mut self) -> &mut Scene {
+        &mut self.scene
+    }
 }
