@@ -224,6 +224,7 @@ name = "bento_shared"
 version = "0.1.0"
 dependencies = [
  "cosmic-text",
+ "slab",
 ]
 
 [[package]]

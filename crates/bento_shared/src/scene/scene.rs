@@ -1,3 +1,8 @@
+use slab::Slab;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SceneNodeId(pub usize);
+
 #[derive(Debug)]
 pub struct RectNode {
     pub x: f32,
@@ -54,7 +59,6 @@ impl RectNode {
         self.h = h;
         self
     }
-
     pub fn pos(&mut self, x: f32, y: f32) -> &mut Self {
         self.x = x;
         self.y = y;
@@ -65,7 +69,6 @@ impl RectNode {
         self.h = h;
         self
     }
-
     pub fn color(&mut self, color: [f32; 4]) -> &mut Self {
         self.color = color;
         self
@@ -78,7 +81,6 @@ impl RectNode {
         self.radii = [r; 4];
         self
     }
-
     pub fn border(&mut self, color: [f32; 4], widths: [f32; 4]) -> &mut Self {
         self.border_color = color;
         self.border_widths = widths;
@@ -96,7 +98,6 @@ impl RectNode {
         self.border_widths = [w; 4];
         self
     }
-
     pub fn rotate(&mut self, angle: f32) -> &mut Self {
         self.rotate = angle;
         self
@@ -114,17 +115,14 @@ impl RectNode {
         self.scale_y = y;
         self
     }
-
     pub fn z(&mut self, z: i32) -> &mut Self {
         self.z = z;
         self
     }
-
     pub fn opacity(&mut self, opacity: f32) -> &mut Self {
         self.opacity = opacity;
         self
     }
-
     pub fn clip(&mut self, clip: [f32; 4]) -> &mut Self {
         self.clip = Some(clip);
         self
@@ -196,7 +194,6 @@ pub struct TextNode {
     pub letter_spacing: f32,
     pub opacity: f32,
     pub clip: Option<[f32; 4]>,
-
     pub color_ranges: Vec<ColorRange>,
     pub background_ranges: Vec<DecorationRange>,
     pub underline_ranges: Vec<DecorationRange>,
@@ -204,7 +201,6 @@ pub struct TextNode {
     pub weight_ranges: Vec<WeightRange>,
     pub italic_ranges: Vec<ItalicRange>,
     pub font_family_ranges: Vec<FontFamilyRange>,
-
     pub slot: usize,
 }
 
@@ -230,7 +226,6 @@ impl TextNode {
             letter_spacing: 0.0,
             opacity: 1.0,
             clip: None,
-
             color_ranges: Vec::new(),
             background_ranges: Vec::new(),
             underline_ranges: Vec::new(),
@@ -340,35 +335,29 @@ impl TextNode {
         self.color_ranges.push(ColorRange { start, end, color });
         self
     }
-
     pub fn add_background(&mut self, start: usize, end: usize, color: [f32; 4]) -> &mut Self {
         self.background_ranges
             .push(DecorationRange { start, end, color });
         self
     }
-
     pub fn add_underline(&mut self, start: usize, end: usize, color: [f32; 4]) -> &mut Self {
         self.underline_ranges
             .push(DecorationRange { start, end, color });
         self
     }
-
     pub fn add_strikethrough(&mut self, start: usize, end: usize, color: [f32; 4]) -> &mut Self {
         self.strikethrough_ranges
             .push(DecorationRange { start, end, color });
         self
     }
-
     pub fn add_weight(&mut self, start: usize, end: usize, weight: u16) -> &mut Self {
         self.weight_ranges.push(WeightRange { start, end, weight });
         self
     }
-
     pub fn add_italic(&mut self, start: usize, end: usize) -> &mut Self {
         self.italic_ranges.push(ItalicRange { start, end });
         self
     }
-
     pub fn add_font_family(&mut self, start: usize, end: usize, family: &str) -> &mut Self {
         self.font_family_ranges.push(FontFamilyRange {
             start,
@@ -377,7 +366,6 @@ impl TextNode {
         });
         self
     }
-
     pub fn clear_colors(&mut self) -> &mut Self {
         self.color_ranges.clear();
         self
@@ -406,7 +394,6 @@ impl TextNode {
         self.font_family_ranges.clear();
         self
     }
-
     pub fn clear_all_ranges(&mut self) -> &mut Self {
         self.color_ranges.clear();
         self.background_ranges.clear();
@@ -545,7 +532,7 @@ pub struct GroupNode {
     pub opacity: Option<f32>,
     pub clip: Option<[f32; 4]>,
     pub z: i32,
-    pub children: Vec<Node>,
+    pub children: Vec<SceneNodeId>,
 }
 
 impl GroupNode {
@@ -598,23 +585,6 @@ impl GroupNode {
         self.z = z;
         self
     }
-
-    pub fn add_rect(&mut self, rect: RectNode) -> &mut Self {
-        self.children.push(Node::Rect(rect));
-        self
-    }
-    pub fn add_text(&mut self, text: TextNode) -> &mut Self {
-        self.children.push(Node::Text(text));
-        self
-    }
-    pub fn add_image(&mut self, image: ImageNode) -> &mut Self {
-        self.children.push(Node::Image(image));
-        self
-    }
-    pub fn add_group(&mut self, group: GroupNode) -> &mut Self {
-        self.children.push(Node::Group(group));
-        self
-    }
 }
 
 #[derive(Debug)]
@@ -627,28 +597,52 @@ pub enum Node {
 
 #[derive(Debug)]
 pub struct Scene {
-    pub nodes: Vec<Node>,
+    pub nodes: Slab<Node>,
+    pub root: Vec<SceneNodeId>,
 }
 
 impl Scene {
     pub fn new() -> Self {
-        Self { nodes: Vec::new() }
+        Self {
+            nodes: Slab::new(),
+            root: Vec::new(),
+        }
     }
 
-    pub fn add_rect(&mut self, rect: RectNode) {
-        self.nodes.push(Node::Rect(rect));
+    pub fn add_rect(&mut self, rect: RectNode) -> SceneNodeId {
+        let id = SceneNodeId(self.nodes.insert(Node::Rect(rect)));
+        self.root.push(id);
+        id
     }
 
-    pub fn add_text(&mut self, text: TextNode) {
-        self.nodes.push(Node::Text(text));
+    pub fn add_text(&mut self, text: TextNode) -> SceneNodeId {
+        let id = SceneNodeId(self.nodes.insert(Node::Text(text)));
+        self.root.push(id);
+        id
     }
 
-    pub fn add_image(&mut self, image: ImageNode) {
-        self.nodes.push(Node::Image(image));
+    pub fn add_image(&mut self, image: ImageNode) -> SceneNodeId {
+        let id = SceneNodeId(self.nodes.insert(Node::Image(image)));
+        self.root.push(id);
+        id
     }
 
-    pub fn add_group(&mut self, group: GroupNode) -> &mut Self {
-        self.nodes.push(Node::Group(group));
-        self
+    pub fn add_group(&mut self, group: GroupNode) -> SceneNodeId {
+        let id = SceneNodeId(self.nodes.insert(Node::Group(group)));
+        self.root.push(id);
+        id
+    }
+
+    pub fn remove(&mut self, id: SceneNodeId) {
+        self.nodes.remove(id.0);
+        self.root.retain(|&r| r != id);
+    }
+
+    pub fn get(&self, id: SceneNodeId) -> Option<&Node> {
+        self.nodes.get(id.0)
+    }
+
+    pub fn get_mut(&mut self, id: SceneNodeId) -> Option<&mut Node> {
+        self.nodes.get_mut(id.0)
     }
 }
