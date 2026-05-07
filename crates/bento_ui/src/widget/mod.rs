@@ -1,3 +1,5 @@
-mod button;
+mod rect;
+mod widget;
 
-pub use button::Button;
+pub use rect::Rect;
+pub use widget::Widget;
