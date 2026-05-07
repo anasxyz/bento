@@ -1,0 +1,48 @@
+pub struct WeightRange {
+    pub start: usize,
+    pub end: usize,
+    pub weight: u16,
+}
+
+pub struct ItalicRange {
+    pub start: usize,
+    pub end: usize,
+}
+
+pub struct FontFamilyRange {
+    pub start: usize,
+    pub end: usize,
+    pub font_family: String,
+}
+
+pub struct TextMeasureRequest<'a> {
+    pub text: &'a str,
+    pub font_family: &'a str,
+    pub size: f32,
+    pub weight: u16,
+    pub italic: bool,
+    pub letter_spacing: f32,
+    pub line_height: Option<f32>,
+    pub max_width: Option<f32>,
+
+    pub weight_ranges: &'a [WeightRange],
+    pub italic_ranges: &'a [ItalicRange],
+    pub font_family_ranges: &'a [FontFamilyRange],
+}
+
+pub struct LineMetrics {
+    pub width: f32,
+    pub height: f32,
+    pub baseline: f32,
+}
+
+pub struct TextMeasureResult {
+    pub width: f32,
+    pub height: f32,
+    pub line_count: usize,
+    pub lines: Vec<LineMetrics>,
+}
+
+pub trait TextMeasurer {
+    fn measure(&mut self, req: TextMeasureRequest) -> TextMeasureResult;
+}
