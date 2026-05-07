@@ -1,5 +1,6 @@
 use crate::{config::WindowConfig, window::Window};
-use bento_wgpu::{RenderContext};
+use bento_ui::Ui;
+use bento_wgpu::RenderContext;
 use std::collections::HashMap;
 use winit::{
     application::ApplicationHandler,
@@ -10,7 +11,7 @@ use winit::{
 
 pub struct App {
     ctx: Option<RenderContext>,
-    pending: Vec<WindowConfig>,
+    pending: Vec<(WindowConfig, Ui)>,
     windows: HashMap<WindowId, Window>,
     close_queue: Vec<WindowId>,
 }
@@ -25,8 +26,8 @@ impl App {
         }
     }
 
-    pub fn open_window(&mut self, config: WindowConfig) -> &mut Self {
-        self.pending.push(config);
+    pub fn open_window(&mut self, config: WindowConfig, ui: Ui) -> &mut Self {
+        self.pending.push((config, ui));
         self
     }
 
@@ -41,9 +42,9 @@ impl ApplicationHandler for App {
         if self.ctx.is_none() {
             self.ctx = Some(pollster::block_on(RenderContext::new()));
         }
-        for config in std::mem::take(&mut self.pending) {
+        for (config, ui) in std::mem::take(&mut self.pending) {
             let ctx = self.ctx.as_ref().unwrap();
-            let win = Window::new(ctx, event_loop, config);
+            let win = Window::new(ctx, event_loop, config, ui);
             self.windows.insert(win.id(), win);
         }
     }
@@ -58,13 +59,8 @@ impl ApplicationHandler for App {
             WindowEvent::RedrawRequested => {
                 let clear = win.config.clear_color;
                 let scene = &mut win.ui.scene;
-                win.renderer.render(
-                    ctx,
-                    &mut win.font_system,
-                    &mut win.surface,
-                    clear,
-                    scene,
-                );
+                win.renderer
+                    .render(ctx, &mut win.font_system, &mut win.surface, clear, scene);
             }
             WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {
                 win.resize(ctx);

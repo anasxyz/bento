@@ -15,7 +15,7 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn new(ctx: &RenderContext, event_loop: &ActiveEventLoop, config: WindowConfig) -> Self {
+    pub fn new(ctx: &RenderContext, event_loop: &ActiveEventLoop, config: WindowConfig, ui: Ui) -> Self {
         let window = Arc::new(
             event_loop
                 .create_window(
@@ -36,7 +36,7 @@ impl Window {
             renderer,
             surface,
             font_system: FontSystem::new(),
-            ui: Ui::new(),
+            ui: ui,
             window,
         }
     }

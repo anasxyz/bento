@@ -1,5 +1,4 @@
-use bento_winit::{App, WindowConfig};
-use bento_ui::Ui;
+use bento::*;
 
 fn main() {
     let mut app = App::new();
@@ -8,3 +7,4 @@ fn main() {
     app.open_window(WindowConfig::default(), ui);
     app.run();
 }
+
