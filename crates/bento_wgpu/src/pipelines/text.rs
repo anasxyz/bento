@@ -29,8 +29,8 @@ pub struct GlyphInstance {
 // everything needed to draw one piece of text
 // constructed by the renderer
 // from TextNode and passed as a slice to TextPipeline::prepare
-pub struct TextSpec<'a> {
-    pub text: &'a str,
+pub struct TextSpec {
+    pub text: String,
     pub x: f32,
     pub y: f32,
     pub size: f32,
@@ -40,24 +40,20 @@ pub struct TextSpec<'a> {
     pub scale_y: f32,
     pub weight: u16,
     pub italic: bool,
-    pub font_family: &'a str,
+    pub font_family: String,
     pub max_width: Option<f32>,
     pub line_height: Option<f32>,
     pub letter_spacing: f32,
     pub align: TextAlign,
     pub opacity: f32,
     pub clip: Option<[f32; 4]>,
-
-    // visual only
-    pub color_ranges: &'a [ColorRange],
-    pub background_ranges: &'a [DecorationRange],
-    pub underline_ranges: &'a [DecorationRange],
-    pub strikethrough_ranges: &'a [DecorationRange],
-
-    // shaping relevant
-    pub weight_ranges: &'a [WeightRange],
-    pub italic_ranges: &'a [ItalicRange],
-    pub font_family_ranges: &'a [FontFamilyRange],
+    pub color_ranges: Vec<ColorRange>,
+    pub background_ranges: Vec<DecorationRange>,
+    pub underline_ranges: Vec<DecorationRange>,
+    pub strikethrough_ranges: Vec<DecorationRange>,
+    pub weight_ranges: Vec<WeightRange>,
+    pub italic_ranges: Vec<ItalicRange>,
+    pub font_family_ranges: Vec<FontFamilyRange>,
 }
 
 const ATLAS_SIZE: u32 = 2048;
@@ -323,7 +319,7 @@ impl TextCache {
     }
 
     fn update_from(&mut self, s: &TextSpec) {
-        self.text = s.text.to_string();
+        self.text = s.text.clone();
         self.x = s.x;
         self.y = s.y;
         self.size = s.size;
@@ -333,7 +329,7 @@ impl TextCache {
         self.scale_y = s.scale_y;
         self.weight = s.weight;
         self.italic = s.italic;
-        self.font_family = s.font_family.to_string();
+        self.font_family = s.font_family.clone();
         self.max_width = s.max_width;
         self.line_height = s.line_height;
         self.letter_spacing = s.letter_spacing;
@@ -341,10 +337,10 @@ impl TextCache {
         self.opacity = s.opacity;
         self.clip = s.clip;
 
-        self.color_ranges = s.color_ranges.to_vec();
-        self.background_ranges = s.background_ranges.to_vec();
-        self.underline_ranges = s.underline_ranges.to_vec();
-        self.strikethrough_ranges = s.strikethrough_ranges.to_vec();
+        self.color_ranges = s.color_ranges.clone();
+        self.background_ranges = s.background_ranges.clone();
+        self.underline_ranges = s.underline_ranges.clone();
+        self.strikethrough_ranges = s.strikethrough_ranges.clone();
         self.weight_ranges = s
             .weight_ranges
             .iter()
@@ -384,7 +380,7 @@ fn shape_and_rasterise(
             a = a.style(CStyle::Italic);
         }
         if !spec.font_family.is_empty() {
-            a = a.family(Family::Name(spec.font_family));
+            a = a.family(Family::Name(spec.font_family.as_str()));
         }
         if spec.letter_spacing != 0.0 {
             a = a.letter_spacing(spec.letter_spacing);
@@ -395,17 +391,17 @@ fn shape_and_rasterise(
     let mut boundaries = std::collections::BTreeSet::new();
     boundaries.insert(0usize);
     boundaries.insert(spec.text.len());
-    for r in spec.weight_ranges {
-        boundaries.insert(char_to_byte(spec.text, r.start));
-        boundaries.insert(char_to_byte(spec.text, r.end));
+    for r in &spec.weight_ranges {
+        boundaries.insert(char_to_byte(&spec.text, r.start));
+        boundaries.insert(char_to_byte(&spec.text, r.end));
     }
-    for r in spec.italic_ranges {
-        boundaries.insert(char_to_byte(spec.text, r.start));
-        boundaries.insert(char_to_byte(spec.text, r.end));
+    for r in &spec.italic_ranges {
+        boundaries.insert(char_to_byte(&spec.text, r.start));
+        boundaries.insert(char_to_byte(&spec.text, r.end));
     }
-    for r in spec.font_family_ranges {
-        boundaries.insert(char_to_byte(spec.text, r.start));
-        boundaries.insert(char_to_byte(spec.text, r.end));
+    for r in &spec.font_family_ranges {
+        boundaries.insert(char_to_byte(&spec.text, r.start));
+        boundaries.insert(char_to_byte(&spec.text, r.end));
     }
     for (i, c) in spec.text.char_indices() {
         if is_emoji(c) {
@@ -429,25 +425,25 @@ fn shape_and_rasterise(
             base_attrs.clone()
         } else {
             let mut a = node_attrs.clone();
-            for r in spec.weight_ranges {
-                let sb = char_to_byte(spec.text, r.start);
-                let eb = char_to_byte(spec.text, r.end);
+            for r in &spec.weight_ranges {
+                let sb = char_to_byte(&spec.text, r.start);
+                let eb = char_to_byte(&spec.text, r.end);
                 if sb <= start && start < eb {
                     a = a.weight(Weight(r.weight));
                     break;
                 }
             }
-            for r in spec.italic_ranges {
-                let sb = char_to_byte(spec.text, r.start);
-                let eb = char_to_byte(spec.text, r.end);
+            for r in &spec.italic_ranges {
+                let sb = char_to_byte(&spec.text, r.start);
+                let eb = char_to_byte(&spec.text, r.end);
                 if sb <= start && start < eb {
                     a = a.style(CStyle::Italic);
                     break;
                 }
             }
-            for r in spec.font_family_ranges {
-                let sb = char_to_byte(spec.text, r.start);
-                let eb = char_to_byte(spec.text, r.end);
+            for r in &spec.font_family_ranges {
+                let sb = char_to_byte(&spec.text, r.start);
+                let eb = char_to_byte(&spec.text, r.end);
                 if sb <= start && start < eb && !r.font_family.is_empty() {
                     a = a.family(Family::Name(r.font_family.as_str()));
                     break;
@@ -662,10 +658,10 @@ fn build_decorations(buffer: &Buffer, spec: &TextSpec) -> (Vec<RectInstance>, Ve
             }
         };
 
-        emit(spec.background_ranges, line_top, line_height, &mut bg_rects);
-        emit(spec.underline_ranges, ul_y, ul_thickness, &mut line_rects);
+        emit(&spec.background_ranges, line_top, line_height, &mut bg_rects);
+        emit(&spec.underline_ranges, ul_y, ul_thickness, &mut line_rects);
         emit(
-            spec.strikethrough_ranges,
+            &spec.strikethrough_ranges,
             st_y,
             ul_thickness,
             &mut line_rects,

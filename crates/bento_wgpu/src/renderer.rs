@@ -7,7 +7,7 @@ use crate::{
     },
     surface::Surface,
 };
-use bento_shared::{GroupNode, Node, Scene};
+use bento_shared::{GroupNode, Node, Scene, SceneNodeId};
 use wgpu;
 
 // accumulated group state
@@ -127,13 +127,22 @@ impl Renderer {
                 label: Some("frame"),
             });
 
-        // traverse scene
+        // sort root nodes by z
+        let mut root_ids = scene.root.clone();
+        root_ids.sort_by_key(|id| match scene.nodes.get(id.0) {
+            Some(Node::Rect(r)) => r.z,
+            Some(Node::Text(t)) => t.z,
+            Some(Node::Image(i)) => i.z,
+            Some(Node::Group(g)) => g.z,
+            None => 0,
+        });
 
         let mut specs: Vec<TextSpec> = Vec::new();
         let mut text_slot: usize = 0;
 
         Self::traverse(
-            &mut scene.nodes,
+            &root_ids,
+            scene,
             &Accumulated::identity(),
             &mut self.rect,
             &mut self.image,
@@ -156,7 +165,6 @@ impl Renderer {
         let line_offset = all_bg_rects.len() as u32;
 
         // draw
-
         let [r, g, b, a] = clear_color;
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -180,7 +188,8 @@ impl Renderer {
             });
 
             Self::draw_nodes(
-                &scene.nodes,
+                &root_ids,
+                scene,
                 &self.rect,
                 &self.text,
                 &self.image,
@@ -201,24 +210,22 @@ impl Renderer {
             .resize(&ctx.queue, surface.width, surface.height, surface.scale);
     }
 
-    // traverses the scene and prepares all nodes recursively
-    fn traverse<'a>(
-        nodes: &'a mut Vec<Node>,
+    fn traverse(
+        ids: &[SceneNodeId],
+        scene: &mut Scene,
         acc: &Accumulated,
         rect: &mut RectPipeline,
         image: &mut ImagePipeline,
         scale: f32,
-        specs: &mut Vec<TextSpec<'a>>,
+        specs: &mut Vec<TextSpec>,
         text_slot: &mut usize,
     ) {
-        nodes.sort_by_key(|n| match n {
-            Node::Rect(r) => r.z,
-            Node::Text(t) => t.z,
-            Node::Image(i) => i.z,
-            Node::Group(g) => g.z,
-        });
+        for &id in ids {
+            let node = match scene.nodes.get_mut(id.0) {
+                Some(n) => n,
+                None => continue,
+            };
 
-        for node in nodes.iter_mut() {
             match node {
                 Node::Rect(r) => {
                     if r.slot == u32::MAX {
@@ -258,7 +265,7 @@ impl Renderer {
                     *text_slot += 1;
                     let final_clip = merge_clip(acc.clip, t.clip);
                     specs.push(TextSpec {
-                        text: t.text.as_str(),
+                        text: t.text.clone(),
                         x: t.x,
                         y: t.y,
                         size: t.size,
@@ -268,21 +275,20 @@ impl Renderer {
                         scale_y: t.scale_y * acc.scale_y,
                         weight: t.weight,
                         italic: t.italic,
-                        font_family: t.font_family.as_str(),
+                        font_family: t.font_family.clone(),
                         max_width: t.max_width,
                         line_height: t.line_height,
                         letter_spacing: t.letter_spacing,
                         align: t.align.clone(),
                         opacity: t.opacity * acc.opacity,
                         clip: final_clip,
-
-                        color_ranges: &t.color_ranges,
-                        background_ranges: &t.background_ranges,
-                        underline_ranges: &t.underline_ranges,
-                        strikethrough_ranges: &t.strikethrough_ranges,
-                        weight_ranges: &t.weight_ranges,
-                        italic_ranges: &t.italic_ranges,
-                        font_family_ranges: &t.font_family_ranges,
+                        color_ranges: t.color_ranges.clone(),
+                        background_ranges: t.background_ranges.clone(),
+                        underline_ranges: t.underline_ranges.clone(),
+                        strikethrough_ranges: t.strikethrough_ranges.clone(),
+                        weight_ranges: t.weight_ranges.clone(),
+                        italic_ranges: t.italic_ranges.clone(),
+                        font_family_ranges: t.font_family_ranges.clone(),
                     });
                 }
 
@@ -318,30 +324,37 @@ impl Renderer {
 
                 Node::Group(g) => {
                     let child_acc = acc.combine_with_group(g);
+                    let mut child_ids = g.children.clone();
+                    child_ids.sort_by_key(|cid| match scene.nodes.get(cid.0) {
+                        Some(Node::Rect(r)) => r.z,
+                        Some(Node::Text(t)) => t.z,
+                        Some(Node::Image(i)) => i.z,
+                        Some(Node::Group(g)) => g.z,
+                        None => 0,
+                    });
                     Self::traverse(
-                        &mut g.children,
-                        &child_acc,
-                        rect,
-                        image,
-                        scale,
-                        specs,
-                        text_slot,
+                        &child_ids, scene, &child_acc, rect, image, scale, specs, text_slot,
                     );
                 }
             }
         }
     }
 
-    // draws all nodes recursively in traversal order
     fn draw_nodes<'pass>(
-        nodes: &'pass Vec<Node>,
+        ids: &[SceneNodeId],
+        scene: &'pass Scene,
         rect: &'pass RectPipeline,
         text: &'pass TextPipeline,
         image: &'pass ImagePipeline,
         pass: &mut wgpu::RenderPass<'pass>,
         line_offset: u32,
     ) {
-        for node in nodes {
+        for &id in ids {
+            let node = match scene.nodes.get(id.0) {
+                Some(n) => n,
+                None => continue,
+            };
+
             match node {
                 Node::Rect(r) => {
                     rect.draw_slot(pass, r.slot);
@@ -363,7 +376,8 @@ impl Renderer {
                     image.draw_slot(pass, img.slot);
                 }
                 Node::Group(g) => {
-                    Self::draw_nodes(&g.children, rect, text, image, pass, line_offset);
+                    let child_ids = g.children.clone();
+                    Self::draw_nodes(&child_ids, scene, rect, text, image, pass, line_offset);
                 }
             }
         }
