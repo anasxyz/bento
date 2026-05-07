@@ -1,5 +1,5 @@
 use crate::widget::Widget;
-use bento_shared::scene::Scene;
+use bento_shared::{TextMeasurer, scene::Scene};
 
 pub struct Ui {
     pub scene: Scene,
@@ -25,9 +25,9 @@ impl Ui {
         }
     }
 
-    pub fn update(&mut self) {
+    pub fn update(&mut self, measurer: &mut dyn TextMeasurer) {
         for widget in &mut self.widgets {
-            widget.update(&mut self.scene);
+            widget.update(&mut self.scene, measurer);
         }
     }
 

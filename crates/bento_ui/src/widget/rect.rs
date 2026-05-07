@@ -1,5 +1,5 @@
 use crate::widget::Widget;
-use bento_shared::scene::{Node, RectNode, Scene, SceneNodeId};
+use bento_shared::{TextMeasurer, scene::{Node, RectNode, Scene, SceneNodeId}};
 
 pub struct Rect {
     pub x: f32,
@@ -36,7 +36,7 @@ impl Widget for Rect {
         self.id = Some(scene.add_rect(node));
     }
 
-    fn update(&mut self, scene: &mut Scene) {
+    fn update(&mut self, scene: &mut Scene, _measurer: &mut dyn TextMeasurer) {
         let Some(id) = self.id else { return };
         let Some(Node::Rect(r)) = scene.get_mut(id) else {
             return;

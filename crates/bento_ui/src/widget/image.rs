@@ -1,4 +1,4 @@
-use bento_shared::scene::{ImageNode, Node, Scene, SceneNodeId};
+use bento_shared::{TextMeasurer, scene::{ImageNode, Node, Scene, SceneNodeId}};
 use crate::widget::Widget;
 
 pub struct Image {
@@ -32,7 +32,7 @@ impl Widget for Image {
         self.id = Some(scene.add_image(node));
     }
 
-    fn update(&mut self, scene: &mut Scene) {
+    fn update(&mut self, scene: &mut Scene, _measurer: &mut dyn TextMeasurer) {
         let Some(id) = self.id else { return };
         let Some(Node::Image(img)) = scene.get_mut(id) else { return };
         img.x = self.x;

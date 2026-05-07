@@ -1,5 +1,5 @@
 use crate::widget::Widget;
-use bento_shared::scene::{Node, Scene, SceneNodeId, TextAlign, TextNode};
+use bento_shared::{TextMeasurer, scene::{Node, Scene, SceneNodeId, TextAlign, TextNode}};
 
 pub struct Text {
     pub x: f32,
@@ -39,7 +39,7 @@ impl Widget for Text {
         self.id = Some(scene.add_text(node));
     }
 
-    fn update(&mut self, scene: &mut Scene) {
+    fn update(&mut self, scene: &mut Scene, _measurer: &mut dyn TextMeasurer) {
         let Some(id) = self.id else { return };
         let Some(Node::Text(t)) = scene.get_mut(id) else {
             return;

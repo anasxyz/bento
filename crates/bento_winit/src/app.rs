@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use bento_shared::CosmicTextMeasurer;
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -59,7 +60,9 @@ impl ApplicationHandler for App {
 
         match event {
             WindowEvent::RedrawRequested => {
-                win.ui.update();
+                let mut measurer =
+                    CosmicTextMeasurer::new(&mut win.font_system, &mut win.measure_cache);
+                win.ui.update(&mut measurer);
                 let clear = win.config.clear_color;
                 win.renderer.render(
                     ctx,
