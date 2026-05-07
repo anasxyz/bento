@@ -1,6 +1,6 @@
 pub mod math;
-mod measure;
-mod measurer;
+pub mod measure;
+pub mod measurer;
 pub mod scene;
 
 pub use measure::{LineMetrics, TextMeasureRequest, TextMeasureResult, TextMeasurer};
