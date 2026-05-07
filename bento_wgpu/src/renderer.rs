@@ -5,9 +5,9 @@ use crate::{
         rect::{RectInstance, RectPipeline},
         text::{TextPipeline, TextSpec},
     },
-    scene::{GroupNode, Node, Scene},
     surface::Surface,
 };
+use bento_shared::{GroupNode, Node, Scene};
 use wgpu;
 
 // accumulated group state
@@ -243,7 +243,7 @@ impl Renderer {
                                 r.border_color[3] * r.opacity * acc.opacity,
                             ],
                             border_widths: r.border_widths,
-                            transform: crate::math::transform(
+                            transform: bento_shared::math::transform(
                                 r.rotate + acc.rotate,
                                 r.scale_x * acc.scale_x,
                                 r.scale_y * acc.scale_y,
@@ -303,7 +303,7 @@ impl Renderer {
                                 img.border_color[3] * img.opacity * acc.opacity,
                             ],
                             border_widths: img.border_widths,
-                            transform: crate::math::transform(
+                            transform: bento_shared::math::transform(
                                 img.rotate + acc.rotate,
                                 img.scale_x * acc.scale_x,
                                 img.scale_y * acc.scale_y,
