@@ -1,7 +1,6 @@
 [workspace]
 members = [
   "bento", 
-  "bento_derive",
   "bento_wgpu",
   "bento_winit",
   "bento_shared",
