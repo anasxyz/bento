@@ -1,9 +1,11 @@
 use crate::widget::Widget;
+use bento_macros::Widget;
 use bento_shared::{
     TextMeasurer,
     scene::{Node, RectNode, Scene, SceneNodeId},
 };
 
+#[derive(Widget)]
 pub struct Rect {
     pub x: f32,
     pub y: f32,

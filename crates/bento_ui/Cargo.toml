@@ -12,3 +12,4 @@ workspace = true
 
 [dependencies]
 bento_shared = { workspace = true }
+bento_macros = { workspace = true }

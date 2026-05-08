@@ -1,9 +1,11 @@
 use crate::widget::Widget;
+use bento_macros::Widget;
 use bento_shared::{
     TextMeasurer,
     scene::{GroupNode, Node, Scene, SceneNodeId},
 };
 
+#[derive(Widget)]
 pub struct Group {
     pub offset_x: f32,
     pub offset_y: f32,

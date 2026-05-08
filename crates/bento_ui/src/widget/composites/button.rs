@@ -1,6 +1,8 @@
 use crate::widget::{Widget, Rect, Text};
+use bento_macros::Widget;
 use bento_shared::{TextMeasureRequest, TextMeasurer, scene::Scene};
 
+#[derive(Widget)]
 pub struct Button {
     pub x: f32,
     pub y: f32,

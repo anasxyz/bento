@@ -220,6 +220,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bento_macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "bento_shared"
 version = "0.1.0"
 dependencies = [
@@ -231,6 +240,7 @@ dependencies = [
 name = "bento_ui"
 version = "0.1.0"
 dependencies = [
+ "bento_macros",
  "bento_shared",
 ]
 

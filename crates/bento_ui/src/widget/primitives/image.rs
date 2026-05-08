@@ -1,6 +1,11 @@
-use bento_shared::{TextMeasurer, scene::{ImageNode, Node, Scene, SceneNodeId}};
 use crate::widget::Widget;
+use bento_macros::Widget;
+use bento_shared::{
+    TextMeasurer,
+    scene::{ImageNode, Node, Scene, SceneNodeId},
+};
 
+#[derive(Widget)]
 pub struct Image {
     pub x: f32,
     pub y: f32,
@@ -15,7 +20,10 @@ pub struct Image {
 impl Image {
     pub fn new(x: f32, y: f32, w: f32, h: f32, image_id: u64) -> Self {
         Self {
-            x, y, w, h,
+            x,
+            y,
+            w,
+            h,
             image_id,
             opacity: 1.0,
             radii: [0.0; 4],
@@ -34,7 +42,9 @@ impl Widget for Image {
 
     fn update(&mut self, scene: &mut Scene, _measurer: &mut dyn TextMeasurer) {
         let Some(id) = self.id else { return };
-        let Some(Node::Image(img)) = scene.get_mut(id) else { return };
+        let Some(Node::Image(img)) = scene.get_mut(id) else {
+            return;
+        };
         img.x = self.x;
         img.y = self.y;
         img.w = self.w;

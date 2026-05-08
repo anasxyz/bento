@@ -44,6 +44,22 @@ impl Ui {
         WidgetHandle::new(id, generation)
     }
 
+    pub fn get<W: Widget + 'static>(&self, handle: WidgetHandle<W>) -> Option<&W> {
+        let slot = self.slots.get(handle.id as usize)?.as_ref()?;
+        if slot.generation != handle.generation {
+            return None;
+        }
+        slot.widget.as_any().downcast_ref::<W>()
+    }
+
+    pub fn get_mut<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) -> Option<&mut W> {
+        let slot = self.slots.get_mut(handle.id as usize)?.as_mut()?;
+        if slot.generation != handle.generation {
+            return None;
+        }
+        slot.widget.as_any_mut().downcast_mut::<W>()
+    }
+
     pub fn update(&mut self, measurer: &mut dyn TextMeasurer) {
         for slot in self.slots.iter_mut().flatten() {
             slot.widget.update(&mut self.scene, measurer);

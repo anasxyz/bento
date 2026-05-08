@@ -3,7 +3,7 @@ mod composites;
 mod widget;
 mod handle;
 
-pub use widget::Widget;
+pub use widget::{Widget, AsAny};
 pub use handle::WidgetHandle;
 
 // primitives
