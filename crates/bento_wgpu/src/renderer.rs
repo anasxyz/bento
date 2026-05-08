@@ -18,6 +18,8 @@ struct Accumulated {
     scale_y: f32,
     opacity: f32,
     clip: Option<[f32; 4]>,
+    offset_x: f32,
+    offset_y: f32,
 }
 
 impl Accumulated {
@@ -28,6 +30,8 @@ impl Accumulated {
             scale_y: 1.0,
             opacity: 1.0,
             clip: None,
+            offset_x: 0.0,
+            offset_y: 0.0,
         }
     }
 
@@ -38,6 +42,8 @@ impl Accumulated {
             scale_y: self.scale_y * g.scale_y,
             opacity: self.opacity * g.opacity.unwrap_or(1.0),
             clip: merge_clip(self.clip, g.clip),
+            offset_x: self.offset_x + g.offset_x,
+            offset_y: self.offset_y + g.offset_y,
         }
     }
 }
@@ -235,7 +241,7 @@ impl Renderer {
                     rect.write_slot(
                         r.slot,
                         RectInstance {
-                            pos_size: [r.x, r.y, r.w, r.h],
+                            pos_size: [r.x + acc.offset_x, r.y + acc.offset_y, r.w, r.h],
                             color: [
                                 r.color[0],
                                 r.color[1],
@@ -266,8 +272,8 @@ impl Renderer {
                     let final_clip = merge_clip(acc.clip, t.clip);
                     specs.push(TextSpec {
                         text: t.text.clone(),
-                        x: t.x,
-                        y: t.y,
+                        x: t.x + acc.offset_x,
+                        y: t.y + acc.offset_y,
                         size: t.size,
                         color: t.color,
                         rotate: t.rotate + acc.rotate,
@@ -300,7 +306,7 @@ impl Renderer {
                     image.write_slot(
                         img.slot,
                         ImageInstance {
-                            pos_size: [img.x, img.y, img.w, img.h],
+                            pos_size: [img.x + acc.offset_x, img.y + acc.offset_y, img.w, img.h],
                             radii: img.radii,
                             border_color: [
                                 img.border_color[0],

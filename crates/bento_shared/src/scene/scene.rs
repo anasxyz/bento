@@ -531,6 +531,8 @@ pub struct GroupNode {
     pub scale_y: f32,
     pub opacity: Option<f32>,
     pub clip: Option<[f32; 4]>,
+    pub offset_x: f32,
+    pub offset_y: f32,
     pub z: i32,
     pub children: Vec<SceneNodeId>,
 }
@@ -543,6 +545,8 @@ impl GroupNode {
             scale_y: 1.0,
             opacity: None,
             clip: None,
+            offset_x: 0.0,
+            offset_y: 0.0,
             z: 1,
             children: Vec::new(),
         }
@@ -631,6 +635,15 @@ impl Scene {
         let id = SceneNodeId(self.nodes.insert(Node::Group(group)));
         self.root.push(id);
         id
+    }
+
+    pub fn add_to_group(&mut self, group_id: SceneNodeId, child_id: SceneNodeId) {
+        // remove from root if it's there
+        self.root.retain(|&r| r != child_id);
+        // add to group's children
+        if let Some(Node::Group(g)) = self.nodes.get_mut(group_id.0) {
+            g.children.push(child_id);
+        }
     }
 
     pub fn remove(&mut self, id: SceneNodeId) {
