@@ -1,4 +1,4 @@
-use crate::widget::{Widget, rect::Rect, text::Text};
+use crate::widget::{Widget, Rect, Text};
 use bento_shared::{TextMeasureRequest, TextMeasurer, scene::Scene};
 
 pub struct Button {

@@ -1,17 +1,11 @@
-mod button;
-mod group;
-mod image;
-mod rect;
-mod text;
+mod primitives;
+mod composites;
 mod widget;
 
 pub use widget::Widget;
 
 // primitives
-pub use group::Group;
-pub use image::Image;
-pub use rect::Rect;
-pub use text::Text;
+pub use primitives::{Rect, Text, Image, Group};
 
 // composites
-pub use button::Button;
+pub use composites::Button;
