@@ -1,4 +1,5 @@
 use crate::widget::Widget;
+use crate::widget::{Base, HasBase};
 use bento_macros::Widget;
 use bento_shared::{
     TextMeasurer,
@@ -7,6 +8,7 @@ use bento_shared::{
 
 #[derive(Widget)]
 pub struct Group {
+    pub base: Base,
     pub offset_x: f32,
     pub offset_y: f32,
     pub opacity: Option<f32>,
@@ -18,6 +20,7 @@ pub struct Group {
 impl Group {
     pub fn new() -> Self {
         Self {
+            base: Base::new(),
             offset_x: 0.0,
             offset_y: 0.0,
             opacity: None,

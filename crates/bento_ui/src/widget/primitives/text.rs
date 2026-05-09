@@ -1,4 +1,5 @@
 use crate::widget::Widget;
+use crate::widget::{Base, HasBase};
 use bento_macros::Widget;
 use bento_shared::{
     TextMeasurer,
@@ -7,6 +8,7 @@ use bento_shared::{
 
 #[derive(Widget)]
 pub struct Text {
+    pub base: Base,
     pub x: f32,
     pub y: f32,
     pub text: String,
@@ -26,6 +28,7 @@ pub struct Text {
 impl Text {
     pub fn new(text: &str, x: f32, y: f32, size: f32) -> Self {
         Self {
+            base: Base::new(),
             x,
             y,
             text: text.to_string(),

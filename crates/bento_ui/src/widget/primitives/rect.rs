@@ -1,4 +1,5 @@
 use crate::widget::Widget;
+use crate::widget::{Base, HasBase};
 use bento_macros::Widget;
 use bento_shared::{
     TextMeasurer,
@@ -7,6 +8,7 @@ use bento_shared::{
 
 #[derive(Widget)]
 pub struct Rect {
+    pub base: Base,
     pub x: f32,
     pub y: f32,
     pub w: f32,
@@ -23,6 +25,7 @@ pub struct Rect {
 impl Rect {
     pub fn new(x: f32, y: f32, w: f32, h: f32) -> Self {
         Self {
+            base: Base::new(),
             x,
             y,
             w,

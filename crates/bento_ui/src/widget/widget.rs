@@ -1,3 +1,4 @@
+use crate::widget::HasBase;
 use bento_shared::{TextMeasurer, scene::Scene};
 use std::any::Any;
 
@@ -7,7 +8,7 @@ pub trait AsAny {
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
-pub trait Widget: AsAny {
+pub trait Widget: AsAny + HasBase {
     fn build(&mut self, scene: &mut Scene);
     fn update(&mut self, scene: &mut Scene, measurer: &mut dyn TextMeasurer);
 }

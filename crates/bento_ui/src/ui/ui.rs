@@ -62,7 +62,13 @@ impl Ui {
 
     pub fn update(&mut self, measurer: &mut dyn TextMeasurer) {
         for slot in self.slots.iter_mut().flatten() {
-            slot.widget.update(&mut self.scene, measurer);
+            if slot.widget.base().dirty {
+                println!("updating dirty widget");
+                slot.widget.update(&mut self.scene, measurer);
+                slot.widget.base_mut().dirty = false;
+            } else {
+                println!("skipping clean widget");
+            }
         }
     }
 

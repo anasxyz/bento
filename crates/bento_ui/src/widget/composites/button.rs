@@ -1,9 +1,11 @@
 use crate::widget::{Widget, Rect, Text};
+use crate::widget::{Base, HasBase};
 use bento_macros::Widget;
 use bento_shared::{TextMeasureRequest, TextMeasurer, scene::Scene};
 
 #[derive(Widget)]
 pub struct Button {
+    pub base: Base,
     pub x: f32,
     pub y: f32,
     pub color: [f32; 4],
@@ -33,6 +35,7 @@ pub struct Button {
 impl Button {
     pub fn new(label: &str, x: f32, y: f32) -> Self {
         Self {
+            base: Base::new(),
             x,
             y,
             color: [0.2, 0.5, 1.0, 1.0],
