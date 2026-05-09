@@ -19,6 +19,8 @@ pub struct RectNode {
     pub z: i32,
     pub opacity: f32,
     pub clip: Option<[f32; 4]>,
+
+    pub parent: Option<SceneNodeId>,
     pub slot: u32,
 }
 
@@ -39,6 +41,8 @@ impl RectNode {
             z: 1,
             opacity: 1.0,
             clip: None,
+
+            parent: None,
             slot: u32::MAX,
         }
     }
@@ -201,6 +205,8 @@ pub struct TextNode {
     pub weight_ranges: Vec<WeightRange>,
     pub italic_ranges: Vec<ItalicRange>,
     pub font_family_ranges: Vec<FontFamilyRange>,
+
+    pub parent: Option<SceneNodeId>,
     pub slot: usize,
 }
 
@@ -213,7 +219,6 @@ impl TextNode {
             size,
             color: [1.0, 1.0, 1.0, 1.0],
             z: 1,
-            slot: usize::MAX,
             rotate: 0.0,
             scale_x: 1.0,
             scale_y: 1.0,
@@ -233,6 +238,9 @@ impl TextNode {
             weight_ranges: Vec::new(),
             italic_ranges: Vec::new(),
             font_family_ranges: Vec::new(),
+
+            parent: None,
+            slot: usize::MAX,
         }
     }
 
@@ -422,6 +430,8 @@ pub struct ImageNode {
     pub opacity: f32,
     pub clip: Option<[f32; 4]>,
     pub z: i32,
+
+    pub parent: Option<SceneNodeId>,
     pub slot: usize,
 }
 
@@ -442,6 +452,8 @@ impl ImageNode {
             opacity: 1.0,
             clip: None,
             z: 1,
+
+            parent: None,
             slot: usize::MAX,
         }
     }
@@ -534,6 +546,8 @@ pub struct GroupNode {
     pub offset_x: f32,
     pub offset_y: f32,
     pub z: i32,
+
+    pub parent: Option<SceneNodeId>,
     pub children: Vec<SceneNodeId>,
 }
 
@@ -548,6 +562,8 @@ impl GroupNode {
             offset_x: 0.0,
             offset_y: 0.0,
             z: 1,
+
+            parent: None,
             children: Vec::new(),
         }
     }
@@ -648,10 +664,18 @@ impl Scene {
     }
 
     fn attach(&mut self, id: SceneNodeId) {
-        match self.parent_stack.last() {
-            Some(&parent) => {
-                if let Some(Node::Group(g)) = self.nodes.get_mut(parent.0) {
+        let parent = self.parent_stack.last().copied();
+        match parent {
+            Some(parent_id) => {
+                if let Some(Node::Group(g)) = self.nodes.get_mut(parent_id.0) {
                     g.children.push(id);
+                }
+                match self.nodes.get_mut(id.0) {
+                    Some(Node::Rect(r)) => r.parent = Some(parent_id),
+                    Some(Node::Text(t)) => t.parent = Some(parent_id),
+                    Some(Node::Image(i)) => i.parent = Some(parent_id),
+                    Some(Node::Group(g)) => g.parent = Some(parent_id),
+                    None => {}
                 }
             }
             None => self.root.push(id),
@@ -659,8 +683,34 @@ impl Scene {
     }
 
     pub fn remove(&mut self, id: SceneNodeId) {
+        let children = match self.nodes.get(id.0) {
+            Some(Node::Group(g)) => g.children.clone(),
+            _ => vec![],
+        };
+
+        for child_id in children {
+            self.remove(child_id);
+        }
+
+        // remove from parents children or from root
+        let parent = match self.nodes.get(id.0) {
+            Some(Node::Rect(r)) => r.parent,
+            Some(Node::Text(t)) => t.parent,
+            Some(Node::Image(i)) => i.parent,
+            Some(Node::Group(g)) => g.parent,
+            None => return,
+        };
+
+        match parent {
+            Some(parent_id) => {
+                if let Some(Node::Group(g)) = self.nodes.get_mut(parent_id.0) {
+                    g.children.retain(|&c| c != id);
+                }
+            }
+            None => self.root.retain(|&r| r != id),
+        }
+
         self.nodes.remove(id.0);
-        self.root.retain(|&r| r != id);
     }
 
     pub fn get(&self, id: SceneNodeId) -> Option<&Node> {
