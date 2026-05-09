@@ -1,38 +1,58 @@
 use crate::measure::{LineMetrics, TextMeasureRequest, TextMeasureResult, TextMeasurer};
 use cosmic_text::{Attrs, Buffer, Family, Metrics, Shaping, Style as CStyle, Weight};
+use std::collections::HashMap;
+
+#[derive(Hash, PartialEq, Eq)]
+struct MeasureKey {
+    text: String,
+    size: u32,
+    max_width: u32,
+    weight: u16,
+    italic: bool,
+    font_family: String,
+    letter_spacing: u32,
+    line_height: u32,
+    weight_ranges: Vec<(usize, usize, u16)>,
+    italic_ranges: Vec<(usize, usize)>,
+    font_family_ranges: Vec<(usize, usize, String)>,
+}
+
+impl MeasureKey {
+    fn from_request(req: &TextMeasureRequest<'_>) -> Self {
+        Self {
+            text: req.text.to_string(),
+            size: req.size.to_bits(),
+            max_width: req.max_width.unwrap_or(f32::MAX).to_bits(),
+            weight: req.weight,
+            italic: req.italic,
+            font_family: req.font_family.to_string(),
+            letter_spacing: req.letter_spacing.to_bits(),
+            line_height: req.line_height.unwrap_or(0.0).to_bits(),
+            weight_ranges: req
+                .weight_ranges
+                .iter()
+                .map(|r| (r.start, r.end, r.weight))
+                .collect(),
+            italic_ranges: req.italic_ranges.iter().map(|r| (r.start, r.end)).collect(),
+            font_family_ranges: req
+                .font_family_ranges
+                .iter()
+                .map(|r| (r.start, r.end, r.font_family.clone()))
+                .collect(),
+        }
+    }
+}
 
 pub struct MeasureCache {
     buffer: Buffer,
-    last_text: String,
-    last_size: f32,
-    last_line_height: f32,
-    last_max_width: Option<f32>,
-    last_weight: u16,
-    last_italic: bool,
-    last_font_family: String,
-    last_letter_spacing: f32,
-    last_weight_ranges: Vec<(usize, usize, u16)>,
-    last_italic_ranges: Vec<(usize, usize)>,
-    last_font_family_ranges: Vec<(usize, usize, String)>,
-    last_result: Option<TextMeasureResult>,
+    cache: HashMap<MeasureKey, TextMeasureResult>,
 }
 
 impl MeasureCache {
     pub fn new(font_system: &mut cosmic_text::FontSystem) -> Self {
         Self {
             buffer: Buffer::new(font_system, Metrics::new(16.0, 22.4)),
-            last_text: String::new(),
-            last_size: 0.0,
-            last_line_height: 0.0,
-            last_max_width: None,
-            last_weight: 0,
-            last_italic: false,
-            last_font_family: String::new(),
-            last_letter_spacing: 0.0,
-            last_weight_ranges: Vec::new(),
-            last_italic_ranges: Vec::new(),
-            last_font_family_ranges: Vec::new(),
-            last_result: None,
+            cache: HashMap::new(),
         }
     }
 }
@@ -50,70 +70,12 @@ impl<'a> CosmicTextMeasurer<'a> {
 
 impl<'a> TextMeasurer for CosmicTextMeasurer<'a> {
     fn measure(&mut self, req: TextMeasureRequest<'_>) -> TextMeasureResult {
-        let line_height = req.line_height.unwrap_or(req.size * 1.4);
-
-        let full_hit = self.cache.last_result.is_some()
-            && self.cache.last_text == req.text
-            && self.cache.last_size == req.size
-            && self.cache.last_line_height == line_height
-            && self.cache.last_max_width == req.max_width
-            && self.cache.last_weight == req.weight
-            && self.cache.last_italic == req.italic
-            && self.cache.last_font_family == req.font_family
-            && self.cache.last_letter_spacing == req.letter_spacing
-            && self.cache.last_weight_ranges.len() == req.weight_ranges.len()
-            && self.cache.last_italic_ranges.len() == req.italic_ranges.len()
-            && self.cache.last_font_family_ranges.len() == req.font_family_ranges.len()
-            && self
-                .cache
-                .last_weight_ranges
-                .iter()
-                .zip(req.weight_ranges.iter())
-                .all(|(a, b)| a.0 == b.start && a.1 == b.end && a.2 == b.weight)
-            && self
-                .cache
-                .last_italic_ranges
-                .iter()
-                .zip(req.italic_ranges.iter())
-                .all(|(a, b)| a.0 == b.start && a.1 == b.end)
-            && self
-                .cache
-                .last_font_family_ranges
-                .iter()
-                .zip(req.font_family_ranges.iter())
-                .all(|(a, b)| a.0 == b.start && a.1 == b.end && a.2 == b.font_family);
-
-        if full_hit {
-            return self.cache.last_result.clone().unwrap();
+        let key = MeasureKey::from_request(&req);
+        if let Some(result) = self.cache.cache.get(&key) {
+            return result.clone();
         }
 
-        let layout_only = self.cache.last_result.is_some()
-            && self.cache.last_text == req.text
-            && self.cache.last_weight == req.weight
-            && self.cache.last_italic == req.italic
-            && self.cache.last_font_family == req.font_family
-            && self.cache.last_letter_spacing == req.letter_spacing
-            && self.cache.last_weight_ranges.len() == req.weight_ranges.len()
-            && self.cache.last_italic_ranges.len() == req.italic_ranges.len()
-            && self.cache.last_font_family_ranges.len() == req.font_family_ranges.len()
-            && self
-                .cache
-                .last_weight_ranges
-                .iter()
-                .zip(req.weight_ranges.iter())
-                .all(|(a, b)| a.0 == b.start && a.1 == b.end && a.2 == b.weight)
-            && self
-                .cache
-                .last_italic_ranges
-                .iter()
-                .zip(req.italic_ranges.iter())
-                .all(|(a, b)| a.0 == b.start && a.1 == b.end)
-            && self
-                .cache
-                .last_font_family_ranges
-                .iter()
-                .zip(req.font_family_ranges.iter())
-                .all(|(a, b)| a.0 == b.start && a.1 == b.end && a.2 == b.font_family);
+        let line_height = req.line_height.unwrap_or(req.size * 1.4);
 
         self.cache
             .buffer
@@ -122,96 +84,94 @@ impl<'a> TextMeasurer for CosmicTextMeasurer<'a> {
             .buffer
             .set_size(self.font_system, req.max_width, None);
 
-        if !layout_only {
-            let node_attrs = {
-                let mut a = Attrs::new().weight(Weight(req.weight));
-                if req.italic {
-                    a = a.style(CStyle::Italic);
-                }
-                if !req.font_family.is_empty() {
-                    a = a.family(Family::Name(req.font_family));
-                }
-                if req.letter_spacing != 0.0 {
-                    a = a.letter_spacing(req.letter_spacing);
-                }
-                a
-            };
+        let node_attrs = {
+            let mut a = Attrs::new().weight(Weight(req.weight));
+            if req.italic {
+                a = a.style(CStyle::Italic);
+            }
+            if !req.font_family.is_empty() {
+                a = a.family(Family::Name(req.font_family));
+            }
+            if req.letter_spacing != 0.0 {
+                a = a.letter_spacing(req.letter_spacing);
+            }
+            a
+        };
 
-            let mut boundaries = std::collections::BTreeSet::new();
-            boundaries.insert(0usize);
-            boundaries.insert(req.text.len());
+        let mut boundaries = std::collections::BTreeSet::new();
+        boundaries.insert(0usize);
+        boundaries.insert(req.text.len());
+        for r in req.weight_ranges {
+            boundaries.insert(char_to_byte(req.text, r.start));
+            boundaries.insert(char_to_byte(req.text, r.end));
+        }
+        for r in req.italic_ranges {
+            boundaries.insert(char_to_byte(req.text, r.start));
+            boundaries.insert(char_to_byte(req.text, r.end));
+        }
+        for r in req.font_family_ranges {
+            boundaries.insert(char_to_byte(req.text, r.start));
+            boundaries.insert(char_to_byte(req.text, r.end));
+        }
+
+        let boundaries: Vec<usize> = boundaries.into_iter().collect();
+        let base_attrs = Attrs::new();
+        let mut rich_spans: Vec<(&str, Attrs)> = Vec::new();
+
+        for w in boundaries.windows(2) {
+            let (start, end) = (w[0], w[1]);
+            if start >= end {
+                continue;
+            }
+            let slice = &req.text[start..end];
+            let mut a = node_attrs.clone();
             for r in req.weight_ranges {
-                boundaries.insert(char_to_byte(req.text, r.start));
-                boundaries.insert(char_to_byte(req.text, r.end));
+                let sb = char_to_byte(req.text, r.start);
+                let eb = char_to_byte(req.text, r.end);
+                if sb <= start && start < eb {
+                    a = a.weight(Weight(r.weight));
+                    break;
+                }
             }
             for r in req.italic_ranges {
-                boundaries.insert(char_to_byte(req.text, r.start));
-                boundaries.insert(char_to_byte(req.text, r.end));
+                let sb = char_to_byte(req.text, r.start);
+                let eb = char_to_byte(req.text, r.end);
+                if sb <= start && start < eb {
+                    a = a.style(CStyle::Italic);
+                    break;
+                }
             }
             for r in req.font_family_ranges {
-                boundaries.insert(char_to_byte(req.text, r.start));
-                boundaries.insert(char_to_byte(req.text, r.end));
+                let sb = char_to_byte(req.text, r.start);
+                let eb = char_to_byte(req.text, r.end);
+                if sb <= start && start < eb && !r.font_family.is_empty() {
+                    a = a.family(Family::Name(r.font_family.as_str()));
+                    break;
+                }
             }
+            rich_spans.push((slice, a));
+        }
 
-            let boundaries: Vec<usize> = boundaries.into_iter().collect();
-            let base_attrs = Attrs::new();
-            let mut rich_spans: Vec<(&str, Attrs)> = Vec::new();
+        let has_ranges = !req.weight_ranges.is_empty()
+            || !req.italic_ranges.is_empty()
+            || !req.font_family_ranges.is_empty();
 
-            for w in boundaries.windows(2) {
-                let (start, end) = (w[0], w[1]);
-                if start >= end {
-                    continue;
-                }
-                let slice = &req.text[start..end];
-                let mut a = node_attrs.clone();
-                for r in req.weight_ranges {
-                    let sb = char_to_byte(req.text, r.start);
-                    let eb = char_to_byte(req.text, r.end);
-                    if sb <= start && start < eb {
-                        a = a.weight(Weight(r.weight));
-                        break;
-                    }
-                }
-                for r in req.italic_ranges {
-                    let sb = char_to_byte(req.text, r.start);
-                    let eb = char_to_byte(req.text, r.end);
-                    if sb <= start && start < eb {
-                        a = a.style(CStyle::Italic);
-                        break;
-                    }
-                }
-                for r in req.font_family_ranges {
-                    let sb = char_to_byte(req.text, r.start);
-                    let eb = char_to_byte(req.text, r.end);
-                    if sb <= start && start < eb && !r.font_family.is_empty() {
-                        a = a.family(Family::Name(r.font_family.as_str()));
-                        break;
-                    }
-                }
-                rich_spans.push((slice, a));
-            }
-
-            let has_ranges = !req.weight_ranges.is_empty()
-                || !req.italic_ranges.is_empty()
-                || !req.font_family_ranges.is_empty();
-
-            if has_ranges {
-                self.cache.buffer.set_rich_text(
-                    self.font_system,
-                    rich_spans.into_iter(),
-                    &base_attrs,
-                    Shaping::Advanced,
-                    None,
-                );
-            } else {
-                self.cache.buffer.set_text(
-                    self.font_system,
-                    req.text,
-                    &node_attrs,
-                    Shaping::Advanced,
-                    None,
-                );
-            }
+        if has_ranges {
+            self.cache.buffer.set_rich_text(
+                self.font_system,
+                rich_spans.into_iter(),
+                &base_attrs,
+                Shaping::Advanced,
+                None,
+            );
+        } else {
+            self.cache.buffer.set_text(
+                self.font_system,
+                req.text,
+                &node_attrs,
+                Shaping::Advanced,
+                None,
+            );
         }
 
         self.cache
@@ -241,28 +201,7 @@ impl<'a> TextMeasurer for CosmicTextMeasurer<'a> {
             lines,
         };
 
-        self.cache.last_text = req.text.to_string();
-        self.cache.last_size = req.size;
-        self.cache.last_line_height = line_height;
-        self.cache.last_max_width = req.max_width;
-        self.cache.last_weight = req.weight;
-        self.cache.last_italic = req.italic;
-        self.cache.last_font_family = req.font_family.to_string();
-        self.cache.last_letter_spacing = req.letter_spacing;
-        self.cache.last_weight_ranges = req
-            .weight_ranges
-            .iter()
-            .map(|r| (r.start, r.end, r.weight))
-            .collect();
-        self.cache.last_italic_ranges =
-            req.italic_ranges.iter().map(|r| (r.start, r.end)).collect();
-        self.cache.last_font_family_ranges = req
-            .font_family_ranges
-            .iter()
-            .map(|r| (r.start, r.end, r.font_family.clone()))
-            .collect();
-        self.cache.last_result = Some(result.clone());
-
+        self.cache.cache.insert(key, result.clone());
         result
     }
 }
