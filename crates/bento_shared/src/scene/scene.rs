@@ -603,6 +603,7 @@ pub enum Node {
 pub struct Scene {
     pub nodes: Slab<Node>,
     pub root: Vec<SceneNodeId>,
+    parent_stack: Vec<SceneNodeId>,
 }
 
 impl Scene {
@@ -610,39 +611,50 @@ impl Scene {
         Self {
             nodes: Slab::new(),
             root: Vec::new(),
+            parent_stack: Vec::new(),
         }
     }
 
     pub fn add_rect(&mut self, rect: RectNode) -> SceneNodeId {
         let id = SceneNodeId(self.nodes.insert(Node::Rect(rect)));
-        self.root.push(id);
+        self.attach(id);
         id
     }
 
     pub fn add_text(&mut self, text: TextNode) -> SceneNodeId {
         let id = SceneNodeId(self.nodes.insert(Node::Text(text)));
-        self.root.push(id);
+        self.attach(id);
         id
     }
 
     pub fn add_image(&mut self, image: ImageNode) -> SceneNodeId {
         let id = SceneNodeId(self.nodes.insert(Node::Image(image)));
-        self.root.push(id);
+        self.attach(id);
         id
     }
 
     pub fn add_group(&mut self, group: GroupNode) -> SceneNodeId {
         let id = SceneNodeId(self.nodes.insert(Node::Group(group)));
-        self.root.push(id);
+        self.attach(id);
         id
     }
 
-    pub fn add_to_group(&mut self, group_id: SceneNodeId, child_id: SceneNodeId) {
-        // remove from root if it's there
-        self.root.retain(|&r| r != child_id);
-        // add to group's children
-        if let Some(Node::Group(g)) = self.nodes.get_mut(group_id.0) {
-            g.children.push(child_id);
+    pub fn push_parent(&mut self, id: SceneNodeId) {
+        self.parent_stack.push(id);
+    }
+
+    pub fn pop_parent(&mut self) {
+        self.parent_stack.pop();
+    }
+
+    fn attach(&mut self, id: SceneNodeId) {
+        match self.parent_stack.last() {
+            Some(&parent) => {
+                if let Some(Node::Group(g)) = self.nodes.get_mut(parent.0) {
+                    g.children.push(id);
+                }
+            }
+            None => self.root.push(id),
         }
     }
 

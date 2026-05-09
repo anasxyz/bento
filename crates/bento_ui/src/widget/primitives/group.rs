@@ -43,19 +43,11 @@ impl Widget for Group {
         let group_id = scene.add_group(node);
         self.id = Some(group_id);
 
+        scene.push_parent(group_id);
         for child in &mut self.children {
-            let before: Vec<SceneNodeId> = scene.root.clone();
             child.build(scene);
-            let new_root_ids: Vec<SceneNodeId> = scene
-                .root
-                .iter()
-                .copied()
-                .filter(|id| !before.contains(id))
-                .collect();
-            for child_id in new_root_ids {
-                scene.add_to_group(group_id, child_id);
-            }
         }
+        scene.pop_parent();
     }
 
     fn update(&mut self, scene: &mut Scene, measurer: &mut dyn TextMeasurer) {
