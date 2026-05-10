@@ -1,8 +1,7 @@
 use crate::widget::{Widget, WidgetHandle};
-use bento_shared::BentoEvent;
 use bento_shared::{TextMeasurer, scene::Scene};
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 pub struct Slot {
     pub widget: Box<dyn Widget>,
@@ -10,19 +9,27 @@ pub struct Slot {
 }
 
 struct EventQueue {
-    sender: Option<Arc<dyn Fn(u64) + Send + Sync>>,
+    shared_sender: Arc<Mutex<Option<Arc<dyn Fn(u64) + Send + Sync>>>>,
     callbacks: HashMap<u64, Box<dyn FnOnce(&mut Ui)>>,
+    async_callbacks: Arc<Mutex<HashMap<u64, Box<dyn FnOnce(&mut Ui) + Send>>>>,
     next_id: u64,
-    pending: Vec<(u64, f32)>,
+    pending_timers: Vec<(u64, f32)>,
+    pending_futures: Vec<std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>>,
+    spawner: Option<
+        Arc<dyn Fn(std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>) + Send + Sync>,
+    >,
 }
 
 impl EventQueue {
     fn new() -> Self {
         Self {
-            sender: None,
+            shared_sender: Arc::new(Mutex::new(None)),
             callbacks: HashMap::new(),
+            async_callbacks: Arc::new(Mutex::new(HashMap::new())),
             next_id: 0,
-            pending: Vec::new(),
+            pending_timers: Vec::new(),
+            pending_futures: Vec::new(),
+            spawner: None,
         }
     }
 }
@@ -100,13 +107,27 @@ impl Ui {
     }
 
     pub fn set_sender(&mut self, sender: Arc<dyn Fn(u64) + Send + Sync>) {
-        self.events.sender = Some(sender.clone());
-        for (id, duration) in self.events.pending.drain(..) {
-            let sender = sender.clone();
+        *self.events.shared_sender.lock().unwrap() = Some(sender.clone());
+        for (id, duration) in self.events.pending_timers.drain(..) {
+            let shared_sender = self.events.shared_sender.clone();
             std::thread::spawn(move || {
                 std::thread::sleep(std::time::Duration::from_secs_f32(duration));
-                sender(id);
+                if let Some(sender) = shared_sender.lock().unwrap().as_ref() {
+                    sender(id);
+                }
             });
+        }
+    }
+
+    pub fn set_spawner(
+        &mut self,
+        spawner: Arc<
+            dyn Fn(std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>) + Send + Sync,
+        >,
+    ) {
+        self.events.spawner = Some(spawner.clone());
+        for fut in self.events.pending_futures.drain(..) {
+            spawner(fut);
         }
     }
 
@@ -114,13 +135,61 @@ impl Ui {
         let id = self.events.next_id;
         self.events.next_id += 1;
         self.events.callbacks.insert(id, Box::new(callback));
-        self.events.pending.push((id, duration));
+        let shared_sender = self.events.shared_sender.clone();
+        if shared_sender.lock().unwrap().is_some() {
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs_f32(duration));
+                if let Some(sender) = shared_sender.lock().unwrap().as_ref() {
+                    sender(id);
+                }
+            });
+        } else {
+            self.events.pending_timers.push((id, duration));
+        }
+    }
+
+    pub fn spawn<F, C>(&mut self, future: F)
+    where
+        F: std::future::Future<Output = C> + Send + 'static,
+        C: FnOnce(&mut Ui) + Send + 'static,
+    {
+        let id = self.events.next_id;
+        self.events.next_id += 1;
+
+        let async_callbacks = self.events.async_callbacks.clone();
+        let shared_sender = self.events.shared_sender.clone();
+
+        let fut = Box::pin(async move {
+            let callback = future.await;
+            async_callbacks
+                .lock()
+                .unwrap()
+                .insert(id, Box::new(callback));
+            if let Some(sender) = shared_sender.lock().unwrap().as_ref() {
+                sender(id);
+            }
+        });
+
+        if let Some(spawner) = &self.events.spawner {
+            spawner(fut);
+        } else {
+            self.events.pending_futures.push(fut);
+        }
     }
 
     pub fn fire_callback(&mut self, id: u64) {
         if let Some(callback) = self.events.callbacks.remove(&id) {
             callback(self);
+        } else {
+            let callback = self.events.async_callbacks.lock().unwrap().remove(&id);
+            if let Some(callback) = callback {
+                callback(self);
+            }
         }
+    }
+
+    pub fn set_sender_from_bento(&mut self, sender: Arc<dyn Fn(u64) + Send + Sync>) {
+        self.set_sender(sender);
     }
 
     pub fn scene(&self) -> &Scene {

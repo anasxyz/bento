@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 pub struct WidgetHandle<T> {
     pub id: u32,
     pub generation: u32,
-    _marker: PhantomData<*const T>,
+    _marker: PhantomData<fn() -> T>,
 }
 
 impl<T> WidgetHandle<T> {

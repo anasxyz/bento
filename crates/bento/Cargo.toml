@@ -13,3 +13,6 @@ workspace = true
 [dependencies]
 bento_ui = { workspace = true }
 bento_winit = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
-    event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy},
+    event_loop::{ActiveEventLoop, EventLoop},
     window::WindowId,
 };
 
@@ -12,12 +12,14 @@ use bento_wgpu::RenderContext;
 
 use bento_shared::{BentoEvent, CosmicTextMeasurer};
 use std::sync::Arc;
+use tokio::runtime::Runtime;
 
 pub struct App {
     ctx: Option<RenderContext>,
     pending: Vec<(WindowConfig, Ui)>,
     windows: HashMap<WindowId, Window>,
     close_queue: Vec<WindowId>,
+    runtime: tokio::runtime::Runtime,
 }
 
 impl App {
@@ -27,6 +29,7 @@ impl App {
             pending: Vec::new(),
             windows: HashMap::new(),
             close_queue: Vec::new(),
+            runtime: tokio::runtime::Runtime::new().unwrap(),
         }
     }
 
@@ -42,6 +45,10 @@ impl App {
             let proxy = proxy.clone();
             ui.set_sender(Arc::new(move |id| {
                 proxy.send_event(BentoEvent::Callback(id)).ok();
+            }));
+            let handle = self.runtime.handle().clone();
+            ui.set_spawner(Arc::new(move |fut| {
+                handle.spawn(fut);
             }));
         }
         event_loop.run_app(&mut self).unwrap();
@@ -74,14 +81,16 @@ impl ApplicationHandler<BentoEvent> for App {
                     .last_frame
                     .map(|t| t.elapsed().as_secs_f32())
                     .unwrap_or(0.0);
-                win.last_frame = Some(now);
 
                 let mut measurer =
                     CosmicTextMeasurer::new(&mut win.font_system, &mut win.measure_cache);
                 win.ui.update(&mut measurer, delta);
 
                 if win.ui.any_dirty() {
+                    win.last_frame = Some(now);
                     win.request_redraw();
+                } else {
+                    win.last_frame = None;
                 }
 
                 let clear = win.config.clear_color;

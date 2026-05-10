@@ -105,7 +105,7 @@ impl Default for Base {
 pub trait HasBase {
     fn base(&self) -> &Base;
     fn base_mut(&mut self) -> &mut Base;
-    fn pre_update(&mut self) {}
+    fn pre_update(&mut self);
 }
 
 #[derive(Copy, Clone)]

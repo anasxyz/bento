@@ -18,3 +18,4 @@ bento_ui = { workspace = true }
 winit = { workspace = true }
 pollster = { workspace = true }
 cosmic-text  = { workspace = true }
+tokio = { workspace = true }
