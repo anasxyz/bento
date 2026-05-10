@@ -188,7 +188,7 @@ impl Default for Layout {
             justify_items: None,
             justify_self: None,
             align_content: None,
-            align_items: None,
+            align_items: Some(AlignItems::Start),
             align_self: None,
             flex_grow: 0.0,
             flex_shrink: 1.0,

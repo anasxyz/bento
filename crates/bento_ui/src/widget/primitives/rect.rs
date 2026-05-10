@@ -48,6 +48,11 @@ impl Widget for Rect {
         let Some(Node::Rect(r)) = scene.get_mut(id) else {
             return;
         };
+        let l = &self.base.layout;
+        r.x = l.x;
+        r.y = l.y;
+        r.w = l.w;
+        r.h = l.h;
         r.color = self.color;
         r.radii = self.radii;
         r.opacity = self.opacity;

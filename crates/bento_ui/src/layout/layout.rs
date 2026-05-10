@@ -14,6 +14,10 @@ pub fn run_layout(
         if node.slot == usize::MAX {
             continue;
         }
+        if let Some(taffy_id) = node.taffy_id {
+            let style = tree.taffy.style(taffy_id).unwrap();
+            println!("node {} align_items: {:?}", node.slot, style.align_items);
+        }
         if let Some(Some(slot)) = widgets.get(node.slot) {
             let new_layout = slot.widget.base().layout.clone();
             if !new_layout.inputs_equal(&node.layout) {

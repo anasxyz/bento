@@ -212,22 +212,11 @@ impl Ui {
                 let Some(Some(slot)) = self.slots.get_mut(node.slot) else {
                     continue;
                 };
-                // write resolved x/y/w/h back into widget's base.layout
                 slot.widget.base_mut().layout.x = node.layout.x;
                 slot.widget.base_mut().layout.y = node.layout.y;
                 slot.widget.base_mut().layout.w = node.layout.w;
                 slot.widget.base_mut().layout.h = node.layout.h;
-                // write into scene graph
-                for &scene_id in &slot.node_ids {
-                    if let Some(scene_node) = self.scene.get_mut(scene_id) {
-                        scene_node.set_position(
-                            node.layout.x,
-                            node.layout.y,
-                            node.layout.w,
-                            node.layout.h,
-                        );
-                    }
-                }
+                slot.widget.base_mut().dirty = true;
             }
         }
 

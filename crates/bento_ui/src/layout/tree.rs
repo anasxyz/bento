@@ -34,6 +34,10 @@ impl LayoutTree {
             .new_leaf_with_context(Style::default(), index)
             .unwrap();
 
+        // set initial style from default layout
+        let initial_style = to_taffy_style(&Layout::default());
+        self.taffy.set_style(taffy_id, initial_style).unwrap();
+
         self.nodes.push(LayoutNode {
             layout: Layout::default(),
             children: Vec::new(),

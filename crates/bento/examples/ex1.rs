@@ -13,6 +13,8 @@ fn main() {
     let button = ui.add_to(root, Button::new("click me"));
     ui.with(button, |button| {
         button.set_color([0.0, 0.0, 0.0, 1.0]);
+        button.set_position(Position::Absolute);
+        button.set_x(100.0);
     });
 
     app.open_window(WindowConfig::default(), ui);
