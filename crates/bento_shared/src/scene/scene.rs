@@ -615,6 +615,33 @@ pub enum Node {
     Group(GroupNode),
 }
 
+impl Node {
+    pub fn set_position(&mut self, x: f32, y: f32, w: f32, h: f32) {
+        match self {
+            Node::Rect(r) => {
+                r.x = x;
+                r.y = y;
+                r.w = w;
+                r.h = h;
+            }
+            Node::Text(t) => {
+                t.x = x;
+                t.y = y;
+            }
+            Node::Image(i) => {
+                i.x = x;
+                i.y = y;
+                i.w = w;
+                i.h = h;
+            }
+            Node::Group(g) => {
+                g.offset_x = x;
+                g.offset_y = y;
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Scene {
     pub nodes: Slab<Node>,
@@ -732,6 +759,36 @@ impl Scene {
         }
 
         self.nodes.remove(id.0);
+    }
+
+    pub fn reparent(&mut self, id: SceneNodeId, new_parent: SceneNodeId) {
+        // detach from current parent or root
+        let old_parent = match self.nodes.get(id.0) {
+            Some(Node::Rect(r)) => r.parent,
+            Some(Node::Text(t)) => t.parent,
+            Some(Node::Image(i)) => i.parent,
+            Some(Node::Group(g)) => g.parent,
+            None => return,
+        };
+        match old_parent {
+            Some(p) => {
+                if let Some(Node::Group(g)) = self.nodes.get_mut(p.0) {
+                    g.children.retain(|&c| c != id);
+                }
+            }
+            None => self.root.retain(|&r| r != id),
+        }
+        // attach under new parent
+        if let Some(Node::Group(g)) = self.nodes.get_mut(new_parent.0) {
+            g.children.push(id);
+        }
+        match self.nodes.get_mut(id.0) {
+            Some(Node::Rect(r)) => r.parent = Some(new_parent),
+            Some(Node::Text(t)) => t.parent = Some(new_parent),
+            Some(Node::Image(i)) => i.parent = Some(new_parent),
+            Some(Node::Group(g)) => g.parent = Some(new_parent),
+            None => {}
+        }
     }
 
     pub fn get(&self, id: SceneNodeId) -> Option<&Node> {

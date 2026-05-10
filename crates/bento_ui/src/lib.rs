@@ -1,8 +1,9 @@
 #![allow(dead_code)]
 #![allow(unused)]
 
-mod ui;
+pub mod ui;
 mod widget;
+pub mod layout;
 
 pub use ui::Ui;
 pub use widget::{Rect, Text, Image, Button, Group, WidgetHandle, Animation, Easing, LoopMode, AnimatableValue};

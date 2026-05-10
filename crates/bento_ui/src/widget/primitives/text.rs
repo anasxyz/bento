@@ -1,6 +1,7 @@
 use crate::widget::Widget;
 use crate::widget::{Base, HasBase};
 use bento_macros::Widget;
+use bento_shared::TextMeasureRequest;
 use bento_shared::{
     TextMeasurer,
     scene::{Node, Scene, SceneNodeId, TextAlign, TextNode},
@@ -9,39 +10,31 @@ use bento_shared::{
 #[derive(Widget)]
 pub struct Text {
     pub base: Base,
-    pub x: f32,
-    pub y: f32,
     pub text: String,
     pub size: f32,
     pub color: [f32; 4],
     pub opacity: f32,
-    pub max_width: Option<f32>,
     pub align: TextAlign,
     pub font_family: String,
     pub weight: u16,
     pub italic: bool,
     pub letter_spacing: f32,
-
     id: Option<SceneNodeId>,
 }
 
 impl Text {
-    pub fn new(text: &str, x: f32, y: f32, size: f32) -> Self {
+    pub fn new(text: &str, size: f32) -> Self {
         Self {
             base: Base::new(),
-            x,
-            y,
             text: text.to_string(),
             size,
             color: [1.0, 1.0, 1.0, 1.0],
             opacity: 1.0,
-            max_width: None,
             align: TextAlign::Left,
             font_family: String::new(),
             weight: 400,
             italic: false,
             letter_spacing: 0.0,
-
             id: None,
         }
     }
@@ -49,16 +42,16 @@ impl Text {
 
 impl Widget for Text {
     fn build(&mut self, scene: &mut Scene) {
-        let mut node = TextNode::new(&self.text, self.x, self.y, self.size);
+        let l = &self.base.layout;
+        let mut node = TextNode::new(&self.text, l.x, l.y, self.size);
         node.color = self.color;
         node.opacity = self.opacity;
-        node.max_width = self.max_width;
+        node.max_width = l.max_width;
         node.align = self.align.clone();
         node.font_family = self.font_family.clone();
         node.weight = self.weight;
         node.italic = self.italic;
         node.letter_spacing = self.letter_spacing;
-
         self.id = Some(scene.add_text(node));
     }
 
@@ -67,18 +60,37 @@ impl Widget for Text {
         let Some(Node::Text(t)) = scene.get_mut(id) else {
             return;
         };
-
-        t.x = self.x;
-        t.y = self.y;
         t.text = self.text.clone();
         t.size = self.size;
         t.color = self.color;
         t.opacity = self.opacity;
-        t.max_width = self.max_width;
+        t.max_width = self.base.layout.max_width;
         t.align = self.align.clone();
         t.font_family = self.font_family.clone();
         t.weight = self.weight;
         t.italic = self.italic;
         t.letter_spacing = self.letter_spacing;
+    }
+
+    fn measure(
+        &self,
+        _known_w: Option<f32>,
+        _known_h: Option<f32>,
+        measurer: &mut dyn TextMeasurer,
+    ) -> (f32, f32) {
+        let result = measurer.measure(TextMeasureRequest {
+            text: &self.text,
+            size: self.size,
+            max_width: self.base.layout.max_width,
+            font_family: &self.font_family,
+            weight: self.weight,
+            italic: self.italic,
+            letter_spacing: self.letter_spacing,
+            line_height: None,
+            weight_ranges: &[],
+            italic_ranges: &[],
+            font_family_ranges: &[],
+        });
+        (result.width, result.height)
     }
 }

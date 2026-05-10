@@ -1,7 +1,11 @@
 use std::collections::HashMap;
 
+use crate::layout::types::Layout;
+
 pub struct Base {
     pub dirty: bool,
+    pub dirty_layout: bool,
+    pub layout: Layout,
     pub delta: f32,
     pub animations: HashMap<&'static str, Animation>,
     pub transitions: HashMap<&'static str, (f32, Easing)>,
@@ -12,10 +16,12 @@ impl Base {
     pub fn new() -> Self {
         Self {
             dirty: true,
+            dirty_layout: true,
             delta: 0.0,
             animations: HashMap::new(),
             transitions: HashMap::new(),
             default_transition: None,
+            layout: Layout::default(),
         }
     }
 

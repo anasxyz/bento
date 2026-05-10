@@ -9,33 +9,23 @@ use bento_shared::{
 #[derive(Widget)]
 pub struct Rect {
     pub base: Base,
-    pub x: f32,
-    pub y: f32,
-    pub w: f32,
-    pub h: f32,
     pub color: [f32; 4],
     pub radii: [f32; 4],
     pub border_color: [f32; 4],
     pub border_widths: [f32; 4],
     pub opacity: f32,
-
     id: Option<SceneNodeId>,
 }
 
 impl Rect {
-    pub fn new(x: f32, y: f32, w: f32, h: f32) -> Self {
+    pub fn new() -> Self {
         Self {
             base: Base::new(),
-            x,
-            y,
-            w,
-            h,
             color: [1.0, 1.0, 1.0, 1.0],
             radii: [0.0; 4],
             opacity: 1.0,
             border_color: [0.0; 4],
             border_widths: [0.0; 4],
-
             id: None,
         }
     }
@@ -43,13 +33,13 @@ impl Rect {
 
 impl Widget for Rect {
     fn build(&mut self, scene: &mut Scene) {
-        let mut node = RectNode::new(self.x, self.y, self.w, self.h);
+        let l = &self.base.layout;
+        let mut node = RectNode::new(l.x, l.y, l.w, l.h);
         node.color = self.color;
         node.radii = self.radii;
         node.opacity = self.opacity;
         node.border_color = self.border_color;
         node.border_widths = self.border_widths;
-
         self.id = Some(scene.add_rect(node));
     }
 
@@ -58,11 +48,6 @@ impl Widget for Rect {
         let Some(Node::Rect(r)) = scene.get_mut(id) else {
             return;
         };
-
-        r.x = self.x;
-        r.y = self.y;
-        r.w = self.w;
-        r.h = self.h;
         r.color = self.color;
         r.radii = self.radii;
         r.opacity = self.opacity;

@@ -61,8 +61,9 @@ impl ApplicationHandler<BentoEvent> for App {
         }
         for (config, ui) in std::mem::take(&mut self.pending) {
             let ctx = self.ctx.as_ref().unwrap();
-            let win = Window::new(ctx, event_loop, config, ui);
+            let mut win = Window::new(ctx, event_loop, config, ui);
             win.request_redraw();
+            win.ui.set_viewport(win.surface.width, win.surface.height);
             self.windows.insert(win.id(), win);
         }
     }
@@ -83,7 +84,9 @@ impl ApplicationHandler<BentoEvent> for App {
 
                 let mut measurer =
                     CosmicTextMeasurer::new(&mut win.font_system, &mut win.measure_cache);
+                let instant = std::time::Instant::now();
                 win.ui.update(&mut measurer, delta);
+                println!("update took {:?}", instant.elapsed());
 
                 if win.ui.any_dirty() {
                     win.last_frame = Some(now);
@@ -115,6 +118,10 @@ impl ApplicationHandler<BentoEvent> for App {
             }
             WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {
                 win.resize(ctx);
+                let w = win.surface.width;
+                let h = win.surface.height;
+                win.ui.set_viewport(w, h);
+                win.request_redraw();
             }
             WindowEvent::CloseRequested => {
                 self.close_queue.push(id);

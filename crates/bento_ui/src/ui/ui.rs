@@ -1,3 +1,6 @@
+use crate::layout::run_layout;
+use crate::layout::tree::LayoutTree;
+use crate::widget::Group;
 use crate::widget::{Widget, WidgetHandle};
 use bento_shared::{Scene, SceneNodeId, TextMeasurer};
 use std::collections::HashMap;
@@ -8,6 +11,8 @@ pub struct Slot {
     pub generation: u32,
     // scene nodes owned by this widget, removed when the widget is removed
     pub node_ids: Vec<SceneNodeId>,
+     // index into Ui::layout_tree
+    pub layout_node: usize,
 }
 
 struct EventQueue {
@@ -36,6 +41,7 @@ impl EventQueue {
 
 pub struct Ui {
     pub scene: Scene,
+    pub layout_tree: LayoutTree,
     slots: Vec<Option<Slot>>,
     events: EventQueue,
 }
@@ -46,6 +52,7 @@ impl Ui {
             scene: Scene::new(),
             slots: Vec::new(),
             events: EventQueue::new(),
+            layout_tree: LayoutTree::new(),
         }
     }
 
@@ -56,23 +63,85 @@ impl Ui {
         widget.build(&mut self.scene);
         let node_ids = self.scene.stop_tracking();
         let generation = 0;
-        for (i, slot) in self.slots.iter_mut().enumerate() {
-            if slot.is_none() {
-                *slot = Some(Slot {
-                    widget: Box::new(widget),
-                    generation,
-                    node_ids,
-                });
-                return WidgetHandle::new(i as u32, generation);
-            }
-        }
-        let id = self.slots.len() as u32;
-        self.slots.push(Some(Slot {
+
+        let slot_index = self
+            .slots
+            .iter()
+            .position(|s| s.is_none())
+            .unwrap_or(self.slots.len());
+
+        let layout_node = self.layout_tree.add(slot_index, None);
+
+        let slot = Slot {
             widget: Box::new(widget),
             generation,
             node_ids,
-        }));
-        WidgetHandle::new(id, generation)
+            layout_node,
+        };
+
+        if slot_index == self.slots.len() {
+            self.slots.push(Some(slot));
+        } else {
+            self.slots[slot_index] = Some(slot);
+        }
+
+        WidgetHandle::new(slot_index as u32, generation)
+    }
+
+    pub fn add_to<W: Widget + 'static, P: Widget + 'static>(
+        &mut self,
+        parent: WidgetHandle<P>,
+        mut widget: W,
+    ) -> WidgetHandle<W> {
+        // build widget scene nodes
+        self.scene.start_tracking();
+        widget.build(&mut self.scene);
+        let node_ids = self.scene.stop_tracking();
+        let generation = 0;
+
+        // get parent layout node and parent scene node id
+        let parent_slot = self.slots[parent.id as usize].as_ref().unwrap();
+        let parent_layout_node = parent_slot.layout_node;
+
+        // find the parent's group scene node id
+        // the parent widget gotta be a Group, get its scene_id via downcast
+        let parent_scene_id = parent_slot
+            .widget
+            .as_any()
+            .downcast_ref::<Group>()
+            .and_then(|g| g.id);
+
+        // reparent all child scene nodes under the group scene node
+        if let Some(group_scene_id) = parent_scene_id {
+            for &nid in &node_ids {
+                self.scene.reparent(nid, group_scene_id);
+            }
+        }
+
+        // register slot
+        let slot_index = self
+            .slots
+            .iter()
+            .position(|s| s.is_none())
+            .unwrap_or(self.slots.len());
+
+        // register layout node as child of parent
+        let layout_node = self.layout_tree.add(slot_index, Some(parent_layout_node));
+
+        let slot = Slot {
+            widget: Box::new(widget),
+            generation,
+            node_ids,
+            layout_node,
+        };
+
+        if slot_index == self.slots.len() {
+            self.slots.push(Some(slot));
+        } else {
+            self.slots[slot_index] = Some(slot);
+        }
+
+        WidgetHandle::new(slot_index as u32, generation)
     }
 
     pub fn remove<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) {
@@ -90,6 +159,7 @@ impl Ui {
             self.scene.remove(*id);
         }
 
+        self.layout_tree.remove(s.layout_node);
         *slot = None;
     }
 
@@ -116,12 +186,66 @@ impl Ui {
     }
 
     pub fn update(&mut self, measurer: &mut dyn TextMeasurer, delta: f32) {
+        // mark layout dirty for any widget with dirty_layout
+        for (slot_index, slot) in self.slots.iter().enumerate() {
+            if let Some(s) = slot {
+                if s.widget.base().dirty_layout {
+                    self.layout_tree
+                        .mark_dirty(self.slots[slot_index].as_ref().unwrap().layout_node);
+                }
+            }
+        }
+
+        // run layout
+        if self.layout_tree.any_dirty() {
+            let start = std::time::Instant::now();
+            run_layout(&mut self.layout_tree, &mut self.slots, measurer);
+            println!("layout took {:?}", start.elapsed());
+
+            // write resolved positions into scene graph
+            for node in &self.layout_tree.nodes {
+                if node.slot == usize::MAX {
+                    continue;
+                }
+                let Some(Some(slot)) = self.slots.get(node.slot) else {
+                    continue;
+                };
+                for &scene_id in &slot.node_ids {
+                    if let Some(scene_node) = self.scene.get_mut(scene_id) {
+                        scene_node.set_position(
+                            node.layout.x,
+                            node.layout.y,
+                            node.layout.w,
+                            node.layout.h,
+                        );
+                    }
+                }
+            }
+        }
+
+        // update dirty widgets
+        // this is visual only
         for slot in self.slots.iter_mut().flatten() {
             if slot.widget.base().dirty {
                 slot.widget.base_mut().delta = delta;
                 slot.widget.base_mut().dirty = false;
+                slot.widget.base_mut().dirty_layout = false;
                 slot.widget.pre_update();
                 slot.widget.update(&mut self.scene, measurer);
+            }
+        }
+    }
+
+    pub fn set_viewport(&mut self, w: f32, h: f32) {
+        for node in &mut self.layout_tree.nodes {
+            if node.parent.is_none() && node.slot != usize::MAX {
+                node.dirty = true;
+                if let Some(Some(slot)) = self.slots.get_mut(node.slot) {
+                    slot.widget.base_mut().layout.w = w;
+                    slot.widget.base_mut().layout.h = h;
+                    slot.widget.base_mut().dirty = true;
+                    slot.widget.base_mut().dirty_layout = true;
+                }
             }
         }
     }

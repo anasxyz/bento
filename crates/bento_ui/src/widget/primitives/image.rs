@@ -9,10 +9,6 @@ use bento_shared::{
 #[derive(Widget)]
 pub struct Image {
     pub base: Base,
-    pub x: f32,
-    pub y: f32,
-    pub w: f32,
-    pub h: f32,
     pub image_id: u64,
     pub opacity: f32,
     pub radii: [f32; 4],
@@ -20,13 +16,9 @@ pub struct Image {
 }
 
 impl Image {
-    pub fn new(x: f32, y: f32, w: f32, h: f32, image_id: u64) -> Self {
+    pub fn new(image_id: u64) -> Self {
         Self {
             base: Base::new(),
-            x,
-            y,
-            w,
-            h,
             image_id,
             opacity: 1.0,
             radii: [0.0; 4],
@@ -37,7 +29,8 @@ impl Image {
 
 impl Widget for Image {
     fn build(&mut self, scene: &mut Scene) {
-        let mut node = ImageNode::new(self.x, self.y, self.w, self.h, self.image_id);
+        let l = &self.base.layout;
+        let mut node = ImageNode::new(l.x, l.y, l.w, l.h, self.image_id);
         node.opacity = self.opacity;
         node.radii = self.radii;
         self.id = Some(scene.add_image(node));
@@ -48,10 +41,6 @@ impl Widget for Image {
         let Some(Node::Image(img)) = scene.get_mut(id) else {
             return;
         };
-        img.x = self.x;
-        img.y = self.y;
-        img.w = self.w;
-        img.h = self.h;
         img.image_id = self.image_id;
         img.opacity = self.opacity;
         img.radii = self.radii;

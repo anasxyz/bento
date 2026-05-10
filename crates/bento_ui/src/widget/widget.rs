@@ -11,4 +11,12 @@ pub trait AsAny {
 pub trait Widget: AsAny + HasBase {
     fn build(&mut self, scene: &mut Scene);
     fn update(&mut self, scene: &mut Scene, measurer: &mut dyn TextMeasurer);
+    fn measure(
+        &self,
+        known_w: Option<f32>,
+        known_h: Option<f32>,
+        measurer: &mut dyn TextMeasurer,
+    ) -> (f32, f32) {
+        (0.0, 0.0)
+    }
 }

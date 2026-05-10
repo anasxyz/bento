@@ -47,156 +47,29 @@ pub fn derive_widget(input: TokenStream) -> TokenStream {
         }
 
         let ty = &f.ty;
-        let setter_name = format_ident!("set_{}", field_name);
-        let field_str = field_name.to_string();
-        let field_str_static = quote! { #field_str };
 
         if is_f32(ty) {
-            let animate_name = format_ident!("animate_{}", field_name);
-            let stop_name = format_ident!("stop_{}_animation", field_name);
-            let set_transition_name = format_ident!("set_transition_{}", field_name);
-            let clear_transition_name = format_ident!("clear_transition_{}", field_name);
-
-            setters.push(quote! {
-                pub fn #setter_name(&mut self, value: f32) -> &mut Self {
-                    let transition = self.base.transitions.get(#field_str_static)
-                        .copied()
-                        .or(self.base.default_transition);
-                    if let Some((duration, easing)) = transition {
-                        self.base.animations.insert(#field_str_static, #root::Animation {
-                            from: #root::AnimatableValue::Float(self.#field_name),
-                            to: #root::AnimatableValue::Float(value),
-                            duration,
-                            elapsed: 0.0,
-                            easing,
-                            loop_mode: #root::LoopMode::Once,
-                            on_start: None,
-                            on_tick: None,
-                            on_complete: None,
-                        });
-                    } else {
-                        self.#field_name = value;
-                    }
-                    self.base.dirty = true;
-                    self
-                }
-            });
-
-            animate_methods.push(quote! {
-                pub fn #animate_name(&mut self, to: f32, duration: f32, easing: #root::Easing, loop_mode: #root::LoopMode) -> &mut Self {
-                    self.base.animations.insert(#field_str_static, #root::Animation {
-                        from: #root::AnimatableValue::Float(self.#field_name),
-                        to: #root::AnimatableValue::Float(to),
-                        duration,
-                        elapsed: 0.0,
-                        easing,
-                        loop_mode,
-                        on_start: None,
-                        on_tick: None,
-                        on_complete: None,
-                    });
-                    self.base.dirty = true;
-                    self
-                }
-
-                pub fn #set_transition_name(&mut self, duration: f32, easing: #root::Easing) -> &mut Self {
-                    self.base.transitions.insert(#field_str_static, (duration, easing));
-                    self
-                }
-
-                pub fn #clear_transition_name(&mut self) -> &mut Self {
-                    self.base.transitions.remove(#field_str_static);
-                    self
-                }
-
-                pub fn #stop_name(&mut self) {
-                    self.base.stop_animation(#field_str_static);
-                }
-            });
-
-            pre_update_lines.push(quote! {
-                if let #root::AnimatableValue::Float(v) = self.base.animated_value(#field_str_static, #root::AnimatableValue::Float(self.#field_name)) {
-                    self.#field_name = v;
-                }
-            });
+            gen_f32_field(
+                field_name,
+                &root,
+                &mut setters,
+                &mut animate_methods,
+                &mut pre_update_lines,
+            );
         } else if is_color(ty) {
-            let animate_name = format_ident!("animate_{}", field_name);
-            let stop_name = format_ident!("stop_{}_animation", field_name);
-            let set_transition_name = format_ident!("set_transition_{}", field_name);
-            let clear_transition_name = format_ident!("clear_transition_{}", field_name);
-
-            setters.push(quote! {
-                pub fn #setter_name(&mut self, value: [f32; 4]) -> &mut Self {
-                    let transition = self.base.transitions.get(#field_str_static)
-                        .copied()
-                        .or(self.base.default_transition);
-                    if let Some((duration, easing)) = transition {
-                        self.base.animations.insert(#field_str_static, #root::Animation {
-                            from: #root::AnimatableValue::Color(self.#field_name),
-                            to: #root::AnimatableValue::Color(value),
-                            duration,
-                            elapsed: 0.0,
-                            easing,
-                            loop_mode: #root::LoopMode::Once,
-                            on_start: None,
-                            on_tick: None,
-                            on_complete: None,
-                        });
-                    } else {
-                        self.#field_name = value;
-                    }
-                    self.base.dirty = true;
-                    self
-                }
-            });
-
-            animate_methods.push(quote! {
-                pub fn #animate_name(&mut self, to: [f32; 4], duration: f32, easing: #root::Easing, loop_mode: #root::LoopMode) -> &mut Self {
-                    self.base.animations.insert(#field_str_static, #root::Animation {
-                        from: #root::AnimatableValue::Color(self.#field_name),
-                        to: #root::AnimatableValue::Color(to),
-                        duration,
-                        elapsed: 0.0,
-                        easing,
-                        loop_mode,
-                        on_start: None,
-                        on_tick: None,
-                        on_complete: None,
-                    });
-                    self.base.dirty = true;
-                    self
-                }
-
-                pub fn #set_transition_name(&mut self, duration: f32, easing: #root::Easing) -> &mut Self {
-                    self.base.transitions.insert(#field_str_static, (duration, easing));
-                    self
-                }
-
-                pub fn #clear_transition_name(&mut self) -> &mut Self {
-                    self.base.transitions.remove(#field_str_static);
-                    self
-                }
-
-                pub fn #stop_name(&mut self) {
-                    self.base.stop_animation(#field_str_static);
-                }
-            });
-
-            pre_update_lines.push(quote! {
-                if let #root::AnimatableValue::Color(v) = self.base.animated_value(#field_str_static, #root::AnimatableValue::Color(self.#field_name)) {
-                    self.#field_name = v;
-                }
-            });
+            gen_color_field(
+                field_name,
+                &root,
+                &mut setters,
+                &mut animate_methods,
+                &mut pre_update_lines,
+            );
         } else {
-            setters.push(quote! {
-                pub fn #setter_name(&mut self, value: #ty) -> &mut Self {
-                    self.#field_name = value;
-                    self.base.dirty = true;
-                    self
-                }
-            });
+            gen_plain_field(field_name, ty, &root, &mut setters);
         }
     }
+
+    gen_layout_setters(&root, &mut setters);
 
     quote! {
         impl #impl_generics #root::widget::AsAny for #name #ty_generics #where_clause {
@@ -225,6 +98,286 @@ pub fn derive_widget(input: TokenStream) -> TokenStream {
         }
     }
     .into()
+}
+
+fn gen_f32_field(
+    field_name: &syn::Ident,
+    root: &TokenStream2,
+    setters: &mut Vec<TokenStream2>,
+    animate_methods: &mut Vec<TokenStream2>,
+    pre_update_lines: &mut Vec<TokenStream2>,
+) {
+    let setter_name = format_ident!("set_{}", field_name);
+    let animate_name = format_ident!("animate_{}", field_name);
+    let stop_name = format_ident!("stop_{}_animation", field_name);
+    let set_transition_name = format_ident!("set_transition_{}", field_name);
+    let clear_transition_name = format_ident!("clear_transition_{}", field_name);
+    let field_str = field_name.to_string();
+    let field_str_static = quote! { #field_str };
+
+    setters.push(quote! {
+        pub fn #setter_name(&mut self, value: f32) -> &mut Self {
+            let transition = self.base.transitions.get(#field_str_static)
+                .copied()
+                .or(self.base.default_transition);
+            if let Some((duration, easing)) = transition {
+                self.base.animations.insert(#field_str_static, #root::Animation {
+                    from: #root::AnimatableValue::Float(self.#field_name),
+                    to: #root::AnimatableValue::Float(value),
+                    duration,
+                    elapsed: 0.0,
+                    easing,
+                    loop_mode: #root::LoopMode::Once,
+                    on_start: None,
+                    on_tick: None,
+                    on_complete: None,
+                });
+            } else {
+                self.#field_name = value;
+            }
+            self.base.dirty = true;
+            self
+        }
+    });
+
+    animate_methods.push(quote! {
+        pub fn #animate_name(&mut self, to: f32, duration: f32, easing: #root::Easing, loop_mode: #root::LoopMode) -> &mut Self {
+            self.base.animations.insert(#field_str_static, #root::Animation {
+                from: #root::AnimatableValue::Float(self.#field_name),
+                to: #root::AnimatableValue::Float(to),
+                duration,
+                elapsed: 0.0,
+                easing,
+                loop_mode,
+                on_start: None,
+                on_tick: None,
+                on_complete: None,
+            });
+            self.base.dirty = true;
+            self
+        }
+
+        pub fn #set_transition_name(&mut self, duration: f32, easing: #root::Easing) -> &mut Self {
+            self.base.transitions.insert(#field_str_static, (duration, easing));
+            self
+        }
+
+        pub fn #clear_transition_name(&mut self) -> &mut Self {
+            self.base.transitions.remove(#field_str_static);
+            self
+        }
+
+        pub fn #stop_name(&mut self) {
+            self.base.stop_animation(#field_str_static);
+        }
+    });
+
+    pre_update_lines.push(quote! {
+        if let #root::AnimatableValue::Float(v) = self.base.animated_value(#field_str_static, #root::AnimatableValue::Float(self.#field_name)) {
+            self.#field_name = v;
+        }
+    });
+}
+
+fn gen_color_field(
+    field_name: &syn::Ident,
+    root: &TokenStream2,
+    setters: &mut Vec<TokenStream2>,
+    animate_methods: &mut Vec<TokenStream2>,
+    pre_update_lines: &mut Vec<TokenStream2>,
+) {
+    let setter_name = format_ident!("set_{}", field_name);
+    let animate_name = format_ident!("animate_{}", field_name);
+    let stop_name = format_ident!("stop_{}_animation", field_name);
+    let set_transition_name = format_ident!("set_transition_{}", field_name);
+    let clear_transition_name = format_ident!("clear_transition_{}", field_name);
+    let field_str = field_name.to_string();
+    let field_str_static = quote! { #field_str };
+
+    setters.push(quote! {
+        pub fn #setter_name(&mut self, value: [f32; 4]) -> &mut Self {
+            let transition = self.base.transitions.get(#field_str_static)
+                .copied()
+                .or(self.base.default_transition);
+            if let Some((duration, easing)) = transition {
+                self.base.animations.insert(#field_str_static, #root::Animation {
+                    from: #root::AnimatableValue::Color(self.#field_name),
+                    to: #root::AnimatableValue::Color(value),
+                    duration,
+                    elapsed: 0.0,
+                    easing,
+                    loop_mode: #root::LoopMode::Once,
+                    on_start: None,
+                    on_tick: None,
+                    on_complete: None,
+                });
+            } else {
+                self.#field_name = value;
+            }
+            self.base.dirty = true;
+            self
+        }
+    });
+
+    animate_methods.push(quote! {
+        pub fn #animate_name(&mut self, to: [f32; 4], duration: f32, easing: #root::Easing, loop_mode: #root::LoopMode) -> &mut Self {
+            self.base.animations.insert(#field_str_static, #root::Animation {
+                from: #root::AnimatableValue::Color(self.#field_name),
+                to: #root::AnimatableValue::Color(to),
+                duration,
+                elapsed: 0.0,
+                easing,
+                loop_mode,
+                on_start: None,
+                on_tick: None,
+                on_complete: None,
+            });
+            self.base.dirty = true;
+            self
+        }
+
+        pub fn #set_transition_name(&mut self, duration: f32, easing: #root::Easing) -> &mut Self {
+            self.base.transitions.insert(#field_str_static, (duration, easing));
+            self
+        }
+
+        pub fn #clear_transition_name(&mut self) -> &mut Self {
+            self.base.transitions.remove(#field_str_static);
+            self
+        }
+
+        pub fn #stop_name(&mut self) {
+            self.base.stop_animation(#field_str_static);
+        }
+    });
+
+    pre_update_lines.push(quote! {
+        if let #root::AnimatableValue::Color(v) = self.base.animated_value(#field_str_static, #root::AnimatableValue::Color(self.#field_name)) {
+            self.#field_name = v;
+        }
+    });
+}
+
+fn gen_plain_field(
+    field_name: &syn::Ident,
+    ty: &syn::Type,
+    _root: &TokenStream2,
+    setters: &mut Vec<TokenStream2>,
+) {
+    let setter_name = format_ident!("set_{}", field_name);
+    setters.push(quote! {
+        pub fn #setter_name(&mut self, value: #ty) -> &mut Self {
+            self.#field_name = value;
+            self.base.dirty = true;
+            self
+        }
+    });
+}
+
+fn gen_layout_setters(root: &TokenStream2, setters: &mut Vec<TokenStream2>) {
+    // f32 layout fields
+    for field in ["flex_grow", "flex_shrink", "x", "y", "w", "h"] {
+        let setter_name = format_ident!("set_{}", field);
+        let field_ident = format_ident!("{}", field);
+        setters.push(quote! {
+            pub fn #setter_name(&mut self, value: f32) -> &mut Self {
+                self.base.layout.#field_ident = value;
+                self.base.dirty = true;
+                self.base.dirty_layout = true;
+                self
+            }
+        });
+    }
+
+    // Option<f32> layout fields
+    for field in [
+        "flex_basis",
+        "width",
+        "height",
+        "min_width",
+        "min_height",
+        "max_width",
+        "max_height",
+    ] {
+        let setter_name = format_ident!("set_{}", field);
+        let field_ident = format_ident!("{}", field);
+        setters.push(quote! {
+            pub fn #setter_name(&mut self, value: Option<f32>) -> &mut Self {
+                self.base.layout.#field_ident = value;
+                self.base.dirty = true;
+                self.base.dirty_layout = true;
+                self
+            }
+        });
+    }
+
+    // [f32; 4] layout fields
+    for field in ["padding", "margin", "inset"] {
+        let setter_name = format_ident!("set_{}", field);
+        let field_ident = format_ident!("{}", field);
+        setters.push(quote! {
+            pub fn #setter_name(&mut self, value: [f32; 4]) -> &mut Self {
+                self.base.layout.#field_ident = value;
+                self.base.dirty = true;
+                self.base.dirty_layout = true;
+                self
+            }
+        });
+    }
+
+    // [f32; 2] layout fields
+    {
+        let setter_name = format_ident!("set_gap");
+        setters.push(quote! {
+            pub fn #setter_name(&mut self, value: [f32; 2]) -> &mut Self {
+                self.base.layout.gap = value;
+                self.base.dirty = true;
+                self.base.dirty_layout = true;
+                self
+            }
+        });
+    }
+
+    // enum layout fields
+    let enum_fields: &[(&str, TokenStream2)] = &[
+        ("display", quote! { #root::layout::Display }),
+        ("position", quote! { #root::layout::Position }),
+        ("flex_direction", quote! { #root::layout::FlexDirection }),
+        ("flex_wrap", quote! { #root::layout::FlexWrap }),
+        (
+            "justify_content",
+            quote! { Option<#root::layout::JustifyContent> },
+        ),
+        (
+            "justify_items",
+            quote! { Option<#root::layout::JustifyItems> },
+        ),
+        (
+            "justify_self",
+            quote! { Option<#root::layout::JustifySelf> },
+        ),
+        (
+            "align_content",
+            quote! { Option<#root::layout::AlignContent> },
+        ),
+        ("align_items", quote! { Option<#root::layout::AlignItems> }),
+        ("align_self", quote! { Option<#root::layout::AlignSelf> }),
+        ("overflow_x", quote! { #root::layout::Overflow }),
+        ("overflow_y", quote! { #root::layout::Overflow }),
+    ];
+
+    for (field, ty) in enum_fields {
+        let setter_name = format_ident!("set_{}", field);
+        let field_ident = format_ident!("{}", field);
+        setters.push(quote! {
+            pub fn #setter_name(&mut self, value: #ty) -> &mut Self {
+                self.base.layout.#field_ident = value;
+                self.base.dirty = true;
+                self.base.dirty_layout = true;
+                self
+            }
+        });
+    }
 }
 
 fn is_f32(ty: &syn::Type) -> bool {
