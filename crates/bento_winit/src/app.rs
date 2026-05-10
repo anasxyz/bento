@@ -12,7 +12,6 @@ use bento_wgpu::RenderContext;
 
 use bento_shared::{BentoEvent, CosmicTextMeasurer};
 use std::sync::Arc;
-use tokio::runtime::Runtime;
 
 pub struct App {
     ctx: Option<RenderContext>,
