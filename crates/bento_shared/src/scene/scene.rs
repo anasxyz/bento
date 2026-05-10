@@ -762,14 +762,7 @@ impl Scene {
     }
 
     pub fn reparent(&mut self, id: SceneNodeId, new_parent: SceneNodeId) {
-        // detach from current parent or root
-        let old_parent = match self.nodes.get(id.0) {
-            Some(Node::Rect(r)) => r.parent,
-            Some(Node::Text(t)) => t.parent,
-            Some(Node::Image(i)) => i.parent,
-            Some(Node::Group(g)) => g.parent,
-            None => return,
-        };
+        let old_parent = self.parent_of(id);
         match old_parent {
             Some(p) => {
                 if let Some(Node::Group(g)) = self.nodes.get_mut(p.0) {
@@ -778,7 +771,6 @@ impl Scene {
             }
             None => self.root.retain(|&r| r != id),
         }
-        // attach under new parent
         if let Some(Node::Group(g)) = self.nodes.get_mut(new_parent.0) {
             g.children.push(id);
         }

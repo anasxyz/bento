@@ -1,12 +1,11 @@
 use bento_macros::Widget;
 use bento_shared::{
-    TextMeasurer,
-    TextMeasureRequest,
+    TextMeasureRequest, TextMeasurer,
     scene::{Node, Scene, SceneNodeId, TextAlign, TextNode},
 };
 
-use crate::widget::{Base, HasBase, Widget};
 use crate::layout::Size;
+use crate::widget::{Base, HasBase, Widget};
 
 #[derive(Widget)]
 pub struct Text {
@@ -68,6 +67,9 @@ impl Widget for Text {
         let Some(Node::Text(t)) = scene.get_mut(id) else {
             return;
         };
+        let l = &self.base.layout;
+        t.x = l.x;
+        t.y = l.y;
         t.text = self.text.clone();
         t.size = self.size;
         t.color = self.color;

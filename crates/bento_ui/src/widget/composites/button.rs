@@ -1,7 +1,7 @@
 use bento_macros::Widget;
 use bento_shared::{TextMeasureRequest, TextMeasurer, scene::Scene};
 
-use crate::layout::{Size, Overflow};
+use crate::layout::{Overflow, Size};
 use crate::widget::{Base, HasBase, Rect, Text, Widget};
 
 #[derive(Widget)]
@@ -72,7 +72,7 @@ impl Widget for Button {
         let result = measurer.measure(TextMeasureRequest {
             text: &self.label,
             size: self.font_size,
-            max_width: Some(w - self.padding_x * 2.0),
+            max_width: None,
             font_family: &self.font_family,
             weight: self.font_weight,
             italic: self.italic,
@@ -83,12 +83,18 @@ impl Widget for Button {
             font_family_ranges: &[],
         });
 
+        self.background.base.layout.x = x;
+        self.background.base.layout.y = y;
+        self.background.base.layout.w = w;
+        self.background.base.layout.h = h;
         self.background.color = self.color;
         self.background.border_color = self.border_color;
         self.background.border_widths = [self.border_width; 4];
         self.background.radii = [self.radius; 4];
         self.background.opacity = self.opacity;
         self.background.update(scene, measurer);
+
+        println!("button x={} y={} w={} h={}", x, y, w, h);
 
         let text_x = x + self.padding_x;
         let text_y = y + (h - result.height) / 2.0;
@@ -119,7 +125,7 @@ impl Widget for Button {
         let result = measurer.measure(TextMeasureRequest {
             text: &self.label,
             size: self.font_size,
-            max_width: self.max_width_px().map(|mw| mw - self.padding_x * 2.0),
+            max_width: None,
             font_family: &self.font_family,
             weight: self.font_weight,
             italic: self.italic,
