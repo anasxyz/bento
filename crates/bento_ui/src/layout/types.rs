@@ -114,7 +114,7 @@ pub struct Layout {
     pub padding: [f32; 4], // top right bottom left
     pub margin: [f32; 4],
     pub inset: [f32; 4], // top right bottom left
-    pub gap: [f32; 2],  // row col
+    pub gap: [f32; 2],   // row col
     pub overflow_x: Overflow,
     pub overflow_y: Overflow,
 
@@ -123,6 +123,36 @@ pub struct Layout {
     pub y: f32,
     pub w: f32,
     pub h: f32,
+}
+
+impl Layout {
+    pub fn inputs_equal(&self, other: &Layout) -> bool {
+        self.display == other.display
+            && self.position == other.position
+            && self.flex_direction == other.flex_direction
+            && self.flex_wrap == other.flex_wrap
+            && self.justify_content == other.justify_content
+            && self.justify_items == other.justify_items
+            && self.justify_self == other.justify_self
+            && self.align_content == other.align_content
+            && self.align_items == other.align_items
+            && self.align_self == other.align_self
+            && self.flex_grow == other.flex_grow
+            && self.flex_shrink == other.flex_shrink
+            && self.flex_basis == other.flex_basis
+            && self.width == other.width
+            && self.height == other.height
+            && self.min_width == other.min_width
+            && self.min_height == other.min_height
+            && self.max_width == other.max_width
+            && self.max_height == other.max_height
+            && self.padding == other.padding
+            && self.margin == other.margin
+            && self.inset == other.inset
+            && self.gap == other.gap
+            && self.overflow_x == other.overflow_x
+            && self.overflow_y == other.overflow_y
+    }
 }
 
 impl Default for Layout {

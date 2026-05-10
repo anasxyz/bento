@@ -1,7 +1,6 @@
 use super::tree::LayoutTree;
-use crate::layout::Overflow;
-use crate::layout::convert::{to_taffy_style, write_taffy_output};
-use crate::widget::Widget;
+use crate::layout::convert::write_taffy_output;
+use crate::layout::types::Overflow;
 use bento_shared::TextMeasurer;
 use taffy::prelude::*;
 
@@ -10,129 +9,123 @@ pub fn run_layout(
     widgets: &mut [Option<crate::ui::Slot>],
     measurer: &mut dyn TextMeasurer,
 ) {
-    // sync widget layout properties into layout tree nodes
+    // sync widget layouts into layout nodes
     for node in &mut tree.nodes {
         if node.slot == usize::MAX {
             continue;
         }
         if let Some(Some(slot)) = widgets.get(node.slot) {
-            node.layout = slot.widget.base().layout.clone();
+            let new_layout = slot.widget.base().layout.clone();
+            if !new_layout.inputs_equal(&node.layout) {
+                node.layout = new_layout;
+                node.dirty = true;
+            }
         }
     }
 
+    // collect dirty roots BEFORE sync clears dirty flags
     let roots: Vec<usize> = tree
         .nodes
         .iter()
         .enumerate()
-        .filter(|(_, n)| n.parent.is_none() && n.slot != usize::MAX)
+        .filter(|(_, n)| n.parent.is_none() && n.slot != usize::MAX && n.dirty)
         .map(|(i, _)| i)
         .collect();
 
-    for root in roots {
-        if tree.nodes[root].dirty {
-            compute_subtree(tree, root, 0.0, 0.0, widgets, measurer);
-        }
+    if roots.is_empty() {
+        return;
+    }
+
+    let dirty_count = tree
+        .nodes
+        .iter()
+        .filter(|n| n.dirty && n.slot != usize::MAX)
+        .count();
+
+    // sync styles into taffy and mark nodes clean
+    let t1 = std::time::Instant::now();
+    let any = tree.sync_styles();
+    if !any {
+        return;
+    }
+
+    for root_index in roots {
+        let Some(root_taffy_id) = tree.nodes[root_index].taffy_id else {
+            continue;
+        };
+        let parent_w = tree.nodes[root_index].layout.w;
+        let parent_h = tree.nodes[root_index].layout.h;
+        let overflow_x = tree.nodes[root_index].layout.overflow_x;
+        let overflow_y = tree.nodes[root_index].layout.overflow_y;
+        let mut nodes_measured = 0u32;
+
+        let t2 = std::time::Instant::now();
+        tree.taffy
+            .compute_layout_with_measure(
+                root_taffy_id,
+                Size {
+                    width: match overflow_x {
+                        Overflow::Scroll => AvailableSpace::MaxContent,
+                        _ => AvailableSpace::Definite(parent_w),
+                    },
+                    height: match overflow_y {
+                        Overflow::Scroll => AvailableSpace::MaxContent,
+                        _ => AvailableSpace::Definite(parent_h),
+                    },
+                },
+                |known_dimensions, _available, _node_id, context, _style| {
+                    nodes_measured += 1;
+                    let index = match context {
+                        Some(i) => *i,
+                        None => {
+                            return Size {
+                                width: 0.0,
+                                height: 0.0,
+                            };
+                        }
+                    };
+                    let slot = tree.nodes[index].slot;
+                    if let Some(Some(s)) = widgets.get_mut(slot) {
+                        let (w, h) = s.widget.measure(
+                            known_dimensions.width,
+                            known_dimensions.height,
+                            measurer,
+                        );
+                        Size {
+                            width: w,
+                            height: h,
+                        }
+                    } else {
+                        Size {
+                            width: 0.0,
+                            height: 0.0,
+                        }
+                    }
+                },
+            )
+            .unwrap();
+
+        write_results(tree, root_index, 0.0, 0.0);
     }
 }
 
-fn compute_subtree(
-    tree: &mut LayoutTree,
-    node_index: usize,
-    parent_x: f32,
-    parent_y: f32,
-    widgets: &mut [Option<crate::ui::Slot>],
-    measurer: &mut dyn TextMeasurer,
-) {
-    println!("compute_subtree called for node {}", node_index);
-    let children = tree.nodes[node_index].children.clone();
-
-    let mut taffy: TaffyTree<usize> = TaffyTree::new();
-
-    let child_taffy_nodes: Vec<NodeId> = children
-        .iter()
-        .map(|&ci| {
-            let style = to_taffy_style(&tree.nodes[ci].layout);
-            taffy.new_leaf_with_context(style, ci).unwrap()
-        })
-        .collect();
-
-    let parent_w = tree.nodes[node_index].layout.w;
-    let parent_h = tree.nodes[node_index].layout.h;
-    let parent_abs_x = parent_x + tree.nodes[node_index].layout.x;
-    let parent_abs_y = parent_y + tree.nodes[node_index].layout.y;
-    let root_style = Style {
-        size: Size {
-            width: Dimension::length(parent_w),
-            height: Dimension::length(parent_h),
-        },
-        ..to_taffy_style(&tree.nodes[node_index].layout)
+fn write_results(tree: &mut LayoutTree, index: usize, parent_x: f32, parent_y: f32) {
+    let Some(taffy_id) = tree.nodes[index].taffy_id else {
+        return;
     };
+    let taffy_layout = tree.taffy.layout(taffy_id).unwrap();
+    write_taffy_output(
+        taffy_layout,
+        parent_x,
+        parent_y,
+        &mut tree.nodes[index].layout,
+    );
+    tree.nodes[index].dirty = false;
 
-    let taffy_root = taffy
-        .new_with_children(root_style, &child_taffy_nodes)
-        .unwrap();
-
-    let overflow_x = tree.nodes[node_index].layout.overflow_x;
-    let overflow_y = tree.nodes[node_index].layout.overflow_y;
-
-    taffy
-        .compute_layout_with_measure(
-            taffy_root,
-            Size {
-                width: match overflow_x {
-                    Overflow::Scroll | Overflow::Visible => AvailableSpace::MaxContent,
-                    Overflow::Hidden => AvailableSpace::Definite(parent_w),
-                },
-                height: match overflow_y {
-                    Overflow::Scroll | Overflow::Visible => AvailableSpace::MaxContent,
-                    Overflow::Hidden => AvailableSpace::Definite(parent_h),
-                },
-            },
-            |known_dimensions, _available, _node_id, context, _style| {
-                let ci = match context {
-                    Some(i) => *i,
-                    None => {
-                        return Size {
-                            width: 0.0,
-                            height: 0.0,
-                        };
-                    }
-                };
-                let slot = tree.nodes[ci].slot;
-                if let Some(Some(s)) = widgets.get_mut(slot) {
-                    let (w, h) =
-                        s.widget
-                            .measure(known_dimensions.width, known_dimensions.height, measurer);
-                    Size {
-                        width: w,
-                        height: h,
-                    }
-                } else {
-                    Size {
-                        width: 0.0,
-                        height: 0.0,
-                    }
-                }
-            },
-        )
-        .unwrap();
-
-    for (i, &ci) in children.iter().enumerate() {
-        let taffy_layout = taffy.layout(child_taffy_nodes[i]).unwrap();
-        write_taffy_output(
-            taffy_layout,
-            parent_abs_x,
-            parent_abs_y,
-            &mut tree.nodes[ci].layout,
-        );
-        tree.nodes[ci].dirty = false;
-
-        if !tree.nodes[ci].children.is_empty() {
-            let child_x = tree.nodes[ci].layout.x;
-            let child_y = tree.nodes[ci].layout.y;
-            compute_subtree(tree, ci, child_x, child_y, widgets, measurer);
-        }
+    let abs_x = tree.nodes[index].layout.x;
+    let abs_y = tree.nodes[index].layout.y;
+    let children = tree.nodes[index].children.clone();
+    for ci in children {
+        write_results(tree, ci, abs_x, abs_y);
     }
-
-    tree.nodes[node_index].dirty = false;
 }

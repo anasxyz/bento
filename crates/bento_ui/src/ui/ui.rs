@@ -11,7 +11,7 @@ pub struct Slot {
     pub generation: u32,
     // scene nodes owned by this widget, removed when the widget is removed
     pub node_ids: Vec<SceneNodeId>,
-     // index into Ui::layout_tree
+    // index into Ui::layout_tree
     pub layout_node: usize,
 }
 
@@ -200,7 +200,6 @@ impl Ui {
         if self.layout_tree.any_dirty() {
             let start = std::time::Instant::now();
             run_layout(&mut self.layout_tree, &mut self.slots, measurer);
-            println!("layout took {:?}", start.elapsed());
 
             // write resolved positions into scene graph
             for node in &self.layout_tree.nodes {
@@ -243,6 +242,8 @@ impl Ui {
                 if let Some(Some(slot)) = self.slots.get_mut(node.slot) {
                     slot.widget.base_mut().layout.w = w;
                     slot.widget.base_mut().layout.h = h;
+                    slot.widget.base_mut().layout.width = Some(w);
+                    slot.widget.base_mut().layout.height = Some(h);
                     slot.widget.base_mut().dirty = true;
                     slot.widget.base_mut().dirty_layout = true;
                 }

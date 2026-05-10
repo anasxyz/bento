@@ -84,9 +84,7 @@ impl ApplicationHandler<BentoEvent> for App {
 
                 let mut measurer =
                     CosmicTextMeasurer::new(&mut win.font_system, &mut win.measure_cache);
-                let instant = std::time::Instant::now();
                 win.ui.update(&mut measurer, delta);
-                println!("update took {:?}", instant.elapsed());
 
                 if win.ui.any_dirty() {
                     win.last_frame = Some(now);
