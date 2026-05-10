@@ -791,6 +791,16 @@ impl Scene {
         }
     }
 
+    pub fn parent_of(&self, id: SceneNodeId) -> Option<SceneNodeId> {
+        match self.nodes.get(id.0) {
+            Some(Node::Rect(r)) => r.parent,
+            Some(Node::Text(t)) => t.parent,
+            Some(Node::Image(i)) => i.parent,
+            Some(Node::Group(g)) => g.parent,
+            None => None,
+        }
+    }
+
     pub fn get(&self, id: SceneNodeId) -> Option<&Node> {
         self.nodes.get(id.0)
     }

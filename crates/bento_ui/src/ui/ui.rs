@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use bento_shared::{Scene, SceneNodeId, TextMeasurer};
 
 use crate::layout::{LayoutTree, Size, run_layout};
-use crate::widget::{Widget, WidgetHandle, Group};
+use crate::widget::{Group, Widget, WidgetHandle};
 
 pub struct Slot {
     pub widget: Box<dyn Widget>,
@@ -114,7 +114,10 @@ impl Ui {
         // reparent all child scene nodes under the group scene node
         if let Some(group_scene_id) = parent_scene_id {
             for &nid in &node_ids {
-                self.scene.reparent(nid, group_scene_id);
+                // only reparent if not already parented (e.g. bg rect already under its group)
+                if self.scene.parent_of(nid).is_none() {
+                    self.scene.reparent(nid, group_scene_id);
+                }
             }
         }
 
@@ -206,9 +209,15 @@ impl Ui {
                 if node.slot == usize::MAX {
                     continue;
                 }
-                let Some(Some(slot)) = self.slots.get(node.slot) else {
+                let Some(Some(slot)) = self.slots.get_mut(node.slot) else {
                     continue;
                 };
+                // write resolved x/y/w/h back into widget's base.layout
+                slot.widget.base_mut().layout.x = node.layout.x;
+                slot.widget.base_mut().layout.y = node.layout.y;
+                slot.widget.base_mut().layout.w = node.layout.w;
+                slot.widget.base_mut().layout.h = node.layout.h;
+                // write into scene graph
                 for &scene_id in &slot.node_ids {
                     if let Some(scene_node) = self.scene.get_mut(scene_id) {
                         scene_node.set_position(
@@ -238,14 +247,17 @@ impl Ui {
     pub fn set_viewport(&mut self, w: f32, h: f32) {
         for node in &mut self.layout_tree.nodes {
             if node.parent.is_none() && node.slot != usize::MAX {
-                node.dirty = true;
                 if let Some(Some(slot)) = self.slots.get_mut(node.slot) {
-                    slot.widget.base_mut().layout.w = w;
-                    slot.widget.base_mut().layout.h = h;
-                    slot.widget.base_mut().layout.width = Size::Px(w);
-                    slot.widget.base_mut().layout.height = Size::Px(h);
-                    slot.widget.base_mut().dirty = true;
-                    slot.widget.base_mut().dirty_layout = true;
+                    // only resize root Groups, not other widgets
+                    if slot.widget.as_any().downcast_ref::<Group>().is_some() {
+                        slot.widget.base_mut().layout.w = w;
+                        slot.widget.base_mut().layout.h = h;
+                        slot.widget.base_mut().layout.width = Size::Px(w);
+                        slot.widget.base_mut().layout.height = Size::Px(h);
+                        slot.widget.base_mut().dirty = true;
+                        slot.widget.base_mut().dirty_layout = true;
+                    }
+                    node.dirty = true;
                 }
             }
         }

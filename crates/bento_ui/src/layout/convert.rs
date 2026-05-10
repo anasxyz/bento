@@ -10,7 +10,7 @@ fn to_taffy_dimension(s: &BSize) -> Dimension {
     match s {
         BSize::Auto => Dimension::auto(),
         BSize::Px(v) => Dimension::length(*v),
-        BSize::Percent(v) => Dimension::percent(*v),
+        BSize::Percent(v) => Dimension::percent(*v / 100.0),
     }
 }
 
