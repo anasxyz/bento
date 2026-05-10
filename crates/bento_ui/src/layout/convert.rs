@@ -2,9 +2,17 @@ use crate::layout::types::{
     AlignContent as BAlignContent, AlignItems as BAlignItems, AlignSelf as BAlignSelf,
     Display as BDisplay, FlexDirection as BFlexDirection, FlexWrap as BFlexWrap,
     JustifyContent as BJustifyContent, JustifyItems as BJustifyItems, JustifySelf as BJustifySelf,
-    Layout, Position as BPosition,
+    Layout, Position as BPosition, Size as BSize,
 };
 use taffy::{Point, prelude::*};
+
+fn to_taffy_dimension(s: &BSize) -> Dimension {
+    match s {
+        BSize::Auto => Dimension::auto(),
+        BSize::Px(v) => Dimension::length(*v),
+        BSize::Percent(v) => Dimension::percent(*v),
+    }
+}
 
 pub fn to_taffy_style(l: &Layout) -> Style {
     Style {
@@ -75,33 +83,18 @@ pub fn to_taffy_style(l: &Layout) -> Style {
         }),
         flex_grow: l.flex_grow,
         flex_shrink: l.flex_shrink,
-        flex_basis: l
-            .flex_basis
-            .map(Dimension::length)
-            .unwrap_or(Dimension::auto()),
+        flex_basis: to_taffy_dimension(&l.flex_basis),
         size: Size {
-            width: l.width.map(Dimension::length).unwrap_or(Dimension::auto()),
-            height: l.height.map(Dimension::length).unwrap_or(Dimension::auto()),
+            width: to_taffy_dimension(&l.width),
+            height: to_taffy_dimension(&l.height),
         },
         min_size: Size {
-            width: l
-                .min_width
-                .map(Dimension::length)
-                .unwrap_or(Dimension::auto()),
-            height: l
-                .min_height
-                .map(Dimension::length)
-                .unwrap_or(Dimension::auto()),
+            width: to_taffy_dimension(&l.min_width),
+            height: to_taffy_dimension(&l.min_height),
         },
         max_size: Size {
-            width: l
-                .max_width
-                .map(Dimension::length)
-                .unwrap_or(Dimension::auto()),
-            height: l
-                .max_height
-                .map(Dimension::length)
-                .unwrap_or(Dimension::auto()),
+            width: to_taffy_dimension(&l.max_width),
+            height: to_taffy_dimension(&l.max_height),
         },
         padding: Rect {
             top: LengthPercentage::length(l.padding[0]),

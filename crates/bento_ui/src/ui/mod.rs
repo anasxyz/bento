@@ -1,4 +1,3 @@
 mod ui;
 
-pub use ui::Ui;
-pub use ui::Slot;
+pub use ui::{Ui, Slot};

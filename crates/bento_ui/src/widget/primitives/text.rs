@@ -1,11 +1,12 @@
-use crate::widget::Widget;
-use crate::widget::{Base, HasBase};
 use bento_macros::Widget;
-use bento_shared::TextMeasureRequest;
 use bento_shared::{
     TextMeasurer,
+    TextMeasureRequest,
     scene::{Node, Scene, SceneNodeId, TextAlign, TextNode},
 };
+
+use crate::widget::{Base, HasBase, Widget};
+use crate::layout::Size;
 
 #[derive(Widget)]
 pub struct Text {
@@ -38,6 +39,13 @@ impl Text {
             id: None,
         }
     }
+
+    fn max_width_px(&self) -> Option<f32> {
+        match &self.base.layout.max_width {
+            Size::Px(v) => Some(*v),
+            _ => None,
+        }
+    }
 }
 
 impl Widget for Text {
@@ -46,7 +54,7 @@ impl Widget for Text {
         let mut node = TextNode::new(&self.text, l.x, l.y, self.size);
         node.color = self.color;
         node.opacity = self.opacity;
-        node.max_width = l.max_width;
+        node.max_width = self.max_width_px();
         node.align = self.align.clone();
         node.font_family = self.font_family.clone();
         node.weight = self.weight;
@@ -64,7 +72,7 @@ impl Widget for Text {
         t.size = self.size;
         t.color = self.color;
         t.opacity = self.opacity;
-        t.max_width = self.base.layout.max_width;
+        t.max_width = self.max_width_px();
         t.align = self.align.clone();
         t.font_family = self.font_family.clone();
         t.weight = self.weight;
@@ -81,7 +89,7 @@ impl Widget for Text {
         let result = measurer.measure(TextMeasureRequest {
             text: &self.text,
             size: self.size,
-            max_width: self.base.layout.max_width,
+            max_width: self.max_width_px(),
             font_family: &self.font_family,
             weight: self.weight,
             italic: self.italic,

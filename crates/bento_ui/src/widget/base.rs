@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::layout::types::Layout;
+use crate::layout::Layout;
 
 pub struct Base {
     pub dirty: bool,

@@ -1,7 +1,23 @@
-pub mod types;
-pub mod convert;
-pub mod layout;
-pub mod tree;
+mod types;
+mod convert;
+mod layout;
+mod tree;
 
 pub use layout::run_layout;
-pub use types::*;
+pub use tree::LayoutTree;
+pub use types::{
+    Display,
+    Position,
+    FlexDirection,
+    FlexWrap,
+    JustifyContent,
+    AlignItems,
+    AlignSelf,
+    AlignContent,
+    JustifyItems,
+    JustifySelf,
+    Overflow,
+    Size,
+
+    Layout,
+};

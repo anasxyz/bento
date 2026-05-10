@@ -1,7 +1,8 @@
-use crate::widget::{Base, HasBase};
-use crate::widget::{Rect, Text, Widget};
 use bento_macros::Widget;
 use bento_shared::{TextMeasureRequest, TextMeasurer, scene::Scene};
+
+use crate::layout::{Size, Overflow};
+use crate::widget::{Base, HasBase, Rect, Text, Widget};
 
 #[derive(Widget)]
 pub struct Button {
@@ -46,6 +47,13 @@ impl Button {
             label_text: Text::new(label, 16.0),
         }
     }
+
+    fn max_width_px(&self) -> Option<f32> {
+        match &self.base.layout.max_width {
+            Size::Px(v) => Some(*v),
+            _ => None,
+        }
+    }
 }
 
 impl Widget for Button {
@@ -87,7 +95,10 @@ impl Widget for Button {
 
         self.label_text.base.layout.x = text_x;
         self.label_text.base.layout.y = text_y;
-        self.label_text.base.layout.max_width = Some(w - self.padding_x * 2.0);
+        self.label_text.base.layout.max_width = match self.max_width_px() {
+            Some(mw) => Size::Px(mw - self.padding_x * 2.0),
+            None => Size::Auto,
+        };
         self.label_text.text = self.label.clone();
         self.label_text.size = self.font_size;
         self.label_text.color = self.text_color;
@@ -108,11 +119,7 @@ impl Widget for Button {
         let result = measurer.measure(TextMeasureRequest {
             text: &self.label,
             size: self.font_size,
-            max_width: self
-                .base
-                .layout
-                .max_width
-                .map(|mw| mw - self.padding_x * 2.0),
+            max_width: self.max_width_px().map(|mw| mw - self.padding_x * 2.0),
             font_family: &self.font_family,
             weight: self.font_weight,
             italic: self.italic,

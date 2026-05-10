@@ -90,6 +90,28 @@ pub enum Overflow {
     Scroll,
 }
 
+#[derive(Clone, PartialEq, Debug)]
+pub enum Size {
+    Auto,
+    Px(f32),
+    Percent(f32),
+}
+
+impl Size {
+    pub fn to_px(&self) -> Option<f32> {
+        match self {
+            Size::Px(v) => Some(*v),
+            _ => None,
+        }
+    }
+}
+
+impl Default for Size {
+    fn default() -> Self {
+        Size::Auto
+    }
+}
+
 #[derive(Clone)]
 pub struct Layout {
     pub display: Display,
@@ -104,13 +126,13 @@ pub struct Layout {
     pub align_self: Option<AlignSelf>,
     pub flex_grow: f32,
     pub flex_shrink: f32,
-    pub flex_basis: Option<f32>,
-    pub width: Option<f32>,
-    pub height: Option<f32>,
-    pub min_width: Option<f32>,
-    pub min_height: Option<f32>,
-    pub max_width: Option<f32>,
-    pub max_height: Option<f32>,
+    pub flex_basis: Size,
+    pub width: Size,
+    pub height: Size,
+    pub min_width: Size,
+    pub min_height: Size,
+    pub max_width: Size,
+    pub max_height: Size,
     pub padding: [f32; 4], // top right bottom left
     pub margin: [f32; 4],
     pub inset: [f32; 4], // top right bottom left
@@ -170,13 +192,13 @@ impl Default for Layout {
             align_self: None,
             flex_grow: 0.0,
             flex_shrink: 1.0,
-            flex_basis: None,
-            width: None,
-            height: None,
-            min_width: None,
-            min_height: None,
-            max_width: None,
-            max_height: None,
+            flex_basis: Size::Auto,
+            width: Size::Auto,
+            height: Size::Auto,
+            min_width: Size::Auto,
+            min_height: Size::Auto,
+            max_width: Size::Auto,
+            max_height: Size::Auto,
             padding: [0.0; 4],
             margin: [0.0; 4],
             inset: [0.0; 4],

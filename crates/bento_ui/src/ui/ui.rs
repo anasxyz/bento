@@ -1,10 +1,10 @@
-use crate::layout::run_layout;
-use crate::layout::tree::LayoutTree;
-use crate::widget::Group;
-use crate::widget::{Widget, WidgetHandle};
-use bento_shared::{Scene, SceneNodeId, TextMeasurer};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+
+use bento_shared::{Scene, SceneNodeId, TextMeasurer};
+
+use crate::layout::{LayoutTree, Size, run_layout};
+use crate::widget::{Widget, WidgetHandle, Group};
 
 pub struct Slot {
     pub widget: Box<dyn Widget>,
@@ -242,8 +242,8 @@ impl Ui {
                 if let Some(Some(slot)) = self.slots.get_mut(node.slot) {
                     slot.widget.base_mut().layout.w = w;
                     slot.widget.base_mut().layout.h = h;
-                    slot.widget.base_mut().layout.width = Some(w);
-                    slot.widget.base_mut().layout.height = Some(h);
+                    slot.widget.base_mut().layout.width = Size::Px(w);
+                    slot.widget.base_mut().layout.height = Size::Px(h);
                     slot.widget.base_mut().dirty = true;
                     slot.widget.base_mut().dirty_layout = true;
                 }

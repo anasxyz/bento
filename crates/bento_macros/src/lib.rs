@@ -289,7 +289,7 @@ fn gen_layout_setters(root: &TokenStream2, setters: &mut Vec<TokenStream2>) {
         });
     }
 
-    // Option<f32> layout fields
+    // Size layout fields
     for field in [
         "flex_basis",
         "width",
@@ -302,7 +302,7 @@ fn gen_layout_setters(root: &TokenStream2, setters: &mut Vec<TokenStream2>) {
         let setter_name = format_ident!("set_{}", field);
         let field_ident = format_ident!("{}", field);
         setters.push(quote! {
-            pub fn #setter_name(&mut self, value: Option<f32>) -> &mut Self {
+            pub fn #setter_name(&mut self, value: #root::layout::Size) -> &mut Self {
                 self.base.layout.#field_ident = value;
                 self.base.dirty = true;
                 self.base.dirty_layout = true;

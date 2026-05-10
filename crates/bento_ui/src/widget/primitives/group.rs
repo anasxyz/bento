@@ -1,11 +1,11 @@
-use crate::layout::Overflow;
-use crate::widget::Widget;
-use crate::widget::{Base, HasBase};
 use bento_macros::Widget;
 use bento_shared::{
     TextMeasurer,
     scene::{GroupNode, Node, Scene, SceneNodeId},
 };
+
+use crate::layout::Overflow;
+use crate::widget::{Base, HasBase, Widget};
 
 #[derive(Widget)]
 pub struct Group {

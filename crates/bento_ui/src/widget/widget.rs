@@ -1,6 +1,8 @@
-use crate::widget::HasBase;
-use bento_shared::{TextMeasurer, scene::Scene};
 use std::any::Any;
+
+use bento_shared::{TextMeasurer, scene::Scene};
+
+use crate::widget::HasBase;
 
 // automatically implemented for all widgets by deriving `Widget`
 pub trait AsAny {

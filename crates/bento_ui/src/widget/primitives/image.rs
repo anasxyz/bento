@@ -1,10 +1,10 @@
-use crate::widget::Widget;
-use crate::widget::{Base, HasBase};
 use bento_macros::Widget;
 use bento_shared::{
     TextMeasurer,
     scene::{ImageNode, Node, Scene, SceneNodeId},
 };
+
+use crate::widget::{Base, HasBase, Widget};
 
 #[derive(Widget)]
 pub struct Image {
