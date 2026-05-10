@@ -109,9 +109,8 @@ pub fn derive_widget(input: TokenStream) -> TokenStream {
                     self
                 }
 
-                pub fn #stop_name(&mut self) -> &mut Self {
+                pub fn #stop_name(&mut self) {
                     self.base.stop_animation(#field_str_static);
-                    self
                 }
             });
 
@@ -178,9 +177,8 @@ pub fn derive_widget(input: TokenStream) -> TokenStream {
                     self
                 }
 
-                pub fn #stop_name(&mut self) -> &mut Self {
+                pub fn #stop_name(&mut self) {
                     self.base.stop_animation(#field_str_static);
-                    self
                 }
             });
 

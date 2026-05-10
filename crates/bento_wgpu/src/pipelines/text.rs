@@ -948,11 +948,11 @@ impl TextPipeline {
             let redraw = reshape || cache.needs_redraw(spec);
 
             if reshape {
-                println!("[bento_wgpu] text slot {} reshaping", i);
+                // println!("[bento_wgpu] text slot {} reshaping", i);
             } else if redraw {
-                println!("[bento_wgpu] text slot {} redraw only (no reshape)", i);
+                // println!("[bento_wgpu] text slot {} redraw only (no reshape)", i);
             } else {
-                println!("[bento_wgpu] text slot {} fully cached, skipping", i);
+                // println!("[bento_wgpu] text slot {} fully cached, skipping", i);
             }
 
             if redraw {

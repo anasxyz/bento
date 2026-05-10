@@ -1,15 +1,17 @@
-use bento_shared::CosmicTextMeasurer;
 use std::collections::HashMap;
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
-    event_loop::{ActiveEventLoop, EventLoop},
+    event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy},
     window::WindowId,
 };
 
 use crate::{config::WindowConfig, window::Window};
 use bento_ui::Ui;
 use bento_wgpu::RenderContext;
+
+use bento_shared::{BentoEvent, CosmicTextMeasurer};
+use std::sync::Arc;
 
 pub struct App {
     ctx: Option<RenderContext>,
@@ -34,12 +36,19 @@ impl App {
     }
 
     pub fn run(mut self) {
-        let event_loop = EventLoop::new().unwrap();
+        let event_loop = EventLoop::<BentoEvent>::with_user_event().build().unwrap();
+        let proxy = event_loop.create_proxy();
+        for (_, ui) in &mut self.pending {
+            let proxy = proxy.clone();
+            ui.set_sender(Arc::new(move |id| {
+                proxy.send_event(BentoEvent::Callback(id)).ok();
+            }));
+        }
         event_loop.run_app(&mut self).unwrap();
     }
 }
 
-impl ApplicationHandler for App {
+impl ApplicationHandler<BentoEvent> for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.ctx.is_none() {
             self.ctx = Some(pollster::block_on(RenderContext::new()));
@@ -110,6 +119,17 @@ impl ApplicationHandler for App {
         }
         if self.windows.is_empty() {
             event_loop.exit();
+        }
+    }
+
+    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: BentoEvent) {
+        match event {
+            BentoEvent::Callback(id) => {
+                for win in self.windows.values_mut() {
+                    win.ui.fire_callback(id);
+                    win.request_redraw();
+                }
+            }
         }
     }
 }
