@@ -1,11 +1,13 @@
 use crate::widget::{Widget, WidgetHandle};
-use bento_shared::{TextMeasurer, scene::Scene};
+use bento_shared::{Scene, SceneNodeId, TextMeasurer};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 pub struct Slot {
     pub widget: Box<dyn Widget>,
     pub generation: u32,
+    // scene nodes owned by this widget, removed when the widget is removed
+    pub node_ids: Vec<SceneNodeId>,
 }
 
 struct EventQueue {
@@ -48,13 +50,18 @@ impl Ui {
     }
 
     pub fn add<W: Widget + 'static>(&mut self, mut widget: W) -> WidgetHandle<W> {
+        // track which scene nodes this widget adds during build
+        // so we can remove them later if the widget is removed
+        self.scene.start_tracking();
         widget.build(&mut self.scene);
+        let node_ids = self.scene.stop_tracking();
         let generation = 0;
         for (i, slot) in self.slots.iter_mut().enumerate() {
             if slot.is_none() {
                 *slot = Some(Slot {
                     widget: Box::new(widget),
                     generation,
+                    node_ids,
                 });
                 return WidgetHandle::new(i as u32, generation);
             }
@@ -63,8 +70,27 @@ impl Ui {
         self.slots.push(Some(Slot {
             widget: Box::new(widget),
             generation,
+            node_ids,
         }));
         WidgetHandle::new(id, generation)
+    }
+
+    pub fn remove<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) {
+        let slot = match self.slots.get_mut(handle.id as usize) {
+            Some(s @ Some(_)) => s,
+            _ => return,
+        };
+
+        let s = slot.as_ref().unwrap();
+        if s.generation != handle.generation {
+            return;
+        }
+
+        for id in &s.node_ids {
+            self.scene.remove(*id);
+        }
+
+        *slot = None;
     }
 
     pub fn get<W: Widget + 'static>(&self, handle: WidgetHandle<W>) -> Option<&W> {

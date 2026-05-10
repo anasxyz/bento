@@ -620,6 +620,9 @@ pub struct Scene {
     pub nodes: Slab<Node>,
     pub root: Vec<SceneNodeId>,
     parent_stack: Vec<SceneNodeId>,
+    // when true all nodes added using attach() are recorded in tracked below
+    tracking: bool,
+    tracked: Vec<SceneNodeId>,
 }
 
 impl Scene {
@@ -628,6 +631,8 @@ impl Scene {
             nodes: Slab::new(),
             root: Vec::new(),
             parent_stack: Vec::new(),
+            tracking: false,
+            tracked: Vec::new(),
         }
     }
 
@@ -663,7 +668,23 @@ impl Scene {
         self.parent_stack.pop();
     }
 
+    // begins recording all nodes added to the scene
+    pub fn start_tracking(&mut self) {
+        self.tracking = true;
+        self.tracked.clear();
+    }
+
+    // stop recording and return the ids of all nodes added since start_tracking()
+    pub fn stop_tracking(&mut self) -> Vec<SceneNodeId> {
+        self.tracking = false;
+        std::mem::take(&mut self.tracked)
+    }
+
     fn attach(&mut self, id: SceneNodeId) {
+        if self.tracking {
+            self.tracked.push(id);
+        }
+
         let parent = self.parent_stack.last().copied();
         match parent {
             Some(parent_id) => {

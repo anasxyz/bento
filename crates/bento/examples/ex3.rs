@@ -12,11 +12,7 @@ fn main() {
     });
 
     ui.timer(1.0, move |ui: &mut Ui| {
-        ui.timer(1.0, move |ui: &mut Ui| {
-            ui.with(rect, |r| {
-                r.animate_x(100.0, 1.0, Easing::Linear, LoopMode::Once);
-            });
-        });
+        ui.remove(rect);
     });
 
     app.open_window(WindowConfig::default(), ui);
