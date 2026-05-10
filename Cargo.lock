@@ -243,6 +243,7 @@ version = "0.1.0"
 dependencies = [
  "bento_macros",
  "bento_shared",
+ "tokio",
 ]
 
 [[package]]

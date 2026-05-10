@@ -13,7 +13,6 @@ struct EventQueue {
     callbacks: HashMap<u64, Box<dyn FnOnce(&mut Ui)>>,
     async_callbacks: Arc<Mutex<HashMap<u64, Box<dyn FnOnce(&mut Ui) + Send>>>>,
     next_id: u64,
-    pending_timers: Vec<(u64, f32)>,
     pending_futures: Vec<std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>>,
     spawner: Option<
         Arc<dyn Fn(std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>) + Send + Sync>,
@@ -27,7 +26,6 @@ impl EventQueue {
             callbacks: HashMap::new(),
             async_callbacks: Arc::new(Mutex::new(HashMap::new())),
             next_id: 0,
-            pending_timers: Vec::new(),
             pending_futures: Vec::new(),
             spawner: None,
         }
@@ -107,16 +105,7 @@ impl Ui {
     }
 
     pub fn set_sender(&mut self, sender: Arc<dyn Fn(u64) + Send + Sync>) {
-        *self.events.shared_sender.lock().unwrap() = Some(sender.clone());
-        for (id, duration) in self.events.pending_timers.drain(..) {
-            let shared_sender = self.events.shared_sender.clone();
-            std::thread::spawn(move || {
-                std::thread::sleep(std::time::Duration::from_secs_f32(duration));
-                if let Some(sender) = shared_sender.lock().unwrap().as_ref() {
-                    sender(id);
-                }
-            });
-        }
+        *self.events.shared_sender.lock().unwrap() = Some(sender);
     }
 
     pub fn set_spawner(
@@ -131,21 +120,11 @@ impl Ui {
         }
     }
 
-    pub fn timer(&mut self, duration: f32, callback: impl FnOnce(&mut Ui) + 'static) {
-        let id = self.events.next_id;
-        self.events.next_id += 1;
-        self.events.callbacks.insert(id, Box::new(callback));
-        let shared_sender = self.events.shared_sender.clone();
-        if shared_sender.lock().unwrap().is_some() {
-            std::thread::spawn(move || {
-                std::thread::sleep(std::time::Duration::from_secs_f32(duration));
-                if let Some(sender) = shared_sender.lock().unwrap().as_ref() {
-                    sender(id);
-                }
-            });
-        } else {
-            self.events.pending_timers.push((id, duration));
-        }
+    pub fn timer(&mut self, duration: f32, callback: impl FnOnce(&mut Ui) + Send + 'static) {
+        self.spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_secs_f32(duration)).await;
+            callback
+        });
     }
 
     pub fn spawn<F, C>(&mut self, future: F)

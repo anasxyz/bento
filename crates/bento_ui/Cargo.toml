@@ -13,3 +13,5 @@ workspace = true
 [dependencies]
 bento_shared = { workspace = true }
 bento_macros = { workspace = true }
+
+tokio = { workspace = true, features = ["time"] }
