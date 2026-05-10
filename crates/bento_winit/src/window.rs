@@ -14,6 +14,7 @@ pub struct Window {
     pub measure_cache: MeasureCache,
     pub ui: Ui,
     window: Arc<winit::window::Window>,
+    pub last_frame: Option<std::time::Instant>,
 }
 
 impl Window {
@@ -50,6 +51,7 @@ impl Window {
             measure_cache,
             ui,
             window,
+            last_frame: None,
         }
     }
 

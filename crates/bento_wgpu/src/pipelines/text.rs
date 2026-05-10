@@ -464,7 +464,16 @@ fn shape_and_rasterise(
     buffer.shape_until_scroll(font_system, false);
 
     let raster_scale = scale * spec.scale_x.max(spec.scale_y);
-    let subpixel_offset = ((spec.x * scale).fract(), (spec.y * scale).fract());
+
+    /*
+     * was normally:
+     * let subpixel_offset = ((spec.x * scale).fract(), (spec.y * scale).fract());
+     *
+     * but this somehow causes text flickering while animating text on the framework level
+     * hence why its being set to 0,0 for now
+     */
+    let subpixel_offset = (0.0, 0.0);
+
     for run in buffer.layout_runs() {
         for glyph in run.glyphs {
             let physical = glyph.physical(subpixel_offset, raster_scale);
@@ -502,7 +511,12 @@ fn build_glyphs(
     let raster_scale = scale * spec.scale_x.max(spec.scale_y);
     let origin_x = (spec.x * scale).floor();
     let origin_y = (spec.y * scale).floor();
-    let subpixel_offset = ((spec.x * scale).fract(), (spec.y * scale).fract());
+
+    /*
+     * see comment in shape_and_rasterise about subpixel offset
+     */
+    let subpixel_offset = (0.0, 0.0);
+
     let (cos_r, sin_r) = (spec.rotate.cos(), spec.rotate.sin());
     let transform = [
         cos_r * spec.scale_x,
@@ -658,7 +672,12 @@ fn build_decorations(buffer: &Buffer, spec: &TextSpec) -> (Vec<RectInstance>, Ve
             }
         };
 
-        emit(&spec.background_ranges, line_top, line_height, &mut bg_rects);
+        emit(
+            &spec.background_ranges,
+            line_top,
+            line_height,
+            &mut bg_rects,
+        );
         emit(&spec.underline_ranges, ul_y, ul_thickness, &mut line_rects);
         emit(
             &spec.strikethrough_ranges,

@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use bento_shared::CosmicTextMeasurer;
+use std::collections::HashMap;
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -60,9 +60,21 @@ impl ApplicationHandler for App {
 
         match event {
             WindowEvent::RedrawRequested => {
+                let now = std::time::Instant::now();
+                let delta = win
+                    .last_frame
+                    .map(|t| t.elapsed().as_secs_f32())
+                    .unwrap_or(0.0);
+                win.last_frame = Some(now);
+
                 let mut measurer =
                     CosmicTextMeasurer::new(&mut win.font_system, &mut win.measure_cache);
-                win.ui.update(&mut measurer);
+                win.ui.update(&mut measurer, delta);
+
+                if win.ui.any_dirty() {
+                    win.request_redraw();
+                }
+
                 let clear = win.config.clear_color;
                 win.renderer.render(
                     ctx,

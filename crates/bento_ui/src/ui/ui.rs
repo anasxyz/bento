@@ -60,15 +60,24 @@ impl Ui {
         slot.widget.as_any_mut().downcast_mut::<W>()
     }
 
-    pub fn update(&mut self, measurer: &mut dyn TextMeasurer) {
+    pub fn update(&mut self, measurer: &mut dyn TextMeasurer, delta: f32) {
         for slot in self.slots.iter_mut().flatten() {
             if slot.widget.base().dirty {
-                println!("updating dirty widget");
-                slot.widget.update(&mut self.scene, measurer);
+                slot.widget.base_mut().delta = delta;
                 slot.widget.base_mut().dirty = false;
-            } else {
-                println!("skipping clean widget");
+                slot.widget.pre_update();
+                slot.widget.update(&mut self.scene, measurer);
             }
+        }
+    }
+
+    pub fn any_dirty(&self) -> bool {
+        self.slots.iter().flatten().any(|s| s.widget.base().dirty)
+    }
+
+    pub fn with<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>, f: impl FnOnce(&mut W)) {
+        if let Some(widget) = self.get_mut(handle) {
+            f(widget);
         }
     }
 
