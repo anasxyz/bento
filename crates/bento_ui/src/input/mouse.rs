@@ -1,3 +1,5 @@
+use std::fmt;
+
 pub enum MouseButton {
     Left,
     Right,
@@ -59,5 +61,54 @@ impl Mouse {
 
             inside_window: false,
         }
+    }
+
+    pub fn reset(&mut self) {
+        self.dx = 0.0;
+        self.dy = 0.0;
+
+        self.scroll_x = 0.0;
+        self.scroll_y = 0.0;
+
+        self.left.just_pressed = false;
+        self.left.just_released = false;
+
+        self.right.just_pressed = false;
+        self.right.just_released = false;
+
+        self.middle.just_pressed = false;
+        self.middle.just_released = false;
+    }
+}
+
+impl fmt::Display for Mouse {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "Mouse:")?;
+        writeln!(
+            f,
+            "  pos=({:.0},{:.0}) delta=({:.0},{:.0}) scroll=({:.0},{:.0}) inside={}",
+            self.x, self.y, self.dx, self.dy, self.scroll_x, self.scroll_y, self.inside_window
+        )?;
+        writeln!(
+            f,
+            "  L: pressed={} released={} just_pressed={} just_released={}",
+            self.left.pressed, self.left.released, self.left.just_pressed, self.left.just_released
+        )?;
+        writeln!(
+            f,
+            "  R: pressed={} released={} just_pressed={} just_released={}",
+            self.right.pressed,
+            self.right.released,
+            self.right.just_pressed,
+            self.right.just_released
+        )?;
+        writeln!(
+            f,
+            "  M: pressed={} released={} just_pressed={} just_released={}",
+            self.middle.pressed,
+            self.middle.released,
+            self.middle.just_pressed,
+            self.middle.just_released
+        )
     }
 }

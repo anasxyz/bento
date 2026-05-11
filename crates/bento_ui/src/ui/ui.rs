@@ -14,8 +14,11 @@ pub struct Slot {
 
 /// Main orchestrator of anything UI / Event related.
 pub struct Ui {
-    pub scene: Scene,
-    pub slots: Vec<Option<Slot>>,
+    scene: Scene,
+    slots: Vec<Option<Slot>>,
+
+    // Input stuff
+    // Controls state for Mouse, Keyboard, etc.
     pub input: Input,
 
     // Async stuff

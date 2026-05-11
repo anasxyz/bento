@@ -75,6 +75,8 @@ impl ApplicationHandler<BentoEvent> for App {
 
         match event {
             WindowEvent::RedrawRequested => {
+                win.ui.input.mouse.reset();
+
                 win.ui.update();
 
                 let clear = win.config.clear_color;
@@ -95,10 +97,58 @@ impl ApplicationHandler<BentoEvent> for App {
                     },
                 ..
             } => match key {
-                winit::keyboard::KeyCode::KeyS => println!("{}", win.ui.scene),
+                winit::keyboard::KeyCode::KeyS => println!("{}", win.ui.scene()),
                 winit::keyboard::KeyCode::KeyU => println!("{}", win.ui),
                 _ => {}
             },
+
+            WindowEvent::MouseInput { state, button, .. } => {
+                let btn = match button {
+                    winit::event::MouseButton::Left => &mut win.ui.input.mouse.left,
+                    winit::event::MouseButton::Right => &mut win.ui.input.mouse.right,
+                    winit::event::MouseButton::Middle => &mut win.ui.input.mouse.middle,
+                    _ => return,
+                };
+                match state {
+                    winit::event::ElementState::Pressed => {
+                        btn.pressed = true;
+                        btn.released = false;
+                        btn.just_pressed = true;
+                        btn.just_released = false;
+                    }
+                    winit::event::ElementState::Released => {
+                        btn.pressed = false;
+                        btn.released = true;
+                        btn.just_pressed = false;
+                        btn.just_released = true;
+                    }
+                }
+            }
+            WindowEvent::MouseWheel { delta, .. } => match delta {
+                winit::event::MouseScrollDelta::LineDelta(x, y) => {
+                    win.ui.input.mouse.scroll_x = x;
+                    win.ui.input.mouse.scroll_y = y;
+                }
+                winit::event::MouseScrollDelta::PixelDelta(pos) => {
+                    win.ui.input.mouse.scroll_x = pos.x as f32;
+                    win.ui.input.mouse.scroll_y = pos.y as f32;
+                }
+            },
+            WindowEvent::CursorMoved { position, .. } => {
+                let x = position.x as f32;
+                let y = position.y as f32;
+                win.ui.input.mouse.dx = x - win.ui.input.mouse.x;
+                win.ui.input.mouse.dy = y - win.ui.input.mouse.y;
+                win.ui.input.mouse.x = x;
+                win.ui.input.mouse.y = y;
+            }
+            WindowEvent::CursorEntered { .. } => {
+                win.ui.input.mouse.inside_window = true;
+            }
+            WindowEvent::CursorLeft { .. } => {
+                win.ui.input.mouse.inside_window = false;
+            }
+
             WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {
                 win.resize(ctx);
                 let w = win.surface.width;
