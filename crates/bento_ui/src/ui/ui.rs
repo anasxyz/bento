@@ -5,7 +5,7 @@ use bento_shared::Scene;
 use super::EventQueue;
 use crate::{Widget, WidgetHandle};
 
-/// Slot in the UI tree where a widget lives.
+/// Slot in the UI where a widget lives.
 pub struct Slot {
     pub widget: Box<dyn Widget>,
     pub generation: u32,
@@ -27,7 +27,7 @@ impl Ui {
         }
     }
 
-    /// Adds a widget to the ui and returns a handle to it.
+    /// Adds a widget to the UI and returns a handle to it.
     ///
     /// Iterates through slots until it finds a none/empty/free slot to be reused and returns
     /// its position/index as Option<usize>. If no slot is found, return the end of the slots vector as the index.
@@ -52,7 +52,27 @@ impl Ui {
             self.slots[index] = Some(slot);
         }
 
+        // Widget ID is the index of the slot
         WidgetHandle::new(index as u32, 0)
+    }
+
+    /// Removes a widget from the UI.
+    /// 
+    /// Gets widget's slot using its ID, which was assigned by the add() method, and sets its slot
+    /// None. This allows the slot to be reused by the next widget added to the UI.
+    ///
+    /// Returns if provided invalid WidgetHandle or if slot is already None.
+    pub fn remove<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) {
+        // Return if the WidgetHandle provided by user is invalid
+        let Some(slot) = self.slots.get_mut(handle.id as usize) else { return };
+
+        // Return if slot is None
+        let Some(s) = slot.as_ref() else { return };
+        
+        // Return if the widget's generation matches the slot's generation
+        if s.generation == handle.generation {
+            *slot = None;
+        }
     }
 
     /// Returns a reference to the scene.

@@ -7,8 +7,8 @@ fn main() {
     let mut ui = Ui::new();
 
     let rect = ui.add(Rect {});
+    println!("{}", ui);
 
-    // debug
-    // println!("{}", ui.scene());
+    ui.remove(rect);
     println!("{}", ui);
 }
