@@ -96,7 +96,7 @@ impl ApplicationHandler<BentoEvent> for App {
                     },
                 ..
             } => {
-                println!("{:#?}", win.ui.scene);
+                println!("{}", win.ui.scene);
             }
             WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {
                 win.resize(ctx);

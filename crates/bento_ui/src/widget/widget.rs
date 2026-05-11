@@ -1,5 +1,7 @@
 use std::any::Any;
 
+use bento_shared::Scene;
+
 use crate::Ui;
 
 // automatically implemented for all widgets by deriving `Widget`
@@ -10,6 +12,6 @@ pub trait AsAny {
 
 pub trait Widget: AsAny {
     fn name(&self) -> &str;
-    fn build(&mut self);
-    fn update(&mut self);
+    fn build(&mut self, scene: &mut Scene);
+    fn update(&mut self, scene: &mut Scene);
 }

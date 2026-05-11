@@ -14,5 +14,5 @@ pub use renderer::Renderer;
 pub use pipelines::rect::RectInstance;
 
 pub use bento_shared::{
-    Scene, Node, RectNode, TextNode, ImageNode, GroupNode, TextAlign,
+    Scene, SceneNode, RectNode, TextNode, ImageNode, GroupNode, TextAlign,
 };

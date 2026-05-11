@@ -34,18 +34,27 @@ impl Ui {
     /// Once index is found, creates a new slot at the index and adds the widget to it.
     ///
     /// Returns a WidgetHandle to the added the widget.
-    pub fn add<W: Widget + 'static>(&mut self, widget: W) -> WidgetHandle<W> {
+    pub fn add<W: Widget + 'static>(&mut self, mut widget: W) -> WidgetHandle<W> {
+        // Iterate through slots until it finds a none/empty/free slot to be reused
+        // and return its position/index as Option<usize>
+        // If no slot is found, return the end of the slots vector as the index
         let index = self
             .slots
             .iter()
             .position(|s| s.is_none())
             .unwrap_or(self.slots.len());
 
+        // Build the widget using its iternal build() method
+        widget.build(&mut self.scene);
+
+        // Create a new slot at the index and add the widget to it
         let slot = Slot {
             widget: Box::new(widget),
             generation: 0,
         };
 
+        // If the index is the end of the slots vector, add the slot
+        // Otherwise, replace the slot at the index with the new slot
         if index == self.slots.len() {
             self.slots.push(Some(slot));
         } else {
@@ -119,12 +128,12 @@ impl Ui {
     ///
     /// Goes through all widgets and calls their update() method.
     ///
-    /// TODO: add a way to only update widgets that have changed.
+    /// TODO: add dirty tacking to only update widgets that have changed.
     pub fn update(&mut self) {
         for slot in self.slots.iter_mut() {
             if let Some(s) = slot.as_mut() {
                 println!("update {}", s.widget.name());
-                s.widget.update();
+                s.widget.update(&mut self.scene);
             }
         }
     }

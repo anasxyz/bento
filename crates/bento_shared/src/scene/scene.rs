@@ -610,33 +610,33 @@ impl GroupNode {
 }
 
 #[derive(Debug)]
-pub enum Node {
+pub enum SceneNode {
     Rect(RectNode),
     Text(TextNode),
     Image(ImageNode),
     Group(GroupNode),
 }
 
-impl Node {
+impl SceneNode {
     pub fn set_position(&mut self, x: f32, y: f32, w: f32, h: f32) {
         match self {
-            Node::Rect(r) => {
+            SceneNode::Rect(r) => {
                 r.x = x;
                 r.y = y;
                 r.w = w;
                 r.h = h;
             }
-            Node::Text(t) => {
+            SceneNode::Text(t) => {
                 t.x = x;
                 t.y = y;
             }
-            Node::Image(i) => {
+            SceneNode::Image(i) => {
                 i.x = x;
                 i.y = y;
                 i.w = w;
                 i.h = h;
             }
-            Node::Group(g) => {
+            SceneNode::Group(g) => {
                 g.offset_x = x;
                 g.offset_y = y;
             }
@@ -646,7 +646,7 @@ impl Node {
 
 #[derive(Debug)]
 pub struct Scene {
-    pub nodes: Slab<Node>,
+    pub nodes: Slab<SceneNode>,
     pub root: Vec<SceneNodeId>,
     parent_stack: Vec<SceneNodeId>,
     // when true all nodes added using attach() are recorded in tracked below
@@ -658,26 +658,26 @@ impl fmt::Display for Scene {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fn print_node(
             f: &mut fmt::Formatter<'_>,
-            nodes: &Slab<Node>,
+            nodes: &Slab<SceneNode>,
             id: SceneNodeId,
             depth: usize,
         ) -> fmt::Result {
             let indent = "  ".repeat(depth);
             match nodes.get(id.0) {
-                Some(Node::Rect(r)) => writeln!(
+                Some(SceneNode::Rect(r)) => writeln!(
                     f,
                     "{}Rect [{:.0},{:.0} {:.0}x{:.0}]",
                     indent, r.x, r.y, r.w, r.h,
                 )?,
-                Some(Node::Text(t)) => {
+                Some(SceneNode::Text(t)) => {
                     writeln!(f, "{}Text [{:.0},{:.0}] {:?}", indent, t.x, t.y, t.text)?
                 }
-                Some(Node::Image(i)) => writeln!(
+                Some(SceneNode::Image(i)) => writeln!(
                     f,
                     "{}Image [{:.0},{:.0} {:.0}x{:.0}]",
                     indent, i.x, i.y, i.w, i.h
                 )?,
-                Some(Node::Group(g)) => {
+                Some(SceneNode::Group(g)) => {
                     writeln!(f, "{}Group", indent)?;
                     for &child in &g.children {
                         print_node(f, nodes, child, depth + 1)?;
@@ -707,30 +707,30 @@ impl Scene {
     }
 
     pub fn add_rect(&mut self, rect: RectNode) -> SceneNodeId {
-        let id = SceneNodeId(self.nodes.insert(Node::Rect(rect)));
+        let id = SceneNodeId(self.nodes.insert(SceneNode::Rect(rect)));
         self.attach(id);
         id
     }
 
     pub fn add_text(&mut self, text: TextNode) -> SceneNodeId {
-        let id = SceneNodeId(self.nodes.insert(Node::Text(text)));
+        let id = SceneNodeId(self.nodes.insert(SceneNode::Text(text)));
         self.attach(id);
         id
     }
 
     pub fn add_image(&mut self, image: ImageNode) -> SceneNodeId {
-        let id = SceneNodeId(self.nodes.insert(Node::Image(image)));
+        let id = SceneNodeId(self.nodes.insert(SceneNode::Image(image)));
         self.attach(id);
         id
     }
 
     pub fn add_group(&mut self, f: impl FnOnce(&mut GroupNode, &mut Self)) -> SceneNodeId {
-        let id = SceneNodeId(self.nodes.insert(Node::Group(GroupNode::new())));
+        let id = SceneNodeId(self.nodes.insert(SceneNode::Group(GroupNode::new())));
         self.attach(id);
         self.parent_stack.push(id);
         let mut temp = GroupNode::new();
         f(&mut temp, self);
-        if let Some(Node::Group(g)) = self.nodes.get_mut(id.0) {
+        if let Some(SceneNode::Group(g)) = self.nodes.get_mut(id.0) {
             temp.children = g.children.clone();
             temp.parent = g.parent;
             *g = temp;
@@ -759,14 +759,14 @@ impl Scene {
         let parent = self.parent_stack.last().copied();
         match parent {
             Some(parent_id) => {
-                if let Some(Node::Group(g)) = self.nodes.get_mut(parent_id.0) {
+                if let Some(SceneNode::Group(g)) = self.nodes.get_mut(parent_id.0) {
                     g.children.push(id);
                 }
                 match self.nodes.get_mut(id.0) {
-                    Some(Node::Rect(r)) => r.parent = Some(parent_id),
-                    Some(Node::Text(t)) => t.parent = Some(parent_id),
-                    Some(Node::Image(i)) => i.parent = Some(parent_id),
-                    Some(Node::Group(g)) => g.parent = Some(parent_id),
+                    Some(SceneNode::Rect(r)) => r.parent = Some(parent_id),
+                    Some(SceneNode::Text(t)) => t.parent = Some(parent_id),
+                    Some(SceneNode::Image(i)) => i.parent = Some(parent_id),
+                    Some(SceneNode::Group(g)) => g.parent = Some(parent_id),
                     None => {}
                 }
             }
@@ -776,7 +776,7 @@ impl Scene {
 
     pub fn remove(&mut self, id: SceneNodeId) {
         let children = match self.nodes.get(id.0) {
-            Some(Node::Group(g)) => g.children.clone(),
+            Some(SceneNode::Group(g)) => g.children.clone(),
             _ => vec![],
         };
 
@@ -786,16 +786,16 @@ impl Scene {
 
         // remove from parents children or from root
         let parent = match self.nodes.get(id.0) {
-            Some(Node::Rect(r)) => r.parent,
-            Some(Node::Text(t)) => t.parent,
-            Some(Node::Image(i)) => i.parent,
-            Some(Node::Group(g)) => g.parent,
+            Some(SceneNode::Rect(r)) => r.parent,
+            Some(SceneNode::Text(t)) => t.parent,
+            Some(SceneNode::Image(i)) => i.parent,
+            Some(SceneNode::Group(g)) => g.parent,
             None => return,
         };
 
         match parent {
             Some(parent_id) => {
-                if let Some(Node::Group(g)) = self.nodes.get_mut(parent_id.0) {
+                if let Some(SceneNode::Group(g)) = self.nodes.get_mut(parent_id.0) {
                     g.children.retain(|&c| c != id);
                 }
             }
@@ -809,39 +809,39 @@ impl Scene {
         let old_parent = self.parent_of(id);
         match old_parent {
             Some(p) => {
-                if let Some(Node::Group(g)) = self.nodes.get_mut(p.0) {
+                if let Some(SceneNode::Group(g)) = self.nodes.get_mut(p.0) {
                     g.children.retain(|&c| c != id);
                 }
             }
             None => self.root.retain(|&r| r != id),
         }
-        if let Some(Node::Group(g)) = self.nodes.get_mut(new_parent.0) {
+        if let Some(SceneNode::Group(g)) = self.nodes.get_mut(new_parent.0) {
             g.children.push(id);
         }
         match self.nodes.get_mut(id.0) {
-            Some(Node::Rect(r)) => r.parent = Some(new_parent),
-            Some(Node::Text(t)) => t.parent = Some(new_parent),
-            Some(Node::Image(i)) => i.parent = Some(new_parent),
-            Some(Node::Group(g)) => g.parent = Some(new_parent),
+            Some(SceneNode::Rect(r)) => r.parent = Some(new_parent),
+            Some(SceneNode::Text(t)) => t.parent = Some(new_parent),
+            Some(SceneNode::Image(i)) => i.parent = Some(new_parent),
+            Some(SceneNode::Group(g)) => g.parent = Some(new_parent),
             None => {}
         }
     }
 
     pub fn parent_of(&self, id: SceneNodeId) -> Option<SceneNodeId> {
         match self.nodes.get(id.0) {
-            Some(Node::Rect(r)) => r.parent,
-            Some(Node::Text(t)) => t.parent,
-            Some(Node::Image(i)) => i.parent,
-            Some(Node::Group(g)) => g.parent,
+            Some(SceneNode::Rect(r)) => r.parent,
+            Some(SceneNode::Text(t)) => t.parent,
+            Some(SceneNode::Image(i)) => i.parent,
+            Some(SceneNode::Group(g)) => g.parent,
             None => None,
         }
     }
 
-    pub fn get(&self, id: SceneNodeId) -> Option<&Node> {
+    pub fn get(&self, id: SceneNodeId) -> Option<&SceneNode> {
         self.nodes.get(id.0)
     }
 
-    pub fn get_mut(&mut self, id: SceneNodeId) -> Option<&mut Node> {
+    pub fn get_mut(&mut self, id: SceneNodeId) -> Option<&mut SceneNode> {
         self.nodes.get_mut(id.0)
     }
 }
