@@ -75,7 +75,8 @@ impl ApplicationHandler<BentoEvent> for App {
 
         match event {
             WindowEvent::RedrawRequested => {
-                win.ui.input.mouse.reset();
+                win.ui.input.mouse.clear();
+                win.ui.input.keyboard.clear();
 
                 win.ui.update();
 
@@ -88,19 +89,60 @@ impl ApplicationHandler<BentoEvent> for App {
                     win.ui.scene_mut(),
                 );
             }
+
             WindowEvent::KeyboardInput {
                 event:
                     winit::event::KeyEvent {
-                        physical_key: winit::keyboard::PhysicalKey::Code(key),
-                        state: winit::event::ElementState::Pressed,
+                        physical_key: winit::keyboard::PhysicalKey::Code(keycode),
+                        text,
+                        state,
                         ..
                     },
                 ..
-            } => match key {
-                winit::keyboard::KeyCode::KeyS => println!("{}", win.ui.scene()),
-                winit::keyboard::KeyCode::KeyU => println!("{}", win.ui),
-                _ => {}
-            },
+            } => {
+                let key = crate::input::keycode_to_key(keycode);
+                let ch = text.and_then(|s| s.chars().next());
+                match state {
+                    winit::event::ElementState::Pressed => {
+                        match key {
+                            bento_ui::Key::LShift | bento_ui::Key::RShift => {
+                                win.ui.input.keyboard.modifiers.shift = true
+                            }
+                            bento_ui::Key::LCtrl | bento_ui::Key::RCtrl => {
+                                win.ui.input.keyboard.modifiers.ctrl = true
+                            }
+                            bento_ui::Key::LAlt | bento_ui::Key::RAlt => {
+                                win.ui.input.keyboard.modifiers.alt = true
+                            }
+                            bento_ui::Key::LSuper | bento_ui::Key::RSuper => {
+                                win.ui.input.keyboard.modifiers.super_key = true
+                            }
+                            _ => {}
+                        }
+                        win.ui.input.keyboard.on_press(key, ch);
+                    }
+                    winit::event::ElementState::Released => {
+                        match key {
+                            bento_ui::Key::LShift | bento_ui::Key::RShift => {
+                                win.ui.input.keyboard.modifiers.shift = false
+                            }
+                            bento_ui::Key::LCtrl | bento_ui::Key::RCtrl => {
+                                win.ui.input.keyboard.modifiers.ctrl = false
+                            }
+                            bento_ui::Key::LAlt | bento_ui::Key::RAlt => {
+                                win.ui.input.keyboard.modifiers.alt = false
+                            }
+                            bento_ui::Key::LSuper | bento_ui::Key::RSuper => {
+                                win.ui.input.keyboard.modifiers.super_key = false
+                            }
+                            _ => {}
+                        }
+                        win.ui.input.keyboard.on_release(key);
+                    }
+                }
+
+                win.request_redraw();
+            }
 
             WindowEvent::MouseInput { state, button, .. } => {
                 let btn = match button {
@@ -123,17 +165,23 @@ impl ApplicationHandler<BentoEvent> for App {
                         btn.just_released = true;
                     }
                 }
+
+                win.request_redraw();
             }
-            WindowEvent::MouseWheel { delta, .. } => match delta {
-                winit::event::MouseScrollDelta::LineDelta(x, y) => {
-                    win.ui.input.mouse.scroll_x = x;
-                    win.ui.input.mouse.scroll_y = y;
+            WindowEvent::MouseWheel { delta, .. } => {
+                match delta {
+                    winit::event::MouseScrollDelta::LineDelta(x, y) => {
+                        win.ui.input.mouse.scroll_x = x;
+                        win.ui.input.mouse.scroll_y = y;
+                    }
+                    winit::event::MouseScrollDelta::PixelDelta(pos) => {
+                        win.ui.input.mouse.scroll_x = pos.x as f32;
+                        win.ui.input.mouse.scroll_y = pos.y as f32;
+                    }
                 }
-                winit::event::MouseScrollDelta::PixelDelta(pos) => {
-                    win.ui.input.mouse.scroll_x = pos.x as f32;
-                    win.ui.input.mouse.scroll_y = pos.y as f32;
-                }
-            },
+
+                win.request_redraw();
+            }
             WindowEvent::CursorMoved { position, .. } => {
                 let x = position.x as f32;
                 let y = position.y as f32;
@@ -141,6 +189,8 @@ impl ApplicationHandler<BentoEvent> for App {
                 win.ui.input.mouse.dy = y - win.ui.input.mouse.y;
                 win.ui.input.mouse.x = x;
                 win.ui.input.mouse.y = y;
+
+                win.request_redraw();
             }
             WindowEvent::CursorEntered { .. } => {
                 win.ui.input.mouse.inside_window = true;

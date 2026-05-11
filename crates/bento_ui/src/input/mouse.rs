@@ -63,7 +63,7 @@ impl Mouse {
         }
     }
 
-    pub fn reset(&mut self) {
+    pub fn clear(&mut self) {
         self.dx = 0.0;
         self.dy = 0.0;
 
