@@ -10,7 +10,6 @@ use crate::Ui;
 /// gets sent to the tokio runtime to run in the background
 /// when it finishes it stores its callback in a HashMap under that ID and notifies the main thread
 /// main thread looks it up and runs it
-
 pub struct EventQueue {
     // the winit proxy wrapped in a closure
     // set up once at the start
