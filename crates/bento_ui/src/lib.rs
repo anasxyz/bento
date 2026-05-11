@@ -7,4 +7,5 @@ mod widget;
 use widget::{Widget, WidgetHandle};
 
 pub use ui::{Ui};
+pub use widget::{Rect};
 
