@@ -1,3 +1,5 @@
+use std::fmt;
+
 use slab::Slab;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -652,6 +654,47 @@ pub struct Scene {
     tracked: Vec<SceneNodeId>,
 }
 
+impl fmt::Display for Scene {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn print_node(
+            f: &mut fmt::Formatter<'_>,
+            nodes: &Slab<Node>,
+            id: SceneNodeId,
+            depth: usize,
+        ) -> fmt::Result {
+            let indent = "  ".repeat(depth);
+            match nodes.get(id.0) {
+                Some(Node::Rect(r)) => writeln!(
+                    f,
+                    "{}Rect [{:.0},{:.0} {:.0}x{:.0}]",
+                    indent, r.x, r.y, r.w, r.h,
+                )?,
+                Some(Node::Text(t)) => {
+                    writeln!(f, "{}Text [{:.0},{:.0}] {:?}", indent, t.x, t.y, t.text)?
+                }
+                Some(Node::Image(i)) => writeln!(
+                    f,
+                    "{}Image [{:.0},{:.0} {:.0}x{:.0}]",
+                    indent, i.x, i.y, i.w, i.h
+                )?,
+                Some(Node::Group(g)) => {
+                    writeln!(f, "{}Group", indent)?;
+                    for &child in &g.children {
+                        print_node(f, nodes, child, depth + 1)?;
+                    }
+                }
+                None => writeln!(f, "{}[missing]", indent)?,
+            }
+            Ok(())
+        }
+
+        for &root_id in &self.root {
+            print_node(f, &self.nodes, root_id, 0)?;
+        }
+        Ok(())
+    }
+}
+
 impl Scene {
     pub fn new() -> Self {
         Self {
@@ -681,18 +724,19 @@ impl Scene {
         id
     }
 
-    pub fn add_group(&mut self, group: GroupNode) -> SceneNodeId {
-        let id = SceneNodeId(self.nodes.insert(Node::Group(group)));
+    pub fn add_group(&mut self, f: impl FnOnce(&mut GroupNode, &mut Self)) -> SceneNodeId {
+        let id = SceneNodeId(self.nodes.insert(Node::Group(GroupNode::new())));
         self.attach(id);
-        id
-    }
-
-    pub fn push_parent(&mut self, id: SceneNodeId) {
         self.parent_stack.push(id);
-    }
-
-    pub fn pop_parent(&mut self) {
+        let mut temp = GroupNode::new();
+        f(&mut temp, self);
+        if let Some(Node::Group(g)) = self.nodes.get_mut(id.0) {
+            temp.children = g.children.clone();
+            temp.parent = g.parent;
+            *g = temp;
+        }
         self.parent_stack.pop();
+        id
     }
 
     // begins recording all nodes added to the scene
