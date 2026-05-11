@@ -5,32 +5,35 @@ use std::sync::{Arc, Mutex};
 
 use crate::Ui;
 
-/// call spawn with an async block
-/// it gets assigned a unique ID
-/// gets sent to the tokio runtime to run in the background
-/// when it finishes it stores its callback in a HashMap under that ID and notifies the main thread
-/// main thread looks it up and runs it
+/// Main orchestrator for async tasks.
+///
+/// # Usage:
+/// - Call spawn with an async block
+/// - Gets assigned a unique ID
+/// - Gets sent to the tokio runtime to run in the background
+/// - When it finishes it stores its callback in a HashMap under that ID and notifies the main thread
+/// - Main thread looks it up and runs it
 pub struct EventQueue {
-    // the winit proxy wrapped in a closure
-    // set up once at the start
+    /// The winit proxy wrapped in a closure
+    /// Set up once at the start
     shared_sender: Arc<Mutex<Option<Arc<dyn Fn(u64) + Send + Sync>>>>,
 
-    // sync callbacks
-    // mostly for internal use
+    // Sync callbacks
+    // Mostly for internal use
     pub(crate) callbacks: HashMap<u64, Box<dyn FnOnce(&mut Ui)>>,
 
-    // async callbacks waiting to run on main thread
+    // Async callbacks waiting to run on main thread
     // Arc<Mutex> because both async and main thread access it
     pub(crate) async_callbacks: Arc<Mutex<HashMap<u64, Box<dyn FnOnce(&mut Ui) + Send>>>>,
 
-    // next callback id
+    // Next callback id
     next_id: u64,
 
-    // futures arrived before spawner was set
+    // Futures arrived before spawner was set
     pending_futures: Vec<Pin<Box<dyn Future<Output = ()> + Send>>>,
 
-    // tokio runtime spawn function
-    // set up once at the start
+    // Tokio runtime spawn function
+    // Set up once at the start
     spawner: Option<Arc<dyn Fn(Pin<Box<dyn Future<Output = ()> + Send>>) + Send + Sync>>,
 }
 
@@ -46,7 +49,7 @@ impl EventQueue {
         }
     }
 
-    /// stores the winit proxy closure used to notify the main thread when an async task completes
+    /// Stores the winit proxy closure used to notify the main thread when an async task completes
     pub fn set_sender(&mut self, sender: Arc<dyn Fn(u64) + Send + Sync>) {
         *self.shared_sender.lock().unwrap() = Some(sender);
     }
@@ -62,8 +65,17 @@ impl EventQueue {
         }
     }
 
-    /// wraps a future so that when it completes its callback is stored and winit is notified,
-    /// then sends it to the tokio runtime to run in the background
+    /// Wraps a future so that when it completes its callback is stored and winit is notified,
+    /// then sends it to the tokio runtime to run in the background.
+    ///
+    /// ```
+    /// ui.events.spawn(async move {
+    ///    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    ///    move |ui: &mut Ui| {
+    ///        println!("callback");
+    ///    }
+    /// });
+    /// ```
     pub fn spawn<F, C>(&mut self, future: F)
     where
         F: std::future::Future<Output = C> + Send + 'static,
@@ -93,7 +105,7 @@ impl EventQueue {
         }
     }
 
-    /// convenience wrapper around spawn for simple time delayed callbacks
+    /// Convenience wrapper around spawn for simple time delayed callbacks.
     pub fn timer<C>(&mut self, duration: f32, callback: C)
     where
         C: FnOnce(&mut Ui) + Send + 'static,
