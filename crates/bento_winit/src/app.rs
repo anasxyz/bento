@@ -61,7 +61,7 @@ impl ApplicationHandler<BentoEvent> for App {
         }
         for (config, ui) in std::mem::take(&mut self.pending) {
             let ctx = self.ctx.as_ref().unwrap();
-            let mut win = Window::new(ctx, event_loop, config, ui);
+            let win = Window::new(ctx, event_loop, config, ui);
             win.request_redraw();
             self.windows.insert(win.id(), win);
         }
@@ -102,7 +102,6 @@ impl ApplicationHandler<BentoEvent> for App {
                 win.resize(ctx);
                 let w = win.surface.width;
                 let h = win.surface.height;
-                win.ui.set_viewport(w, h);
                 win.request_redraw();
             }
             WindowEvent::CloseRequested => {

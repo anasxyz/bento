@@ -115,6 +115,20 @@ impl Ui {
         }
     }
 
+    /// Per frame tick.
+    ///
+    /// Goes through all widgets and calls their update() method.
+    ///
+    /// TODO: add a way to only update widgets that have changed.
+    pub fn update(&mut self) {
+        for slot in self.slots.iter_mut() {
+            if let Some(s) = slot.as_mut() {
+                println!("update {}", s.widget.name());
+                s.widget.update();
+            }
+        }
+    }
+
     /// Returns a reference to the scene.
     pub fn scene(&self) -> &Scene {
         &self.scene

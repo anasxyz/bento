@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(unused)]
+
 mod config;
 mod window;
 mod app;

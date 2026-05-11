@@ -5,6 +5,12 @@ use crate::{AsAny, Widget};
 #[derive(Debug)]
 pub struct Rect {}
 
+impl Rect {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
 impl Widget for Rect {
     fn name(&self) -> &str {
         "Rect"
