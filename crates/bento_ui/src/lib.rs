@@ -4,7 +4,7 @@
 mod ui;
 mod widget;
 
-use widget::{Widget, WidgetHandle};
+use widget::{Widget, WidgetHandle, AsAny};
 
 pub use ui::{Ui};
 pub use widget::{Rect};

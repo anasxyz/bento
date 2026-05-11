@@ -63,7 +63,6 @@ impl ApplicationHandler<BentoEvent> for App {
             let ctx = self.ctx.as_ref().unwrap();
             let mut win = Window::new(ctx, event_loop, config, ui);
             win.request_redraw();
-            win.ui.set_viewport(win.surface.width, win.surface.height);
             self.windows.insert(win.id(), win);
         }
     }
@@ -76,22 +75,7 @@ impl ApplicationHandler<BentoEvent> for App {
 
         match event {
             WindowEvent::RedrawRequested => {
-                let now = std::time::Instant::now();
-                let delta = win
-                    .last_frame
-                    .map(|t| t.elapsed().as_secs_f32())
-                    .unwrap_or(0.0);
-
-                let mut measurer =
-                    CosmicTextMeasurer::new(&mut win.font_system, &mut win.measure_cache);
-                win.ui.update(&mut measurer, delta);
-
-                if win.ui.any_dirty() {
-                    win.last_frame = Some(now);
-                    win.request_redraw();
-                } else {
-                    win.last_frame = None;
-                }
+                win.ui.update();
 
                 let clear = win.config.clear_color;
                 win.renderer.render(

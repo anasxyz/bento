@@ -57,21 +57,61 @@ impl Ui {
     }
 
     /// Removes a widget from the UI.
-    /// 
+    ///
     /// Gets widget's slot using its ID, which was assigned by the add() method, and sets its slot
     /// None. This allows the slot to be reused by the next widget added to the UI.
     ///
     /// Returns if provided invalid WidgetHandle or if slot is already None.
     pub fn remove<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) {
         // Return if the WidgetHandle provided by user is invalid
-        let Some(slot) = self.slots.get_mut(handle.id as usize) else { return };
+        let Some(slot) = self.slots.get_mut(handle.id as usize) else {
+            return;
+        };
 
         // Return if slot is None
         let Some(s) = slot.as_ref() else { return };
-        
+
         // Return if the widget's generation matches the slot's generation
         if s.generation == handle.generation {
             *slot = None;
+        }
+    }
+
+    /// Returns a reference to a widget.
+    pub fn get<W: Widget + 'static>(&self, handle: WidgetHandle<W>) -> Option<&W> {
+        // Return None if the WidgetHandle provided by user is invalid
+        let Some(slot) = self.slots.get(handle.id as usize) else {
+            return None;
+        };
+
+        // Return None if slot is None
+        let Some(s) = slot.as_ref() else { return None };
+
+        // If generations match, downcast to the widget type as a reference
+        // Otherwise, return None
+        if s.generation == handle.generation {
+            s.widget.as_any().downcast_ref::<W>()
+        } else {
+            None
+        }
+    }
+
+    /// Returns a mutable reference to a widget.
+    pub fn get_mut<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) -> Option<&mut W> {
+        // Return None if the WidgetHandle provided by user is invalid
+        let Some(slot) = self.slots.get_mut(handle.id as usize) else {
+            return None;
+        };
+
+        // Return None if slot is None
+        let Some(s) = slot.as_mut() else { return None };
+
+        // If generations match, downcast to the widget type as mutable
+        // Otherwise, return None
+        if s.generation == handle.generation {
+            s.widget.as_any_mut().downcast_mut::<W>()
+        } else {
+            None
         }
     }
 
@@ -86,7 +126,7 @@ impl Ui {
     }
 
     /// Looks up a completed async callback by id and runs it with &mut Ui on the main thread.
-    /// 
+    ///
     /// Completely ignore for this now, it just has to be here and can't be on EventQueue because
     /// of the self parameter in the callbac.
     pub fn fire_callback(&mut self, id: u64) {

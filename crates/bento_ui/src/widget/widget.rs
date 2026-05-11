@@ -1,6 +1,14 @@
+use std::any::Any;
+
 use crate::Ui;
 
-pub trait Widget {
+// automatically implemented for all widgets by deriving `Widget`
+pub trait AsAny {
+    fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+}
+
+pub trait Widget: AsAny {
     fn name(&self) -> &str;
     fn build(&mut self);
     fn update(&mut self);
