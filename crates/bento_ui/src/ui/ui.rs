@@ -4,6 +4,7 @@ use bento_shared::Scene;
 
 use super::EventQueue;
 use crate::{Widget, WidgetHandle};
+use crate::Input;
 
 /// Slot in the UI where a widget lives.
 pub struct Slot {
@@ -15,6 +16,9 @@ pub struct Slot {
 pub struct Ui {
     pub scene: Scene,
     pub slots: Vec<Option<Slot>>,
+    pub input: Input,
+
+    // Async stuff
     pub events: EventQueue,
 }
 
@@ -23,6 +27,8 @@ impl Ui {
         Self {
             scene: Scene::new(),
             slots: Vec::new(),
+            input: Input::new(),
+
             events: EventQueue::new(),
         }
     }
