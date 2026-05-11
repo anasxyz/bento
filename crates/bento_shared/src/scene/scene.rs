@@ -666,28 +666,29 @@ impl fmt::Display for Scene {
             match nodes.get(id.0) {
                 Some(SceneNode::Rect(r)) => writeln!(
                     f,
-                    "{}Rect [{:.0},{:.0} {:.0}x{:.0}]",
+                    "  {}Rect [{:.0},{:.0} {:.0}x{:.0}]",
                     indent, r.x, r.y, r.w, r.h,
                 )?,
                 Some(SceneNode::Text(t)) => {
-                    writeln!(f, "{}Text [{:.0},{:.0}] {:?}", indent, t.x, t.y, t.text)?
+                    writeln!(f, "  {}Text [{:.0},{:.0}] {:?}", indent, t.x, t.y, t.text)?
                 }
                 Some(SceneNode::Image(i)) => writeln!(
                     f,
-                    "{}Image [{:.0},{:.0} {:.0}x{:.0}]",
+                    "  {}Image [{:.0},{:.0} {:.0}x{:.0}]",
                     indent, i.x, i.y, i.w, i.h
                 )?,
                 Some(SceneNode::Group(g)) => {
-                    writeln!(f, "{}Group", indent)?;
+                    writeln!(f, "  {}Group", indent)?;
                     for &child in &g.children {
                         print_node(f, nodes, child, depth + 1)?;
                     }
                 }
-                None => writeln!(f, "{}[missing]", indent)?,
+                None => writeln!(f, "  {}[missing]", indent)?,
             }
             Ok(())
         }
 
+         println!("Scene ({} nodes):", self.nodes.len());
         for &root_id in &self.root {
             print_node(f, &self.nodes, root_id, 0)?;
         }

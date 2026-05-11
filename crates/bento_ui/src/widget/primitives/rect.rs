@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use bento_shared::{SceneNode, RectNode, Scene, SceneNodeId};
+use bento_shared::{RectNode, Scene, SceneNode, SceneNodeId};
 
 use crate::{AsAny, Widget};
 
@@ -54,6 +54,12 @@ impl Widget for Rect {
         r.y = self.y;
         r.w = self.w;
         r.h = self.h;
+    }
+
+    fn remove(&mut self, scene: &mut Scene) {
+        let Some(id) = self.rect_id else { return };
+
+        scene.remove(id);
     }
 }
 

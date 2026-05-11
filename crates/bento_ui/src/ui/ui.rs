@@ -78,10 +78,14 @@ impl Ui {
         };
 
         // Return if slot is None
-        let Some(s) = slot.as_ref() else { return };
+        let Some(s) = slot.as_mut() else { return };
 
         // Return if the widget's generation matches the slot's generation
         if s.generation == handle.generation {
+            // Call widget's internal remove method
+            s.widget.remove(&mut self.scene);
+
+            // Set slot to None to be reused
             *slot = None;
         }
     }

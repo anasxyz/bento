@@ -89,15 +89,16 @@ impl ApplicationHandler<BentoEvent> for App {
             WindowEvent::KeyboardInput {
                 event:
                     winit::event::KeyEvent {
-                        physical_key:
-                            winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::KeyD),
+                        physical_key: winit::keyboard::PhysicalKey::Code(key),
                         state: winit::event::ElementState::Pressed,
                         ..
                     },
                 ..
-            } => {
-                println!("{}", win.ui.scene);
-            }
+            } => match key {
+                winit::keyboard::KeyCode::KeyS => println!("{}", win.ui.scene),
+                winit::keyboard::KeyCode::KeyU => println!("{}", win.ui),
+                _ => {}
+            },
             WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {
                 win.resize(ctx);
                 let w = win.surface.width;
