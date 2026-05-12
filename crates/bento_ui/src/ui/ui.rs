@@ -6,7 +6,7 @@ use bento_shared::Scene;
 
 use super::EventQueue;
 use super::{
-    KeyPress, KeyRelease, MouseDown, MouseEnter, MouseLeave, MouseMove, MouseScroll, MouseUp, Click
+    Click, KeyPress, KeyRelease, MouseDown, MouseEnter, MouseLeave, MouseMove, MouseScroll, MouseUp,
 };
 use crate::{Input, MouseButton, Widget, WidgetHandle};
 
@@ -155,13 +155,13 @@ impl Ui {
     ///
     /// TODO: add dirty tacking to only update widgets that have changed.
     pub fn update(&mut self) {
+        self.process_input();
+
         for slot in self.slots.iter_mut() {
             if let Some(s) = slot.as_mut() {
                 s.widget.update(&mut self.scene);
             }
         }
-
-        self.process_input();
     }
 
     /// Returns a reference to the scene.
