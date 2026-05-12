@@ -6,7 +6,8 @@ use bento_shared::Scene;
 
 use super::EventQueue;
 use super::{
-    Click, KeyPress, KeyRelease, MouseDown, MouseEnter, MouseLeave, MouseMove, MouseScroll, MouseUp, FocusGained, FocusLost,
+    Click, FocusGained, FocusLost, KeyPress, KeyRelease, MouseDown, MouseEnter, MouseLeave,
+    MouseMove, MouseScroll, MouseUp,
 };
 use crate::{Input, MouseButton, Widget, WidgetHandle};
 
@@ -177,17 +178,29 @@ impl Ui {
         self.slots.iter().flatten().any(|s| s.widget.is_dirty())
     }
 
-    pub fn set_focus<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) {
-        // fire FocusLost on previously focused widget
+    fn set_focus_by_id(&mut self, slot_id: u32) {
         if let Some(prev) = self.focused {
+            if let Some(Some(slot)) = self.slots.get_mut(prev as usize) {
+                slot.widget.set_focused(false);
+            }
             self.dispatch_by_id(prev, &FocusLost);
         }
-        self.focused = Some(handle.id);
-        self.dispatch_by_id(handle.id, &FocusGained);
+        self.focused = Some(slot_id);
+        if let Some(Some(slot)) = self.slots.get_mut(slot_id as usize) {
+            slot.widget.set_focused(true);
+        }
+        self.dispatch_by_id(slot_id, &FocusGained);
+    }
+
+    pub fn set_focus<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) {
+        self.set_focus_by_id(handle.id);
     }
 
     pub fn clear_focus(&mut self) {
         if let Some(prev) = self.focused {
+            if let Some(Some(slot)) = self.slots.get_mut(prev as usize) {
+                slot.widget.set_focused(false);
+            }
             self.dispatch_by_id(prev, &FocusLost);
         }
         self.focused = None;
@@ -228,176 +241,6 @@ pub struct ConnectionHandle {
 /// Event stuff
 /// Moved to separate impl block purely for organisation
 impl Ui {
-    pub fn process_input(&mut self) {
-        // keyboard
-        let key_presses: Vec<KeyPress> = self
-            .input
-            .keyboard
-            .just_pressed()
-            .iter()
-            .map(|(key, ch)| KeyPress { key: *key, ch: *ch })
-            .collect();
-
-        let key_releases: Vec<KeyRelease> = self
-            .input
-            .keyboard
-            .just_released()
-            .iter()
-            .map(|key| KeyRelease { key: *key })
-            .collect();
-
-        // mouse move
-        let mouse_move = if self.input.mouse.dx != 0.0 || self.input.mouse.dy != 0.0 {
-            Some(MouseMove {
-                x: self.input.mouse.x,
-                y: self.input.mouse.y,
-                dx: self.input.mouse.dx,
-                dy: self.input.mouse.dy,
-            })
-        } else {
-            None
-        };
-
-        // mouse down/up
-        let mut mouse_downs: Vec<MouseDown> = Vec::new();
-        let mut mouse_ups: Vec<MouseUp> = Vec::new();
-        for btn in [MouseButton::Left, MouseButton::Middle, MouseButton::Right] {
-            let state = match btn {
-                MouseButton::Left => &self.input.mouse.left,
-                MouseButton::Right => &self.input.mouse.right,
-                MouseButton::Middle => &self.input.mouse.middle,
-            };
-            if state.just_pressed {
-                mouse_downs.push(MouseDown {
-                    x: self.input.mouse.x,
-                    y: self.input.mouse.y,
-                    button: btn,
-                });
-            }
-            if state.just_released {
-                mouse_ups.push(MouseUp {
-                    x: self.input.mouse.x,
-                    y: self.input.mouse.y,
-                    button: btn,
-                });
-            }
-        }
-
-        // click
-        let mut clicks: Vec<Click> = Vec::new();
-        for btn in [MouseButton::Left, MouseButton::Middle, MouseButton::Right] {
-            let state = match btn {
-                MouseButton::Left => &self.input.mouse.left,
-                MouseButton::Right => &self.input.mouse.right,
-                MouseButton::Middle => &self.input.mouse.middle,
-            };
-            if state.just_released {
-                clicks.push(Click {
-                    x: self.input.mouse.x,
-                    y: self.input.mouse.y,
-                    button: btn,
-                });
-            }
-        }
-
-        // mouse scroll
-        let mouse_scroll = if self.input.mouse.scroll_x != 0.0 || self.input.mouse.scroll_y != 0.0 {
-            Some(MouseScroll {
-                x: self.input.mouse.scroll_x,
-                y: self.input.mouse.scroll_y,
-            })
-        } else {
-            None
-        };
-
-        // mouse enter/leave window
-        let mouse_enter = self.input.mouse.just_entered;
-        let mouse_leave = self.input.mouse.just_left;
-
-        // collect slot ids once
-        let slot_ids: Vec<u32> = self.connections.keys().filter_map(|k| *k).collect();
-
-        // keyboard only goes to focused widget
-        if let Some(focused_id) = self.focused {
-            for event in &key_presses {
-                self.dispatch_by_id(focused_id, event);
-            }
-            for event in &key_releases {
-                self.dispatch_by_id(focused_id, event);
-            }
-        }
-
-        // dispatch to widget specific handlers
-        for slot_id in &slot_ids {
-            // get widget bounds for hit testing
-            let hit = if let Some(Some(slot)) = self.slots.get(*slot_id as usize) {
-                let (x, y, w, h) = slot.widget.bounds();
-                self.input.mouse.x >= x
-                    && self.input.mouse.x <= x + w
-                    && self.input.mouse.y >= y
-                    && self.input.mouse.y <= y + h
-            } else {
-                false
-            };
-
-            // non positional events dispatch without hit test
-            if let Some(ref e) = mouse_scroll {
-                self.dispatch_by_id(*slot_id, e);
-            }
-            if mouse_enter {
-                self.dispatch_by_id(*slot_id, &MouseEnter);
-            }
-            if mouse_leave {
-                self.dispatch_by_id(*slot_id, &MouseLeave);
-            }
-
-            // positional events only dispatch if mouse is over widget
-            if hit {
-                if let Some(ref e) = mouse_move {
-                    self.dispatch_by_id(*slot_id, e);
-                }
-                for event in &mouse_downs {
-                    self.dispatch_by_id(*slot_id, event);
-                }
-                for event in &mouse_ups {
-                    self.dispatch_by_id(*slot_id, event);
-                }
-                for event in &clicks {
-                    self.dispatch_by_id(*slot_id, event);
-                }
-            }
-        }
-
-        // dispatch to global handlers
-        for event in &key_presses {
-            self.dispatch_global(event);
-        }
-        for event in &key_releases {
-            self.dispatch_global(event);
-        }
-        if let Some(ref e) = mouse_move {
-            self.dispatch_global(e);
-        }
-        for event in &mouse_downs {
-            self.dispatch_global(event);
-        }
-        for event in &mouse_ups {
-            self.dispatch_global(event);
-        }
-        for event in &clicks {
-            self.dispatch_global(event);
-        }
-        if let Some(ref e) = mouse_scroll {
-            self.dispatch_global(e);
-        }
-        if mouse_enter {
-            self.dispatch_global(&MouseEnter);
-        }
-        if mouse_leave {
-            self.dispatch_global(&MouseLeave);
-        }
-    }
-
     /// Listens for events of type E on widget with handle.
     pub fn listen<W: Widget + 'static, E: 'static>(
         &mut self,
@@ -587,6 +430,231 @@ impl Ui {
     /// This is the same as calling Ui::dispatch_by_id() with the widget's id.
     pub fn emit<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>, event: &dyn Any) {
         self.dispatch_by_id(handle.id, event);
+    }
+}
+
+/// Collected input events for a single frame
+struct InputEvents {
+    key_presses: Vec<KeyPress>,
+    key_releases: Vec<KeyRelease>,
+    mouse_move: Option<MouseMove>,
+    mouse_downs: Vec<MouseDown>,
+    mouse_ups: Vec<MouseUp>,
+    clicks: Vec<Click>,
+    mouse_scroll: Option<MouseScroll>,
+    mouse_enter: bool,
+    mouse_leave: bool,
+}
+
+/// Input processing
+/// Moved to separate impl block purely for organisation
+impl Ui {
+    pub fn process_input(&mut self) {
+        let events = self.collect_events();
+        self.dispatch_events(&events);
+    }
+
+    fn collect_events(&self) -> InputEvents {
+        // keyboard
+        let key_presses = self
+            .input
+            .keyboard
+            .just_pressed()
+            .iter()
+            .map(|(key, ch)| KeyPress { key: *key, ch: *ch })
+            .collect();
+
+        let key_releases = self
+            .input
+            .keyboard
+            .just_released()
+            .iter()
+            .map(|key| KeyRelease { key: *key })
+            .collect();
+
+        // mouse move
+        let mouse_move = if self.input.mouse.dx != 0.0 || self.input.mouse.dy != 0.0 {
+            Some(MouseMove {
+                x: self.input.mouse.x,
+                y: self.input.mouse.y,
+                dx: self.input.mouse.dx,
+                dy: self.input.mouse.dy,
+            })
+        } else {
+            None
+        };
+
+        // mouse down/up/click
+        let mut mouse_downs = Vec::new();
+        let mut mouse_ups = Vec::new();
+        let mut clicks = Vec::new();
+        for btn in [MouseButton::Left, MouseButton::Middle, MouseButton::Right] {
+            let state = match btn {
+                MouseButton::Left => &self.input.mouse.left,
+                MouseButton::Right => &self.input.mouse.right,
+                MouseButton::Middle => &self.input.mouse.middle,
+            };
+            if state.just_pressed {
+                mouse_downs.push(MouseDown {
+                    x: self.input.mouse.x,
+                    y: self.input.mouse.y,
+                    button: btn,
+                });
+            }
+            if state.just_released {
+                mouse_ups.push(MouseUp {
+                    x: self.input.mouse.x,
+                    y: self.input.mouse.y,
+                    button: btn,
+                });
+                clicks.push(Click {
+                    x: self.input.mouse.x,
+                    y: self.input.mouse.y,
+                    button: btn,
+                });
+            }
+        }
+
+        // mouse scroll
+        let mouse_scroll = if self.input.mouse.scroll_x != 0.0 || self.input.mouse.scroll_y != 0.0 {
+            Some(MouseScroll {
+                x: self.input.mouse.scroll_x,
+                y: self.input.mouse.scroll_y,
+            })
+        } else {
+            None
+        };
+
+        InputEvents {
+            key_presses,
+            key_releases,
+            mouse_move,
+            mouse_downs,
+            mouse_ups,
+            clicks,
+            mouse_scroll,
+            mouse_enter: self.input.mouse.just_entered,
+            mouse_leave: self.input.mouse.just_left,
+        }
+    }
+
+    fn dispatch_events(&mut self, events: &InputEvents) {
+        self.dispatch_keyboard(events);
+        self.dispatch_mouse(events);
+        self.dispatch_global_events(events);
+    }
+
+    fn dispatch_keyboard(&mut self, events: &InputEvents) {
+        // keyboard only goes to focused widget
+        if let Some(focused_id) = self.focused {
+            for event in &events.key_presses {
+                self.dispatch_by_id(focused_id, event);
+            }
+            for event in &events.key_releases {
+                self.dispatch_by_id(focused_id, event);
+            }
+        }
+    }
+
+    fn dispatch_mouse(&mut self, events: &InputEvents) {
+        let slot_ids: Vec<u32> = self.connections.keys().filter_map(|k| *k).collect();
+
+        for slot_id in &slot_ids {
+            let hit = if let Some(Some(slot)) = self.slots.get(*slot_id as usize) {
+                let (x, y, w, h) = slot.widget.bounds();
+                self.input.mouse.x >= x
+                    && self.input.mouse.x <= x + w
+                    && self.input.mouse.y >= y
+                    && self.input.mouse.y <= y + h
+            } else {
+                false
+            };
+
+            // non positional events
+            if let Some(ref e) = events.mouse_scroll {
+                self.dispatch_by_id(*slot_id, e);
+            }
+            if events.mouse_enter {
+                self.dispatch_by_id(*slot_id, &MouseEnter);
+            }
+            if events.mouse_leave {
+                self.dispatch_by_id(*slot_id, &MouseLeave);
+            }
+
+            // positional events
+            if hit {
+                if let Some(ref e) = events.mouse_move {
+                    self.dispatch_by_id(*slot_id, e);
+                }
+                for event in &events.mouse_downs {
+                    self.dispatch_by_id(*slot_id, event);
+                }
+                for event in &events.mouse_ups {
+                    self.dispatch_by_id(*slot_id, event);
+                }
+                for event in &events.clicks {
+                    self.dispatch_by_id(*slot_id, event);
+                }
+
+                // auto focus on click
+                if !events.clicks.is_empty() {
+                    if let Some(Some(slot)) = self.slots.get(*slot_id as usize) {
+                        if slot.widget.focusable() {
+                            self.set_focus_by_id(*slot_id);
+                        }
+                    }
+                }
+            }
+        }
+
+        // clear focus if clicked outside all focusable widgets
+        if !events.clicks.is_empty() {
+            let click_hit_any = slot_ids.iter().any(|slot_id| {
+                if let Some(Some(slot)) = self.slots.get(*slot_id as usize) {
+                    let (x, y, w, h) = slot.widget.bounds();
+                    slot.widget.focusable()
+                        && self.input.mouse.x >= x
+                        && self.input.mouse.x <= x + w
+                        && self.input.mouse.y >= y
+                        && self.input.mouse.y <= y + h
+                } else {
+                    false
+                }
+            });
+            if !click_hit_any {
+                self.clear_focus();
+            }
+        }
+    }
+
+    fn dispatch_global_events(&mut self, events: &InputEvents) {
+        for event in &events.key_presses {
+            self.dispatch_global(event);
+        }
+        for event in &events.key_releases {
+            self.dispatch_global(event);
+        }
+        if let Some(ref e) = events.mouse_move {
+            self.dispatch_global(e);
+        }
+        for event in &events.mouse_downs {
+            self.dispatch_global(event);
+        }
+        for event in &events.mouse_ups {
+            self.dispatch_global(event);
+        }
+        for event in &events.clicks {
+            self.dispatch_global(event);
+        }
+        if let Some(ref e) = events.mouse_scroll {
+            self.dispatch_global(e);
+        }
+        if events.mouse_enter {
+            self.dispatch_global(&MouseEnter);
+        }
+        if events.mouse_leave {
+            self.dispatch_global(&MouseLeave);
+        }
     }
 }
 

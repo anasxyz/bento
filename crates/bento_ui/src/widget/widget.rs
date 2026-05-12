@@ -28,6 +28,15 @@ pub trait Widget: AsAny {
     fn is_dirty(&self) -> bool;
     fn set_dirty(&mut self, dirty: bool);
 
+    /// Allows widgets to update their focus "settings"
+    fn focusable(&self) -> bool {
+        false
+    }
+    fn is_focused(&self) -> bool {
+        false
+    }
+    fn set_focused(&mut self, focused: bool) {}
+
     /// Allows widgets to specify their bounds
     fn bounds(&self) -> (f32, f32, f32, f32) {
         (0.0, 0.0, 0.0, 0.0)

@@ -5,10 +5,10 @@ mod ui;
 mod widget;
 mod input;
 
-use widget::{Widget, WidgetHandle, AsAny};
+use widget::{WidgetHandle, AsAny};
 use input::{Input};
 
 pub use ui::{Ui};
-pub use widget::{Rect};
+pub use widget::{Widget, Rect};
 pub use input::{MouseButton, Key};
 pub use ui::events::{KeyPress, KeyRelease, Click, Hover, MouseMove, MouseDown, MouseUp, MouseScroll, MouseEnter, MouseLeave, FocusGained, FocusLost};

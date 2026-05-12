@@ -13,6 +13,8 @@ pub struct Rect {
     w: f32,
     h: f32,
 
+    focused: bool,
+
     rect_id: Option<SceneNodeId>,
 }
 
@@ -26,8 +28,26 @@ impl Rect {
             w,
             h,
 
+            focused: false,
+
             rect_id: None,
         }
+    }
+
+    pub fn x(&self) -> f32 {
+        self.x
+    }
+
+    pub fn y(&self) -> f32 {
+        self.y
+    }
+
+    pub fn w(&self) -> f32 {
+        self.w
+    }
+
+    pub fn h(&self) -> f32 {
+        self.h
     }
 
     pub fn set_x(&mut self, x: f32) {
@@ -94,6 +114,19 @@ impl Widget for Rect {
     // TODO: add to proc macro
     fn set_dirty(&mut self, dirty: bool) {
         self.dirty = dirty;
+    }
+
+    // TODO: add to proc macro
+    fn focusable(&self) -> bool {
+        true
+    }
+    // TODO: add to proc macro
+    fn is_focused(&self) -> bool {
+        self.focused
+    }
+    // TODO: add to proc macro
+    fn set_focused(&mut self, focused: bool) {
+        self.focused = focused;
     }
 
     fn bounds(&self) -> (f32, f32, f32, f32) {
