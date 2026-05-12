@@ -155,8 +155,6 @@ impl Ui {
     ///
     /// TODO: add dirty tacking to only update widgets that have changed.
     pub fn update(&mut self) {
-        self.process_input();
-
         for slot in self.slots.iter_mut() {
             if let Some(s) = slot.as_mut() {
                 if s.widget.is_dirty() {
@@ -165,6 +163,10 @@ impl Ui {
                 }
             }
         }
+    }
+
+    pub fn any_dirty(&self) -> bool {
+        self.slots.iter().flatten().any(|s| s.widget.is_dirty())
     }
 
     /// Returns a reference to the scene.
@@ -202,7 +204,7 @@ pub struct ConnectionHandle {
 /// Event stuff
 /// Moved to separate impl block purely for organisation
 impl Ui {
-    fn process_input(&mut self) {
+    pub fn process_input(&mut self) {
         // keyboard
         let key_presses: Vec<KeyPress> = self
             .input
