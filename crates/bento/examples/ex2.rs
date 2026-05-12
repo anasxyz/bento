@@ -1,16 +1,23 @@
 use bento::*;
 
+struct AppEvent {
+    message: &'static str,
+}
+
 fn main() {
     let mut app = App::new();
     let mut ui = Ui::new();
 
-    let rect = ui.add(Rect::new(0.0, 0.0, 100.0, 100.0));
+    let button = ui.add(Rect::new(50.0, 50.0, 100.0, 40.0));
 
-    ui.listen_once(rect, move |e: &Click, ui| {
-        println!("first click — now listening for keys");
-        ui.listen(rect, move |e: &KeyPress, ui| {
-            println!("key={:?}", e.key);
+    ui.listen(button, |_e: &Click, ui| {
+        ui.send_global(AppEvent {
+            message: "hello from button",
         });
+    });
+
+    ui.listen_any(|e: &AppEvent, _ui| {
+        println!("global event received: {}", e.message);
     });
 
     app.open_window(WindowConfig::default(), ui);

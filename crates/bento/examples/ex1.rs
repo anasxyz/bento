@@ -8,7 +8,6 @@ fn main() {
     let mut ui = Ui::new();
 
     let rect = ui.add(Rect::new(0.0, 0.0, 100.0, 100.0));
-    ui.get_mut(rect).unwrap().set_hoverable(false);
 
     ui.listen(rect, move |e: &HoverEnter, ui| {
         println!("hover gained");

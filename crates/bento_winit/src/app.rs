@@ -91,7 +91,6 @@ impl ApplicationHandler<BentoEvent> for App {
 
                 win.ui.input.mouse.clear();
                 win.ui.input.keyboard.clear();
-                println!("ui update took {:?}", t1.elapsed());
             }
 
             WindowEvent::KeyboardInput {

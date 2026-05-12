@@ -17,25 +17,41 @@ pub struct Slot {
     pub generation: u32,
 }
 
+/// A single registered listener.
+struct Listener {
+    id: u64,
+    type_id: TypeId,
+    once: bool,
+    f: Box<dyn FnMut(&dyn Any, &mut Ui)>,
+}
+
+/// A pending event waiting to be dispatched.
+struct PendingEvent {
+    // None = global
+    target: Option<u32>, 
+    event: Box<dyn Any>,
+    type_id: TypeId,
+}
+
+/// Handle returned from listen calls, used to unsubscribe.
+#[derive(Clone, Copy)]
+pub struct ListenerHandle {
+    target: Option<u32>,
+    id: u64,
+}
+
 /// Main orchestrator of anything UI / Event related.
 pub struct Ui {
     scene: Scene,
     slots: Vec<Option<Slot>>,
-
-    // Focused widget slot id
     focused: Option<u32>,
 
-    // Connections stuff
-    connections: HashMap<Option<u32>, Vec<(u64, TypeId, Box<dyn Fn(&dyn Any, &mut Ui)>)>>,
-    next_connection_id: u64,
-    pending_connections: HashMap<Option<u32>, Vec<(u64, TypeId, Box<dyn Fn(&dyn Any, &mut Ui)>)>>,
-    pending_removals: Vec<(Option<u32>, u64)>,
+    listeners: HashMap<Option<u32>, Vec<Listener>>,
+    next_listener_id: u64,
+    pending_events: Vec<PendingEvent>,
+    pending_removals: Vec<u64>,
 
-    // Input stuff
-    // Controls state for Mouse, Keyboard, etc.
     pub input: Input,
-
-    // Async stuff
     pub events: EventQueue,
 }
 
@@ -44,95 +60,73 @@ impl Ui {
         Self {
             scene: Scene::new(),
             slots: Vec::new(),
-
             focused: None,
-
-            connections: HashMap::new(),
-            next_connection_id: 0,
-            pending_connections: HashMap::new(),
+            listeners: HashMap::new(),
+            next_listener_id: 0,
+            pending_events: Vec::new(),
             pending_removals: Vec::new(),
-
             input: Input::new(),
-
             events: EventQueue::new(),
         }
     }
 
-    /// Adds a widget to the UI and returns a handle to it.
-    ///
-    /// Iterates through slots until it finds a none/empty/free slot to be reused and returns
-    /// its position/index as Option<usize>. If no slot is found, return the end of the slots vector as the index.
-    /// Once index is found, creates a new slot at the index and adds the widget to it.
-    ///
-    /// Returns a WidgetHandle to the added the widget.
+    /// Adds a widget to the UI.
+    /// Returns a handle to the widget.
     pub fn add<W: Widget + 'static>(&mut self, mut widget: W) -> WidgetHandle<W> {
-        // Iterate through slots until it finds a none/empty/free slot to be reused
-        // and return its position/index as Option<usize>
-        // If no slot is found, return the end of the slots vector as the index
+        // iterate through slots until it finds a None/empty slot
+        // return its position/index as Option<usize>
+        // if no empty slot is found, add a new slot at the end
         let index = self
             .slots
             .iter()
             .position(|s| s.is_none())
             .unwrap_or(self.slots.len());
 
-        // Build the widget using its iternal build() method
+        // build the widget using its iternal build() method
         widget.build(&mut self.scene);
 
-        // Create a new slot at the index and add the widget to it
+        // create a slot for the widget
         let slot = Slot {
             widget: Box::new(widget),
             generation: 0,
         };
 
-        // If the index is the end of the slots vector, add the slot
-        // Otherwise, replace the slot at the index with the new slot
+        // if index is end of slots vector, add slot
+        // otherwise replace the slot at the index
         if index == self.slots.len() {
             self.slots.push(Some(slot));
         } else {
             self.slots[index] = Some(slot);
         }
 
-        // Widget ID is the index of the slot
+        // widget id is the index in the slot
         WidgetHandle::new(index as u32, 0)
     }
 
     /// Removes a widget from the UI.
-    ///
-    /// Gets widget's slot using its ID, which was assigned by the add() method, and sets its slot
-    /// None. This allows the slot to be reused by the next widget added to the UI.
-    ///
-    /// Returns if provided invalid WidgetHandle or if slot is already None.
+    /// Returns if `handle` is invalid or slot is None/empty.
     pub fn remove<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) {
-        // Return if the WidgetHandle provided by user is invalid
         let Some(slot) = self.slots.get_mut(handle.id as usize) else {
             return;
         };
 
-        // Return if slot is None
         let Some(s) = slot.as_mut() else { return };
 
-        // Return if the widget's generation matches the slot's generation
         if s.generation == handle.generation {
-            // Call widget's internal remove method
+            // call widget's internal remove() method
             s.widget.remove(&mut self.scene);
 
-            // Set slot to None to be reused
+            // set slot to None to be reused
             *slot = None;
         }
     }
 
     /// Returns a reference to a widget.
     pub fn get<W: Widget + 'static>(&self, handle: WidgetHandle<W>) -> Option<&W> {
-        // Return None if the WidgetHandle provided by user is invalid
-        let Some(slot) = self.slots.get(handle.id as usize) else {
+        let Some(Some(s)) = self.slots.get(handle.id as usize) else {
             return None;
         };
 
-        // Return None if slot is None
-        let Some(s) = slot.as_ref() else { return None };
-
-        // If generations match, downcast to the widget type as a reference
-        // Otherwise, return None
         if s.generation == handle.generation {
             s.widget.as_any().downcast_ref::<W>()
         } else {
@@ -142,16 +136,10 @@ impl Ui {
 
     /// Returns a mutable reference to a widget.
     pub fn get_mut<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) -> Option<&mut W> {
-        // Return None if the WidgetHandle provided by user is invalid
-        let Some(slot) = self.slots.get_mut(handle.id as usize) else {
+        let Some(Some(s)) = self.slots.get_mut(handle.id as usize) else {
             return None;
         };
 
-        // Return None if slot is None
-        let Some(s) = slot.as_mut() else { return None };
-
-        // If generations match, downcast to the widget type as mutable
-        // Otherwise, return None
         if s.generation == handle.generation {
             s.widget.as_any_mut().downcast_mut::<W>()
         } else {
@@ -159,12 +147,8 @@ impl Ui {
         }
     }
 
-    /// Per frame tick.
-    ///
-    /// Goes through all widgets and calls their update() method.
-    /// Processes input.
-    ///
-    /// TODO: add dirty tacking to only update widgets that have changed.
+    /// Updates all widgets.
+    /// Dirty widgets are updated and then marked clean.
     pub fn update(&mut self) {
         for slot in self.slots.iter_mut() {
             if let Some(s) = slot.as_mut() {
@@ -176,32 +160,9 @@ impl Ui {
         }
     }
 
+    /// Returns true if any widget is dirty.
     pub fn any_dirty(&self) -> bool {
         self.slots.iter().flatten().any(|s| s.widget.is_dirty())
-    }
-
-    fn set_focus_by_id(&mut self, slot_id: u32) {
-        if let Some(prev) = self.focused {
-            if let Some(Some(slot)) = self.slots.get_mut(prev as usize) {
-                slot.widget.set_focused(false);
-            }
-            self.dispatch_all_by_id(prev, &[&FocusLost]);
-        }
-        self.focused = Some(slot_id);
-        if let Some(Some(slot)) = self.slots.get_mut(slot_id as usize) {
-            slot.widget.set_focused(true);
-        }
-        self.dispatch_all_by_id(slot_id, &[&FocusGained]);
-    }
-
-    fn clear_focus(&mut self) {
-        if let Some(prev) = self.focused {
-            if let Some(Some(slot)) = self.slots.get_mut(prev as usize) {
-                slot.widget.set_focused(false);
-            }
-            self.dispatch_all_by_id(prev, &[&FocusLost]);
-        }
-        self.focused = None;
     }
 
     /// Returns a reference to the scene.
@@ -214,10 +175,8 @@ impl Ui {
         &mut self.scene
     }
 
-    /// Looks up a completed async callback by id and runs it with &mut Ui on the main thread.
-    ///
-    /// Completely ignore for this now, it just has to be here and can't be on EventQueue because
-    /// of the self parameter in the callbac.
+    /// Fires a callback.
+    /// Async related.
     pub fn fire_callback(&mut self, id: u64) {
         if let Some(callback) = self.events.callbacks.remove(&id) {
             callback(self);
@@ -230,239 +189,215 @@ impl Ui {
     }
 }
 
-/// Connection handle for managing connections
-pub struct ConnectionHandle {
-    slot_id: Option<u32>,
-    id: u64,
-}
-
-/// Event stuff
-/// Moved to separate impl block purely for organisation
+/// Listener registration and event emission
 impl Ui {
-    /// Registers any pending connections requested during dispatch
-    fn flush_pending_connections(&mut self) {
-        for (slot_id, handlers) in self.pending_connections.drain() {
-            self.connections
-                .entry(slot_id)
-                .or_insert_with(Vec::new)
-                .extend(handlers);
-        }
+    /// Registers a listener.
+    /// Used internally.
+    /// Returns a handle to the listener.
+    fn register(
+        &mut self,
+        target: Option<u32>,
+        type_id: TypeId,
+        once: bool,
+        f: Box<dyn FnMut(&dyn Any, &mut Ui)>,
+    ) -> ListenerHandle {
+        let id = self.next_listener_id;
+        self.next_listener_id += 1;
+
+        self.listeners.entry(target).or_default().push(Listener {
+            id,
+            type_id,
+            once,
+            f,
+        });
+
+        ListenerHandle { target, id }
     }
 
-    /// Applies any pending removals requested during dispatch
-    fn flush_pending_removals(&mut self) {
-        for (slot_id, id) in self.pending_removals.drain(..) {
-            if let Some(vec) = self.connections.get_mut(&slot_id) {
-                vec.retain(|(cid, _, _)| *cid != id);
-            }
-        }
-    }
-
-    /// Listens for events of type E on widget with handle.
+    /// Listen for event E on a specific widget.
+    /// Returns a handle to the listener.
     pub fn listen<W: Widget + 'static, E: 'static>(
         &mut self,
         handle: WidgetHandle<W>,
-        f: impl Fn(&E, &mut Ui) + 'static,
-    ) -> ConnectionHandle {
-        // Assign a unique id to this connection
-        let id = self.next_connection_id;
-        self.next_connection_id += 1;
-
-        self.pending_connections
-            // Use Some(handle.id) as key to associate this handler with a specific widget
-            .entry(Some(handle.id))
-            .or_insert_with(Vec::new)
-            .push((
-                id,
-                // Store the TypeId of E so dispatch can filter by event type
-                TypeId::of::<E>(),
-                // Wrap the closure in a type erased box
-                // Downcast &dyn Any back to &E before calling the user's closure
-                Box::new(move |event, ui| {
-                    if let Some(e) = event.downcast_ref::<E>() {
-                        f(e, ui);
-                    }
-                }),
-            ));
-
-        ConnectionHandle {
-            slot_id: Some(handle.id),
-            id,
-        }
+        mut f: impl FnMut(&E, &mut Ui) + 'static,
+    ) -> ListenerHandle {
+        self.register(
+            Some(handle.id),
+            TypeId::of::<E>(),
+            false,
+            Box::new(move |event, ui| {
+                if let Some(e) = event.downcast_ref::<E>() {
+                    f(e, ui);
+                }
+            }),
+        )
     }
 
-    /// Listens for events of type E on widget with handle only once.
-    ///
-    /// After the first event is fired, the connection is removed.
+    /// Listen for event E on a specific widget, once.
+    /// Returns a handle to the listener.
     pub fn listen_once<W: Widget + 'static, E: 'static>(
         &mut self,
         handle: WidgetHandle<W>,
-        f: impl Fn(&E, &mut Ui) + 'static,
-    ) -> ConnectionHandle {
-        let id = self.next_connection_id;
-        self.next_connection_id += 1;
-
-        let slot_id = Some(handle.id);
-        self.pending_connections
-            .entry(slot_id)
-            .or_insert_with(Vec::new)
-            .push((
-                id,
-                TypeId::of::<E>(),
-                Box::new(move |event, ui| {
-                    if let Some(e) = event.downcast_ref::<E>() {
-                        f(e, ui);
-                        // Remove this connection after the first event is fired
-                        ui.listen_off(ConnectionHandle { slot_id, id });
-                    }
-                }),
-            ));
-
-        ConnectionHandle { slot_id, id }
+        mut f: impl FnMut(&E, &mut Ui) + 'static,
+    ) -> ListenerHandle {
+        self.register(
+            Some(handle.id),
+            TypeId::of::<E>(),
+            true,
+            Box::new(move |event, ui| {
+                if let Some(e) = event.downcast_ref::<E>() {
+                    f(e, ui);
+                }
+            }),
+        )
     }
 
-    /// Listens for events of type E on any widget.
+    /// Listen for event E globally.
+    /// Returns a handle to the listener.
     pub fn listen_any<E: 'static>(
         &mut self,
-        f: impl Fn(&E, &mut Ui) + 'static,
-    ) -> ConnectionHandle {
-        // Assign a unique id to this connection
-        let id = self.next_connection_id;
-        self.next_connection_id += 1;
-
-        self.pending_connections
-            // Use None as key to signify this is a global handler
-            // dispatch_global will pick these up
-            .entry(None)
-            .or_insert_with(Vec::new)
-            .push((
-                id,
-                // Store the TypeId of E so dispatch can filter by event type
-                TypeId::of::<E>(),
-                // Wrap the closure in a type erased box
-                // Downcast &dyn Any back to &E before calling the user's closure
-                Box::new(move |event, ui| {
-                    if let Some(e) = event.downcast_ref::<E>() {
-                        f(e, ui);
-                    }
-                }),
-            ));
-
-        ConnectionHandle { slot_id: None, id }
+        mut f: impl FnMut(&E, &mut Ui) + 'static,
+    ) -> ListenerHandle {
+        self.register(
+            None,
+            TypeId::of::<E>(),
+            false,
+            Box::new(move |event, ui| {
+                if let Some(e) = event.downcast_ref::<E>() {
+                    f(e, ui);
+                }
+            }),
+        )
     }
 
-    /// Listens for events of type E on any widget only once.
-    ///
-    /// After the first event is fired, the connection is removed.
+    /// Listen for event E globally, once.
+    /// Returns a handle to the listener.
     pub fn listen_any_once<E: 'static>(
         &mut self,
-        f: impl Fn(&E, &mut Ui) + 'static,
-    ) -> ConnectionHandle {
-        let id = self.next_connection_id;
-        self.next_connection_id += 1;
-
-        self.pending_connections
-            .entry(None)
-            .or_insert_with(Vec::new)
-            .push((
-                id,
-                TypeId::of::<E>(),
-                Box::new(move |event, ui| {
-                    if let Some(e) = event.downcast_ref::<E>() {
-                        f(e, ui);
-                        // Remove this connection after the first event is fired
-                        ui.listen_off(ConnectionHandle { slot_id: None, id });
-                    }
-                }),
-            ));
-
-        ConnectionHandle { slot_id: None, id }
-    }
-
-    /// Removes a connection from the UI.
-    pub fn listen_off(&mut self, handle: ConnectionHandle) {
-        self.pending_removals.push((handle.slot_id, handle.id));
-    }
-
-    /// Fires all provided events to handlers registered to the widget with the provided slot_id.
-    ///
-    /// Takes connections out temporarily using std::mem::take to allow &mut Ui in closures.
-    /// Flushes pending removals and connections after dispatch.
-    fn dispatch_all_by_id(&mut self, slot_id: u32, events: &[&dyn Any]) {
-        let connections = std::mem::take(&mut self.connections);
-        let type_ids: Vec<TypeId> = events.iter().map(|e| (**e).type_id()).collect();
-
-        if let Some(handlers) = connections.get(&Some(slot_id)) {
-            for (_, tid, f) in handlers {
-                for (i, type_id) in type_ids.iter().enumerate() {
-                    if tid == type_id {
-                        f(events[i], self);
-                    }
+        mut f: impl FnMut(&E, &mut Ui) + 'static,
+    ) -> ListenerHandle {
+        self.register(
+            None,
+            TypeId::of::<E>(),
+            true,
+            Box::new(move |event, ui| {
+                if let Some(e) = event.downcast_ref::<E>() {
+                    f(e, ui);
                 }
+            }),
+        )
+    }
+
+    /// Unsubscribe a listener.
+    pub fn listen_off(&mut self, handle: ListenerHandle) {
+        self.pending_removals.push(handle.id);
+    }
+
+    /// Broadcasts an event to listeners on a specific widget.
+    pub fn send_to<W: Widget + 'static, E: Any>(&mut self, handle: WidgetHandle<W>, event: E) {
+        self.pending_events.push(PendingEvent {
+            target: Some(handle.id),
+            type_id: TypeId::of::<E>(),
+            event: Box::new(event),
+        });
+    }
+
+    /// Broadcasts an event globally.
+    pub fn send_global<E: Any>(&mut self, event: E) {
+        self.pending_events.push(PendingEvent {
+            target: None,
+            type_id: TypeId::of::<E>(),
+            event: Box::new(event),
+        });
+    }
+
+    /// Drain the pending event queue and dispatch all events.
+    /// Called once per frame after input processing.
+    fn flush_events(&mut self) {
+        let mut i = 0;
+        while i < self.pending_events.len() {
+            let pending = self.pending_events.remove(i);
+            self.dispatch_one(pending);
+            // no increment of i bc an element was removed meaning next item is now at i
+        }
+    }
+
+    /// Dispatches a single event.
+    fn dispatch_one(&mut self, pending: PendingEvent) {
+        let listeners = self.listeners.remove(&pending.target).unwrap_or_default();
+        let mut remaining = Vec::new();
+
+        for mut listener in listeners {
+            if listener.type_id == pending.type_id {
+                (listener.f)(pending.event.as_ref(), self);
+                if !listener.once {
+                    remaining.push(listener);
+                }
+            } else {
+                remaining.push(listener);
             }
         }
 
-        self.connections = connections;
+        remaining.retain(|l| !self.pending_removals.contains(&l.id));
+        self.pending_removals.clear();
 
-        self.flush_pending_removals();
-        self.flush_pending_connections();
-    }
-
-    /// Fires all provided events to global handlers.
-    ///
-    /// Works similarly to dispatch_all_by_id but fires handlers registered to no widget.
-    fn dispatch_all_global(&mut self, events: &[&dyn Any]) {
-        let connections = std::mem::take(&mut self.connections);
-        let type_ids: Vec<TypeId> = events.iter().map(|e| (**e).type_id()).collect();
-
-        if let Some(handlers) = connections.get(&None) {
-            for (_, tid, f) in handlers {
-                for (i, type_id) in type_ids.iter().enumerate() {
-                    if tid == type_id {
-                        f(events[i], self);
-                    }
-                }
-            }
-        }
-
-        self.connections = connections;
-
-        self.flush_pending_removals();
-        self.flush_pending_connections();
-    }
-
-    /// Emits an event from a widget.
-    ///
-    /// Purely for convenience.
-    /// This is the same as calling dispatch_all_by_id() with the widget's id.
-    pub fn emit<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>, event: &dyn Any) {
-        self.dispatch_all_by_id(handle.id, &[event]);
+        self.listeners
+            .entry(pending.target)
+            .or_default()
+            .extend(remaining.drain(..));
     }
 }
 
-/// Collected input events for a single frame
-struct InputEvents {
-    key_presses: Vec<KeyPress>,
-    key_releases: Vec<KeyRelease>,
-    mouse_move: Option<MouseMove>,
-    mouse_downs: Vec<MouseDown>,
-    mouse_ups: Vec<MouseUp>,
-    clicks: Vec<Click>,
-    mouse_scroll: Option<MouseScroll>,
-    mouse_enter: bool,
-    mouse_leave: bool,
+/// Focus helpers
+impl Ui {
+    /// Sets focus on a widget.
+    fn set_focus_by_id(&mut self, slot_id: u32) {
+        if let Some(prev) = self.focused {
+            if let Some(Some(slot)) = self.slots.get_mut(prev as usize) {
+                slot.widget.set_focused(false);
+            }
+            self.pending_events.push(PendingEvent {
+                target: Some(prev),
+                type_id: TypeId::of::<FocusLost>(),
+                event: Box::new(FocusLost),
+            });
+        }
+        self.focused = Some(slot_id);
+        if let Some(Some(slot)) = self.slots.get_mut(slot_id as usize) {
+            slot.widget.set_focused(true);
+        }
+        self.pending_events.push(PendingEvent {
+            target: Some(slot_id),
+            type_id: TypeId::of::<FocusGained>(),
+            event: Box::new(FocusGained),
+        });
+    }
+
+    /// Clears focus from the currently focused widget.
+    fn clear_focus(&mut self) {
+        if let Some(prev) = self.focused {
+            if let Some(Some(slot)) = self.slots.get_mut(prev as usize) {
+                slot.widget.set_focused(false);
+            }
+            self.pending_events.push(PendingEvent {
+                target: Some(prev),
+                type_id: TypeId::of::<FocusLost>(),
+                event: Box::new(FocusLost),
+            });
+        }
+        self.focused = None;
+    }
 }
 
 /// Input processing
-/// Moved to separate impl block purely for organisation
 impl Ui {
     pub fn process_input(&mut self) {
         let events = self.collect_events();
-        self.dispatch_events(&events);
+        self.queue_input_events(&events);
+        self.flush_events();
     }
 
     fn collect_events(&self) -> InputEvents {
-        // keyboard
         let key_presses = self
             .input
             .keyboard
@@ -479,7 +414,6 @@ impl Ui {
             .map(|key| KeyRelease { key: *key })
             .collect();
 
-        // mouse move
         let mouse_move = if self.input.mouse.dx != 0.0 || self.input.mouse.dy != 0.0 {
             Some(MouseMove {
                 x: self.input.mouse.x,
@@ -491,7 +425,6 @@ impl Ui {
             None
         };
 
-        // mouse down/up/click
         let mut mouse_downs = Vec::new();
         let mut mouse_ups = Vec::new();
         let mut clicks = Vec::new();
@@ -522,7 +455,6 @@ impl Ui {
             }
         }
 
-        // mouse scroll
         let mouse_scroll = if self.input.mouse.scroll_x != 0.0 || self.input.mouse.scroll_y != 0.0 {
             Some(MouseScroll {
                 x: self.input.mouse.scroll_x,
@@ -545,31 +477,27 @@ impl Ui {
         }
     }
 
-    fn dispatch_events(&mut self, events: &InputEvents) {
-        self.dispatch_keyboard(events);
-        self.dispatch_mouse(events);
-        self.dispatch_global_events(events);
-    }
-
-    fn dispatch_keyboard(&mut self, events: &InputEvents) {
-        // keyboard only goes to focused widget
+    fn queue_input_events(&mut self, events: &InputEvents) {
+        // keyboard -> focused widget and global
         if let Some(focused_id) = self.focused {
-            let mut slot_events: Vec<&dyn Any> = Vec::new();
-            for event in &events.key_presses {
-                slot_events.push(event);
+            for e in &events.key_presses {
+                self.pending_events.push(PendingEvent {
+                    target: Some(focused_id),
+                    type_id: TypeId::of::<KeyPress>(),
+                    event: Box::new(*e),
+                });
             }
-            for event in &events.key_releases {
-                slot_events.push(event);
-            }
-            if !slot_events.is_empty() {
-                self.dispatch_all_by_id(focused_id, &slot_events);
+            for e in &events.key_releases {
+                self.pending_events.push(PendingEvent {
+                    target: Some(focused_id),
+                    type_id: TypeId::of::<KeyRelease>(),
+                    event: Box::new(*e),
+                });
             }
         }
-    }
 
-    fn dispatch_mouse(&mut self, events: &InputEvents) {
-        let slot_ids: Vec<u32> = self.connections.keys().filter_map(|k| *k).collect();
-
+        // mouse -> per widget based on hit test
+        let slot_ids: Vec<u32> = self.listeners.keys().filter_map(|k| *k).collect();
         for slot_id in &slot_ids {
             let hit = if let Some(Some(slot)) = self.slots.get(*slot_id as usize) {
                 let (x, y, w, h) = slot.widget.bounds();
@@ -581,49 +509,76 @@ impl Ui {
                 false
             };
 
-            let mut slot_events: Vec<&dyn Any> = Vec::new();
-
-            // hover enter/leave
             if hit {
                 if let Some(Some(slot)) = self.slots.get_mut(*slot_id as usize) {
                     if slot.widget.hoverable() && !slot.widget.is_hovered() {
                         slot.widget.set_hovered(true);
-                        slot_events.push(&HoverEnter);
+                        self.pending_events.push(PendingEvent {
+                            target: Some(*slot_id),
+                            type_id: TypeId::of::<HoverEnter>(),
+                            event: Box::new(HoverEnter),
+                        });
                     }
                 }
-                if let Some(ref e) = events.mouse_move {
-                    slot_events.push(e);
+                if let Some(e) = &events.mouse_move {
+                    self.pending_events.push(PendingEvent {
+                        target: Some(*slot_id),
+                        type_id: TypeId::of::<MouseMove>(),
+                        event: Box::new(*e),
+                    });
                 }
-                for event in &events.mouse_downs {
-                    slot_events.push(event);
+                for e in &events.mouse_downs {
+                    self.pending_events.push(PendingEvent {
+                        target: Some(*slot_id),
+                        type_id: TypeId::of::<MouseDown>(),
+                        event: Box::new(*e),
+                    });
                 }
-                for event in &events.mouse_ups {
-                    slot_events.push(event);
+                for e in &events.mouse_ups {
+                    self.pending_events.push(PendingEvent {
+                        target: Some(*slot_id),
+                        type_id: TypeId::of::<MouseUp>(),
+                        event: Box::new(*e),
+                    });
                 }
-                for event in &events.clicks {
-                    slot_events.push(event);
+                for e in &events.clicks {
+                    self.pending_events.push(PendingEvent {
+                        target: Some(*slot_id),
+                        type_id: TypeId::of::<Click>(),
+                        event: Box::new(*e),
+                    });
                 }
-            } else {
-                if let Some(Some(slot)) = self.slots.get_mut(*slot_id as usize) {
-                    if slot.widget.hoverable() && slot.widget.is_hovered() {
-                        slot.widget.set_hovered(false);
-                        slot_events.push(&HoverLeave);
-                    }
+            } else if let Some(Some(slot)) = self.slots.get_mut(*slot_id as usize) {
+                if slot.widget.hoverable() && slot.widget.is_hovered() {
+                    slot.widget.set_hovered(false);
+                    self.pending_events.push(PendingEvent {
+                        target: Some(*slot_id),
+                        type_id: TypeId::of::<HoverLeave>(),
+                        event: Box::new(HoverLeave),
+                    });
                 }
             }
 
-            if let Some(ref e) = events.mouse_scroll {
-                slot_events.push(e);
+            if let Some(e) = &events.mouse_scroll {
+                self.pending_events.push(PendingEvent {
+                    target: Some(*slot_id),
+                    type_id: TypeId::of::<MouseScroll>(),
+                    event: Box::new(*e),
+                });
             }
             if events.mouse_enter {
-                slot_events.push(&MouseEnter);
+                self.pending_events.push(PendingEvent {
+                    target: Some(*slot_id),
+                    type_id: TypeId::of::<MouseEnter>(),
+                    event: Box::new(MouseEnter),
+                });
             }
             if events.mouse_leave {
-                slot_events.push(&MouseLeave);
-            }
-
-            if !slot_events.is_empty() {
-                self.dispatch_all_by_id(*slot_id, &slot_events);
+                self.pending_events.push(PendingEvent {
+                    target: Some(*slot_id),
+                    type_id: TypeId::of::<MouseLeave>(),
+                    event: Box::new(MouseLeave),
+                });
             }
 
             // auto focus on click
@@ -654,45 +609,87 @@ impl Ui {
                 self.clear_focus();
             }
         }
-    }
 
-    fn dispatch_global_events(&mut self, events: &InputEvents) {
-        let mut global_events: Vec<&dyn Any> = Vec::new();
-        for event in &events.key_presses {
-            global_events.push(event);
+        // global events
+        for e in &events.key_presses {
+            self.pending_events.push(PendingEvent {
+                target: None,
+                type_id: TypeId::of::<KeyPress>(),
+                event: Box::new(*e),
+            });
         }
-        for event in &events.key_releases {
-            global_events.push(event);
+        for e in &events.key_releases {
+            self.pending_events.push(PendingEvent {
+                target: None,
+                type_id: TypeId::of::<KeyRelease>(),
+                event: Box::new(*e),
+            });
         }
-        if let Some(ref e) = events.mouse_move {
-            global_events.push(e);
+        if let Some(e) = &events.mouse_move {
+            self.pending_events.push(PendingEvent {
+                target: None,
+                type_id: TypeId::of::<MouseMove>(),
+                event: Box::new(*e),
+            });
         }
-        for event in &events.mouse_downs {
-            global_events.push(event);
+        for e in &events.mouse_downs {
+            self.pending_events.push(PendingEvent {
+                target: None,
+                type_id: TypeId::of::<MouseDown>(),
+                event: Box::new(*e),
+            });
         }
-        for event in &events.mouse_ups {
-            global_events.push(event);
+        for e in &events.mouse_ups {
+            self.pending_events.push(PendingEvent {
+                target: None,
+                type_id: TypeId::of::<MouseUp>(),
+                event: Box::new(*e),
+            });
         }
-        for event in &events.clicks {
-            global_events.push(event);
+        for e in &events.clicks {
+            self.pending_events.push(PendingEvent {
+                target: None,
+                type_id: TypeId::of::<Click>(),
+                event: Box::new(*e),
+            });
         }
-        if let Some(ref e) = events.mouse_scroll {
-            global_events.push(e);
+        if let Some(e) = &events.mouse_scroll {
+            self.pending_events.push(PendingEvent {
+                target: None,
+                type_id: TypeId::of::<MouseScroll>(),
+                event: Box::new(*e),
+            });
         }
         if events.mouse_enter {
-            global_events.push(&MouseEnter);
+            self.pending_events.push(PendingEvent {
+                target: None,
+                type_id: TypeId::of::<MouseEnter>(),
+                event: Box::new(MouseEnter),
+            });
         }
         if events.mouse_leave {
-            global_events.push(&MouseLeave);
-        }
-
-        if !global_events.is_empty() {
-            self.dispatch_all_global(&global_events);
+            self.pending_events.push(PendingEvent {
+                target: None,
+                type_id: TypeId::of::<MouseLeave>(),
+                event: Box::new(MouseLeave),
+            });
         }
     }
 }
 
-// For debug
+/// Collected input events for a single frame
+struct InputEvents {
+    key_presses: Vec<KeyPress>,
+    key_releases: Vec<KeyRelease>,
+    mouse_move: Option<MouseMove>,
+    mouse_downs: Vec<MouseDown>,
+    mouse_ups: Vec<MouseUp>,
+    clicks: Vec<Click>,
+    mouse_scroll: Option<MouseScroll>,
+    mouse_enter: bool,
+    mouse_leave: bool,
+}
+
 impl fmt::Display for Ui {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Ui ({} slots):", self.slots.len())?;
