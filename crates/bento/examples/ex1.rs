@@ -9,7 +9,7 @@ fn main() {
 
     let rect = ui.add(Rect::new(0.0, 0.0, 100.0, 100.0));
 
-    ui.on_any(move |e: &KeyPress, ui| {
+    let conn = ui.on_any(move |e: &KeyPress, ui| {
         let key = e.key;
         ui.events.spawn(async move {
             // async work here
