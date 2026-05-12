@@ -8,7 +8,7 @@ fn main() {
 
     ui.listen_once(rect, move |e: &Click, ui| {
         println!("first click — now listening for keys");
-        ui.listen_once(rect, move |e: &KeyPress, ui| {
+        ui.listen(rect, move |e: &KeyPress, ui| {
             println!("key={:?}", e.key);
         });
     });
