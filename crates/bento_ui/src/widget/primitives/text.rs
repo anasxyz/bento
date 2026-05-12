@@ -1,106 +1,149 @@
-use bento_macros::Widget;
-use bento_shared::{
-    TextMeasureRequest, TextMeasurer,
-    scene::{Node, Scene, SceneNodeId, TextAlign, TextNode},
-};
+use std::any::Any;
 
-use crate::layout::Size;
-use crate::widget::{Base, HasBase, Widget};
+use bento_shared::{Scene, SceneNode, SceneNodeId, TextNode};
+use bento_shared::{TextMeasureRequest, TextMeasurer};
 
-#[derive(Widget)]
+use crate::{AsAny, Widget};
+
 pub struct Text {
-    pub base: Base,
-    pub text: String,
-    pub size: f32,
-    pub color: [f32; 4],
-    pub opacity: f32,
-    pub align: TextAlign,
-    pub font_family: String,
-    pub weight: u16,
-    pub italic: bool,
-    pub letter_spacing: f32,
-    id: Option<SceneNodeId>,
+    pub dirty: bool,
+
+    text: String,
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    size: f32,
+    color: [f32; 4],
+
+    text_id: Option<SceneNodeId>,
 }
 
 impl Text {
-    pub fn new(text: &str, size: f32) -> Self {
+    pub fn new(text: &str, x: f32, y: f32, size: f32) -> Self {
         Self {
-            base: Base::new(),
+            dirty: true,
             text: text.to_string(),
+            x,
+            y,
+            w: 0.0,
+            h: 0.0,
             size,
             color: [1.0, 1.0, 1.0, 1.0],
-            opacity: 1.0,
-            align: TextAlign::Left,
-            font_family: String::new(),
-            weight: 400,
-            italic: false,
-            letter_spacing: 0.0,
-            id: None,
+            text_id: None,
         }
     }
 
-    fn max_width_px(&self) -> Option<f32> {
-        match &self.base.layout.max_width {
-            Size::Px(v) => Some(*v),
-            _ => None,
-        }
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+
+    pub fn x(&self) -> f32 {
+        self.x
+    }
+
+    pub fn y(&self) -> f32 {
+        self.y
+    }
+
+    pub fn size(&self) -> f32 {
+        self.size
+    }
+
+    pub fn color(&self) -> [f32; 4] {
+        self.color
+    }
+
+    pub fn set_text(&mut self, text: &str) {
+        self.text = text.to_string();
+        self.dirty = true;
+    }
+
+    pub fn set_x(&mut self, x: f32) {
+        self.x = x;
+        self.dirty = true;
+    }
+
+    pub fn set_y(&mut self, y: f32) {
+        self.y = y;
+        self.dirty = true;
+    }
+
+    pub fn set_size(&mut self, size: f32) {
+        self.size = size;
+        self.dirty = true;
+    }
+
+    pub fn set_color(&mut self, color: [f32; 4]) {
+        self.color = color;
+        self.dirty = true;
     }
 }
 
 impl Widget for Text {
+    fn name(&self) -> &str {
+        "Text"
+    }
+
     fn build(&mut self, scene: &mut Scene) {
-        let l = &self.base.layout;
-        let mut node = TextNode::new(&self.text, l.x, l.y, self.size);
+        let mut node = TextNode::new(&self.text, self.x, self.y, self.size);
         node.color = self.color;
-        node.opacity = self.opacity;
-        node.max_width = self.max_width_px();
-        node.align = self.align.clone();
-        node.font_family = self.font_family.clone();
-        node.weight = self.weight;
-        node.italic = self.italic;
-        node.letter_spacing = self.letter_spacing;
-        self.id = Some(scene.add_text(node));
+        self.text_id = Some(scene.add_text(node));
     }
 
-    fn update(&mut self, scene: &mut Scene, _measurer: &mut dyn TextMeasurer) {
-        let Some(id) = self.id else { return };
-        let Some(Node::Text(t)) = scene.get_mut(id) else {
-            return;
-        };
-        let l = &self.base.layout;
-        t.x = l.x;
-        t.y = l.y;
-        t.text = self.text.clone();
-        t.size = self.size;
-        t.color = self.color;
-        t.opacity = self.opacity;
-        t.max_width = self.max_width_px();
-        t.align = self.align.clone();
-        t.font_family = self.font_family.clone();
-        t.weight = self.weight;
-        t.italic = self.italic;
-        t.letter_spacing = self.letter_spacing;
-    }
-
-    fn measure(
-        &self,
-        _known_w: Option<f32>,
-        _known_h: Option<f32>,
-        measurer: &mut dyn TextMeasurer,
-    ) -> (f32, f32) {
+    fn update(&mut self, scene: &mut Scene, measurer: &mut dyn TextMeasurer) {
         let result = measurer.measure(TextMeasureRequest {
             text: &self.text,
+            font_family: "",
             size: self.size,
-            max_width: self.max_width_px(),
-            font_family: &self.font_family,
-            weight: self.weight,
-            italic: self.italic,
-            letter_spacing: self.letter_spacing,
+            weight: 400,
+            italic: false,
+            letter_spacing: 0.0,
             line_height: None,
+            max_width: None,
             weight_ranges: &[],
             italic_ranges: &[],
             font_family_ranges: &[],
         });
-        (result.width, result.height)
+        self.w = result.width;
+        self.h = result.height;
+
+        let Some(id) = self.text_id else { return };
+        let Some(SceneNode::Text(t)) = scene.get_mut(id) else {
+            return;
+        };
+
+        t.text = self.text.clone();
+        t.x = self.x;
+        t.y = self.y;
+        t.size = self.size;
+        t.color = self.color;
+    }
+
+    fn remove(&mut self, scene: &mut Scene) {
+        let Some(id) = self.text_id else { return };
+        scene.remove(id);
+    }
+
+    fn is_dirty(&self) -> bool {
+        self.dirty
+    }
+
+    fn set_dirty(&mut self, dirty: bool) {
+        self.dirty = dirty;
+    }
+
+    fn bounds(&self) -> (f32, f32, f32, f32) {
+        (self.x, self.y, self.w, self.h)
+    }
+}
+
+impl AsAny for Text {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }

@@ -7,7 +7,7 @@ use crate::{
     },
     surface::Surface,
 };
-use bento_shared::{GroupNode, Node, Scene, SceneNodeId};
+use bento_shared::{GroupNode, SceneNode, Scene, SceneNodeId};
 use wgpu;
 
 // accumulated group state
@@ -136,10 +136,10 @@ impl Renderer {
         // sort root nodes by z
         let mut root_ids = scene.root.clone();
         root_ids.sort_by_key(|id| match scene.nodes.get(id.0) {
-            Some(Node::Rect(r)) => r.z,
-            Some(Node::Text(t)) => t.z,
-            Some(Node::Image(i)) => i.z,
-            Some(Node::Group(g)) => g.z,
+            Some(SceneNode::Rect(r)) => r.z,
+            Some(SceneNode::Text(t)) => t.z,
+            Some(SceneNode::Image(i)) => i.z,
+            Some(SceneNode::Group(g)) => g.z,
             None => 0,
         });
 
@@ -233,7 +233,7 @@ impl Renderer {
             };
 
             match node {
-                Node::Rect(r) => {
+                SceneNode::Rect(r) => {
                     if r.slot == u32::MAX {
                         r.slot = rect.alloc_slot();
                     }
@@ -266,7 +266,7 @@ impl Renderer {
                     );
                 }
 
-                Node::Text(t) => {
+                SceneNode::Text(t) => {
                     t.slot = *text_slot;
                     *text_slot += 1;
                     let final_clip = merge_clip(acc.clip, t.clip);
@@ -298,7 +298,7 @@ impl Renderer {
                     });
                 }
 
-                Node::Image(img) => {
+                SceneNode::Image(img) => {
                     if img.slot == usize::MAX {
                         img.slot = image.alloc_slot();
                     }
@@ -328,14 +328,14 @@ impl Renderer {
                     );
                 }
 
-                Node::Group(g) => {
+                SceneNode::Group(g) => {
                     let child_acc = acc.combine_with_group(g);
                     let mut child_ids = g.children.clone();
                     child_ids.sort_by_key(|cid| match scene.nodes.get(cid.0) {
-                        Some(Node::Rect(r)) => r.z,
-                        Some(Node::Text(t)) => t.z,
-                        Some(Node::Image(i)) => i.z,
-                        Some(Node::Group(g)) => g.z,
+                        Some(SceneNode::Rect(r)) => r.z,
+                        Some(SceneNode::Text(t)) => t.z,
+                        Some(SceneNode::Image(i)) => i.z,
+                        Some(SceneNode::Group(g)) => g.z,
                         None => 0,
                     });
                     Self::traverse(
@@ -362,10 +362,10 @@ impl Renderer {
             };
 
             match node {
-                Node::Rect(r) => {
+                SceneNode::Rect(r) => {
                     rect.draw_slot(pass, r.slot);
                 }
-                Node::Text(t) => {
+                SceneNode::Text(t) => {
                     if let Some(&(start, end)) = text.bg_ranges.get(t.slot) {
                         rect.draw_transient_range(pass, start as u32, (end - start) as u32);
                     }
@@ -378,10 +378,10 @@ impl Renderer {
                         );
                     }
                 }
-                Node::Image(img) => {
+                SceneNode::Image(img) => {
                     image.draw_slot(pass, img.slot);
                 }
-                Node::Group(g) => {
+                SceneNode::Group(g) => {
                     let child_ids = g.children.clone();
                     Self::draw_nodes(&child_ids, scene, rect, text, image, pass, line_offset);
                 }

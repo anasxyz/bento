@@ -1,49 +1,57 @@
+use std::any::{Any, TypeId};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::fmt;
 
-use bento_shared::{Scene, SceneNodeId, TextMeasurer};
+use bento_shared::{Scene, TextMeasurer};
 
-use crate::layout::{LayoutTree, Size, run_layout};
-use crate::widget::{Group, Widget, WidgetHandle};
+use super::AsyncEventQueue;
+use super::{
+    Click, FocusGained, FocusLost, HoverEnter, HoverLeave, KeyPress, KeyRelease, MouseDown,
+    MouseEnter, MouseLeave, MouseMove, MouseScroll, MouseUp,
+};
+use crate::{Input, MouseButton, Widget, WidgetHandle};
 
+/// Slot in the UI where a widget lives.
 pub struct Slot {
     pub widget: Box<dyn Widget>,
     pub generation: u32,
-    // scene nodes owned by this widget, removed when the widget is removed
-    pub node_ids: Vec<SceneNodeId>,
-    // index into Ui::layout_tree
-    pub layout_node: usize,
 }
 
-struct EventQueue {
-    shared_sender: Arc<Mutex<Option<Arc<dyn Fn(u64) + Send + Sync>>>>,
-    callbacks: HashMap<u64, Box<dyn FnOnce(&mut Ui)>>,
-    async_callbacks: Arc<Mutex<HashMap<u64, Box<dyn FnOnce(&mut Ui) + Send>>>>,
-    next_id: u64,
-    pending_futures: Vec<std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>>,
-    spawner: Option<
-        Arc<dyn Fn(std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>) + Send + Sync>,
-    >,
+/// A single registered listener.
+struct Listener {
+    id: u64,
+    type_id: TypeId,
+    f: Box<dyn FnMut(&dyn Any, &mut Ui) -> bool>,
 }
 
-impl EventQueue {
-    fn new() -> Self {
-        Self {
-            shared_sender: Arc::new(Mutex::new(None)),
-            callbacks: HashMap::new(),
-            async_callbacks: Arc::new(Mutex::new(HashMap::new())),
-            next_id: 0,
-            pending_futures: Vec::new(),
-            spawner: None,
-        }
-    }
+/// A pending event waiting to be dispatched.
+struct PendingEvent {
+    // None = global
+    target: Option<u32>,
+    event: Box<dyn Any>,
+    type_id: TypeId,
 }
 
+/// Handle returned from listen calls, used to unsubscribe.
+#[derive(Clone, Copy)]
+pub struct ListenerHandle {
+    target: Option<u32>,
+    id: u64,
+}
+
+/// Main orchestrator of anything UI / Event related.
 pub struct Ui {
-    pub scene: Scene,
-    pub layout_tree: LayoutTree,
+    scene: Scene,
     slots: Vec<Option<Slot>>,
-    events: EventQueue,
+    focused: Option<u32>,
+
+    listeners: HashMap<Option<u32>, Vec<Listener>>,
+    next_listener_id: u64,
+    pending_events: Vec<PendingEvent>,
+    pending_removals: Vec<u64>,
+
+    pub input: Input,
+    pub events: AsyncEventQueue,
 }
 
 impl Ui {
@@ -51,283 +59,667 @@ impl Ui {
         Self {
             scene: Scene::new(),
             slots: Vec::new(),
-            events: EventQueue::new(),
-            layout_tree: LayoutTree::new(),
+            focused: None,
+            listeners: HashMap::new(),
+            next_listener_id: 0,
+            pending_events: Vec::new(),
+            pending_removals: Vec::new(),
+            input: Input::new(),
+            events: AsyncEventQueue::new(),
         }
     }
 
+    /// Adds a widget to the UI.
+    /// Returns a handle to the widget.
     pub fn add<W: Widget + 'static>(&mut self, mut widget: W) -> WidgetHandle<W> {
-        // track which scene nodes this widget adds during build
-        // so we can remove them later if the widget is removed
-        self.scene.start_tracking();
-        widget.build(&mut self.scene);
-        let node_ids = self.scene.stop_tracking();
-        let generation = 0;
-
-        let slot_index = self
+        // iterate through slots until it finds a None/empty slot
+        // return its position/index as Option<usize>
+        // if no empty slot is found, add a new slot at the end
+        let index = self
             .slots
             .iter()
             .position(|s| s.is_none())
             .unwrap_or(self.slots.len());
 
-        let layout_node = self.layout_tree.add(slot_index, None);
-
-        let slot = Slot {
-            widget: Box::new(widget),
-            generation,
-            node_ids,
-            layout_node,
-        };
-
-        if slot_index == self.slots.len() {
-            self.slots.push(Some(slot));
-        } else {
-            self.slots[slot_index] = Some(slot);
-        }
-
-        WidgetHandle::new(slot_index as u32, generation)
-    }
-
-    pub fn add_to<W: Widget + 'static, P: Widget + 'static>(
-        &mut self,
-        parent: WidgetHandle<P>,
-        mut widget: W,
-    ) -> WidgetHandle<W> {
-        // build widget scene nodes
-        self.scene.start_tracking();
+        // build the widget using its iternal build() method
         widget.build(&mut self.scene);
-        let node_ids = self.scene.stop_tracking();
-        let generation = 0;
 
-        // get parent layout node and parent scene node id
-        let parent_slot = self.slots[parent.id as usize].as_ref().unwrap();
-        let parent_layout_node = parent_slot.layout_node;
-
-        // find the parent's group scene node id
-        // the parent widget gotta be a Group, get its scene_id via downcast
-        let parent_scene_id = parent_slot
-            .widget
-            .as_any()
-            .downcast_ref::<Group>()
-            .and_then(|g| g.id);
-
-        // reparent all child scene nodes under the group scene node
-        if let Some(group_scene_id) = parent_scene_id {
-            for &nid in &node_ids {
-                // only reparent if not already parented (e.g. bg rect already under its group)
-                if self.scene.parent_of(nid).is_none() {
-                    self.scene.reparent(nid, group_scene_id);
-                }
-            }
-        }
-
-        // register slot
-        let slot_index = self
-            .slots
-            .iter()
-            .position(|s| s.is_none())
-            .unwrap_or(self.slots.len());
-
-        // register layout node as child of parent
-        let layout_node = self.layout_tree.add(slot_index, Some(parent_layout_node));
-
+        // create a slot for the widget
         let slot = Slot {
             widget: Box::new(widget),
-            generation,
-            node_ids,
-            layout_node,
+            generation: 0,
         };
 
-        if slot_index == self.slots.len() {
+        // if index is end of slots vector, add slot
+        // otherwise replace the slot at the index
+        if index == self.slots.len() {
             self.slots.push(Some(slot));
         } else {
-            self.slots[slot_index] = Some(slot);
+            self.slots[index] = Some(slot);
         }
 
-        WidgetHandle::new(slot_index as u32, generation)
+        // widget id is the index in the slot
+        WidgetHandle::new(index as u32, 0)
     }
 
+    /// Removes a widget from the UI.
+    /// Returns if `handle` is invalid or slot is None/empty.
     pub fn remove<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) {
-        let slot = match self.slots.get_mut(handle.id as usize) {
-            Some(s @ Some(_)) => s,
-            _ => return,
+        let Some(slot) = self.slots.get_mut(handle.id as usize) else {
+            return;
         };
 
-        let s = slot.as_ref().unwrap();
-        if s.generation != handle.generation {
-            return;
-        }
+        let Some(s) = slot.as_mut() else { return };
 
-        for id in &s.node_ids {
-            self.scene.remove(*id);
-        }
+        if s.generation == handle.generation {
+            // call widget's internal remove() method
+            s.widget.remove(&mut self.scene);
 
-        self.layout_tree.remove(s.layout_node);
-        *slot = None;
+            // set slot to None to be reused
+            *slot = None;
+        }
     }
 
+    /// Returns a reference to a widget.
     pub fn get<W: Widget + 'static>(&self, handle: WidgetHandle<W>) -> Option<&W> {
-        let slot = self.slots.get(handle.id as usize)?.as_ref()?;
-        if slot.generation != handle.generation {
+        let Some(Some(s)) = self.slots.get(handle.id as usize) else {
             return None;
+        };
+
+        if s.generation == handle.generation {
+            s.widget.as_any().downcast_ref::<W>()
+        } else {
+            None
         }
-        slot.widget.as_any().downcast_ref::<W>()
     }
 
+    /// Returns a mutable reference to a widget.
     pub fn get_mut<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) -> Option<&mut W> {
-        let slot = self.slots.get_mut(handle.id as usize)?.as_mut()?;
-        if slot.generation != handle.generation {
+        let Some(Some(s)) = self.slots.get_mut(handle.id as usize) else {
             return None;
-        }
-        slot.widget.as_any_mut().downcast_mut::<W>()
-    }
+        };
 
-    pub fn with<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>, f: impl FnOnce(&mut W)) {
-        if let Some(widget) = self.get_mut(handle) {
-            f(widget);
-        }
-    }
-
-    pub fn update(&mut self, measurer: &mut dyn TextMeasurer, delta: f32) {
-        // mark layout dirty for any widget with dirty_layout
-        for (slot_index, slot) in self.slots.iter().enumerate() {
-            if let Some(s) = slot {
-                if s.widget.base().dirty_layout {
-                    self.layout_tree
-                        .mark_dirty(self.slots[slot_index].as_ref().unwrap().layout_node);
-                }
-            }
-        }
-
-        // run layout
-        if self.layout_tree.any_dirty() {
-            let start = std::time::Instant::now();
-            run_layout(&mut self.layout_tree, &mut self.slots, measurer);
-
-            // write resolved positions into scene graph
-            for node in &self.layout_tree.nodes {
-                if node.slot == usize::MAX {
-                    continue;
-                }
-                let Some(Some(slot)) = self.slots.get_mut(node.slot) else {
-                    continue;
-                };
-                slot.widget.base_mut().layout.x = node.layout.x;
-                slot.widget.base_mut().layout.y = node.layout.y;
-                slot.widget.base_mut().layout.w = node.layout.w;
-                slot.widget.base_mut().layout.h = node.layout.h;
-                slot.widget.base_mut().dirty = true;
-            }
-        }
-
-        // update dirty widgets
-        // this is visual only
-        for slot in self.slots.iter_mut().flatten() {
-            if slot.widget.base().dirty {
-                slot.widget.base_mut().delta = delta;
-                slot.widget.base_mut().dirty = false;
-                slot.widget.base_mut().dirty_layout = false;
-                slot.widget.pre_update();
-                slot.widget.update(&mut self.scene, measurer);
-            }
+        if s.generation == handle.generation {
+            s.widget.as_any_mut().downcast_mut::<W>()
+        } else {
+            None
         }
     }
 
-    pub fn set_viewport(&mut self, w: f32, h: f32) {
-        for node in &mut self.layout_tree.nodes {
-            if node.parent.is_none() && node.slot != usize::MAX {
-                if let Some(Some(slot)) = self.slots.get_mut(node.slot) {
-                    // only resize root Groups, not other widgets
-                    if slot.widget.as_any().downcast_ref::<Group>().is_some() {
-                        slot.widget.base_mut().layout.w = w;
-                        slot.widget.base_mut().layout.h = h;
-                        slot.widget.base_mut().layout.width = Size::Px(w);
-                        slot.widget.base_mut().layout.height = Size::Px(h);
-                        slot.widget.base_mut().dirty = true;
-                        slot.widget.base_mut().dirty_layout = true;
-                    }
-                    node.dirty = true;
+    /// Updates all widgets.
+    /// Dirty widgets are updated and then marked clean.
+    // after
+    pub fn update(&mut self, measurer: &mut dyn TextMeasurer) {
+        for slot in self.slots.iter_mut() {
+            if let Some(s) = slot.as_mut() {
+                if s.widget.is_dirty() {
+                    s.widget.update(&mut self.scene, measurer);
+                    s.widget.set_dirty(false);
                 }
             }
         }
     }
 
+    /// Returns true if any widget is dirty.
     pub fn any_dirty(&self) -> bool {
-        self.slots.iter().flatten().any(|s| s.widget.base().dirty)
+        self.slots.iter().flatten().any(|s| s.widget.is_dirty())
     }
 
-    pub fn set_sender(&mut self, sender: Arc<dyn Fn(u64) + Send + Sync>) {
-        *self.events.shared_sender.lock().unwrap() = Some(sender);
-    }
-
-    pub fn set_spawner(
-        &mut self,
-        spawner: Arc<
-            dyn Fn(std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>) + Send + Sync,
-        >,
-    ) {
-        self.events.spawner = Some(spawner.clone());
-        for fut in self.events.pending_futures.drain(..) {
-            spawner(fut);
-        }
-    }
-
-    pub fn timer(&mut self, duration: f32, callback: impl FnOnce(&mut Ui) + Send + 'static) {
-        self.spawn(async move {
-            tokio::time::sleep(std::time::Duration::from_secs_f32(duration)).await;
-            callback
-        });
-    }
-
-    pub fn spawn<F, C>(&mut self, future: F)
-    where
-        F: std::future::Future<Output = C> + Send + 'static,
-        C: FnOnce(&mut Ui) + Send + 'static,
-    {
-        let id = self.events.next_id;
-        self.events.next_id += 1;
-
-        let async_callbacks = self.events.async_callbacks.clone();
-        let shared_sender = self.events.shared_sender.clone();
-
-        let fut = Box::pin(async move {
-            let callback = future.await;
-            async_callbacks
-                .lock()
-                .unwrap()
-                .insert(id, Box::new(callback));
-            if let Some(sender) = shared_sender.lock().unwrap().as_ref() {
-                sender(id);
-            }
-        });
-
-        if let Some(spawner) = &self.events.spawner {
-            spawner(fut);
-        } else {
-            self.events.pending_futures.push(fut);
-        }
-    }
-
-    pub fn fire_callback(&mut self, id: u64) {
-        if let Some(callback) = self.events.callbacks.remove(&id) {
-            callback(self);
-        } else {
-            let callback = self.events.async_callbacks.lock().unwrap().remove(&id);
-            if let Some(callback) = callback {
-                callback(self);
-            }
-        }
-    }
-
-    pub fn set_sender_from_bento(&mut self, sender: Arc<dyn Fn(u64) + Send + Sync>) {
-        self.set_sender(sender);
-    }
-
+    /// Returns a reference to the scene.
     pub fn scene(&self) -> &Scene {
         &self.scene
     }
 
+    /// Returns a mutable reference to the scene.
     pub fn scene_mut(&mut self) -> &mut Scene {
         &mut self.scene
+    }
+}
+
+/// Listener registration and event emission
+impl Ui {
+    /// Registers a listener.
+    /// Used internally.
+    /// Returns a handle to the listener.
+    fn register(
+        &mut self,
+        target: Option<u32>,
+        type_id: TypeId,
+        f: Box<dyn FnMut(&dyn Any, &mut Ui) -> bool>,
+    ) -> ListenerHandle {
+        let id = self.next_listener_id;
+        self.next_listener_id += 1;
+
+        self.listeners
+            .entry(target)
+            .or_default()
+            .push(Listener { id, type_id, f });
+
+        ListenerHandle { target, id }
+    }
+
+    /// Listen for event E on a specific widget.
+    /// Returns a handle to the listener.
+    pub fn listen<W: Widget + 'static, E: 'static>(
+        &mut self,
+        handle: WidgetHandle<W>,
+        mut f: impl FnMut(&E, &mut Ui) + 'static,
+    ) -> ListenerHandle {
+        self.register(
+            Some(handle.id),
+            TypeId::of::<E>(),
+            Box::new(move |event, ui| {
+                if let Some(e) = event.downcast_ref::<E>() {
+                    f(e, ui);
+                }
+                true
+            }),
+        )
+    }
+
+    /// Listen for event E on a specific widget, once.
+    /// Returns a handle to the listener.
+    pub fn listen_once<W: Widget + 'static, E: 'static>(
+        &mut self,
+        handle: WidgetHandle<W>,
+        mut f: impl FnMut(&E, &mut Ui) + 'static,
+    ) -> ListenerHandle {
+        self.register(
+            Some(handle.id),
+            TypeId::of::<E>(),
+            Box::new(move |event, ui| {
+                if let Some(e) = event.downcast_ref::<E>() {
+                    f(e, ui);
+                }
+                false
+            }),
+        )
+    }
+
+    /// Listen for event E on a specific widget while the closure returns true.
+    /// Returns a handle to the listener.
+    pub fn listen_while<W: Widget + 'static, E: 'static>(
+        &mut self,
+        handle: WidgetHandle<W>,
+        mut f: impl FnMut(&E, &mut Ui) -> bool + 'static,
+    ) -> ListenerHandle {
+        self.register(
+            Some(handle.id),
+            TypeId::of::<E>(),
+            Box::new(move |event, ui| {
+                if let Some(e) = event.downcast_ref::<E>() {
+                    return f(e, ui);
+                }
+                true
+            }),
+        )
+    }
+
+    /// Listen for event E globally.
+    /// Returns a handle to the listener.
+    pub fn listen_any<E: 'static>(
+        &mut self,
+        mut f: impl FnMut(&E, &mut Ui) + 'static,
+    ) -> ListenerHandle {
+        self.register(
+            None,
+            TypeId::of::<E>(),
+            Box::new(move |event, ui| {
+                if let Some(e) = event.downcast_ref::<E>() {
+                    f(e, ui);
+                }
+                true
+            }),
+        )
+    }
+
+    /// Listen for event E globally, once.
+    /// Returns a handle to the listener.
+    pub fn listen_any_once<E: 'static>(
+        &mut self,
+        mut f: impl FnMut(&E, &mut Ui) + 'static,
+    ) -> ListenerHandle {
+        self.register(
+            None,
+            TypeId::of::<E>(),
+            Box::new(move |event, ui| {
+                if let Some(e) = event.downcast_ref::<E>() {
+                    f(e, ui);
+                }
+                false
+            }),
+        )
+    }
+
+    /// Listen for event E globally while the closure returns true.
+    /// Returns a handle to the listener.
+    pub fn listen_any_while<E: 'static>(
+        &mut self,
+        mut f: impl FnMut(&E, &mut Ui) -> bool + 'static,
+    ) -> ListenerHandle {
+        self.register(
+            None,
+            TypeId::of::<E>(),
+            Box::new(move |event, ui| {
+                if let Some(e) = event.downcast_ref::<E>() {
+                    return f(e, ui);
+                }
+                true
+            }),
+        )
+    }
+
+    /// Unsubscribe a listener.
+    pub fn listen_off(&mut self, handle: ListenerHandle) {
+        self.pending_removals.push(handle.id);
+    }
+
+    /// Broadcasts an event to listeners on a specific widget.
+    pub fn send_to<W: Widget + 'static, E: Any>(&mut self, handle: WidgetHandle<W>, event: E) {
+        self.pending_events.push(PendingEvent {
+            target: Some(handle.id),
+            type_id: TypeId::of::<E>(),
+            event: Box::new(event),
+        });
+    }
+
+    /// Broadcasts an event globally.
+    pub fn send_global<E: Any>(&mut self, event: E) {
+        self.pending_events.push(PendingEvent {
+            target: None,
+            type_id: TypeId::of::<E>(),
+            event: Box::new(event),
+        });
+    }
+
+    /// Drain the pending event queue and dispatch all events.
+    /// Called once per frame after input processing.
+    fn flush_events(&mut self) {
+        let mut i = 0;
+        while i < self.pending_events.len() {
+            let pending = self.pending_events.remove(i);
+            self.dispatch_one(pending);
+            // no increment of i bc an element was removed meaning next item is now at i
+        }
+    }
+
+    /// Dispatches a single event.
+    fn dispatch_one(&mut self, pending: PendingEvent) {
+        let listeners = self.listeners.remove(&pending.target).unwrap_or_default();
+        let mut remaining = Vec::new();
+
+        for mut listener in listeners {
+            if listener.type_id == pending.type_id {
+                let keep = (listener.f)(pending.event.as_ref(), self);
+                if keep {
+                    remaining.push(listener);
+                }
+            } else {
+                remaining.push(listener);
+            }
+        }
+
+        remaining.retain(|l| !self.pending_removals.contains(&l.id));
+        self.pending_removals.clear();
+
+        self.listeners
+            .entry(pending.target)
+            .or_default()
+            .extend(remaining.drain(..));
+    }
+}
+
+/// Focus helpers
+impl Ui {
+    /// Sets focus on a widget.
+    fn set_focus_by_id(&mut self, slot_id: u32) {
+        if let Some(prev) = self.focused {
+            if let Some(Some(slot)) = self.slots.get_mut(prev as usize) {
+                slot.widget.set_focused(false);
+            }
+            self.pending_events.push(PendingEvent {
+                target: Some(prev),
+                type_id: TypeId::of::<FocusLost>(),
+                event: Box::new(FocusLost),
+            });
+        }
+        self.focused = Some(slot_id);
+        if let Some(Some(slot)) = self.slots.get_mut(slot_id as usize) {
+            slot.widget.set_focused(true);
+        }
+        self.pending_events.push(PendingEvent {
+            target: Some(slot_id),
+            type_id: TypeId::of::<FocusGained>(),
+            event: Box::new(FocusGained),
+        });
+    }
+
+    /// Clears focus from the currently focused widget.
+    fn clear_focus(&mut self) {
+        if let Some(prev) = self.focused {
+            if let Some(Some(slot)) = self.slots.get_mut(prev as usize) {
+                slot.widget.set_focused(false);
+            }
+            self.pending_events.push(PendingEvent {
+                target: Some(prev),
+                type_id: TypeId::of::<FocusLost>(),
+                event: Box::new(FocusLost),
+            });
+        }
+        self.focused = None;
+    }
+}
+
+/// Input processing
+impl Ui {
+    pub fn process_input(&mut self) {
+        let events = self.collect_events();
+        self.queue_input_events(&events);
+        self.flush_events();
+    }
+
+    fn collect_events(&self) -> InputEvents {
+        let key_presses = self
+            .input
+            .keyboard
+            .just_pressed()
+            .iter()
+            .map(|(key, ch)| KeyPress { key: *key, ch: *ch })
+            .collect();
+
+        let key_releases = self
+            .input
+            .keyboard
+            .just_released()
+            .iter()
+            .map(|key| KeyRelease { key: *key })
+            .collect();
+
+        let mouse_move = if self.input.mouse.dx != 0.0 || self.input.mouse.dy != 0.0 {
+            Some(MouseMove {
+                x: self.input.mouse.x,
+                y: self.input.mouse.y,
+                dx: self.input.mouse.dx,
+                dy: self.input.mouse.dy,
+            })
+        } else {
+            None
+        };
+
+        let mut mouse_downs = Vec::new();
+        let mut mouse_ups = Vec::new();
+        let mut clicks = Vec::new();
+        for btn in [MouseButton::Left, MouseButton::Middle, MouseButton::Right] {
+            let state = match btn {
+                MouseButton::Left => &self.input.mouse.left,
+                MouseButton::Right => &self.input.mouse.right,
+                MouseButton::Middle => &self.input.mouse.middle,
+            };
+            if state.just_pressed {
+                mouse_downs.push(MouseDown {
+                    x: self.input.mouse.x,
+                    y: self.input.mouse.y,
+                    button: btn,
+                });
+            }
+            if state.just_released {
+                mouse_ups.push(MouseUp {
+                    x: self.input.mouse.x,
+                    y: self.input.mouse.y,
+                    button: btn,
+                });
+                clicks.push(Click {
+                    x: self.input.mouse.x,
+                    y: self.input.mouse.y,
+                    button: btn,
+                });
+            }
+        }
+
+        let mouse_scroll = if self.input.mouse.scroll_x != 0.0 || self.input.mouse.scroll_y != 0.0 {
+            Some(MouseScroll {
+                x: self.input.mouse.scroll_x,
+                y: self.input.mouse.scroll_y,
+            })
+        } else {
+            None
+        };
+
+        InputEvents {
+            key_presses,
+            key_releases,
+            mouse_move,
+            mouse_downs,
+            mouse_ups,
+            clicks,
+            mouse_scroll,
+            mouse_enter: self.input.mouse.just_entered,
+            mouse_leave: self.input.mouse.just_left,
+        }
+    }
+
+    fn queue_input_events(&mut self, events: &InputEvents) {
+        // keyboard -> focused widget and global
+        if let Some(focused_id) = self.focused {
+            for e in &events.key_presses {
+                self.pending_events.push(PendingEvent {
+                    target: Some(focused_id),
+                    type_id: TypeId::of::<KeyPress>(),
+                    event: Box::new(*e),
+                });
+            }
+            for e in &events.key_releases {
+                self.pending_events.push(PendingEvent {
+                    target: Some(focused_id),
+                    type_id: TypeId::of::<KeyRelease>(),
+                    event: Box::new(*e),
+                });
+            }
+        }
+
+        // mouse -> per widget based on hit test
+        let slot_ids: Vec<u32> = self.listeners.keys().filter_map(|k| *k).collect();
+        for slot_id in &slot_ids {
+            let hit = if let Some(Some(slot)) = self.slots.get(*slot_id as usize) {
+                let (x, y, w, h) = slot.widget.bounds();
+                self.input.mouse.x >= x
+                    && self.input.mouse.x <= x + w
+                    && self.input.mouse.y >= y
+                    && self.input.mouse.y <= y + h
+            } else {
+                false
+            };
+
+            if hit {
+                if let Some(Some(slot)) = self.slots.get_mut(*slot_id as usize) {
+                    if slot.widget.hoverable() && !slot.widget.is_hovered() {
+                        slot.widget.set_hovered(true);
+                        self.pending_events.push(PendingEvent {
+                            target: Some(*slot_id),
+                            type_id: TypeId::of::<HoverEnter>(),
+                            event: Box::new(HoverEnter),
+                        });
+                    }
+                }
+                if let Some(e) = &events.mouse_move {
+                    self.pending_events.push(PendingEvent {
+                        target: Some(*slot_id),
+                        type_id: TypeId::of::<MouseMove>(),
+                        event: Box::new(*e),
+                    });
+                }
+                for e in &events.mouse_downs {
+                    self.pending_events.push(PendingEvent {
+                        target: Some(*slot_id),
+                        type_id: TypeId::of::<MouseDown>(),
+                        event: Box::new(*e),
+                    });
+                }
+                for e in &events.mouse_ups {
+                    self.pending_events.push(PendingEvent {
+                        target: Some(*slot_id),
+                        type_id: TypeId::of::<MouseUp>(),
+                        event: Box::new(*e),
+                    });
+                }
+                for e in &events.clicks {
+                    self.pending_events.push(PendingEvent {
+                        target: Some(*slot_id),
+                        type_id: TypeId::of::<Click>(),
+                        event: Box::new(*e),
+                    });
+                }
+            } else if let Some(Some(slot)) = self.slots.get_mut(*slot_id as usize) {
+                if slot.widget.hoverable() && slot.widget.is_hovered() {
+                    slot.widget.set_hovered(false);
+                    self.pending_events.push(PendingEvent {
+                        target: Some(*slot_id),
+                        type_id: TypeId::of::<HoverLeave>(),
+                        event: Box::new(HoverLeave),
+                    });
+                }
+            }
+
+            if let Some(e) = &events.mouse_scroll {
+                self.pending_events.push(PendingEvent {
+                    target: Some(*slot_id),
+                    type_id: TypeId::of::<MouseScroll>(),
+                    event: Box::new(*e),
+                });
+            }
+            if events.mouse_enter {
+                self.pending_events.push(PendingEvent {
+                    target: Some(*slot_id),
+                    type_id: TypeId::of::<MouseEnter>(),
+                    event: Box::new(MouseEnter),
+                });
+            }
+            if events.mouse_leave {
+                self.pending_events.push(PendingEvent {
+                    target: Some(*slot_id),
+                    type_id: TypeId::of::<MouseLeave>(),
+                    event: Box::new(MouseLeave),
+                });
+            }
+
+            // auto focus on click
+            if hit && !events.clicks.is_empty() {
+                if let Some(Some(slot)) = self.slots.get(*slot_id as usize) {
+                    if slot.widget.focusable() {
+                        self.set_focus_by_id(*slot_id);
+                    }
+                }
+            }
+        }
+
+        // clear focus if clicked outside all focusable widgets
+        if !events.clicks.is_empty() {
+            let click_hit_any = slot_ids.iter().any(|slot_id| {
+                if let Some(Some(slot)) = self.slots.get(*slot_id as usize) {
+                    let (x, y, w, h) = slot.widget.bounds();
+                    slot.widget.focusable()
+                        && self.input.mouse.x >= x
+                        && self.input.mouse.x <= x + w
+                        && self.input.mouse.y >= y
+                        && self.input.mouse.y <= y + h
+                } else {
+                    false
+                }
+            });
+            if !click_hit_any {
+                self.clear_focus();
+            }
+        }
+
+        // global events
+        for e in &events.key_presses {
+            self.pending_events.push(PendingEvent {
+                target: None,
+                type_id: TypeId::of::<KeyPress>(),
+                event: Box::new(*e),
+            });
+        }
+        for e in &events.key_releases {
+            self.pending_events.push(PendingEvent {
+                target: None,
+                type_id: TypeId::of::<KeyRelease>(),
+                event: Box::new(*e),
+            });
+        }
+        if let Some(e) = &events.mouse_move {
+            self.pending_events.push(PendingEvent {
+                target: None,
+                type_id: TypeId::of::<MouseMove>(),
+                event: Box::new(*e),
+            });
+        }
+        for e in &events.mouse_downs {
+            self.pending_events.push(PendingEvent {
+                target: None,
+                type_id: TypeId::of::<MouseDown>(),
+                event: Box::new(*e),
+            });
+        }
+        for e in &events.mouse_ups {
+            self.pending_events.push(PendingEvent {
+                target: None,
+                type_id: TypeId::of::<MouseUp>(),
+                event: Box::new(*e),
+            });
+        }
+        for e in &events.clicks {
+            self.pending_events.push(PendingEvent {
+                target: None,
+                type_id: TypeId::of::<Click>(),
+                event: Box::new(*e),
+            });
+        }
+        if let Some(e) = &events.mouse_scroll {
+            self.pending_events.push(PendingEvent {
+                target: None,
+                type_id: TypeId::of::<MouseScroll>(),
+                event: Box::new(*e),
+            });
+        }
+        if events.mouse_enter {
+            self.pending_events.push(PendingEvent {
+                target: None,
+                type_id: TypeId::of::<MouseEnter>(),
+                event: Box::new(MouseEnter),
+            });
+        }
+        if events.mouse_leave {
+            self.pending_events.push(PendingEvent {
+                target: None,
+                type_id: TypeId::of::<MouseLeave>(),
+                event: Box::new(MouseLeave),
+            });
+        }
+    }
+}
+
+/// Collected input events for a single frame
+struct InputEvents {
+    key_presses: Vec<KeyPress>,
+    key_releases: Vec<KeyRelease>,
+    mouse_move: Option<MouseMove>,
+    mouse_downs: Vec<MouseDown>,
+    mouse_ups: Vec<MouseUp>,
+    clicks: Vec<Click>,
+    mouse_scroll: Option<MouseScroll>,
+    mouse_enter: bool,
+    mouse_leave: bool,
+}
+
+impl fmt::Display for Ui {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "Ui ({} slots):", self.slots.len())?;
+        for (i, slot) in self.slots.iter().enumerate() {
+            match slot {
+                Some(s) => writeln!(f, "  [{}] {} gen={}", i, s.widget.name(), s.generation)?,
+                None => writeln!(f, "  [{}] empty", i)?,
+            }
+        }
+        Ok(())
     }
 }

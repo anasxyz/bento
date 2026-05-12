@@ -4,15 +4,17 @@ fn main() {
     let mut app = App::new();
     let mut ui = Ui::new();
 
-    let rect = ui.add(Rect::new(0.0, 100.0, 200.0, 100.0));
+    let button = ui.add(Rect::new(50.0, 50.0, 100.0, 40.0));
 
-    ui.with(rect, |r| {
-        r.set_color([0.0, 0.5, 1.0, 1.0]);
-        r.set_radii([10.0; 4]);
+    ui.listen(button, move |_e: &Click, _ui| {
+        println!("clicked");
     });
 
-    ui.timer(1.0, move |ui: &mut Ui| {
-        ui.remove(rect);
+    let mut count = 0;
+    ui.listen_while(button, move |_e: &Click, _ui| {
+        count += 1;
+        println!("listen_while click {}", count);
+        return count < 3;
     });
 
     app.open_window(WindowConfig::default(), ui);

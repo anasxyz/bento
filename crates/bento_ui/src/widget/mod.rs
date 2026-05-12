@@ -1,15 +1,10 @@
-mod primitives;
-mod composites;
 mod widget;
 mod handle;
-mod base;
 
-pub use widget::{Widget, AsAny};
+pub use widget::{AsAny, Widget};
 pub use handle::WidgetHandle;
-pub use base::{HasBase, Base, Easing, LoopMode, AnimatableValue, Animation};
 
-// primitives
-pub use primitives::{Rect, Text, Image, Group};
+mod primitives;
 
-// composites
-pub use composites::Button;
+pub use primitives::Rect;
+pub use primitives::Text;

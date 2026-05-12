@@ -42,11 +42,11 @@ impl App {
         let proxy = event_loop.create_proxy();
         for (_, ui) in &mut self.pending {
             let proxy = proxy.clone();
-            ui.set_sender(Arc::new(move |id| {
+            ui.events.set_sender(Arc::new(move |id| {
                 proxy.send_event(BentoEvent::Callback(id)).ok();
             }));
             let handle = self.runtime.handle().clone();
-            ui.set_spawner(Arc::new(move |fut| {
+            ui.events.set_spawner(Arc::new(move |fut| {
                 handle.spawn(fut);
             }));
         }
@@ -61,9 +61,8 @@ impl ApplicationHandler<BentoEvent> for App {
         }
         for (config, ui) in std::mem::take(&mut self.pending) {
             let ctx = self.ctx.as_ref().unwrap();
-            let mut win = Window::new(ctx, event_loop, config, ui);
+            let win = Window::new(ctx, event_loop, config, ui);
             win.request_redraw();
-            win.ui.set_viewport(win.surface.width, win.surface.height);
             self.windows.insert(win.id(), win);
         }
     }
@@ -76,49 +75,150 @@ impl ApplicationHandler<BentoEvent> for App {
 
         match event {
             WindowEvent::RedrawRequested => {
-                let now = std::time::Instant::now();
-                let delta = win
-                    .last_frame
-                    .map(|t| t.elapsed().as_secs_f32())
-                    .unwrap_or(0.0);
+                let t1 = std::time::Instant::now();
+                win.ui.process_input();
 
-                let mut measurer =
-                    CosmicTextMeasurer::new(&mut win.font_system, &mut win.measure_cache);
-                win.ui.update(&mut measurer, delta);
+                let dirty = win.ui.any_dirty();
 
-                if win.ui.any_dirty() {
-                    win.last_frame = Some(now);
-                    win.request_redraw();
-                } else {
-                    win.last_frame = None;
+                if dirty {
+                    let mut measurer =
+                        CosmicTextMeasurer::new(&mut win.font_system, &mut win.measure_cache);
+                    win.ui.update(&mut measurer);
                 }
 
-                let clear = win.config.clear_color;
-                win.renderer.render(
-                    ctx,
-                    &mut win.font_system,
-                    &mut win.surface,
-                    clear,
-                    win.ui.scene_mut(),
-                );
+                if dirty || win.needs_render {
+                    win.renderer.render(
+                        ctx,
+                        &mut win.font_system,
+                        &mut win.surface,
+                        win.config.clear_color,
+                        win.ui.scene_mut(),
+                    );
+                    win.needs_render = false;
+                }
+
+                win.ui.input.mouse.clear();
+                win.ui.input.keyboard.clear();
+               
+                // println!("redraw took {:?}", t1.elapsed());
             }
+
             WindowEvent::KeyboardInput {
                 event:
                     winit::event::KeyEvent {
-                        physical_key:
-                            winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::KeyD),
-                        state: winit::event::ElementState::Pressed,
+                        physical_key: winit::keyboard::PhysicalKey::Code(keycode),
+                        text,
+                        state,
                         ..
                     },
                 ..
             } => {
-                println!("{:#?}", win.ui.scene);
+                let key = crate::input::keycode_to_key(keycode);
+                let ch = text.and_then(|s| s.chars().next());
+                match state {
+                    winit::event::ElementState::Pressed => {
+                        match key {
+                            bento_ui::Key::LShift | bento_ui::Key::RShift => {
+                                win.ui.input.keyboard.modifiers.shift = true
+                            }
+                            bento_ui::Key::LCtrl | bento_ui::Key::RCtrl => {
+                                win.ui.input.keyboard.modifiers.ctrl = true
+                            }
+                            bento_ui::Key::LAlt | bento_ui::Key::RAlt => {
+                                win.ui.input.keyboard.modifiers.alt = true
+                            }
+                            bento_ui::Key::LSuper | bento_ui::Key::RSuper => {
+                                win.ui.input.keyboard.modifiers.super_key = true
+                            }
+                            _ => {}
+                        }
+                        win.ui.input.keyboard.on_press(key, ch);
+                    }
+                    winit::event::ElementState::Released => {
+                        match key {
+                            bento_ui::Key::LShift | bento_ui::Key::RShift => {
+                                win.ui.input.keyboard.modifiers.shift = false
+                            }
+                            bento_ui::Key::LCtrl | bento_ui::Key::RCtrl => {
+                                win.ui.input.keyboard.modifiers.ctrl = false
+                            }
+                            bento_ui::Key::LAlt | bento_ui::Key::RAlt => {
+                                win.ui.input.keyboard.modifiers.alt = false
+                            }
+                            bento_ui::Key::LSuper | bento_ui::Key::RSuper => {
+                                win.ui.input.keyboard.modifiers.super_key = false
+                            }
+                            _ => {}
+                        }
+                        win.ui.input.keyboard.on_release(key);
+                    }
+                }
+
+                win.request_redraw();
             }
+
+            WindowEvent::MouseInput { state, button, .. } => {
+                let btn = match button {
+                    winit::event::MouseButton::Left => &mut win.ui.input.mouse.left,
+                    winit::event::MouseButton::Right => &mut win.ui.input.mouse.right,
+                    winit::event::MouseButton::Middle => &mut win.ui.input.mouse.middle,
+                    _ => return,
+                };
+                match state {
+                    winit::event::ElementState::Pressed => {
+                        btn.pressed = true;
+                        btn.released = false;
+                        btn.just_pressed = true;
+                        btn.just_released = false;
+                    }
+                    winit::event::ElementState::Released => {
+                        btn.pressed = false;
+                        btn.released = true;
+                        btn.just_pressed = false;
+                        btn.just_released = true;
+                    }
+                }
+
+                win.request_redraw();
+            }
+            WindowEvent::MouseWheel { delta, .. } => {
+                match delta {
+                    winit::event::MouseScrollDelta::LineDelta(x, y) => {
+                        win.ui.input.mouse.scroll_x = x;
+                        win.ui.input.mouse.scroll_y = y;
+                    }
+                    winit::event::MouseScrollDelta::PixelDelta(pos) => {
+                        win.ui.input.mouse.scroll_x = pos.x as f32;
+                        win.ui.input.mouse.scroll_y = pos.y as f32;
+                    }
+                }
+
+                win.request_redraw();
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                let x = position.x as f32;
+                let y = position.y as f32;
+                win.ui.input.mouse.dx = x - win.ui.input.mouse.x;
+                win.ui.input.mouse.dy = y - win.ui.input.mouse.y;
+                win.ui.input.mouse.x = x;
+                win.ui.input.mouse.y = y;
+
+                win.request_redraw();
+            }
+            WindowEvent::CursorEntered { .. } => {
+                win.ui.input.mouse.inside_window = true;
+                win.ui.input.mouse.just_entered = true;
+            }
+            WindowEvent::CursorLeft { .. } => {
+                win.ui.input.mouse.inside_window = false;
+                win.ui.input.mouse.just_left = true;
+            }
+
             WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {
                 win.resize(ctx);
                 let w = win.surface.width;
                 let h = win.surface.height;
-                win.ui.set_viewport(w, h);
+                win.needs_render = true;
                 win.request_redraw();
             }
             WindowEvent::CloseRequested => {
