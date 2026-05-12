@@ -194,10 +194,6 @@ impl Ui {
         self.dispatch_by_id(slot_id, &FocusGained);
     }
 
-    fn set_focus<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) {
-        self.set_focus_by_id(handle.id);
-    }
-
     fn clear_focus(&mut self) {
         if let Some(prev) = self.focused {
             if let Some(Some(slot)) = self.slots.get_mut(prev as usize) {

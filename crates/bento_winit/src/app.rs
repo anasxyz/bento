@@ -75,6 +75,7 @@ impl ApplicationHandler<BentoEvent> for App {
 
         match event {
             WindowEvent::RedrawRequested => {
+                let t1 = std::time::Instant::now();
                 win.ui.process_input();
 
                 if win.ui.any_dirty() {
@@ -90,6 +91,7 @@ impl ApplicationHandler<BentoEvent> for App {
 
                 win.ui.input.mouse.clear();
                 win.ui.input.keyboard.clear();
+                println!("ui update took {:?}", t1.elapsed());
             }
 
             WindowEvent::KeyboardInput {
