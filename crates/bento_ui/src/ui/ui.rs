@@ -6,8 +6,8 @@ use bento_shared::Scene;
 
 use super::EventQueue;
 use super::{
-    Click, FocusGained, FocusLost, KeyPress, KeyRelease, MouseDown, MouseEnter, MouseLeave,
-    MouseMove, MouseScroll, MouseUp, HoverEnter, HoverLeave,
+    Click, FocusGained, FocusLost, HoverEnter, HoverLeave, KeyPress, KeyRelease, MouseDown,
+    MouseEnter, MouseLeave, MouseMove, MouseScroll, MouseUp,
 };
 use crate::{Input, MouseButton, Widget, WidgetHandle};
 
@@ -28,6 +28,8 @@ pub struct Ui {
     // Connections stuff
     connections: HashMap<Option<u32>, Vec<(u64, TypeId, Box<dyn Fn(&dyn Any, &mut Ui)>)>>,
     next_connection_id: u64,
+    dispatching: bool,
+    pending_connections: HashMap<Option<u32>, Vec<(u64, TypeId, Box<dyn Fn(&dyn Any, &mut Ui)>)>>,
     pending_removals: Vec<(Option<u32>, u64)>,
 
     // Input stuff
@@ -48,6 +50,8 @@ impl Ui {
 
             connections: HashMap::new(),
             next_connection_id: 0,
+            dispatching: false,
+            pending_connections: HashMap::new(),
             pending_removals: Vec::new(),
 
             input: Input::new(),
@@ -241,6 +245,16 @@ pub struct ConnectionHandle {
 /// Event stuff
 /// Moved to separate impl block purely for organisation
 impl Ui {
+    fn connection_target(
+        &mut self,
+    ) -> &mut HashMap<Option<u32>, Vec<(u64, TypeId, Box<dyn Fn(&dyn Any, &mut Ui)>)>> {
+        if self.dispatching {
+            &mut self.pending_connections
+        } else {
+            &mut self.connections
+        }
+    }
+
     /// Listens for events of type E on widget with handle.
     pub fn listen<W: Widget + 'static, E: 'static>(
         &mut self,
@@ -251,7 +265,7 @@ impl Ui {
         let id = self.next_connection_id;
         self.next_connection_id += 1;
 
-        self.connections
+        self.connection_target()
             // Use Some(handle.id) as key to associate this handler with a specific widget
             .entry(Some(handle.id))
             .or_insert_with(Vec::new)
@@ -285,7 +299,7 @@ impl Ui {
         self.next_connection_id += 1;
 
         let slot_id = Some(handle.id);
-        self.connections
+        self.connection_target()
             .entry(slot_id)
             .or_insert_with(Vec::new)
             .push((
@@ -311,7 +325,7 @@ impl Ui {
         let id = self.next_connection_id;
         self.next_connection_id += 1;
 
-        self.connections
+        self.connection_target()
             // Use None as key to signify this is a global handler
             // dispatch_global will pick these up
             .entry(None)
@@ -341,17 +355,20 @@ impl Ui {
         let id = self.next_connection_id;
         self.next_connection_id += 1;
 
-        self.connections.entry(None).or_insert_with(Vec::new).push((
-            id,
-            TypeId::of::<E>(),
-            Box::new(move |event, ui| {
-                if let Some(e) = event.downcast_ref::<E>() {
-                    f(e, ui);
-                    // Remove this connection after the first event is fired
-                    ui.listen_off(ConnectionHandle { slot_id: None, id });
-                }
-            }),
-        ));
+        self.connection_target()
+            .entry(None)
+            .or_insert_with(Vec::new)
+            .push((
+                id,
+                TypeId::of::<E>(),
+                Box::new(move |event, ui| {
+                    if let Some(e) = event.downcast_ref::<E>() {
+                        f(e, ui);
+                        // Remove this connection after the first event is fired
+                        ui.listen_off(ConnectionHandle { slot_id: None, id });
+                    }
+                }),
+            ));
         ConnectionHandle { slot_id: None, id }
     }
 
@@ -374,6 +391,8 @@ impl Ui {
         // Type id of this event's struct
         let type_id = event.type_id();
 
+        self.dispatching = true;
+
         // Get widget specific handlers
         if let Some(handlers) = connections.get(&Some(slot_id)) {
             // Iterate over all handlers registered to the widget
@@ -385,6 +404,7 @@ impl Ui {
             }
         }
 
+        self.dispatching = false;
         self.connections = connections;
 
         // Apply any pending removals requested during dispatch
@@ -392,6 +412,14 @@ impl Ui {
             if let Some(vec) = self.connections.get_mut(&slot_id) {
                 vec.retain(|(cid, _, _)| *cid != id);
             }
+        }
+
+        // Apply any pending connections requested during dispatch
+        for (slot_id, handlers) in self.pending_connections.drain() {
+            self.connections
+                .entry(slot_id)
+                .or_insert_with(Vec::new)
+                .extend(handlers);
         }
     }
 
@@ -405,6 +433,8 @@ impl Ui {
         // Type id of this event's struct
         let type_id = event.type_id();
 
+        self.dispatching = true;
+
         // Get handlers registered to no widget, which are meant for broadcasting
         if let Some(handlers) = connections.get(&None) {
             for (_, tid, f) in handlers {
@@ -414,6 +444,7 @@ impl Ui {
             }
         }
 
+        self.dispatching = false;
         self.connections = connections;
 
         // Apply any pending removals requested during dispatch
@@ -421,6 +452,14 @@ impl Ui {
             if let Some(vec) = self.connections.get_mut(&slot_id) {
                 vec.retain(|(cid, _, _)| *cid != id);
             }
+        }
+
+        // Apply any pending connections requested during dispatch
+        for (slot_id, handlers) in self.pending_connections.drain() {
+            self.connections
+                .entry(slot_id)
+                .or_insert_with(Vec::new)
+                .extend(handlers);
         }
     }
 
