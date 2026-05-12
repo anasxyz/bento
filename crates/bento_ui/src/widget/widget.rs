@@ -24,6 +24,12 @@ pub trait Widget: AsAny {
     /// Allows widgets to remove their SceneNode(s)
     fn remove(&mut self, scene: &mut Scene);
 
+    /// Allows widgets to update their dirty flag
     fn is_dirty(&self) -> bool;
     fn set_dirty(&mut self, dirty: bool);
+
+    /// Allows widgets to specify their bounds
+    fn bounds(&self) -> (f32, f32, f32, f32) {
+        (0.0, 0.0, 0.0, 0.0)
+    }
 }

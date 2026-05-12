@@ -91,10 +91,13 @@ impl Widget for Rect {
     fn is_dirty(&self) -> bool {
         self.dirty
     }
-
     // TODO: add to proc macro
     fn set_dirty(&mut self, dirty: bool) {
         self.dirty = dirty;
+    }
+
+    fn bounds(&self) -> (f32, f32, f32, f32) {
+        (self.x, self.y, self.w, self.h)
     }
 }
 

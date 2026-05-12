@@ -307,22 +307,22 @@ impl Ui {
 
         // dispatch to widget specific handlers
         for slot_id in &slot_ids {
+            // get widget bounds for hit testing
+            let hit = if let Some(Some(slot)) = self.slots.get(*slot_id as usize) {
+                let (x, y, w, h) = slot.widget.bounds();
+                self.input.mouse.x >= x
+                    && self.input.mouse.x <= x + w
+                    && self.input.mouse.y >= y
+                    && self.input.mouse.y <= y + h
+            } else {
+                false
+            };
+
+            // non positional events dispatch without hit test
             for event in &key_presses {
                 self.dispatch_by_id(*slot_id, event);
             }
             for event in &key_releases {
-                self.dispatch_by_id(*slot_id, event);
-            }
-            if let Some(ref e) = mouse_move {
-                self.dispatch_by_id(*slot_id, e);
-            }
-            for event in &mouse_downs {
-                self.dispatch_by_id(*slot_id, event);
-            }
-            for event in &mouse_ups {
-                self.dispatch_by_id(*slot_id, event);
-            }
-            for event in &clicks {
                 self.dispatch_by_id(*slot_id, event);
             }
             if let Some(ref e) = mouse_scroll {
@@ -333,6 +333,22 @@ impl Ui {
             }
             if mouse_leave {
                 self.dispatch_by_id(*slot_id, &MouseLeave);
+            }
+
+            // positional events only dispatch if mouse is over widget
+            if hit {
+                if let Some(ref e) = mouse_move {
+                    self.dispatch_by_id(*slot_id, e);
+                }
+                for event in &mouse_downs {
+                    self.dispatch_by_id(*slot_id, event);
+                }
+                for event in &mouse_ups {
+                    self.dispatch_by_id(*slot_id, event);
+                }
+                for event in &clicks {
+                    self.dispatch_by_id(*slot_id, event);
+                }
             }
         }
 
