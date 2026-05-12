@@ -1,6 +1,7 @@
 use std::any::Any;
 
-use bento_shared::{TextNode, Scene, SceneNode, SceneNodeId};
+use bento_shared::{Scene, SceneNode, SceneNodeId, TextNode};
+use bento_shared::{TextMeasureRequest, TextMeasurer};
 
 use crate::{AsAny, Widget};
 
@@ -10,6 +11,8 @@ pub struct Text {
     text: String,
     x: f32,
     y: f32,
+    w: f32,
+    h: f32,
     size: f32,
     color: [f32; 4],
 
@@ -23,6 +26,8 @@ impl Text {
             text: text.to_string(),
             x,
             y,
+            w: 0.0,
+            h: 0.0,
             size,
             color: [1.0, 1.0, 1.0, 1.0],
             text_id: None,
@@ -86,10 +91,27 @@ impl Widget for Text {
         self.text_id = Some(scene.add_text(node));
     }
 
-    fn update(&mut self, scene: &mut Scene) {
-        let Some(id) = self.text_id else { return };
+    fn update(&mut self, scene: &mut Scene, measurer: &mut dyn TextMeasurer) {
+        let result = measurer.measure(TextMeasureRequest {
+            text: &self.text,
+            font_family: "",
+            size: self.size,
+            weight: 400,
+            italic: false,
+            letter_spacing: 0.0,
+            line_height: None,
+            max_width: None,
+            weight_ranges: &[],
+            italic_ranges: &[],
+            font_family_ranges: &[],
+        });
+        self.w = result.width;
+        self.h = result.height;
 
-        let Some(SceneNode::Text(t)) = scene.get_mut(id) else { return };
+        let Some(id) = self.text_id else { return };
+        let Some(SceneNode::Text(t)) = scene.get_mut(id) else {
+            return;
+        };
 
         t.text = self.text.clone();
         t.x = self.x;
@@ -109,6 +131,10 @@ impl Widget for Text {
 
     fn set_dirty(&mut self, dirty: bool) {
         self.dirty = dirty;
+    }
+
+    fn bounds(&self) -> (f32, f32, f32, f32) {
+        (self.x, self.y, self.w, self.h)
     }
 }
 

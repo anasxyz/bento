@@ -79,15 +79,20 @@ impl ApplicationHandler<BentoEvent> for App {
                 win.ui.process_input();
 
                 if win.ui.any_dirty() {
-                    win.ui.update();
-                    win.renderer.render(
-                        ctx,
-                        &mut win.font_system,
-                        &mut win.surface,
-                        win.config.clear_color,
-                        win.ui.scene_mut(),
-                    );
+                    let mut measurer =
+                        CosmicTextMeasurer::new(&mut win.font_system, &mut win.measure_cache);
+                    win.ui.update(&mut measurer);
                 }
+
+                // always render regardless of dirty state
+                // to avoid resize flickering
+                win.renderer.render(
+                    ctx,
+                    &mut win.font_system,
+                    &mut win.surface,
+                    win.config.clear_color,
+                    win.ui.scene_mut(),
+                );
 
                 win.ui.input.mouse.clear();
                 win.ui.input.keyboard.clear();

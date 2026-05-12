@@ -2,7 +2,7 @@ use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::fmt;
 
-use bento_shared::Scene;
+use bento_shared::{Scene, TextMeasurer};
 
 use super::AsyncEventQueue;
 use super::{
@@ -148,11 +148,12 @@ impl Ui {
 
     /// Updates all widgets.
     /// Dirty widgets are updated and then marked clean.
-    pub fn update(&mut self) {
+    // after
+    pub fn update(&mut self, measurer: &mut dyn TextMeasurer) {
         for slot in self.slots.iter_mut() {
             if let Some(s) = slot.as_mut() {
                 if s.widget.is_dirty() {
-                    s.widget.update(&mut self.scene);
+                    s.widget.update(&mut self.scene, measurer);
                     s.widget.set_dirty(false);
                 }
             }

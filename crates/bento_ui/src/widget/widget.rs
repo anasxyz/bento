@@ -1,6 +1,7 @@
 use std::any::Any;
 
 use bento_shared::Scene;
+use bento_shared::TextMeasurer;
 
 use crate::Ui;
 
@@ -19,7 +20,7 @@ pub trait Widget: AsAny {
     fn build(&mut self, scene: &mut Scene);
 
     /// Allows widgets to update their SceneNode(s)
-    fn update(&mut self, scene: &mut Scene);
+    fn update(&mut self, scene: &mut Scene, measurer: &mut dyn TextMeasurer);
 
     /// Allows widgets to remove their SceneNode(s)
     fn remove(&mut self, scene: &mut Scene);

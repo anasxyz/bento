@@ -1,6 +1,7 @@
 use std::any::Any;
 
 use bento_shared::{RectNode, Scene, SceneNode, SceneNodeId};
+use bento_shared::TextMeasurer;
 
 use crate::{AsAny, Widget};
 
@@ -95,7 +96,7 @@ impl Widget for Rect {
         self.rect_id = Some(scene.add_rect(node));
     }
 
-    fn update(&mut self, scene: &mut Scene) {
+    fn update(&mut self, scene: &mut Scene, _measurer: &mut dyn TextMeasurer) {
         println!("rect update x={} y={}", self.x, self.y);
         // Return if no SceneNodeId is set
         // If that's the case, build() was not called or something went wrong
