@@ -16,6 +16,11 @@ pub struct Text {
     size: f32,
     color: [f32; 4],
 
+    focusable: bool,
+    focused: bool,
+    hoverable: bool,
+    hovered: bool,
+
     text_id: Option<SceneNodeId>,
 }
 
@@ -30,6 +35,10 @@ impl Text {
             h: 0.0,
             size,
             color: [1.0, 1.0, 1.0, 1.0],
+            focusable: true,
+            focused: false,
+            hoverable: true,
+            hovered: false,
             text_id: None,
         }
     }
@@ -77,6 +86,14 @@ impl Text {
     pub fn set_color(&mut self, color: [f32; 4]) {
         self.color = color;
         self.dirty = true;
+    }
+
+    pub fn set_focusable(&mut self, focusable: bool) {
+        self.focusable = focusable;
+    }
+
+    pub fn set_hoverable(&mut self, hoverable: bool) {
+        self.hoverable = hoverable;
     }
 }
 
@@ -131,6 +148,26 @@ impl Widget for Text {
 
     fn set_dirty(&mut self, dirty: bool) {
         self.dirty = dirty;
+    }
+
+    fn focusable(&self) -> bool {
+        self.focusable
+    }
+    fn is_focused(&self) -> bool {
+        self.focused
+    }
+    fn set_focused(&mut self, focused: bool) {
+        self.focused = focused;
+    }
+
+    fn hoverable(&self) -> bool {
+        self.hoverable
+    }
+    fn is_hovered(&self) -> bool {
+        self.hovered
+    }
+    fn set_hovered(&mut self, hovered: bool) {
+        self.hovered = hovered;
     }
 
     fn bounds(&self) -> (f32, f32, f32, f32) {

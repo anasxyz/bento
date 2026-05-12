@@ -7,10 +7,11 @@ fn main() {
     let mut app = App::new();
     let mut ui = Ui::new();
 
-    let text = ui.add(Text::new("Hello, world!", 100.0, 100.0, 32.0));
+    let button = ui.add(Button::new("Click me!", 100.0, 100.0, 100.0, 32.0));
 
-    ui.listen(text, |e: &Click, _ui| {
-        println!("clicked");
+    ui.listen(button, move |e: &Click, ui| {
+        let old_w = ui.get(button).unwrap().w();
+        ui.get_mut(button).unwrap().set_w(old_w + 10.0);
     });
 
     app.open_window(WindowConfig::default(), ui);
