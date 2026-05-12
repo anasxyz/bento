@@ -51,7 +51,7 @@ pub struct Ui {
     pending_removals: Vec<u64>,
 
     pub input: Input,
-    pub events: AsyncEventQueue,
+    pub asyncs: AsyncEventQueue,
 }
 
 impl Ui {
@@ -65,7 +65,7 @@ impl Ui {
             pending_events: Vec::new(),
             pending_removals: Vec::new(),
             input: Input::new(),
-            events: AsyncEventQueue::new(),
+            asyncs: AsyncEventQueue::new(),
         }
     }
 

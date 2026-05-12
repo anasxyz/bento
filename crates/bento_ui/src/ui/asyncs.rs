@@ -121,10 +121,10 @@ impl Ui {
     /// Fires a callback.
     /// Async related.
     pub fn fire_callback(&mut self, id: u64) {
-        if let Some(callback) = self.events.callbacks.remove(&id) {
+        if let Some(callback) = self.asyncs.callbacks.remove(&id) {
             callback(self);
         } else {
-            let callback = self.events.async_callbacks.lock().unwrap().remove(&id);
+            let callback = self.asyncs.async_callbacks.lock().unwrap().remove(&id);
             if let Some(callback) = callback {
                 callback(self);
             }

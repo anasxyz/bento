@@ -42,11 +42,11 @@ impl App {
         let proxy = event_loop.create_proxy();
         for (_, ui) in &mut self.pending {
             let proxy = proxy.clone();
-            ui.events.set_sender(Arc::new(move |id| {
+            ui.asyncs.set_sender(Arc::new(move |id| {
                 proxy.send_event(BentoEvent::Callback(id)).ok();
             }));
             let handle = self.runtime.handle().clone();
-            ui.events.set_spawner(Arc::new(move |fut| {
+            ui.asyncs.set_spawner(Arc::new(move |fut| {
                 handle.spawn(fut);
             }));
         }
