@@ -19,7 +19,9 @@ pub struct Slot {
 pub struct Ui {
     scene: Scene,
     slots: Vec<Option<Slot>>,
-    connections: HashMap<Option<u32>, Vec<(TypeId, Box<dyn Fn(&dyn Any, &mut Ui)>)>>,
+    connections: HashMap<Option<u32>, Vec<(u64, TypeId, Box<dyn Fn(&dyn Any, &mut Ui)>)>>,
+    next_connection_id: u64,
+    pending_removals: Vec<(Option<u32>, u64)>,
 
     // Input stuff
     // Controls state for Mouse, Keyboard, etc.
@@ -35,6 +37,8 @@ impl Ui {
             scene: Scene::new(),
             slots: Vec::new(),
             connections: HashMap::new(),
+            next_connection_id: 0,
+            pending_removals: Vec::new(),
 
             input: Input::new(),
 
@@ -185,6 +189,12 @@ impl Ui {
     }
 }
 
+/// Connection handle for managing connections
+pub struct ConnectionHandle {
+    slot_id: Option<u32>,
+    id: u64,
+}
+
 /// Event stuff
 /// Moved to separate impl block purely for organisation
 impl Ui {
@@ -225,16 +235,21 @@ impl Ui {
     }
 
     /// Listens for events of type E on widget with handle.
-    pub fn on<W: Widget + 'static, E: 'static>(
+    pub fn listen<W: Widget + 'static, E: 'static>(
         &mut self,
         handle: WidgetHandle<W>,
         f: impl Fn(&E, &mut Ui) + 'static,
-    ) {
+    ) -> ConnectionHandle {
+        // Assign a unique id to this connection
+        let id = self.next_connection_id;
+        self.next_connection_id += 1;
+
         self.connections
             // Use Some(handle.id) as key to associate this handler with a specific widget
             .entry(Some(handle.id))
             .or_insert_with(Vec::new)
             .push((
+                id,
                 // Store the TypeId of E so dispatch can filter by event type
                 TypeId::of::<E>(),
                 // Wrap the closure in a type erased box
@@ -245,16 +260,57 @@ impl Ui {
                     }
                 }),
             ));
+        ConnectionHandle {
+            slot_id: Some(handle.id),
+            id,
+        }
+    }
+
+    /// Listens for events of type E on widget with handle only once.
+    ///
+    /// After the first event is fired, the connection is removed.
+    pub fn listen_once<W: Widget + 'static, E: 'static>(
+        &mut self,
+        handle: WidgetHandle<W>,
+        f: impl Fn(&E, &mut Ui) + 'static,
+    ) -> ConnectionHandle {
+        let id = self.next_connection_id;
+        self.next_connection_id += 1;
+
+        let slot_id = Some(handle.id);
+        self.connections
+            .entry(slot_id)
+            .or_insert_with(Vec::new)
+            .push((
+                id,
+                TypeId::of::<E>(),
+                Box::new(move |event, ui| {
+                    if let Some(e) = event.downcast_ref::<E>() {
+                        f(e, ui);
+                        // Remove this connection after the first event is fired
+                        ui.listen_off(ConnectionHandle { slot_id, id });
+                    }
+                }),
+            ));
+        ConnectionHandle { slot_id, id }
     }
 
     /// Listens for events of type E on any widget.
-    pub fn on_any<E: 'static>(&mut self, f: impl Fn(&E, &mut Ui) + 'static) {
+    pub fn listen_any<E: 'static>(
+        &mut self,
+        f: impl Fn(&E, &mut Ui) + 'static,
+    ) -> ConnectionHandle {
+        // Assign a unique id to this connection
+        let id = self.next_connection_id;
+        self.next_connection_id += 1;
+
         self.connections
             // Use None as key to signify this is a global handler
             // dispatch_global will pick these up
             .entry(None)
             .or_insert_with(Vec::new)
             .push((
+                id,
                 // Store the TypeId of E so dispatch can filter by event type
                 TypeId::of::<E>(),
                 // Wrap the closure in a type erased box
@@ -265,6 +321,36 @@ impl Ui {
                     }
                 }),
             ));
+        ConnectionHandle { slot_id: None, id }
+    }
+
+    /// Listens for events of type E on any widget only once.
+    ///
+    /// After the first event is fired, the connection is removed.
+    pub fn listen_any_once<E: 'static>(
+        &mut self,
+        f: impl Fn(&E, &mut Ui) + 'static,
+    ) -> ConnectionHandle {
+        let id = self.next_connection_id;
+        self.next_connection_id += 1;
+
+        self.connections.entry(None).or_insert_with(Vec::new).push((
+            id,
+            TypeId::of::<E>(),
+            Box::new(move |event, ui| {
+                if let Some(e) = event.downcast_ref::<E>() {
+                    f(e, ui);
+                    // Remove this connection after the first event is fired
+                    ui.listen_off(ConnectionHandle { slot_id: None, id });
+                }
+            }),
+        ));
+        ConnectionHandle { slot_id: None, id }
+    }
+
+    /// Removes a connection from the UI.
+    pub fn listen_off(&mut self, handle: ConnectionHandle) {
+        self.pending_removals.push((handle.slot_id, handle.id));
     }
 
     /// Fires correct handlers for widget and event type.
@@ -284,7 +370,7 @@ impl Ui {
         // Get widget specific handlers
         if let Some(handlers) = connections.get(&Some(slot_id)) {
             // Iterate over all handlers registered to the widget
-            for (tid, f) in handlers {
+            for (_, tid, f) in handlers {
                 // Filter out handlers that don't match the event type
                 if *tid == type_id {
                     f(event, self);
@@ -293,6 +379,13 @@ impl Ui {
         }
 
         self.connections = connections;
+
+        // Apply any pending removals requested during dispatch
+        for (slot_id, id) in self.pending_removals.drain(..) {
+            if let Some(vec) = self.connections.get_mut(&slot_id) {
+                vec.retain(|(cid, _, _)| *cid != id);
+            }
+        }
     }
 
     /// Fires handlers registered globally.
@@ -307,7 +400,7 @@ impl Ui {
 
         // Get handlers registered to no widget, which are meant for broadcasting
         if let Some(handlers) = connections.get(&None) {
-            for (tid, f) in handlers {
+            for (_, tid, f) in handlers {
                 if *tid == type_id {
                     f(event, self);
                 }
@@ -315,6 +408,13 @@ impl Ui {
         }
 
         self.connections = connections;
+
+        // Apply any pending removals requested during dispatch
+        for (slot_id, id) in self.pending_removals.drain(..) {
+            if let Some(vec) = self.connections.get_mut(&slot_id) {
+                vec.retain(|(cid, _, _)| *cid != id);
+            }
+        }
     }
 
     /// Emits an event from a widget.
