@@ -4,7 +4,7 @@ use std::fmt;
 
 use bento_shared::Scene;
 
-use super::EventQueue;
+use super::AsyncEventQueue;
 use super::{
     Click, FocusGained, FocusLost, HoverEnter, HoverLeave, KeyPress, KeyRelease, MouseDown,
     MouseEnter, MouseLeave, MouseMove, MouseScroll, MouseUp,
@@ -52,7 +52,7 @@ pub struct Ui {
     pending_removals: Vec<u64>,
 
     pub input: Input,
-    pub events: EventQueue,
+    pub events: AsyncEventQueue,
 }
 
 impl Ui {
@@ -66,7 +66,7 @@ impl Ui {
             pending_events: Vec::new(),
             pending_removals: Vec::new(),
             input: Input::new(),
-            events: EventQueue::new(),
+            events: AsyncEventQueue::new(),
         }
     }
 
@@ -173,19 +173,6 @@ impl Ui {
     /// Returns a mutable reference to the scene.
     pub fn scene_mut(&mut self) -> &mut Scene {
         &mut self.scene
-    }
-
-    /// Fires a callback.
-    /// Async related.
-    pub fn fire_callback(&mut self, id: u64) {
-        if let Some(callback) = self.events.callbacks.remove(&id) {
-            callback(self);
-        } else {
-            let callback = self.events.async_callbacks.lock().unwrap().remove(&id);
-            if let Some(callback) = callback {
-                callback(self);
-            }
-        }
     }
 }
 

@@ -3,7 +3,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
-use crate::Ui;
+use super::Ui;
 
 /// Main orchestrator for async tasks.
 ///
@@ -13,7 +13,7 @@ use crate::Ui;
 /// - Gets sent to the tokio runtime to run in the background
 /// - When it finishes it stores its callback in a HashMap under that ID and notifies the main thread
 /// - Main thread looks it up and runs it
-pub struct EventQueue {
+pub struct AsyncEventQueue {
     /// The winit proxy wrapped in a closure
     /// Set up once at the start
     shared_sender: Arc<Mutex<Option<Arc<dyn Fn(u64) + Send + Sync>>>>,
@@ -37,7 +37,7 @@ pub struct EventQueue {
     spawner: Option<Arc<dyn Fn(Pin<Box<dyn Future<Output = ()> + Send>>) + Send + Sync>>,
 }
 
-impl EventQueue {
+impl AsyncEventQueue {
     pub fn new() -> Self {
         Self {
             shared_sender: Arc::new(Mutex::new(None)),
@@ -114,5 +114,20 @@ impl EventQueue {
             tokio::time::sleep(std::time::Duration::from_secs_f32(duration)).await;
             callback
         });
+    }
+}
+
+impl Ui {
+    /// Fires a callback.
+    /// Async related.
+    pub fn fire_callback(&mut self, id: u64) {
+        if let Some(callback) = self.events.callbacks.remove(&id) {
+            callback(self);
+        } else {
+            let callback = self.events.async_callbacks.lock().unwrap().remove(&id);
+            if let Some(callback) = callback {
+                callback(self);
+            }
+        }
     }
 }
