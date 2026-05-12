@@ -51,7 +51,6 @@ impl Keyboard {
     }
 
     pub fn clear(&mut self) {
-        println!("clear");
         self.just_pressed.clear();
         self.just_released.clear();
     }

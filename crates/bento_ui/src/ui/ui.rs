@@ -1,10 +1,13 @@
+use std::any::{Any, TypeId};
+use std::collections::HashMap;
 use std::fmt;
 
 use bento_shared::Scene;
 
 use super::EventQueue;
-use crate::{Widget, WidgetHandle};
+use super::{KeyPress, KeyRelease};
 use crate::Input;
+use crate::{Widget, WidgetHandle};
 
 /// Slot in the UI where a widget lives.
 pub struct Slot {
@@ -16,6 +19,7 @@ pub struct Slot {
 pub struct Ui {
     scene: Scene,
     slots: Vec<Option<Slot>>,
+    connections: HashMap<Option<u32>, Vec<(TypeId, Box<dyn Fn(&dyn Any, &mut Ui)>)>>,
 
     // Input stuff
     // Controls state for Mouse, Keyboard, etc.
@@ -30,6 +34,8 @@ impl Ui {
         Self {
             scene: Scene::new(),
             slots: Vec::new(),
+            connections: HashMap::new(),
+
             input: Input::new(),
 
             events: EventQueue::new(),
@@ -140,15 +146,17 @@ impl Ui {
     /// Per frame tick.
     ///
     /// Goes through all widgets and calls their update() method.
+    /// Processes input.
     ///
     /// TODO: add dirty tacking to only update widgets that have changed.
     pub fn update(&mut self) {
         for slot in self.slots.iter_mut() {
             if let Some(s) = slot.as_mut() {
-                println!("update {}", s.widget.name());
                 s.widget.update(&mut self.scene);
             }
         }
+
+        self.process_input();
     }
 
     /// Returns a reference to the scene.
@@ -174,6 +182,147 @@ impl Ui {
                 callback(self);
             }
         }
+    }
+}
+
+/// Event stuff
+/// Moved to separate impl block purely for organisation
+impl Ui {
+    fn process_input(&mut self) {
+        let key_presses: Vec<KeyPress> = self
+            .input
+            .keyboard
+            .just_pressed()
+            .iter()
+            .map(|(key, ch)| KeyPress { key: *key, ch: *ch })
+            .collect();
+
+        let key_releases: Vec<KeyRelease> = self
+            .input
+            .keyboard
+            .just_released()
+            .iter()
+            .map(|key| KeyRelease { key: *key })
+            .collect();
+
+        let slot_ids: Vec<u32> = self.connections.keys().filter_map(|k| *k).collect();
+
+        for slot_id in &slot_ids {
+            for event in &key_presses {
+                self.dispatch_by_id(*slot_id, event);
+            }
+            for event in &key_releases {
+                self.dispatch_by_id(*slot_id, event);
+            }
+        }
+
+        for event in &key_presses {
+            self.dispatch_global(event);
+        }
+        for event in &key_releases {
+            self.dispatch_global(event);
+        }
+    }
+
+    /// Listens for events of type E on widget with handle.
+    pub fn on<W: Widget + 'static, E: 'static>(
+        &mut self,
+        handle: WidgetHandle<W>,
+        f: impl Fn(&E, &mut Ui) + 'static,
+    ) {
+        self.connections
+            // Use Some(handle.id) as key to associate this handler with a specific widget
+            .entry(Some(handle.id))
+            .or_insert_with(Vec::new)
+            .push((
+                // Store the TypeId of E so dispatch can filter by event type
+                TypeId::of::<E>(),
+                // Wrap the closure in a type erased box
+                // Downcast &dyn Any back to &E before calling the user's closure
+                Box::new(move |event, ui| {
+                    if let Some(e) = event.downcast_ref::<E>() {
+                        f(e, ui);
+                    }
+                }),
+            ));
+    }
+
+    /// Listens for events of type E on any widget.
+    pub fn on_any<E: 'static>(&mut self, f: impl Fn(&E, &mut Ui) + 'static) {
+        self.connections
+            // Use None as key to signify this is a global handler
+            // dispatch_global will pick these up
+            .entry(None)
+            .or_insert_with(Vec::new)
+            .push((
+                // Store the TypeId of E so dispatch can filter by event type
+                TypeId::of::<E>(),
+                // Wrap the closure in a type erased box
+                // Downcast &dyn Any back to &E before calling the user's closure
+                Box::new(move |event, ui| {
+                    if let Some(e) = event.downcast_ref::<E>() {
+                        f(e, ui);
+                    }
+                }),
+            ));
+    }
+
+    /// Fires correct handlers for widget and event type.
+    ///
+    /// Searches the UI's connections for handlers registered to the widget with
+    /// the provided slot_id
+    /// If found any, it checks if the type_id of the event matches the type_id
+    /// of the handler's type parameter, meaning it's the exact same event type.
+    /// This skips the handlers that don't match the event being disptached at the moment.
+    /// Finally iterate over and call the handlers.
+    fn dispatch_by_id(&mut self, slot_id: u32, event: &dyn Any) {
+        let connections = std::mem::take(&mut self.connections);
+
+        // Type id of this event's struct
+        let type_id = event.type_id();
+
+        // Get widget specific handlers
+        if let Some(handlers) = connections.get(&Some(slot_id)) {
+            // Iterate over all handlers registered to the widget
+            for (tid, f) in handlers {
+                // Filter out handlers that don't match the event type
+                if *tid == type_id {
+                    f(event, self);
+                }
+            }
+        }
+
+        self.connections = connections;
+    }
+
+    /// Fires handlers registered globally.
+    ///
+    /// Works similarly to Ui::dispatch_by_id(), but instead of searching for a widget with the provided
+    /// slot_id, it searches for a handler registered to no widget.
+    fn dispatch_global(&mut self, event: &dyn Any) {
+        let connections = std::mem::take(&mut self.connections);
+
+        // Type id of this event's struct
+        let type_id = event.type_id();
+
+        // Get handlers registered to no widget, which are meant for broadcasting
+        if let Some(handlers) = connections.get(&None) {
+            for (tid, f) in handlers {
+                if *tid == type_id {
+                    f(event, self);
+                }
+            }
+        }
+
+        self.connections = connections;
+    }
+
+    /// Emits an event from a widget.
+    ///
+    /// Purely for convenience.
+    /// This is the same as calling Ui::dispatch_by_id() with the widget's id.
+    pub fn emit<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>, event: &dyn Any) {
+        self.dispatch_by_id(handle.id, event);
     }
 }
 

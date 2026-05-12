@@ -75,9 +75,6 @@ impl ApplicationHandler<BentoEvent> for App {
 
         match event {
             WindowEvent::RedrawRequested => {
-                win.ui.input.mouse.clear();
-                win.ui.input.keyboard.clear();
-
                 win.ui.update();
 
                 let clear = win.config.clear_color;
@@ -88,6 +85,9 @@ impl ApplicationHandler<BentoEvent> for App {
                     clear,
                     win.ui.scene_mut(),
                 );
+
+                win.ui.input.mouse.clear();
+                win.ui.input.keyboard.clear();
             }
 
             WindowEvent::KeyboardInput {

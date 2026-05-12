@@ -11,4 +11,4 @@ use input::Input;
 pub use ui::{Ui};
 pub use widget::{Rect};
 pub use input::Key;
-
+pub use ui::events::{KeyPress, KeyRelease, Click, Hover};
