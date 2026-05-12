@@ -21,14 +21,13 @@ pub struct Slot {
 struct Listener {
     id: u64,
     type_id: TypeId,
-    once: bool,
-    f: Box<dyn FnMut(&dyn Any, &mut Ui)>,
+    f: Box<dyn FnMut(&dyn Any, &mut Ui) -> bool>,
 }
 
 /// A pending event waiting to be dispatched.
 struct PendingEvent {
     // None = global
-    target: Option<u32>, 
+    target: Option<u32>,
     event: Box<dyn Any>,
     type_id: TypeId,
 }
@@ -185,18 +184,15 @@ impl Ui {
         &mut self,
         target: Option<u32>,
         type_id: TypeId,
-        once: bool,
-        f: Box<dyn FnMut(&dyn Any, &mut Ui)>,
+        f: Box<dyn FnMut(&dyn Any, &mut Ui) -> bool>,
     ) -> ListenerHandle {
         let id = self.next_listener_id;
         self.next_listener_id += 1;
 
-        self.listeners.entry(target).or_default().push(Listener {
-            id,
-            type_id,
-            once,
-            f,
-        });
+        self.listeners
+            .entry(target)
+            .or_default()
+            .push(Listener { id, type_id, f });
 
         ListenerHandle { target, id }
     }
@@ -211,11 +207,11 @@ impl Ui {
         self.register(
             Some(handle.id),
             TypeId::of::<E>(),
-            false,
             Box::new(move |event, ui| {
                 if let Some(e) = event.downcast_ref::<E>() {
                     f(e, ui);
                 }
+                true
             }),
         )
     }
@@ -230,11 +226,30 @@ impl Ui {
         self.register(
             Some(handle.id),
             TypeId::of::<E>(),
-            true,
             Box::new(move |event, ui| {
                 if let Some(e) = event.downcast_ref::<E>() {
                     f(e, ui);
                 }
+                false
+            }),
+        )
+    }
+
+    /// Listen for event E on a specific widget while the closure returns true.
+    /// Returns a handle to the listener.
+    pub fn listen_while<W: Widget + 'static, E: 'static>(
+        &mut self,
+        handle: WidgetHandle<W>,
+        mut f: impl FnMut(&E, &mut Ui) -> bool + 'static,
+    ) -> ListenerHandle {
+        self.register(
+            Some(handle.id),
+            TypeId::of::<E>(),
+            Box::new(move |event, ui| {
+                if let Some(e) = event.downcast_ref::<E>() {
+                    return f(e, ui);
+                }
+                true
             }),
         )
     }
@@ -248,11 +263,11 @@ impl Ui {
         self.register(
             None,
             TypeId::of::<E>(),
-            false,
             Box::new(move |event, ui| {
                 if let Some(e) = event.downcast_ref::<E>() {
                     f(e, ui);
                 }
+                true
             }),
         )
     }
@@ -266,11 +281,29 @@ impl Ui {
         self.register(
             None,
             TypeId::of::<E>(),
-            true,
             Box::new(move |event, ui| {
                 if let Some(e) = event.downcast_ref::<E>() {
                     f(e, ui);
                 }
+                false
+            }),
+        )
+    }
+
+    /// Listen for event E globally while the closure returns true.
+    /// Returns a handle to the listener.
+    pub fn listen_any_while<E: 'static>(
+        &mut self,
+        mut f: impl FnMut(&E, &mut Ui) -> bool + 'static,
+    ) -> ListenerHandle {
+        self.register(
+            None,
+            TypeId::of::<E>(),
+            Box::new(move |event, ui| {
+                if let Some(e) = event.downcast_ref::<E>() {
+                    return f(e, ui);
+                }
+                true
             }),
         )
     }
@@ -316,8 +349,8 @@ impl Ui {
 
         for mut listener in listeners {
             if listener.type_id == pending.type_id {
-                (listener.f)(pending.event.as_ref(), self);
-                if !listener.once {
+                let keep = (listener.f)(pending.event.as_ref(), self);
+                if keep {
                     remaining.push(listener);
                 }
             } else {

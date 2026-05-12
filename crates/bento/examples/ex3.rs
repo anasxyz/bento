@@ -6,14 +6,15 @@ fn main() {
 
     let button = ui.add(Rect::new(50.0, 50.0, 100.0, 40.0));
 
+    ui.listen(button, move |_e: &Click, _ui| {
+        println!("clicked");
+    });
+
     let mut count = 0;
-    let conn = ui.listen(button, move |_e: &Click, ui| {
+    ui.listen_while(button, move |_e: &Click, _ui| {
         count += 1;
-        println!("click {}", count);
-        if count == 3 {
-            println!("unsubscribing");
-            ui.listen_off(conn);
-        }
+        println!("listen_while click {}", count);
+        return count < 3;
     });
 
     app.open_window(WindowConfig::default(), ui);
