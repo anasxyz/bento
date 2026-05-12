@@ -159,7 +159,10 @@ impl Ui {
 
         for slot in self.slots.iter_mut() {
             if let Some(s) = slot.as_mut() {
-                s.widget.update(&mut self.scene);
+                if s.widget.is_dirty() {
+                    s.widget.update(&mut self.scene);
+                    s.widget.set_dirty(false);
+                }
             }
         }
     }

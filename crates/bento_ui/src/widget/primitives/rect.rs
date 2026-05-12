@@ -6,10 +6,12 @@ use crate::{AsAny, Widget};
 
 #[derive(Debug)]
 pub struct Rect {
-    pub x: f32,
-    pub y: f32,
-    pub w: f32,
-    pub h: f32,
+    pub dirty: bool,
+
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
 
     rect_id: Option<SceneNodeId>,
 }
@@ -17,6 +19,8 @@ pub struct Rect {
 impl Rect {
     pub fn new(x: f32, y: f32, w: f32, h: f32) -> Self {
         Self {
+            dirty: true,
+
             x,
             y,
             w,
@@ -24,6 +28,26 @@ impl Rect {
 
             rect_id: None,
         }
+    }
+
+    pub fn set_x(&mut self, x: f32) {
+        self.x = x;
+        self.dirty = true;
+    }
+
+    pub fn set_y(&mut self, y: f32) {
+        self.y = y;
+        self.dirty = true;
+    }
+
+    pub fn set_w(&mut self, w: f32) {
+        self.w = w;
+        self.dirty = true;
+    }
+
+    pub fn set_h(&mut self, h: f32) {
+        self.h = h;
+        self.dirty = true;
     }
 }
 
@@ -61,6 +85,16 @@ impl Widget for Rect {
         let Some(id) = self.rect_id else { return };
 
         scene.remove(id);
+    }
+
+    // TODO: add to proc macro
+    fn is_dirty(&self) -> bool {
+        self.dirty
+    }
+
+    // TODO: add to proc macro
+    fn set_dirty(&mut self, dirty: bool) {
+        self.dirty = dirty;
     }
 }
 
