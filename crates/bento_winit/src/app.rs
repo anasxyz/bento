@@ -99,7 +99,7 @@ impl ApplicationHandler<BentoEvent> for App {
 
                 win.ui.input.mouse.clear();
                 win.ui.input.keyboard.clear();
-               
+
                 // println!("redraw took {:?}", t1.elapsed());
             }
 
@@ -196,13 +196,13 @@ impl ApplicationHandler<BentoEvent> for App {
                 win.request_redraw();
             }
             WindowEvent::CursorMoved { position, .. } => {
-                let x = position.x as f32;
-                let y = position.y as f32;
+                let scale = win.surface.scale;
+                let x = position.x as f32 / scale;
+                let y = position.y as f32 / scale;
                 win.ui.input.mouse.dx = x - win.ui.input.mouse.x;
                 win.ui.input.mouse.dy = y - win.ui.input.mouse.y;
                 win.ui.input.mouse.x = x;
                 win.ui.input.mouse.y = y;
-
                 win.request_redraw();
             }
             WindowEvent::CursorEntered { .. } => {
