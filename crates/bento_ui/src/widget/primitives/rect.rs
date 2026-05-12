@@ -38,6 +38,7 @@ impl Widget for Rect {
     }
 
     fn update(&mut self, scene: &mut Scene) {
+        println!("rect update x={} y={}", self.x, self.y);
         // Return if no SceneNodeId is set
         // If that's the case, build() was not called or something went wrong
         let Some(id) = self.rect_id else { return };

@@ -1,5 +1,6 @@
 use std::fmt;
 
+#[derive(Debug, Copy, Clone)]
 pub enum MouseButton {
     Left,
     Right,
@@ -27,6 +28,8 @@ pub struct Mouse {
     pub middle: MouseButtonState,
 
     pub inside_window: bool,
+    pub just_entered: bool,
+    pub just_left: bool,
 }
 
 impl Mouse {
@@ -60,6 +63,8 @@ impl Mouse {
             },
 
             inside_window: false,
+            just_entered: false,
+            just_left: false,
         }
     }
 
@@ -78,6 +83,9 @@ impl Mouse {
 
         self.middle.just_pressed = false;
         self.middle.just_released = false;
+
+        self.just_entered = false;
+        self.just_left = false;
     }
 }
 

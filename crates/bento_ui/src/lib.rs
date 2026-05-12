@@ -6,9 +6,9 @@ mod widget;
 mod input;
 
 use widget::{Widget, WidgetHandle, AsAny};
-use input::Input;
+use input::{Input};
 
 pub use ui::{Ui};
 pub use widget::{Rect};
-pub use input::Key;
-pub use ui::events::{KeyPress, KeyRelease, Click, Hover};
+pub use input::{MouseButton, Key};
+pub use ui::events::{KeyPress, KeyRelease, Click, Hover, MouseMove, MouseDown, MouseUp, MouseScroll, MouseEnter, MouseLeave};

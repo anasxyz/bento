@@ -194,9 +194,11 @@ impl ApplicationHandler<BentoEvent> for App {
             }
             WindowEvent::CursorEntered { .. } => {
                 win.ui.input.mouse.inside_window = true;
+                win.ui.input.mouse.just_entered = true;
             }
             WindowEvent::CursorLeft { .. } => {
                 win.ui.input.mouse.inside_window = false;
+                win.ui.input.mouse.just_left = true;
             }
 
             WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {

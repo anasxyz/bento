@@ -5,9 +5,10 @@ use std::fmt;
 use bento_shared::Scene;
 
 use super::EventQueue;
-use super::{KeyPress, KeyRelease};
-use crate::Input;
-use crate::{Widget, WidgetHandle};
+use super::{
+    KeyPress, KeyRelease, MouseDown, MouseEnter, MouseLeave, MouseMove, MouseScroll, MouseUp, Click
+};
+use crate::{Input, MouseButton, Widget, WidgetHandle};
 
 /// Slot in the UI where a widget lives.
 pub struct Slot {
@@ -199,6 +200,7 @@ pub struct ConnectionHandle {
 /// Moved to separate impl block purely for organisation
 impl Ui {
     fn process_input(&mut self) {
+        // keyboard
         let key_presses: Vec<KeyPress> = self
             .input
             .keyboard
@@ -215,8 +217,90 @@ impl Ui {
             .map(|key| KeyRelease { key: *key })
             .collect();
 
+        // mouse move
+        let mouse_move = if self.input.mouse.dx != 0.0 || self.input.mouse.dy != 0.0 {
+            Some(MouseMove {
+                x: self.input.mouse.x,
+                y: self.input.mouse.y,
+                dx: self.input.mouse.dx,
+                dy: self.input.mouse.dy,
+            })
+        } else {
+            None
+        };
+
+        // mouse down/up
+        let mut mouse_downs: Vec<MouseDown> = Vec::new();
+        let mut mouse_ups: Vec<MouseUp> = Vec::new();
+        for btn in [MouseButton::Left, MouseButton::Middle, MouseButton::Right] {
+            let state = match btn {
+                MouseButton::Left => &self.input.mouse.left,
+                MouseButton::Right => &self.input.mouse.right,
+                MouseButton::Middle => &self.input.mouse.middle,
+            };
+            if state.just_pressed {
+                mouse_downs.push(MouseDown {
+                    x: self.input.mouse.x,
+                    y: self.input.mouse.y,
+                    button: btn,
+                });
+            }
+            if state.just_released {
+                mouse_ups.push(MouseUp {
+                    x: self.input.mouse.x,
+                    y: self.input.mouse.y,
+                    button: btn,
+                });
+            }
+        }
+
+        // click
+        let mut clicks: Vec<Click> = Vec::new();
+        for btn in [MouseButton::Left, MouseButton::Middle, MouseButton::Right] {
+            let state = match btn {
+                MouseButton::Left => &self.input.mouse.left,
+                MouseButton::Right => &self.input.mouse.right,
+                MouseButton::Middle => &self.input.mouse.middle,
+            };
+            if state.just_pressed {
+                mouse_downs.push(MouseDown {
+                    x: self.input.mouse.x,
+                    y: self.input.mouse.y,
+                    button: btn,
+                });
+            }
+            if state.just_released {
+                mouse_ups.push(MouseUp {
+                    x: self.input.mouse.x,
+                    y: self.input.mouse.y,
+                    button: btn,
+                });
+                clicks.push(Click {
+                    x: self.input.mouse.x,
+                    y: self.input.mouse.y,
+                    button: btn,
+                });
+            }
+        }
+
+        // mouse scroll
+        let mouse_scroll = if self.input.mouse.scroll_x != 0.0 || self.input.mouse.scroll_y != 0.0 {
+            Some(MouseScroll {
+                x: self.input.mouse.scroll_x,
+                y: self.input.mouse.scroll_y,
+            })
+        } else {
+            None
+        };
+
+        // mouse enter/leave window
+        let mouse_enter = self.input.mouse.just_entered;
+        let mouse_leave = self.input.mouse.just_left;
+
+        // collect slot ids once
         let slot_ids: Vec<u32> = self.connections.keys().filter_map(|k| *k).collect();
 
+        // dispatch to widget specific handlers
         for slot_id in &slot_ids {
             for event in &key_presses {
                 self.dispatch_by_id(*slot_id, event);
@@ -224,13 +308,56 @@ impl Ui {
             for event in &key_releases {
                 self.dispatch_by_id(*slot_id, event);
             }
+            if let Some(ref e) = mouse_move {
+                self.dispatch_by_id(*slot_id, e);
+            }
+            for event in &mouse_downs {
+                self.dispatch_by_id(*slot_id, event);
+            }
+            for event in &mouse_ups {
+                self.dispatch_by_id(*slot_id, event);
+            }
+            for event in &clicks {
+                self.dispatch_by_id(*slot_id, event);
+            }
+            if let Some(ref e) = mouse_scroll {
+                self.dispatch_by_id(*slot_id, e);
+            }
+            if mouse_enter {
+                self.dispatch_by_id(*slot_id, &MouseEnter);
+            }
+            if mouse_leave {
+                self.dispatch_by_id(*slot_id, &MouseLeave);
+            }
         }
 
+        // dispatch to global handlers
         for event in &key_presses {
             self.dispatch_global(event);
         }
         for event in &key_releases {
             self.dispatch_global(event);
+        }
+        if let Some(ref e) = mouse_move {
+            self.dispatch_global(e);
+        }
+        for event in &mouse_downs {
+            self.dispatch_global(event);
+        }
+        for event in &mouse_ups {
+            self.dispatch_global(event);
+        }
+        for event in &clicks {
+            self.dispatch_global(event);
+        }
+        if let Some(ref e) = mouse_scroll {
+            self.dispatch_global(e);
+        }
+        if mouse_enter {
+            self.dispatch_global(&MouseEnter);
+        }
+        if mouse_leave {
+            self.dispatch_global(&MouseLeave);
         }
     }
 
