@@ -257,7 +257,7 @@ impl Ui {
 
     /// Listen for event E globally.
     /// Returns a handle to the listener.
-    pub fn listen_any<E: 'static>(
+    pub fn listen_global<E: 'static>(
         &mut self,
         mut f: impl FnMut(&E, &mut Ui) + 'static,
     ) -> ListenerHandle {
@@ -275,7 +275,7 @@ impl Ui {
 
     /// Listen for event E globally, once.
     /// Returns a handle to the listener.
-    pub fn listen_any_once<E: 'static>(
+    pub fn listen_global_once<E: 'static>(
         &mut self,
         mut f: impl FnMut(&E, &mut Ui) + 'static,
     ) -> ListenerHandle {
@@ -293,7 +293,7 @@ impl Ui {
 
     /// Listen for event E globally while the closure returns true.
     /// Returns a handle to the listener.
-    pub fn listen_any_while<E: 'static>(
+    pub fn listen_global_while<E: 'static>(
         &mut self,
         mut f: impl FnMut(&E, &mut Ui) -> bool + 'static,
     ) -> ListenerHandle {

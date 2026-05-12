@@ -7,7 +7,7 @@ use winit::{
 };
 
 use crate::{config::WindowConfig, window::Window};
-use bento_ui::Ui;
+use bento_ui::{Ui, WindowResized};
 use bento_wgpu::RenderContext;
 
 use bento_shared::{BentoEvent, CosmicTextMeasurer};
@@ -218,6 +218,7 @@ impl ApplicationHandler<BentoEvent> for App {
                 win.resize(ctx);
                 let w = win.surface.width;
                 let h = win.surface.height;
+                win.ui.send_global(WindowResized { w, h });
                 win.needs_render = true;
                 win.request_redraw();
             }

@@ -21,6 +21,10 @@ fn main() {
         ui.get_mut(button).unwrap().set_label("Hover meeeeeeeeeee!");
     });
 
+    ui.listen_global(|e: &WindowResized, ui| {
+        println!("window resized");
+    });
+
     app.open_window(WindowConfig::default(), ui);
     app.run();
 }

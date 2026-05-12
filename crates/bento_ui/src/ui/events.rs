@@ -51,6 +51,12 @@ pub struct MouseScroll {
     pub y: f32,
 }
 
+#[derive(Clone, Copy)]
+pub struct WindowResized {
+    pub w: f32,
+    pub h: f32,
+}
+
 pub struct MouseEnter;
 
 pub struct MouseLeave;

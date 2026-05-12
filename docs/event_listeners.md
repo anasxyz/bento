@@ -1,11 +1,11 @@
 Ui::listen
 Ui::listen_once
 
-Ui::listen_any
-Ui::listen_any_once
+Ui::listen_global
+Ui::listen_global_once
 
 Ui::listen_while
-Ui::listen_any_while
+Ui::listen_global_while
 
 Ui::listen_off
 
