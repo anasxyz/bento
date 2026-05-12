@@ -107,3 +107,9 @@ pub enum Key {
 
     Unknown,
 }
+
+impl fmt::Display for Key {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "{:?}", self)
+    }
+}

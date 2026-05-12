@@ -9,9 +9,8 @@ fn main() {
 
     let rect = ui.add(Rect::new(0.0, 0.0, 100.0, 100.0));
 
-    // mouse move
-    ui.listen(rect, move |e: &Click, ui| {
-        println!("clicked rect");
+    ui.listen(rect, move |e: &FocusGained, ui| {
+        println!("focus gained");
     });
 
     app.open_window(WindowConfig::default(), ui);

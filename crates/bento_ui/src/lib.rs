@@ -11,4 +11,4 @@ use input::{Input};
 pub use ui::{Ui};
 pub use widget::{Rect};
 pub use input::{MouseButton, Key};
-pub use ui::events::{KeyPress, KeyRelease, Click, Hover, MouseMove, MouseDown, MouseUp, MouseScroll, MouseEnter, MouseLeave};
+pub use ui::events::{KeyPress, KeyRelease, Click, Hover, MouseMove, MouseDown, MouseUp, MouseScroll, MouseEnter, MouseLeave, FocusGained, FocusLost};

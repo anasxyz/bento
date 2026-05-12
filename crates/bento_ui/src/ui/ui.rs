@@ -6,7 +6,7 @@ use bento_shared::Scene;
 
 use super::EventQueue;
 use super::{
-    Click, KeyPress, KeyRelease, MouseDown, MouseEnter, MouseLeave, MouseMove, MouseScroll, MouseUp,
+    Click, KeyPress, KeyRelease, MouseDown, MouseEnter, MouseLeave, MouseMove, MouseScroll, MouseUp, FocusGained, FocusLost,
 };
 use crate::{Input, MouseButton, Widget, WidgetHandle};
 
@@ -20,6 +20,11 @@ pub struct Slot {
 pub struct Ui {
     scene: Scene,
     slots: Vec<Option<Slot>>,
+
+    // Focused widget slot id
+    focused: Option<u32>,
+
+    // Connections stuff
     connections: HashMap<Option<u32>, Vec<(u64, TypeId, Box<dyn Fn(&dyn Any, &mut Ui)>)>>,
     next_connection_id: u64,
     pending_removals: Vec<(Option<u32>, u64)>,
@@ -37,6 +42,9 @@ impl Ui {
         Self {
             scene: Scene::new(),
             slots: Vec::new(),
+
+            focused: None,
+
             connections: HashMap::new(),
             next_connection_id: 0,
             pending_removals: Vec::new(),
@@ -169,6 +177,22 @@ impl Ui {
         self.slots.iter().flatten().any(|s| s.widget.is_dirty())
     }
 
+    pub fn set_focus<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) {
+        // fire FocusLost on previously focused widget
+        if let Some(prev) = self.focused {
+            self.dispatch_by_id(prev, &FocusLost);
+        }
+        self.focused = Some(handle.id);
+        self.dispatch_by_id(handle.id, &FocusGained);
+    }
+
+    pub fn clear_focus(&mut self) {
+        if let Some(prev) = self.focused {
+            self.dispatch_by_id(prev, &FocusLost);
+        }
+        self.focused = None;
+    }
+
     /// Returns a reference to the scene.
     pub fn scene(&self) -> &Scene {
         &self.scene
@@ -267,19 +291,7 @@ impl Ui {
                 MouseButton::Right => &self.input.mouse.right,
                 MouseButton::Middle => &self.input.mouse.middle,
             };
-            if state.just_pressed {
-                mouse_downs.push(MouseDown {
-                    x: self.input.mouse.x,
-                    y: self.input.mouse.y,
-                    button: btn,
-                });
-            }
             if state.just_released {
-                mouse_ups.push(MouseUp {
-                    x: self.input.mouse.x,
-                    y: self.input.mouse.y,
-                    button: btn,
-                });
                 clicks.push(Click {
                     x: self.input.mouse.x,
                     y: self.input.mouse.y,
@@ -305,6 +317,16 @@ impl Ui {
         // collect slot ids once
         let slot_ids: Vec<u32> = self.connections.keys().filter_map(|k| *k).collect();
 
+        // keyboard only goes to focused widget
+        if let Some(focused_id) = self.focused {
+            for event in &key_presses {
+                self.dispatch_by_id(focused_id, event);
+            }
+            for event in &key_releases {
+                self.dispatch_by_id(focused_id, event);
+            }
+        }
+
         // dispatch to widget specific handlers
         for slot_id in &slot_ids {
             // get widget bounds for hit testing
@@ -319,12 +341,6 @@ impl Ui {
             };
 
             // non positional events dispatch without hit test
-            for event in &key_presses {
-                self.dispatch_by_id(*slot_id, event);
-            }
-            for event in &key_releases {
-                self.dispatch_by_id(*slot_id, event);
-            }
             if let Some(ref e) = mouse_scroll {
                 self.dispatch_by_id(*slot_id, e);
             }

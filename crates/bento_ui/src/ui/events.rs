@@ -47,3 +47,7 @@ pub struct MouseScroll {
 pub struct MouseEnter;
 
 pub struct MouseLeave;
+
+pub struct FocusGained;
+
+pub struct FocusLost;
