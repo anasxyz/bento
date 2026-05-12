@@ -13,7 +13,10 @@ pub struct Rect {
     w: f32,
     h: f32,
 
+    focusable: bool,
     focused: bool,
+    hoverable: bool,
+    hovered: bool,
 
     rect_id: Option<SceneNodeId>,
 }
@@ -28,7 +31,10 @@ impl Rect {
             w,
             h,
 
+            focusable: true,
             focused: false,
+            hoverable: true,
+            hovered: false,
 
             rect_id: None,
         }
@@ -68,6 +74,14 @@ impl Rect {
     pub fn set_h(&mut self, h: f32) {
         self.h = h;
         self.dirty = true;
+    }
+
+    pub fn set_focusable(&mut self, focusable: bool) {
+        self.focusable = focusable;
+    }
+
+    pub fn set_hoverable(&mut self, hoverable: bool) {
+        self.hoverable = hoverable;
     }
 }
 
@@ -118,7 +132,7 @@ impl Widget for Rect {
 
     // TODO: add to proc macro
     fn focusable(&self) -> bool {
-        true
+        self.focusable
     }
     // TODO: add to proc macro
     fn is_focused(&self) -> bool {
@@ -127,6 +141,19 @@ impl Widget for Rect {
     // TODO: add to proc macro
     fn set_focused(&mut self, focused: bool) {
         self.focused = focused;
+    }
+
+    // TODO: add to proc macro
+    fn hoverable(&self) -> bool {
+        self.hoverable
+    }
+    // TODO: add to proc macro
+    fn is_hovered(&self) -> bool {
+        self.hovered
+    }
+    // TODO: add to proc macro
+    fn set_hovered(&mut self, hovered: bool) {
+        self.hovered = hovered;
     }
 
     fn bounds(&self) -> (f32, f32, f32, f32) {

@@ -18,8 +18,6 @@ pub struct Click {
     pub button: MouseButton,
 }
 
-pub struct Hover {}
-
 pub struct MouseMove {
     pub x: f32,
     pub y: f32,
@@ -47,6 +45,10 @@ pub struct MouseScroll {
 pub struct MouseEnter;
 
 pub struct MouseLeave;
+
+pub struct HoverEnter;
+
+pub struct HoverLeave;
 
 pub struct FocusGained;
 

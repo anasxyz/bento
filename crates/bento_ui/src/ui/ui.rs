@@ -7,7 +7,7 @@ use bento_shared::Scene;
 use super::EventQueue;
 use super::{
     Click, FocusGained, FocusLost, KeyPress, KeyRelease, MouseDown, MouseEnter, MouseLeave,
-    MouseMove, MouseScroll, MouseUp,
+    MouseMove, MouseScroll, MouseUp, HoverEnter, HoverLeave,
 };
 use crate::{Input, MouseButton, Widget, WidgetHandle};
 
@@ -569,6 +569,23 @@ impl Ui {
             } else {
                 false
             };
+
+            // hover enter/leave
+            if hit {
+                if let Some(Some(slot)) = self.slots.get_mut(*slot_id as usize) {
+                    if slot.widget.hoverable() && !slot.widget.is_hovered() {
+                        slot.widget.set_hovered(true);
+                        self.dispatch_by_id(*slot_id, &HoverEnter);
+                    }
+                }
+            } else {
+                if let Some(Some(slot)) = self.slots.get_mut(*slot_id as usize) {
+                    if slot.widget.hoverable() && slot.widget.is_hovered() {
+                        slot.widget.set_hovered(false);
+                        self.dispatch_by_id(*slot_id, &HoverLeave);
+                    }
+                }
+            }
 
             // non positional events
             if let Some(ref e) = events.mouse_scroll {

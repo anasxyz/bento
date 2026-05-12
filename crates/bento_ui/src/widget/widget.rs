@@ -37,6 +37,15 @@ pub trait Widget: AsAny {
     }
     fn set_focused(&mut self, focused: bool) {}
 
+    /// Allows widgets to update their hover "settings"
+    fn hoverable(&self) -> bool {
+        false
+    }
+    fn is_hovered(&self) -> bool {
+        false
+    }
+    fn set_hovered(&mut self, hovered: bool) {}
+
     /// Allows widgets to specify their bounds
     fn bounds(&self) -> (f32, f32, f32, f32) {
         (0.0, 0.0, 0.0, 0.0)
