@@ -9,16 +9,8 @@ fn main() {
 
     let rect = ui.add(Rect::new(0.0, 0.0, 100.0, 100.0));
 
-    let conn = ui.on_any(move |e: &KeyPress, ui| {
-        let key = e.key;
-        ui.events.spawn(async move {
-            // async work here
-            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-            // return a closure that runs on main thread
-            move |ui: &mut Ui| {
-                println!("key={:?}", key);
-            }
-        });
+    let conn = ui.listen_any(move |e: &KeyPress, ui| {
+        println!("key={:?}", e.key);
     });
 
     app.open_window(WindowConfig::default(), ui);
