@@ -15,6 +15,7 @@ pub struct Window {
     pub ui: Ui,
     window: Arc<winit::window::Window>,
     pub last_frame: Option<std::time::Instant>,
+    pub needs_render: bool,
 }
 
 impl Window {
@@ -52,6 +53,7 @@ impl Window {
             ui,
             window,
             last_frame: None,
+            needs_render: false,
         }
     }
 

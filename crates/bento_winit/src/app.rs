@@ -78,24 +78,29 @@ impl ApplicationHandler<BentoEvent> for App {
                 let t1 = std::time::Instant::now();
                 win.ui.process_input();
 
-                if win.ui.any_dirty() {
+                let dirty = win.ui.any_dirty();
+
+                if dirty {
                     let mut measurer =
                         CosmicTextMeasurer::new(&mut win.font_system, &mut win.measure_cache);
                     win.ui.update(&mut measurer);
                 }
 
-                // always render regardless of dirty state
-                // to avoid resize flickering
-                win.renderer.render(
-                    ctx,
-                    &mut win.font_system,
-                    &mut win.surface,
-                    win.config.clear_color,
-                    win.ui.scene_mut(),
-                );
+                if dirty || win.needs_render {
+                    win.renderer.render(
+                        ctx,
+                        &mut win.font_system,
+                        &mut win.surface,
+                        win.config.clear_color,
+                        win.ui.scene_mut(),
+                    );
+                    win.needs_render = false;
+                }
 
                 win.ui.input.mouse.clear();
                 win.ui.input.keyboard.clear();
+               
+                // println!("redraw took {:?}", t1.elapsed());
             }
 
             WindowEvent::KeyboardInput {
@@ -213,6 +218,7 @@ impl ApplicationHandler<BentoEvent> for App {
                 win.resize(ctx);
                 let w = win.surface.width;
                 let h = win.surface.height;
+                win.needs_render = true;
                 win.request_redraw();
             }
             WindowEvent::CloseRequested => {
