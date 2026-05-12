@@ -185,13 +185,13 @@ impl Ui {
             if let Some(Some(slot)) = self.slots.get_mut(prev as usize) {
                 slot.widget.set_focused(false);
             }
-            self.dispatch_by_id(prev, &FocusLost);
+            self.dispatch_all_by_id(prev, &[&FocusLost]);
         }
         self.focused = Some(slot_id);
         if let Some(Some(slot)) = self.slots.get_mut(slot_id as usize) {
             slot.widget.set_focused(true);
         }
-        self.dispatch_by_id(slot_id, &FocusGained);
+        self.dispatch_all_by_id(slot_id, &[&FocusGained]);
     }
 
     fn clear_focus(&mut self) {
@@ -199,7 +199,7 @@ impl Ui {
             if let Some(Some(slot)) = self.slots.get_mut(prev as usize) {
                 slot.widget.set_focused(false);
             }
-            self.dispatch_by_id(prev, &FocusLost);
+            self.dispatch_all_by_id(prev, &[&FocusLost]);
         }
         self.focused = None;
     }
@@ -384,74 +384,59 @@ impl Ui {
         self.pending_removals.push((handle.slot_id, handle.id));
     }
 
-    /// Fires correct handlers for widget and event type.
+    /// Fires all provided events to handlers registered to the widget with the provided slot_id.
     ///
-    /// Searches the UI's connections for handlers registered to the widget with
-    /// the provided slot_id
-    /// If found any, it checks if the type_id of the event matches the type_id
-    /// of the handler's type parameter, meaning it's the exact same event type.
-    /// This skips the handlers that don't match the event being disptached at the moment.
-    /// Finally iterate over and call the handlers.
-    fn dispatch_by_id(&mut self, slot_id: u32, event: &dyn Any) {
+    /// Takes connections out temporarily using std::mem::take to allow &mut Ui in closures.
+    /// Flushes pending removals and connections after dispatch.
+    fn dispatch_all_by_id(&mut self, slot_id: u32, events: &[&dyn Any]) {
         let connections = std::mem::take(&mut self.connections);
+        let type_ids: Vec<TypeId> = events.iter().map(|e| (**e).type_id()).collect();
 
-        // Type id of this event's struct
-        let type_id = event.type_id();
-
-        // Get widget specific handlers
         if let Some(handlers) = connections.get(&Some(slot_id)) {
-            // Iterate over all handlers registered to the widget
             for (_, tid, f) in handlers {
-                // Filter out handlers that don't match the event type
-                if *tid == type_id {
-                    f(event, self);
+                for (i, type_id) in type_ids.iter().enumerate() {
+                    if tid == type_id {
+                        f(events[i], self);
+                    }
                 }
             }
         }
 
         self.connections = connections;
 
-        // Apply any pending removals requested during dispatch
         self.flush_pending_removals();
-
-        // Apply any pending connections requested during dispatch
         self.flush_pending_connections();
     }
 
-    /// Fires handlers registered globally.
+    /// Fires all provided events to global handlers.
     ///
-    /// Works similarly to Ui::dispatch_by_id(), but instead of searching for a widget with the provided
-    /// slot_id, it searches for a handler registered to no widget.
-    fn dispatch_global(&mut self, event: &dyn Any) {
+    /// Works similarly to dispatch_all_by_id but fires handlers registered to no widget.
+    fn dispatch_all_global(&mut self, events: &[&dyn Any]) {
         let connections = std::mem::take(&mut self.connections);
+        let type_ids: Vec<TypeId> = events.iter().map(|e| (**e).type_id()).collect();
 
-        // Type id of this event's struct
-        let type_id = event.type_id();
-
-        // Get handlers registered to no widget, which are meant for broadcasting
         if let Some(handlers) = connections.get(&None) {
             for (_, tid, f) in handlers {
-                if *tid == type_id {
-                    f(event, self);
+                for (i, type_id) in type_ids.iter().enumerate() {
+                    if tid == type_id {
+                        f(events[i], self);
+                    }
                 }
             }
         }
 
         self.connections = connections;
 
-        // Apply any pending removals requested during dispatch
         self.flush_pending_removals();
-
-        // Apply any pending connections requested during dispatch
         self.flush_pending_connections();
     }
 
     /// Emits an event from a widget.
     ///
     /// Purely for convenience.
-    /// This is the same as calling Ui::dispatch_by_id() with the widget's id.
+    /// This is the same as calling dispatch_all_by_id() with the widget's id.
     pub fn emit<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>, event: &dyn Any) {
-        self.dispatch_by_id(handle.id, event);
+        self.dispatch_all_by_id(handle.id, &[event]);
     }
 }
 
@@ -569,11 +554,15 @@ impl Ui {
     fn dispatch_keyboard(&mut self, events: &InputEvents) {
         // keyboard only goes to focused widget
         if let Some(focused_id) = self.focused {
+            let mut slot_events: Vec<&dyn Any> = Vec::new();
             for event in &events.key_presses {
-                self.dispatch_by_id(focused_id, event);
+                slot_events.push(event);
             }
             for event in &events.key_releases {
-                self.dispatch_by_id(focused_id, event);
+                slot_events.push(event);
+            }
+            if !slot_events.is_empty() {
+                self.dispatch_all_by_id(focused_id, &slot_events);
             }
         }
     }
@@ -592,55 +581,56 @@ impl Ui {
                 false
             };
 
+            let mut slot_events: Vec<&dyn Any> = Vec::new();
+
             // hover enter/leave
             if hit {
                 if let Some(Some(slot)) = self.slots.get_mut(*slot_id as usize) {
                     if slot.widget.hoverable() && !slot.widget.is_hovered() {
                         slot.widget.set_hovered(true);
-                        self.dispatch_by_id(*slot_id, &HoverEnter);
+                        slot_events.push(&HoverEnter);
                     }
+                }
+                if let Some(ref e) = events.mouse_move {
+                    slot_events.push(e);
+                }
+                for event in &events.mouse_downs {
+                    slot_events.push(event);
+                }
+                for event in &events.mouse_ups {
+                    slot_events.push(event);
+                }
+                for event in &events.clicks {
+                    slot_events.push(event);
                 }
             } else {
                 if let Some(Some(slot)) = self.slots.get_mut(*slot_id as usize) {
                     if slot.widget.hoverable() && slot.widget.is_hovered() {
                         slot.widget.set_hovered(false);
-                        self.dispatch_by_id(*slot_id, &HoverLeave);
+                        slot_events.push(&HoverLeave);
                     }
                 }
             }
 
-            // non positional events
             if let Some(ref e) = events.mouse_scroll {
-                self.dispatch_by_id(*slot_id, e);
+                slot_events.push(e);
             }
             if events.mouse_enter {
-                self.dispatch_by_id(*slot_id, &MouseEnter);
+                slot_events.push(&MouseEnter);
             }
             if events.mouse_leave {
-                self.dispatch_by_id(*slot_id, &MouseLeave);
+                slot_events.push(&MouseLeave);
             }
 
-            // positional events
-            if hit {
-                if let Some(ref e) = events.mouse_move {
-                    self.dispatch_by_id(*slot_id, e);
-                }
-                for event in &events.mouse_downs {
-                    self.dispatch_by_id(*slot_id, event);
-                }
-                for event in &events.mouse_ups {
-                    self.dispatch_by_id(*slot_id, event);
-                }
-                for event in &events.clicks {
-                    self.dispatch_by_id(*slot_id, event);
-                }
+            if !slot_events.is_empty() {
+                self.dispatch_all_by_id(*slot_id, &slot_events);
+            }
 
-                // auto focus on click
-                if !events.clicks.is_empty() {
-                    if let Some(Some(slot)) = self.slots.get(*slot_id as usize) {
-                        if slot.widget.focusable() {
-                            self.set_focus_by_id(*slot_id);
-                        }
+            // auto focus on click
+            if hit && !events.clicks.is_empty() {
+                if let Some(Some(slot)) = self.slots.get(*slot_id as usize) {
+                    if slot.widget.focusable() {
+                        self.set_focus_by_id(*slot_id);
                     }
                 }
             }
@@ -667,32 +657,37 @@ impl Ui {
     }
 
     fn dispatch_global_events(&mut self, events: &InputEvents) {
+        let mut global_events: Vec<&dyn Any> = Vec::new();
         for event in &events.key_presses {
-            self.dispatch_global(event);
+            global_events.push(event);
         }
         for event in &events.key_releases {
-            self.dispatch_global(event);
+            global_events.push(event);
         }
         if let Some(ref e) = events.mouse_move {
-            self.dispatch_global(e);
+            global_events.push(e);
         }
         for event in &events.mouse_downs {
-            self.dispatch_global(event);
+            global_events.push(event);
         }
         for event in &events.mouse_ups {
-            self.dispatch_global(event);
+            global_events.push(event);
         }
         for event in &events.clicks {
-            self.dispatch_global(event);
+            global_events.push(event);
         }
         if let Some(ref e) = events.mouse_scroll {
-            self.dispatch_global(e);
+            global_events.push(e);
         }
         if events.mouse_enter {
-            self.dispatch_global(&MouseEnter);
+            global_events.push(&MouseEnter);
         }
         if events.mouse_leave {
-            self.dispatch_global(&MouseLeave);
+            global_events.push(&MouseLeave);
+        }
+
+        if !global_events.is_empty() {
+            self.dispatch_all_global(&global_events);
         }
     }
 }
