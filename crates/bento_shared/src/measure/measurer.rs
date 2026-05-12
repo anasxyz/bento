@@ -188,7 +188,7 @@ impl<'a> TextMeasurer for CosmicTextMeasurer<'a> {
                 height: run.line_height,
                 baseline: run.line_y - run.line_top,
             };
-            total_width = total_width.max(line_w);
+            total_width = total_width.max(line_w.ceil());
             lines.push(lm);
         }
 
