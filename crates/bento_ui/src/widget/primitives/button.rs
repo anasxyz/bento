@@ -1,7 +1,7 @@
 use std::any::Any;
 
 use bento_shared::{
-    RectNode, Scene, SceneNode, SceneNodeId, TextMeasureRequest, TextMeasurer, TextNode,
+    RectNode, Scene, SceneNode, SceneNodeId, TextAlign, TextMeasureRequest, TextMeasurer, TextNode,
 };
 
 use crate::{AsAny, Widget};
@@ -103,6 +103,9 @@ impl Widget for Button {
     }
 
     fn update(&mut self, scene: &mut Scene, measurer: &mut dyn TextMeasurer) {
+        let padding = 10.0;
+        let text_max_width = self.w - padding * 2.0;
+
         let result = measurer.measure(TextMeasureRequest {
             text: &self.label,
             font_family: "",
@@ -111,21 +114,22 @@ impl Widget for Button {
             italic: false,
             letter_spacing: 0.0,
             line_height: None,
-            max_width: None,
+            max_width: Some(text_max_width),
             weight_ranges: &[],
             italic_ranges: &[],
             font_family_ranges: &[],
         });
 
+        let actual_h = result.height + padding * 2.0;
         let text_x = self.x + (self.w - result.width) / 2.0;
-        let text_y = self.y + (self.h - result.height) / 2.0;
+        let text_y = self.y + (self.h.max(actual_h) - result.height) / 2.0;
 
         if let Some(id) = self.rect_id {
             if let Some(SceneNode::Rect(r)) = scene.get_mut(id) {
                 r.x = self.x;
                 r.y = self.y;
                 r.w = self.w;
-                r.h = self.h;
+                r.h = self.h.max(actual_h);
                 r.color = self.color;
             }
         }
@@ -136,6 +140,7 @@ impl Widget for Button {
                 t.x = text_x;
                 t.y = text_y;
                 t.color = self.text_color;
+                t.max_width = Some(text_max_width);
             }
         }
     }
