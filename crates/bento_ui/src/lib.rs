@@ -9,6 +9,6 @@ use widget::{WidgetHandle, AsAny};
 use input::{Input};
 
 pub use ui::{Ui};
-pub use widget::{Widget, Rect};
+pub use widget::{Widget, Rect, Text};
 pub use input::{MouseButton, Key};
 pub use ui::{KeyPress, KeyRelease, Click, MouseMove, MouseDown, MouseUp, MouseScroll, MouseEnter, MouseLeave, FocusGained, FocusLost, HoverEnter, HoverLeave};

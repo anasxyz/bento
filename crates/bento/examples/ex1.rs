@@ -7,20 +7,10 @@ fn main() {
     let mut app = App::new();
     let mut ui = Ui::new();
 
-    let rect = ui.add(Rect::new(0.0, 0.0, 100.0, 100.0));
+    let text = ui.add(Text::new("Hello, world!", 100.0, 100.0, 32.0));
 
-    ui.listen(rect, move |e: &HoverEnter, ui| {
-        println!("hover gained");
-    });
-
-    ui.listen(rect, move |e: &HoverLeave, ui| {
-        println!("hover lost");
-    });
-
-    ui.listen_any(move |e: &KeyPress, ui| {
-        if ui.get(rect).unwrap().is_hovered() {
-            println!("hovered");
-        }
+    ui.listen(text, |e: &Click, _ui| {
+        println!("clicked");
     });
 
     app.open_window(WindowConfig::default(), ui);

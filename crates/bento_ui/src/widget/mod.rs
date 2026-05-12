@@ -7,3 +7,4 @@ pub use handle::WidgetHandle;
 mod primitives;
 
 pub use primitives::Rect;
+pub use primitives::Text;
