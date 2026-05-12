@@ -103,7 +103,6 @@ impl Widget for Button {
     }
 
     fn update(&mut self, scene: &mut Scene, measurer: &mut dyn TextMeasurer) {
-        let t1 = std::time::Instant::now();
         let result = measurer.measure(TextMeasureRequest {
             text: &self.label,
             font_family: "",
@@ -117,7 +116,6 @@ impl Widget for Button {
             italic_ranges: &[],
             font_family_ranges: &[],
         });
-        println!("measure took {:?}", t1.elapsed());
 
         let text_x = self.x + (self.w - result.width) / 2.0;
         let text_y = self.y + (self.h - result.height) / 2.0;
