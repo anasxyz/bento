@@ -9,3 +9,4 @@ mod primitives;
 pub use primitives::Rect;
 pub use primitives::Text;
 pub use primitives::Button;
+pub use primitives::Container;

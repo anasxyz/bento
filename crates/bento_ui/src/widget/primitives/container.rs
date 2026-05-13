@@ -1,0 +1,110 @@
+use std::any::Any;
+use bento_shared::{RectNode, SceneNode, SceneNodeId};
+use bento_shared::TextMeasurer;
+use crate::{AsAny, Ui, Widget, WidgetHandle};
+
+pub struct Container {
+    handle: WidgetHandle<Container>,
+    pub dirty: bool,
+
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+
+    color: Option<[f32; 4]>,
+
+    group_id: Option<SceneNodeId>,
+    rect_id: Option<SceneNodeId>,
+}
+
+impl Container {
+    pub fn new(x: f32, y: f32, w: f32, h: f32) -> Self {
+        Self {
+            handle: WidgetHandle::default(),
+            dirty: true,
+            x, y, w, h,
+            color: None,
+            group_id: None,
+            rect_id: None,
+        }
+    }
+
+    pub fn set_color(&mut self, color: [f32; 4]) {
+        self.color = Some(color);
+        self.dirty = true;
+    }
+
+    pub fn clear_color(&mut self) {
+        self.color = None;
+        self.dirty = true;
+    }
+
+    pub fn x(&self) -> f32 { self.x }
+    pub fn y(&self) -> f32 { self.y }
+    pub fn w(&self) -> f32 { self.w }
+    pub fn h(&self) -> f32 { self.h }
+
+    pub fn set_x(&mut self, x: f32) { self.x = x; self.dirty = true; }
+    pub fn set_y(&mut self, y: f32) { self.y = y; self.dirty = true; }
+    pub fn set_w(&mut self, w: f32) { self.w = w; self.dirty = true; }
+    pub fn set_h(&mut self, h: f32) { self.h = h; self.dirty = true; }
+}
+
+impl Widget for Container {
+    fn name(&self) -> &str { "Container" }
+
+    fn set_handle(&mut self, id: u32, generation: u32) {
+        self.handle = WidgetHandle::new(id, generation);
+    }
+
+    fn build(&mut self, ui: &mut Ui) {
+        let scene = ui.scene_mut();
+        self.group_id = Some(scene.add_group(|g, s| {
+            if let Some(color) = self.color {
+                self.rect_id = Some(s.add_rect({
+                    let mut r = RectNode::new(self.x, self.y, self.w, self.h);
+                    r.color = color;
+                    r
+                }));
+            }
+        }));
+    }
+
+    fn update(&mut self, ui: &mut Ui, _measurer: &mut dyn TextMeasurer) {
+        if let Some(id) = self.rect_id {
+            if let Some(SceneNode::Rect(r)) = ui.scene_mut().get_mut(id) {
+                r.x = self.x;
+                r.y = self.y;
+                r.w = self.w;
+                r.h = self.h;
+                r.color = self.color.unwrap_or([0.0; 4]);
+            }
+        }
+    }
+
+    fn remove(&mut self, ui: &mut Ui) {
+        if let Some(id) = self.group_id {
+            ui.scene_mut().remove(id);
+        }
+    }
+
+    fn is_dirty(&self) -> bool { self.dirty }
+    fn set_dirty(&mut self, dirty: bool) { self.dirty = dirty; }
+
+    fn hoverable(&self) -> bool { false }
+    fn focusable(&self) -> bool { false }
+
+    fn bounds(&self) -> (f32, f32, f32, f32) {
+        (self.x, self.y, self.w, self.h)
+    }
+
+    fn scene_root(&self) -> Option<SceneNodeId> {
+        self.group_id
+    }
+}
+
+impl AsAny for Container {
+    fn as_any(&self) -> &dyn Any { self }
+    fn as_any_mut(&mut self) -> &mut dyn Any { self }
+}

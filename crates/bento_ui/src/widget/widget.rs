@@ -1,6 +1,7 @@
 use std::any::Any;
 
 use bento_shared::Scene;
+use bento_shared::SceneNodeId;
 use bento_shared::TextMeasurer;
 
 use crate::Ui;
@@ -52,5 +53,9 @@ pub trait Widget: AsAny {
     /// Allows widgets to specify their bounds
     fn bounds(&self) -> (f32, f32, f32, f32) {
         (0.0, 0.0, 0.0, 0.0)
+    }
+
+    fn scene_root(&self) -> Option<SceneNodeId> {
+        None
     }
 }

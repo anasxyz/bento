@@ -50,10 +50,13 @@ pub struct Ui {
     listeners: HashMap<Option<u32>, Vec<Listener>>,
     next_listener_id: u64,
     pending_events: Vec<PendingEvent>,
-    pending_removals: Vec<u64>,
+    pending_event_removals: Vec<u64>,
+    pending_widget_removals: Vec<u32>,
 
     pub input: Input,
     pub asyncs: AsyncEventQueue,
+
+    pub needs_redraw: bool,
 }
 
 impl Ui {
@@ -65,33 +68,23 @@ impl Ui {
             listeners: HashMap::new(),
             next_listener_id: 0,
             pending_events: Vec::new(),
-            pending_removals: Vec::new(),
+            pending_widget_removals: Vec::new(),
+            pending_event_removals: Vec::new(),
             input: Input::new(),
             asyncs: AsyncEventQueue::new(),
+            needs_redraw: false,
         }
     }
 
     /// Adds a widget to the UI.
     /// Returns a handle to the widget.
     pub fn add<W: Widget + 'static>(&mut self, mut widget: W) -> WidgetHandle<W> {
-        let index = self
-            .slots
-            .iter()
-            .position(|s| s.is_none())
-            .unwrap_or(self.slots.len());
-
-        let handle = WidgetHandle::new(index as u32, 0);
-
-        // insert placeholder first
-        if index == self.slots.len() {
-            self.slots.push(None);
-        }
+        let index = self.slots.len();
+        self.slots.push(None);
 
         widget.set_handle(index as u32, 0);
-        // build with access to ui and measurer
         widget.build(self);
 
-        // now insert
         self.slots[index] = Some(Slot {
             widget: Box::new(widget),
             generation: 0,
@@ -99,64 +92,52 @@ impl Ui {
             parent: None,
         });
 
-        handle
+        WidgetHandle::new(index as u32, 0)
     }
 
-    /// Removes a widget from the UI.
-    /// Returns if `handle` is invalid or slot is None/empty.
+    /// Removes a widget from the UI 
+    /// Deferred to end of frame.
     pub fn remove<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) {
-        let index = handle.id as usize;
-        let Some(Some(s)) = self.slots.get(index) else {
+        let Some(Some(s)) = self.slots.get(handle.id as usize) else {
             return;
         };
-        if s.generation != handle.generation {
-            return;
-        };
-
-        // take the slot out entirely
-        let mut slot = self.slots[index].take().unwrap();
-        slot.widget.remove(self);
-        // leave it as None
+        if s.generation == handle.generation {
+            self.pending_widget_removals.push(handle.id);
+        }
     }
 
     /// Returns a reference to a widget.
     pub fn get<W: Widget + 'static>(&self, handle: WidgetHandle<W>) -> Option<&W> {
-        let Some(Some(s)) = self.slots.get(handle.id as usize) else {
-            return None;
-        };
-
-        if s.generation == handle.generation {
-            s.widget.as_any().downcast_ref::<W>()
-        } else {
-            None
-        }
+        self.slots
+            .get(handle.id as usize)?
+            .as_ref()
+            .filter(|s| s.generation == handle.generation)?
+            .widget
+            .as_any()
+            .downcast_ref::<W>()
     }
 
     /// Returns a mutable reference to a widget.
     pub fn get_mut<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) -> Option<&mut W> {
-        let Some(Some(s)) = self.slots.get_mut(handle.id as usize) else {
-            return None;
-        };
-
-        if s.generation == handle.generation {
-            s.widget.as_any_mut().downcast_mut::<W>()
-        } else {
-            None
-        }
+        self.slots
+            .get_mut(handle.id as usize)?
+            .as_mut()
+            .filter(|s| s.generation == handle.generation)?
+            .widget
+            .as_any_mut()
+            .downcast_mut::<W>()
     }
 
-    /// Updates all widgets.
-    /// Dirty widgets are updated and then marked clean.
-    // after
+    /// Updates all dirty widgets.
     pub fn update(&mut self, measurer: &mut dyn TextMeasurer) {
-        let indices: Vec<usize> = self
+        let dirty: Vec<usize> = self
             .slots
             .iter()
             .enumerate()
             .filter_map(|(i, s)| s.as_ref().filter(|s| s.widget.is_dirty()).map(|_| i))
             .collect();
 
-        for i in indices {
+        for i in dirty {
             let mut slot = self.slots[i].take().unwrap();
             slot.widget.update(self, measurer);
             slot.widget.set_dirty(false);
@@ -164,15 +145,30 @@ impl Ui {
         }
     }
 
-    /// Sets the children of a widget.
+    /// Sets the children of a widget, reparenting their scene roots.
     pub fn set_children<W: Widget + 'static>(
         &mut self,
         handle: WidgetHandle<W>,
         children: impl IntoIterator<Item = impl WidgetId>,
     ) {
         let child_ids: Vec<u32> = children.into_iter().map(|c| c.id()).collect();
+        let group_id = self
+            .slots
+            .get(handle.id as usize)
+            .and_then(|s| s.as_ref())
+            .and_then(|s| s.widget.scene_root());
 
         for &child_id in &child_ids {
+            let child_root = self
+                .slots
+                .get(child_id as usize)
+                .and_then(|s| s.as_ref())
+                .and_then(|s| s.widget.scene_root());
+
+            if let (Some(group_id), Some(child_root)) = (group_id, child_root) {
+                self.scene.reparent(child_root, group_id);
+            }
+
             if let Some(Some(child_slot)) = self.slots.get_mut(child_id as usize) {
                 child_slot.parent = Some(handle.id);
             }
@@ -334,7 +330,7 @@ impl Ui {
 
     /// Unsubscribe a listener.
     pub fn listen_off(&mut self, handle: ListenerHandle) {
-        self.pending_removals.push(handle.id);
+        self.pending_event_removals.push(handle.id);
     }
 
     /// Broadcasts an event to listeners on a specific widget.
@@ -364,6 +360,21 @@ impl Ui {
             self.dispatch_one(pending);
             // no increment of i bc an element was removed meaning next item is now at i
         }
+
+        // process deferred widget removals
+        let mut removals = std::mem::take(&mut self.pending_widget_removals);
+        removals.dedup();
+        for id in &removals {
+            if let Some(Some(slot)) = self.slots.get_mut(*id as usize).map(|s| s.take()) {
+                let mut slot = slot;
+                slot.widget.remove(self);
+            }
+        }
+
+        if !removals.is_empty() {
+            println!("setting needs_redraw, removals={:?}", removals);
+            self.needs_redraw = true;
+        }
     }
 
     /// Dispatches a single event.
@@ -382,8 +393,8 @@ impl Ui {
             }
         }
 
-        remaining.retain(|l| !self.pending_removals.contains(&l.id));
-        self.pending_removals.clear();
+        remaining.retain(|l| !self.pending_event_removals.contains(&l.id));
+        self.pending_event_removals.clear();
 
         self.listeners
             .entry(pending.target)

@@ -86,7 +86,7 @@ impl ApplicationHandler<BentoEvent> for App {
                     win.ui.update(&mut measurer);
                 }
 
-                if dirty || win.needs_render {
+                if dirty || win.needs_render || win.ui.needs_redraw {
                     win.renderer.render(
                         ctx,
                         &mut win.font_system,
@@ -95,6 +95,7 @@ impl ApplicationHandler<BentoEvent> for App {
                         win.ui.scene_mut(),
                     );
                     win.needs_render = false;
+                    win.ui.needs_redraw = false;
                 }
 
                 win.ui.input.mouse.clear();

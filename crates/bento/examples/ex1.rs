@@ -7,15 +7,19 @@ fn main() {
     let mut app = App::new();
     let mut ui = Ui::new();
 
-    let rect = ui.add(Rect::new(100.0, 100.0, 100.0, 100.0));
+    let container = ui.add(Container::new(50.0, 50.0, 300.0, 200.0));
+    ui.get_mut(container)
+        .unwrap()
+        .set_color([0.3, 0.3, 0.3, 1.0]);
 
-    let text = ui.add(Text::new("Hello, world!", 100.0, 100.0, 32.0));
-    if let Some(t) = ui.get_mut(text) {
-        t.set_font_family("JetBrainsMono Nerd Font");
-        t.add_background(0, t.text().len(), [0.2, 0.5, 0.9, 0.3]);
-    }
+    let btn1 = ui.add(Button::new("One", 0.0, 0.0, 100.0, 50.0));
+    let btn2 = ui.add(Button::new("Two", 150.0, 150.0, 100.0, 50.0));
 
-    ui.set_children(rect, [text]);
+    ui.set_children(container, [btn1, btn2]);
+
+    ui.listen(btn1, move |_e: &Click, ui| {
+        ui.remove(btn1);
+    });
 
     app.open_window(WindowConfig::default(), ui);
     app.run();

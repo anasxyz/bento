@@ -24,6 +24,7 @@ pub struct Button {
     hoverable: bool,
     hovered: bool,
 
+    group_id: Option<SceneNodeId>,
     rect_id: Option<SceneNodeId>,
     text_id: Option<SceneNodeId>,
 }
@@ -44,6 +45,7 @@ impl Button {
             focused: false,
             hoverable: true,
             hovered: false,
+            group_id: None,
             rect_id: None,
             text_id: None,
         }
@@ -105,11 +107,15 @@ impl Widget for Button {
     }
 
     fn build(&mut self, ui: &mut Ui) {
-        let mut rect_node = RectNode::new(self.x, self.y, self.w, self.h);
-        rect_node.radius(10.0);
-        let mut text_node = TextNode::new(&self.label, self.x, self.y, 16.0);
-        self.rect_id = Some(ui.scene_mut().add_rect(rect_node));
-        self.text_id = Some(ui.scene_mut().add_text(text_node));
+        let scene = ui.scene_mut();
+        self.group_id = Some(scene.add_group(|g, s| {
+            let mut rect_node = RectNode::new(self.x, self.y, self.w, self.h);
+            rect_node.radius(7.0);
+            let mut text_node = TextNode::new(&self.label, self.x, self.y, 16.0);
+
+            self.rect_id = Some(s.add_rect(rect_node));
+            self.text_id = Some(s.add_text(text_node));
+        }));
 
         let handle = self.handle;
 
@@ -124,6 +130,10 @@ impl Widget for Button {
                 b.set_color([0.2, 0.2, 0.2, 1.0]);
             }
         });
+    }
+
+    fn scene_root(&self) -> Option<SceneNodeId> {
+        self.group_id
     }
 
     fn update(&mut self, ui: &mut Ui, measurer: &mut dyn TextMeasurer) {
@@ -173,10 +183,8 @@ impl Widget for Button {
     }
 
     fn remove(&mut self, ui: &mut Ui) {
-        if let Some(id) = self.rect_id {
-            ui.scene_mut().remove(id);
-        }
-        if let Some(id) = self.text_id {
+        if let Some(id) = self.group_id {
+            // removes group and all children
             ui.scene_mut().remove(id);
         }
     }
