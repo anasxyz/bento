@@ -72,52 +72,47 @@ impl Ui {
     /// Adds a widget to the UI.
     /// Returns a handle to the widget.
     pub fn add<W: Widget + 'static>(&mut self, mut widget: W) -> WidgetHandle<W> {
-        // iterate through slots until it finds a None/empty slot
-        // return its position/index as Option<usize>
-        // if no empty slot is found, add a new slot at the end
         let index = self
             .slots
             .iter()
             .position(|s| s.is_none())
             .unwrap_or(self.slots.len());
 
-        // build the widget using its iternal build() method
-        widget.build(&mut self.scene);
+        let handle = WidgetHandle::new(index as u32, 0);
 
-        // create a slot for the widget
-        let slot = Slot {
-            widget: Box::new(widget),
-            generation: 0,
-        };
-
-        // if index is end of slots vector, add slot
-        // otherwise replace the slot at the index
+        // insert placeholder first
         if index == self.slots.len() {
-            self.slots.push(Some(slot));
-        } else {
-            self.slots[index] = Some(slot);
+            self.slots.push(None);
         }
 
-        // widget id is the index in the slot
-        WidgetHandle::new(index as u32, 0)
+        widget.set_handle(index as u32, 0);
+        // build with access to ui and measurer
+        widget.build(self);
+
+        // now insert
+        self.slots[index] = Some(Slot {
+            widget: Box::new(widget),
+            generation: 0,
+        });
+
+        handle
     }
 
     /// Removes a widget from the UI.
     /// Returns if `handle` is invalid or slot is None/empty.
     pub fn remove<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) {
-        let Some(slot) = self.slots.get_mut(handle.id as usize) else {
+        let index = handle.id as usize;
+        let Some(Some(s)) = self.slots.get(index) else {
+            return;
+        };
+        if s.generation != handle.generation {
             return;
         };
 
-        let Some(s) = slot.as_mut() else { return };
-
-        if s.generation == handle.generation {
-            // call widget's internal remove() method
-            s.widget.remove(&mut self.scene);
-
-            // set slot to None to be reused
-            *slot = None;
-        }
+        // take the slot out entirely
+        let mut slot = self.slots[index].take().unwrap();
+        slot.widget.remove(self);
+        // leave it as None 
     }
 
     /// Returns a reference to a widget.
@@ -150,13 +145,18 @@ impl Ui {
     /// Dirty widgets are updated and then marked clean.
     // after
     pub fn update(&mut self, measurer: &mut dyn TextMeasurer) {
-        for slot in self.slots.iter_mut() {
-            if let Some(s) = slot.as_mut() {
-                if s.widget.is_dirty() {
-                    s.widget.update(&mut self.scene, measurer);
-                    s.widget.set_dirty(false);
-                }
-            }
+        let indices: Vec<usize> = self
+            .slots
+            .iter()
+            .enumerate()
+            .filter_map(|(i, s)| s.as_ref().filter(|s| s.widget.is_dirty()).map(|_| i))
+            .collect();
+
+        for i in indices {
+            let mut slot = self.slots[i].take().unwrap();
+            slot.widget.update(self, measurer);
+            slot.widget.set_dirty(false);
+            self.slots[i] = Some(slot);
         }
     }
 

@@ -21,6 +21,16 @@ impl<T> WidgetHandle<T> {
     }
 }
 
+impl<T> Default for WidgetHandle<T> {
+    fn default() -> Self {
+        Self {
+            id: 0,
+            generation: 0,
+            _marker: std::marker::PhantomData,
+        }
+    }
+}
+
 impl<T> Copy for WidgetHandle<T> {}
 impl<T> Clone for WidgetHandle<T> {
     fn clone(&self) -> Self {

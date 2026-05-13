@@ -4,9 +4,11 @@ use bento_shared::{
     RectNode, Scene, SceneNode, SceneNodeId, TextAlign, TextMeasureRequest, TextMeasurer, TextNode,
 };
 
-use crate::{AsAny, Widget};
+use crate::{AsAny, Click, HoverEnter, HoverLeave, Ui, Widget, WidgetHandle};
 
 pub struct Button {
+    handle: WidgetHandle<Button>,
+
     pub dirty: bool,
 
     x: f32,
@@ -29,6 +31,7 @@ pub struct Button {
 impl Button {
     pub fn new(label: &str, x: f32, y: f32, w: f32, h: f32) -> Self {
         Self {
+            handle: WidgetHandle::default(),
             dirty: true,
             x,
             y,
@@ -97,12 +100,43 @@ impl Widget for Button {
         "Button"
     }
 
-    fn build(&mut self, scene: &mut Scene) {
-        self.rect_id = Some(scene.add_rect(RectNode::new(self.x, self.y, self.w, self.h)));
-        self.text_id = Some(scene.add_text(TextNode::new(&self.label, self.x, self.y, 16.0)));
+    fn set_handle(&mut self, id: u32, generation: u32) {
+        self.handle = WidgetHandle::new(id, generation);
     }
 
-    fn update(&mut self, scene: &mut Scene, measurer: &mut dyn TextMeasurer) {
+    fn build(&mut self, ui: &mut Ui) {
+        self.rect_id = Some(
+            ui.scene_mut()
+                .add_rect(RectNode::new(self.x, self.y, self.w, self.h)),
+        );
+        self.text_id =
+            Some(
+                ui.scene_mut()
+                    .add_text(TextNode::new(&self.label, self.x, self.y, 16.0)),
+            );
+
+        let handle = self.handle;
+
+        ui.listen(handle, move |e: &Click, ui| {
+            if let Some(b) = ui.get_mut(handle) {
+                println!("click");
+            }
+        });
+
+        ui.listen(handle, move |e: &HoverEnter, ui| {
+            if let Some(b) = ui.get_mut(handle) {
+                b.set_color([0.2, 0.2, 0.7, 1.0]);
+            }
+        });
+
+        ui.listen(handle, move |e: &HoverLeave, ui| {
+            if let Some(b) = ui.get_mut(handle) {
+                b.set_color([0.2, 0.2, 0.2, 1.0]);
+            }
+        });
+    }
+
+    fn update(&mut self, ui: &mut Ui, measurer: &mut dyn TextMeasurer) {
         let padding = 10.0;
         let text_max_width = self.w - padding * 2.0;
 
@@ -121,21 +155,22 @@ impl Widget for Button {
         });
 
         let actual_h = result.height + padding * 2.0;
+        self.set_h(self.h.max(actual_h));
         let text_x = self.x + (self.w - result.width) / 2.0;
-        let text_y = self.y + (self.h.max(actual_h) - result.height) / 2.0;
+        let text_y = self.y + (self.h - result.height) / 2.0;
 
         if let Some(id) = self.rect_id {
-            if let Some(SceneNode::Rect(r)) = scene.get_mut(id) {
+            if let Some(SceneNode::Rect(r)) = ui.scene_mut().get_mut(id) {
                 r.x = self.x;
                 r.y = self.y;
                 r.w = self.w;
-                r.h = self.h.max(actual_h);
+                r.h = self.h;
                 r.color = self.color;
             }
         }
 
         if let Some(id) = self.text_id {
-            if let Some(SceneNode::Text(t)) = scene.get_mut(id) {
+            if let Some(SceneNode::Text(t)) = ui.scene_mut().get_mut(id) {
                 t.text = self.label.clone();
                 t.x = text_x;
                 t.y = text_y;
@@ -145,12 +180,12 @@ impl Widget for Button {
         }
     }
 
-    fn remove(&mut self, scene: &mut Scene) {
+    fn remove(&mut self, ui: &mut Ui) {
         if let Some(id) = self.rect_id {
-            scene.remove(id);
+            ui.scene_mut().remove(id);
         }
         if let Some(id) = self.text_id {
-            scene.remove(id);
+            ui.scene_mut().remove(id);
         }
     }
 

@@ -3,7 +3,7 @@ use std::any::Any;
 use bento_shared::{RectNode, Scene, SceneNode, SceneNodeId};
 use bento_shared::TextMeasurer;
 
-use crate::{AsAny, Widget};
+use crate::{AsAny, Ui, Widget};
 
 #[derive(Debug)]
 pub struct Rect {
@@ -91,12 +91,12 @@ impl Widget for Rect {
         "Rect"
     }
 
-    fn build(&mut self, scene: &mut Scene) {
+    fn build(&mut self, ui: &mut Ui) {
         let mut node = RectNode::new(self.x, self.y, self.w, self.h);
-        self.rect_id = Some(scene.add_rect(node));
+        self.rect_id = Some(ui.scene_mut().add_rect(node));
     }
 
-    fn update(&mut self, scene: &mut Scene, _measurer: &mut dyn TextMeasurer) {
+    fn update(&mut self, ui: &mut Ui, _measurer: &mut dyn TextMeasurer) {
         println!("rect update x={} y={}", self.x, self.y);
         // Return if no SceneNodeId is set
         // If that's the case, build() was not called or something went wrong
@@ -105,7 +105,7 @@ impl Widget for Rect {
         // Look up SceneNode in Scene by id
         // Pattern match to get the inner RectNode as mutable
         // Return if SceneNode is not RectNode or missing
-        let Some(SceneNode::Rect(r)) = scene.get_mut(id) else {
+        let Some(SceneNode::Rect(r)) = ui.scene_mut().get_mut(id) else {
             return;
         };
 
@@ -116,10 +116,10 @@ impl Widget for Rect {
         r.h = self.h;
     }
 
-    fn remove(&mut self, scene: &mut Scene) {
+    fn remove(&mut self, ui: &mut Ui) {
         let Some(id) = self.rect_id else { return };
 
-        scene.remove(id);
+        ui.scene_mut().remove(id);
     }
 
     // TODO: add to proc macro

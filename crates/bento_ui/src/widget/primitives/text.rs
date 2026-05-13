@@ -3,7 +3,7 @@ use std::any::Any;
 use bento_shared::{Scene, SceneNode, SceneNodeId, TextNode};
 use bento_shared::{TextMeasureRequest, TextMeasurer};
 
-use crate::{AsAny, Widget};
+use crate::{AsAny, Ui, Widget};
 
 pub struct Text {
     pub dirty: bool,
@@ -102,13 +102,13 @@ impl Widget for Text {
         "Text"
     }
 
-    fn build(&mut self, scene: &mut Scene) {
+    fn build(&mut self, ui: &mut Ui) {
         let mut node = TextNode::new(&self.text, self.x, self.y, self.size);
         node.color = self.color;
-        self.text_id = Some(scene.add_text(node));
+        self.text_id = Some(ui.scene_mut().add_text(node));
     }
 
-    fn update(&mut self, scene: &mut Scene, measurer: &mut dyn TextMeasurer) {
+    fn update(&mut self, ui: &mut Ui, measurer: &mut dyn TextMeasurer) {
         let result = measurer.measure(TextMeasureRequest {
             text: &self.text,
             font_family: "",
@@ -126,7 +126,7 @@ impl Widget for Text {
         self.h = result.height;
 
         let Some(id) = self.text_id else { return };
-        let Some(SceneNode::Text(t)) = scene.get_mut(id) else {
+        let Some(SceneNode::Text(t)) = ui.scene_mut().get_mut(id) else {
             return;
         };
 
@@ -137,9 +137,9 @@ impl Widget for Text {
         t.color = self.color;
     }
 
-    fn remove(&mut self, scene: &mut Scene) {
+    fn remove(&mut self, ui: &mut Ui) {
         let Some(id) = self.text_id else { return };
-        scene.remove(id);
+        ui.scene_mut().remove(id);
     }
 
     fn is_dirty(&self) -> bool {
