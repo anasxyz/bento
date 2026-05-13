@@ -243,16 +243,8 @@ impl Renderer {
                     let ry = r.y + acc.offset_y;
                     if let Some([cx, cy, cw, ch]) = acc.clip {
                         if rx + r.w < cx || rx > cx + cw || ry + r.h < cy || ry > cy + ch {
-                            println!(
-                                "[bento_wgpu] culled Rect [{:.0},{:.0} {:.0}x{:.0}]",
-                                rx, ry, r.w, r.h
-                            );
                             continue;
                         }
-                        println!(
-                            "[bento_wgpu] Rect [{:.0},{:.0} {:.0}x{:.0}]",
-                            rx, ry, r.w, r.h
-                        );
                     }
                     if r.slot == u32::MAX {
                         r.slot = rect.alloc_slot();
@@ -292,10 +284,8 @@ impl Renderer {
                     let ty = t.y + acc.offset_y;
                     if let Some([cx, cy, cw, ch]) = acc.clip {
                         if tx + t.w < cx || tx > cx + cw || ty + t.h < cy || ty > cy + ch {
-                            println!("[bento_wgpu] culled Text [{:.0},{:.0}]", tx, ty);
                             continue;
                         }
-                        println!("[bento_wgpu] Text [{:.0},{:.0}]", tx, ty);
                     }
                     t.slot = *text_slot;
                     *text_slot += 1;
@@ -334,10 +324,8 @@ impl Renderer {
                     let iy = img.y + acc.offset_y;
                     if let Some([cx, cy, cw, ch]) = acc.clip {
                         if ix + img.w < cx || ix > cx + cw || iy + img.h < cy || iy > cy + ch {
-                            println!("[bento_wgpu] culled Image [{:.0},{:.0}]", ix, iy);
                             continue;
                         }
-                        println!("[bento_wgpu] Image [{:.0},{:.0}]", ix, iy);
                     }
                     if img.slot == usize::MAX {
                         img.slot = image.alloc_slot();

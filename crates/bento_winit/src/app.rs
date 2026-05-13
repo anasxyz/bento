@@ -86,6 +86,8 @@ impl ApplicationHandler<BentoEvent> for App {
                     win.ui.update(&mut measurer);
                 }
 
+                win.ui.update_debug_overlay();
+
                 if dirty || win.needs_render || win.ui.needs_redraw {
                     win.renderer.render(
                         ctx,
