@@ -7,7 +7,7 @@ use crate::{
     },
     surface::Surface,
 };
-use bento_shared::{GroupNode, SceneNode, Scene, SceneNodeId};
+use bento_shared::{GroupNode, Scene, SceneNode, SceneNodeId};
 use wgpu;
 
 // accumulated group state
@@ -234,6 +234,16 @@ impl Renderer {
 
             match node {
                 SceneNode::Rect(r) => {
+                    // cull rects outside of clip
+                    let rx = r.x + acc.offset_x;
+                    let ry = r.y + acc.offset_y;
+                    if let Some([cx, cy, cw, ch]) = acc.clip {
+                        if rx + r.w < cx || rx > cx + cw || ry + r.h < cy || ry > cy + ch {
+                            println!("[bento_wgpu] culled Rect [{:.0},{:.0} {:.0}x{:.0}]", rx, ry, r.w, r.h);
+                            continue;
+                        }
+                        println!("[bento_wgpu] Rect [{:.0},{:.0} {:.0}x{:.0}]", rx, ry, r.w, r.h);
+                    }
                     if r.slot == u32::MAX {
                         r.slot = rect.alloc_slot();
                     }
@@ -241,7 +251,7 @@ impl Renderer {
                     rect.write_slot(
                         r.slot,
                         RectInstance {
-                            pos_size: [r.x + acc.offset_x, r.y + acc.offset_y, r.w, r.h],
+                            pos_size: [rx, ry, r.w, r.h],
                             color: [
                                 r.color[0],
                                 r.color[1],
@@ -267,13 +277,23 @@ impl Renderer {
                 }
 
                 SceneNode::Text(t) => {
+                    // cull text outside of clip
+                    let tx = t.x + acc.offset_x;
+                    let ty = t.y + acc.offset_y;
+                    if let Some([cx, cy, cw, ch]) = acc.clip {
+                        if tx + t.w < cx || tx > cx + cw || ty + t.h < cy || ty > cy + ch {
+                            println!("[bento_wgpu] culled Text [{:.0},{:.0}]", tx, ty);
+                            continue;
+                        }
+                        println!("[bento_wgpu] Text [{:.0},{:.0}]", tx, ty);
+                    }
                     t.slot = *text_slot;
                     *text_slot += 1;
                     let final_clip = merge_clip(acc.clip, t.clip);
                     specs.push(TextSpec {
                         text: t.text.clone(),
-                        x: t.x + acc.offset_x,
-                        y: t.y + acc.offset_y,
+                        x: tx,
+                        y: ty,
                         size: t.size,
                         color: t.color,
                         rotate: t.rotate + acc.rotate,
@@ -299,6 +319,16 @@ impl Renderer {
                 }
 
                 SceneNode::Image(img) => {
+                    // cull images outside of clip
+                    let ix = img.x + acc.offset_x;
+                    let iy = img.y + acc.offset_y;
+                    if let Some([cx, cy, cw, ch]) = acc.clip {
+                        if ix + img.w < cx || ix > cx + cw || iy + img.h < cy || iy > cy + ch {
+                            println!("[bento_wgpu] culled Image [{:.0},{:.0}]", ix, iy);
+                            continue;
+                        }
+                        println!("[bento_wgpu] Image [{:.0},{:.0}]", ix, iy);
+                    }
                     if img.slot == usize::MAX {
                         img.slot = image.alloc_slot();
                     }
@@ -306,7 +336,7 @@ impl Renderer {
                     image.write_slot(
                         img.slot,
                         ImageInstance {
-                            pos_size: [img.x + acc.offset_x, img.y + acc.offset_y, img.w, img.h],
+                            pos_size: [ix, iy, img.w, img.h],
                             radii: img.radii,
                             border_color: [
                                 img.border_color[0],
