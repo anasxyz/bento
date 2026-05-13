@@ -692,7 +692,7 @@ impl fmt::Display for Scene {
             Ok(())
         }
 
-         println!("Scene ({} nodes):", self.nodes.len());
+        println!("Scene ({} nodes):", self.nodes.len());
         for &root_id in &self.root {
             print_node(f, &self.nodes, root_id, 0)?;
         }
@@ -848,5 +848,36 @@ impl Scene {
 
     pub fn get_mut(&mut self, id: SceneNodeId) -> Option<&mut SceneNode> {
         self.nodes.get_mut(id.0)
+    }
+
+    /// Returns the screen bounds of a node.
+    /// Accounts for offsets and clips.
+    pub fn screen_bounds(
+        &self,
+        id: SceneNodeId,
+        local_x: f32,
+        local_y: f32,
+        w: f32,
+        h: f32,
+    ) -> (f32, f32, f32, f32, Option<[f32; 4]>) {
+        let mut offset_x = 0.0;
+        let mut offset_y = 0.0;
+        let mut clip = None;
+
+        let mut current = self.parent_of(id);
+        while let Some(parent_id) = current {
+            if let Some(SceneNode::Group(g)) = self.nodes.get(parent_id.0) {
+                offset_x += g.offset_x;
+                offset_y += g.offset_y;
+                if clip.is_none() {
+                    clip = g.clip;
+                }
+                current = g.parent;
+            } else {
+                break;
+            }
+        }
+
+        (local_x + offset_x, local_y + offset_y, w, h, clip)
     }
 }

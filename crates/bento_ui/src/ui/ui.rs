@@ -95,7 +95,7 @@ impl Ui {
         WidgetHandle::new(index as u32, 0)
     }
 
-    /// Removes a widget from the UI 
+    /// Removes a widget from the UI
     /// Deferred to end of frame.
     pub fn remove<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) {
         let Some(Some(s)) = self.slots.get(handle.id as usize) else {
@@ -565,10 +565,29 @@ impl Ui {
         for slot_id in &slot_ids {
             let hit = if let Some(Some(slot)) = self.slots.get(*slot_id as usize) {
                 let (x, y, w, h) = slot.widget.bounds();
-                self.input.mouse.x >= x
-                    && self.input.mouse.x <= x + w
-                    && self.input.mouse.y >= y
-                    && self.input.mouse.y <= y + h
+                let scene_root = slot.widget.scene_root();
+
+                let (sx, sy, sw, sh, clip) = if let Some(root_id) = scene_root {
+                    self.scene.screen_bounds(root_id, x, y, w, h)
+                } else {
+                    (x, y, w, h, None)
+                };
+
+                let in_bounds = self.input.mouse.x >= sx
+                    && self.input.mouse.x <= sx + sw
+                    && self.input.mouse.y >= sy
+                    && self.input.mouse.y <= sy + sh;
+
+                let in_clip = clip
+                    .map(|[cx, cy, cw, ch]| {
+                        self.input.mouse.x >= cx
+                            && self.input.mouse.x <= cx + cw
+                            && self.input.mouse.y >= cy
+                            && self.input.mouse.y <= cy + ch
+                    })
+                    .unwrap_or(true);
+
+                in_bounds && in_clip
             } else {
                 false
             };
