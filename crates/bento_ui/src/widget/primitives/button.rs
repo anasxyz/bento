@@ -117,12 +117,6 @@ impl Widget for Button {
 
         let handle = self.handle;
 
-        ui.listen(handle, move |e: &Click, ui| {
-            if let Some(b) = ui.get_mut(handle) {
-                println!("click");
-            }
-        });
-
         ui.listen(handle, move |e: &HoverEnter, ui| {
             if let Some(b) = ui.get_mut(handle) {
                 b.set_color([0.2, 0.2, 0.7, 1.0]);
@@ -174,6 +168,8 @@ impl Widget for Button {
                 t.text = self.label.clone();
                 t.x = text_x;
                 t.y = text_y;
+                t.w = result.width; 
+                t.h = result.height; 
                 t.color = self.text_color;
                 t.max_width = Some(text_max_width);
             }
