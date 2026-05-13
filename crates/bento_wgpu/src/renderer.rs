@@ -149,7 +149,11 @@ impl Renderer {
         Self::traverse(
             &root_ids,
             scene,
-            &Accumulated::identity(),
+            // root surface clip to cull any nodes outside of window bounds
+            &Accumulated {
+                clip: Some([0.0, 0.0, surface.width as f32, surface.height as f32]),
+                ..Accumulated::identity()
+            },
             &mut self.rect,
             &mut self.image,
             surface.scale,
@@ -239,10 +243,16 @@ impl Renderer {
                     let ry = r.y + acc.offset_y;
                     if let Some([cx, cy, cw, ch]) = acc.clip {
                         if rx + r.w < cx || rx > cx + cw || ry + r.h < cy || ry > cy + ch {
-                            println!("[bento_wgpu] culled Rect [{:.0},{:.0} {:.0}x{:.0}]", rx, ry, r.w, r.h);
+                            println!(
+                                "[bento_wgpu] culled Rect [{:.0},{:.0} {:.0}x{:.0}]",
+                                rx, ry, r.w, r.h
+                            );
                             continue;
                         }
-                        println!("[bento_wgpu] Rect [{:.0},{:.0} {:.0}x{:.0}]", rx, ry, r.w, r.h);
+                        println!(
+                            "[bento_wgpu] Rect [{:.0},{:.0} {:.0}x{:.0}]",
+                            rx, ry, r.w, r.h
+                        );
                     }
                     if r.slot == u32::MAX {
                         r.slot = rect.alloc_slot();
