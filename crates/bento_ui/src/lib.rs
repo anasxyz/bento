@@ -5,7 +5,7 @@ mod ui;
 mod widget;
 mod input;
 
-use widget::{WidgetHandle, AsAny};
+use widget::{WidgetHandle, WidgetId, AsAny};
 use input::{Input};
 
 pub use ui::{Ui};

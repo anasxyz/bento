@@ -9,12 +9,14 @@ use super::{
     Click, FocusGained, FocusLost, HoverEnter, HoverLeave, KeyPress, KeyRelease, MouseDown,
     MouseEnter, MouseLeave, MouseMove, MouseScroll, MouseUp,
 };
-use crate::{Input, MouseButton, Widget, WidgetHandle};
+use crate::{Input, Key, MouseButton, Widget, WidgetHandle, WidgetId};
 
 /// Slot in the UI where a widget lives.
 pub struct Slot {
     pub widget: Box<dyn Widget>,
     pub generation: u32,
+    pub children: Vec<u32>,
+    pub parent: Option<u32>,
 }
 
 /// A single registered listener.
@@ -93,6 +95,8 @@ impl Ui {
         self.slots[index] = Some(Slot {
             widget: Box::new(widget),
             generation: 0,
+            children: Vec::new(),
+            parent: None,
         });
 
         handle
@@ -112,7 +116,7 @@ impl Ui {
         // take the slot out entirely
         let mut slot = self.slots[index].take().unwrap();
         slot.widget.remove(self);
-        // leave it as None 
+        // leave it as None
     }
 
     /// Returns a reference to a widget.
@@ -157,6 +161,25 @@ impl Ui {
             slot.widget.update(self, measurer);
             slot.widget.set_dirty(false);
             self.slots[i] = Some(slot);
+        }
+    }
+
+    /// Sets the children of a widget.
+    pub fn set_children<W: Widget + 'static>(
+        &mut self,
+        handle: WidgetHandle<W>,
+        children: impl IntoIterator<Item = impl WidgetId>,
+    ) {
+        let child_ids: Vec<u32> = children.into_iter().map(|c| c.id()).collect();
+
+        for &child_id in &child_ids {
+            if let Some(Some(child_slot)) = self.slots.get_mut(child_id as usize) {
+                child_slot.parent = Some(handle.id);
+            }
+        }
+
+        if let Some(Some(slot)) = self.slots.get_mut(handle.id as usize) {
+            slot.children = child_ids;
         }
     }
 
@@ -414,6 +437,15 @@ impl Ui {
 impl Ui {
     pub fn process_input(&mut self) {
         let events = self.collect_events();
+        if self
+            .input
+            .keyboard
+            .just_pressed()
+            .iter()
+            .any(|(k, _)| *k == Key::D)
+        {
+            println!("{}", self);
+        }
         self.queue_input_events(&events);
         self.flush_events();
     }
@@ -714,10 +746,26 @@ struct InputEvents {
 impl fmt::Display for Ui {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Ui ({} slots):", self.slots.len())?;
+
+        // print only root nodes (no parent), recursing into children
         for (i, slot) in self.slots.iter().enumerate() {
-            match slot {
-                Some(s) => writeln!(f, "  [{}] {} gen={}", i, s.widget.name(), s.generation)?,
-                None => writeln!(f, "  [{}] empty", i)?,
+            if let Some(s) = slot {
+                if s.parent.is_none() {
+                    self.print_node(f, i, 0)?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+impl Ui {
+    fn print_node(&self, f: &mut fmt::Formatter<'_>, index: usize, depth: usize) -> fmt::Result {
+        let indent = "  ".repeat(depth);
+        if let Some(Some(s)) = self.slots.get(index) {
+            writeln!(f, "{}[{}] {}", indent, index, s.widget.name())?;
+            for &child_id in &s.children {
+                self.print_node(f, child_id as usize, depth + 1)?;
             }
         }
         Ok(())
