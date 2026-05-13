@@ -63,6 +63,13 @@ impl Container {
         self.h
     }
 
+    pub fn offset_x(&self) -> f32 {
+        self.offset_x
+    }
+    pub fn offset_y(&self) -> f32 {
+        self.offset_y
+    }
+
     pub fn set_x(&mut self, x: f32) {
         self.x = x;
         self.dirty = true;

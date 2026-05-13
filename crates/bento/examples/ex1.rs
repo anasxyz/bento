@@ -26,6 +26,12 @@ fn main() {
         ui.set_children(container, [new_button]);
     });
 
+    ui.listen(container, move |e: &MouseScroll, ui| {
+        if let Some(c) = ui.get_mut(container) {
+            c.set_offset(0.0, c.offset_y() + e.y * 20.0);
+        }
+    });
+
     app.open_window(WindowConfig::default(), ui);
     app.run();
 }
