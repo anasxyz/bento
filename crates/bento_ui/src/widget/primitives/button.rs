@@ -105,15 +105,11 @@ impl Widget for Button {
     }
 
     fn build(&mut self, ui: &mut Ui) {
-        self.rect_id = Some(
-            ui.scene_mut()
-                .add_rect(RectNode::new(self.x, self.y, self.w, self.h)),
-        );
-        self.text_id =
-            Some(
-                ui.scene_mut()
-                    .add_text(TextNode::new(&self.label, self.x, self.y, 16.0)),
-            );
+        let mut rect_node = RectNode::new(self.x, self.y, self.w, self.h);
+        rect_node.radius(10.0);
+        let mut text_node = TextNode::new(&self.label, self.x, self.y, 16.0);
+        self.rect_id = Some(ui.scene_mut().add_rect(rect_node));
+        self.text_id = Some(ui.scene_mut().add_text(text_node));
 
         let handle = self.handle;
 
@@ -168,8 +164,8 @@ impl Widget for Button {
                 t.text = self.label.clone();
                 t.x = text_x;
                 t.y = text_y;
-                t.w = result.width; 
-                t.h = result.height; 
+                t.w = result.width;
+                t.h = result.height;
                 t.color = self.text_color;
                 t.max_width = Some(text_max_width);
             }
