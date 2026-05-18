@@ -1,5 +1,5 @@
-mod measure;
 mod measurer;
+pub mod types;
 
-pub use measure::*;
-pub use measurer::*;
+pub use measurer::{MeasureCache, CosmicTextMeasurer};
+pub use types::{TextMeasureRequest, TextMeasureResult, TextMeasurer};

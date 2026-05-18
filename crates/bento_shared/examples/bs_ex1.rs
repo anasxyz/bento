@@ -1,4 +1,4 @@
-use bento_shared::*;
+use bento_shared::scene::{Scene, RectNode};
 
 fn main() {
     let mut scene = Scene::new();
