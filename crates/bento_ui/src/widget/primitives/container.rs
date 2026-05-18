@@ -110,6 +110,8 @@ impl Widget for Container {
     fn build(&mut self, ui: &mut Ui) {
         let scene = ui.scene_mut();
         self.group_id = Some(scene.add_group(|g, s| {
+            g.x = self.x;
+            g.y = self.y;
             g.offset_x = self.offset_x;
             g.offset_y = self.offset_y;
             g.clip = if self.clip {

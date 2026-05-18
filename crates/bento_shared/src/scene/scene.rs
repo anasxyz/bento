@@ -544,6 +544,8 @@ impl ImageNode {
 
 #[derive(Debug)]
 pub struct GroupNode {
+    pub x: f32,
+    pub y: f32,
     pub rotate: f32,
     pub scale_x: f32,
     pub scale_y: f32,
@@ -560,6 +562,8 @@ pub struct GroupNode {
 impl GroupNode {
     pub fn new() -> Self {
         Self {
+            x: 0.0,
+            y: 0.0,
             rotate: 0.0,
             scale_x: 1.0,
             scale_y: 1.0,
@@ -867,8 +871,8 @@ impl Scene {
         let mut current = self.parent_of(id);
         while let Some(parent_id) = current {
             if let Some(SceneNode::Group(g)) = self.nodes.get(parent_id.0) {
-                offset_x += g.offset_x;
-                offset_y += g.offset_y;
+                offset_x += g.x + g.offset_x;
+                offset_y += g.y + g.offset_y;
                 if clip.is_none() {
                     clip = g.clip;
                 }

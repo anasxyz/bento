@@ -7,7 +7,7 @@ fn main() {
     let mut app = App::new();
     let mut ui = Ui::new();
 
-    let container = ui.add(Container::new(0.0, 0.0, 200.0, 100.0));
+    let container = ui.add(Container::new(400.0, 400.0, 200.0, 100.0));
     let c = ui.get_mut(container).unwrap();
     c.set_color([0.3, 0.3, 0.3, 1.0]);
     c.set_clip(true);
