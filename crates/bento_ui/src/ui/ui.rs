@@ -83,15 +83,6 @@ impl Ui {
         }
     }
 
-    fn init_debug_overlay(&mut self) {
-        let mut r = RectNode::new(0.0, 0.0, 0.0, 0.0);
-        r.color = [0.0, 0.3, 0.7, 0.5];
-        r.border_color = [0.451, 0.231, 0.451, 0.5];
-        r.border_widths = [2.0; 4];
-        r.z = 9999;
-        self.debug_overlay = Some(self.scene.add_rect(r));
-    }
-
     /// Adds a widget to the UI.
     /// Returns a handle to the widget.
     pub fn add<W: Widget + 'static>(&mut self, mut widget: W) -> WidgetHandle<W> {
@@ -472,26 +463,6 @@ impl Ui {
         {
             println!("{}", self);
         }
-        if self
-            .input
-            .keyboard
-            .just_pressed()
-            .iter()
-            .any(|(k, _)| *k == Key::F12)
-        {
-            self.debug_mode = !self.debug_mode;
-            if self.debug_mode && self.debug_overlay.is_none() {
-                self.init_debug_overlay();
-            }
-            if !self.debug_mode {
-                if let Some(overlay_id) = self.debug_overlay {
-                    if let Some(SceneNode::Rect(r)) = self.scene.get_mut(overlay_id) {
-                        r.w = 0.0;
-                        r.h = 0.0;
-                    }
-                }
-            }
-        }
         self.queue_input_events(&events);
         self.flush_events();
     }
@@ -791,90 +762,6 @@ impl Ui {
                 type_id: TypeId::of::<MouseLeave>(),
                 event: Box::new(MouseLeave),
             });
-        }
-    }
-
-    pub fn update_debug_overlay(&mut self) {
-        if !self.debug_mode {
-            return;
-        }
-
-        let slot_ids: Vec<u32> = self
-            .slots
-            .iter()
-            .enumerate()
-            .filter_map(|(i, s)| s.as_ref().map(|_| i as u32))
-            .collect();
-
-        let hovered = slot_ids
-            .iter()
-            .filter(|&&slot_id| {
-                if let Some(Some(slot)) = self.slots.get(slot_id as usize) {
-                    let (x, y, w, h) = slot.widget.bounds();
-                    let scene_root = slot.widget.scene_root();
-                    let (sx, sy, sw, sh, clip) = if let Some(root_id) = scene_root {
-                        self.scene.screen_bounds(root_id, x, y, w, h)
-                    } else {
-                        (x, y, w, h, None)
-                    };
-                    let in_bounds = self.input.mouse.x >= sx
-                        && self.input.mouse.x <= sx + sw
-                        && self.input.mouse.y >= sy
-                        && self.input.mouse.y <= sy + sh;
-                    let in_clip = clip
-                        .map(|[cx, cy, cw, ch]| {
-                            self.input.mouse.x >= cx
-                                && self.input.mouse.x <= cx + cw
-                                && self.input.mouse.y >= cy
-                                && self.input.mouse.y <= cy + ch
-                        })
-                        .unwrap_or(true);
-                    in_bounds && in_clip
-                } else {
-                    false
-                }
-            })
-            .min_by(|&&a, &&b| {
-                let area = |slot_id: u32| {
-                    if let Some(Some(slot)) = self.slots.get(slot_id as usize) {
-                        let (_, _, w, h) = slot.widget.bounds();
-                        (w * h) as i32
-                    } else {
-                        i32::MAX
-                    }
-                };
-                area(a).cmp(&area(b))
-            })
-            .copied();
-
-        if let Some(slot_id) = hovered {
-            if let Some(Some(slot)) = self.slots.get(slot_id as usize) {
-                let (x, y, w, h) = slot.widget.bounds();
-                let scene_root = slot.widget.scene_root();
-                let (sx, sy, sw, sh, _) = if let Some(root_id) = scene_root {
-                    self.scene.screen_bounds(root_id, x, y, w, h)
-                } else {
-                    (x, y, w, h, None)
-                };
-                if let Some(overlay_id) = self.debug_overlay {
-                    if let Some(SceneNode::Rect(r)) = self.scene.get_mut(overlay_id) {
-                        r.x = sx;
-                        r.y = sy;
-                        r.w = sw;
-                        r.h = sh;
-                        self.needs_redraw = true;
-                    }
-                }
-            }
-        } else {
-            // nothing hovered, hide overlay
-            if let Some(overlay_id) = self.debug_overlay {
-                if let Some(SceneNode::Rect(r)) = self.scene.get_mut(overlay_id) {
-                    r.w = 0.0;
-                    r.h = 0.0;
-                    self.needs_redraw = true;
-                }
-            }
         }
     }
 }

@@ -391,7 +391,9 @@ impl Renderer {
 
             match node {
                 SceneNode::Rect(r) => {
-                    rect.draw_slot(pass, r.slot);
+                    if r.slot != u32::MAX {
+                        rect.draw_slot(pass, r.slot);
+                    }
                 }
                 SceneNode::Text(t) => {
                     if let Some(&(start, end)) = text.bg_ranges.get(t.slot) {
@@ -407,7 +409,9 @@ impl Renderer {
                     }
                 }
                 SceneNode::Image(img) => {
-                    image.draw_slot(pass, img.slot);
+                    if img.slot != usize::MAX {
+                        image.draw_slot(pass, img.slot);
+                    }
                 }
                 SceneNode::Group(g) => {
                     let child_ids = g.children.clone();
