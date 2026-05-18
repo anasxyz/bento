@@ -1,5 +1,5 @@
-use crate::Key;
-use crate::MouseButton;
+use crate::input::keyboard::Key;
+use crate::input::mouse::MouseButton;
 
 /// Event structs
 
