@@ -1,7 +1,20 @@
-mod mouse;
-mod input;
-mod keyboard;
+pub mod input;
+pub mod keyboard;
+pub mod mouse;
 
-pub use mouse::{Mouse, MouseButton};
-pub use input::Input;
-pub use keyboard::{Keyboard, Key};
+use keyboard::Keyboard;
+use mouse::Mouse;
+
+pub struct InputState {
+    pub mouse: Mouse,
+    pub keyboard: Keyboard,
+}
+
+impl InputState {
+    pub fn new() -> Self {
+        Self {
+            mouse: Mouse::new(),
+            keyboard: Keyboard::new(),
+        }
+    }
+}

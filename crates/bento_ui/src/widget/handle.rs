@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::Widget;
+use crate::widget::Widget;
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct WidgetHandle<T> {

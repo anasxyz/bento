@@ -3,7 +3,8 @@ use std::any::Any;
 use bento_shared::{RectNode, Scene, SceneNode, SceneNodeId};
 use bento_shared::TextMeasurer;
 
-use crate::{AsAny, Ui, Widget};
+use crate::widget::{AsAny, Widget};
+use crate::ui::Ui;
 
 #[derive(Debug)]
 pub struct Rect {
@@ -156,99 +157,6 @@ impl Rect {
 }
 
 impl Widget for Rect {
-    fn name(&self) -> &str {
-        "Rect"
-    }
-
-    fn build(&mut self, ui: &mut Ui) {
-        let mut node = RectNode::new(self.x, self.y, self.w, self.h);
-        node.color = self.color;
-        node.radii = self.radii;
-        node.border_color = self.border_color;
-        node.border_widths = self.border_widths;
-        node.rotate = self.rotate;
-        node.scale_x = self.scale_x;
-        node.scale_y = self.scale_y;
-        node.z = self.z;
-        node.opacity = self.opacity;
-        node.clip = self.clip;
-
-        self.rect_id = Some(ui.scene_mut().add_rect(node));
-    }
-
-    fn update(&mut self, ui: &mut Ui, _measurer: &mut dyn TextMeasurer) {
-        // Return if no SceneNodeId is set
-        // If that's the case, build() was not called or something went wrong
-        let Some(id) = self.rect_id else { return };
-
-        // Look up SceneNode in Scene by id
-        // Pattern match to get the inner RectNode as mutable
-        // Return if SceneNode is not RectNode or missing
-        let Some(SceneNode::Rect(r)) = ui.scene_mut().get_mut(id) else {
-            return;
-        };
-
-        // Write widget's values to RectNode
-        r.x = self.x;
-        r.y = self.y;
-        r.w = self.w;
-        r.h = self.h;
-        r.color = self.color;
-        r.radii = self.radii;
-        r.border_color = self.border_color;
-        r.border_widths = self.border_widths;
-        r.rotate = self.rotate;
-        r.scale_x = self.scale_x;
-        r.scale_y = self.scale_y;
-        r.z = self.z;
-        r.opacity = self.opacity;
-        r.clip = self.clip;
-    }
-
-    fn remove(&mut self, ui: &mut Ui) {
-        let Some(id) = self.rect_id else { return };
-
-        ui.scene_mut().remove(id);
-    }
-
-    // TODO: add to proc macro
-    fn is_dirty(&self) -> bool {
-        self.dirty
-    }
-    // TODO: add to proc macro
-    fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
-    }
-
-    // TODO: add to proc macro
-    fn focusable(&self) -> bool {
-        self.focusable
-    }
-    // TODO: add to proc macro
-    fn is_focused(&self) -> bool {
-        self.focused
-    }
-    // TODO: add to proc macro
-    fn set_focused(&mut self, focused: bool) {
-        self.focused = focused;
-    }
-
-    // TODO: add to proc macro
-    fn hoverable(&self) -> bool {
-        self.hoverable
-    }
-    // TODO: add to proc macro
-    fn is_hovered(&self) -> bool {
-        self.hovered
-    }
-    // TODO: add to proc macro
-    fn set_hovered(&mut self, hovered: bool) {
-        self.hovered = hovered;
-    }
-
-    fn bounds(&self) -> (f32, f32, f32, f32) {
-        (self.x, self.y, self.w, self.h)
-    }
 }
 
 // TODO: add to proc macro

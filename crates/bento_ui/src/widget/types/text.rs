@@ -4,7 +4,8 @@ use bento_shared::scene::{ColorRange, DecorationRange, FontFamilyRange, ItalicRa
 use bento_shared::{Scene, SceneNode, SceneNodeId, TextAlign, TextNode};
 use bento_shared::{TextMeasureRequest, TextMeasurer};
 
-use crate::{AsAny, Ui, Widget};
+use crate::widget::{AsAny, Widget};
+use crate::ui::Ui;
 
 pub struct Text {
     pub dirty: bool,
@@ -236,124 +237,6 @@ impl Text {
 }
 
 impl Widget for Text {
-    fn name(&self) -> &str {
-        "Text"
-    }
-
-    fn build(&mut self, ui: &mut Ui) {
-        let mut node = TextNode::new(&self.text, self.x, self.y, self.size);
-        node.color = self.color;
-        node.z = self.z;
-        node.rotate = self.rotate;
-        node.scale_x = self.scale_x;
-        node.scale_y = self.scale_y;
-        node.weight = self.weight;
-        node.italic = self.italic;
-        node.font_family = self.font_family.clone();
-        node.max_width = self.max_width;
-        node.line_height = self.line_height;
-        node.align = self.align.clone();
-        node.letter_spacing = self.letter_spacing;
-        node.opacity = self.opacity;
-        node.clip = self.clip;
-        node.color_ranges = self.color_ranges.clone();
-        node.background_ranges = self.background_ranges.clone();
-        node.underline_ranges = self.underline_ranges.clone();
-        node.strikethrough_ranges = self.strikethrough_ranges.clone();
-        node.weight_ranges = self.weight_ranges.clone();
-        node.italic_ranges = self.italic_ranges.clone();
-        node.font_family_ranges = self.font_family_ranges.clone();
-
-        self.text_id = Some(ui.scene_mut().add_text(node));
-    }
-
-    fn update(&mut self, ui: &mut Ui, measurer: &mut dyn TextMeasurer) {
-        let result = measurer.measure(TextMeasureRequest {
-            text: &self.text,
-            font_family: &self.font_family,
-            size: self.size,
-            weight: self.weight,
-            italic: self.italic,
-            letter_spacing: self.letter_spacing,
-            line_height: self.line_height,
-            max_width: self.max_width,
-            weight_ranges: &self.weight_ranges,
-            italic_ranges: &self.italic_ranges,
-            font_family_ranges: &self.font_family_ranges,
-        });
-        self.w = result.width;
-        self.h = result.height;
-
-        let Some(id) = self.text_id else { return };
-        let Some(SceneNode::Text(t)) = ui.scene_mut().get_mut(id) else {
-            return;
-        };
-
-        t.text = self.text.clone();
-        t.x = self.x;
-        t.y = self.y;
-        t.w = self.w;
-        t.h = self.h;
-        t.size = self.size;
-        t.color = self.color;
-        t.z = self.z;
-        t.rotate = self.rotate;
-        t.scale_x = self.scale_x;
-        t.scale_y = self.scale_y;
-        t.weight = self.weight;
-        t.italic = self.italic;
-        t.font_family = self.font_family.clone();
-        t.max_width = self.max_width;
-        t.line_height = self.line_height;
-        t.align = self.align.clone();
-        t.letter_spacing = self.letter_spacing;
-        t.opacity = self.opacity;
-        t.clip = self.clip;
-        t.color_ranges = self.color_ranges.clone();
-        t.background_ranges = self.background_ranges.clone();
-        t.underline_ranges = self.underline_ranges.clone();
-        t.strikethrough_ranges = self.strikethrough_ranges.clone();
-        t.weight_ranges = self.weight_ranges.clone();
-        t.italic_ranges = self.italic_ranges.clone();
-        t.font_family_ranges = self.font_family_ranges.clone();
-    }
-
-    fn remove(&mut self, ui: &mut Ui) {
-        let Some(id) = self.text_id else { return };
-        ui.scene_mut().remove(id);
-    }
-
-    fn is_dirty(&self) -> bool {
-        self.dirty
-    }
-
-    fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
-    }
-
-    fn focusable(&self) -> bool {
-        self.focusable
-    }
-    fn is_focused(&self) -> bool {
-        self.focused
-    }
-    fn set_focused(&mut self, focused: bool) {
-        self.focused = focused;
-    }
-
-    fn hoverable(&self) -> bool {
-        self.hoverable
-    }
-    fn is_hovered(&self) -> bool {
-        self.hovered
-    }
-    fn set_hovered(&mut self, hovered: bool) {
-        self.hovered = hovered;
-    }
-
-    fn bounds(&self) -> (f32, f32, f32, f32) {
-        (self.x, self.y, self.w, self.h)
-    }
 }
 
 impl AsAny for Text {

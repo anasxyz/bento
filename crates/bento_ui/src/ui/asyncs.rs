@@ -3,7 +3,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
-use super::Ui;
+use super::ui::Ui;
 
 /// Main orchestrator for async tasks.
 ///
