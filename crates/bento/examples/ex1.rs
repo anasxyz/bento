@@ -34,6 +34,15 @@ fn main() {
         }
     });
 
+    ui.listen_global(move |e: &KeyPress, ui| {
+        match e.key {
+            Key::D => {
+                ui.print_tree();
+            }
+            _ => {}
+        }
+    });
+
     app.open_window(WindowConfig::default(), ui);
     app.run();
 }

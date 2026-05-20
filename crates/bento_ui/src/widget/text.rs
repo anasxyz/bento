@@ -1,16 +1,19 @@
+use crate::{
+    Ui,
+    widget::{Widget, WidgetHandle},
+};
 use bento_shared::{SceneNodeId, TextNode};
-use crate::{Ui, widget::{Widget, WidgetHandle}};
 
 pub struct Text {
-    id:      Option<SceneNodeId>,
-    dirty:   bool,
-    pub x:   f32,
-    pub y:   f32,
+    id: Option<SceneNodeId>,
+    dirty: bool,
+    pub x: f32,
+    pub y: f32,
     pub text: String,
     pub size: f32,
     pub color: [f32; 4],
     pub opacity: f32,
-    pub z:   i32,
+    pub z: i32,
     pub weight: u16,
     pub italic: bool,
 }
@@ -20,7 +23,8 @@ impl Text {
         Self {
             id: None,
             dirty: false,
-            x, y,
+            x,
+            y,
             text: text.to_string(),
             size,
             color: [1.0, 1.0, 1.0, 1.0],
@@ -31,20 +35,49 @@ impl Text {
         }
     }
 
-    pub fn id(&self) -> Option<SceneNodeId> { self.id }
-
-    pub fn set_text(&mut self, text: &str) { self.text = text.to_string(); self.dirty = true; }
-    pub fn set_pos(&mut self, x: f32, y: f32) { self.x = x; self.y = y; self.dirty = true; }
-    pub fn set_color(&mut self, color: [f32; 4]) { self.color = color; self.dirty = true; }
-    pub fn set_size(&mut self, size: f32) { self.size = size; self.dirty = true; }
-    pub fn set_opacity(&mut self, opacity: f32) { self.opacity = opacity; self.dirty = true; }
-    pub fn set_weight(&mut self, weight: u16) { self.weight = weight; self.dirty = true; }
-    pub fn set_italic(&mut self, italic: bool) { self.italic = italic; self.dirty = true; }
-    pub fn set_z(&mut self, z: i32) { self.z = z; self.dirty = true; }
+    pub fn set_text(&mut self, text: &str) {
+        self.text = text.to_string();
+        self.dirty = true;
+    }
+    pub fn set_pos(&mut self, x: f32, y: f32) {
+        self.x = x;
+        self.y = y;
+        self.dirty = true;
+    }
+    pub fn set_color(&mut self, color: [f32; 4]) {
+        self.color = color;
+        self.dirty = true;
+    }
+    pub fn set_size(&mut self, size: f32) {
+        self.size = size;
+        self.dirty = true;
+    }
+    pub fn set_opacity(&mut self, opacity: f32) {
+        self.opacity = opacity;
+        self.dirty = true;
+    }
+    pub fn set_weight(&mut self, weight: u16) {
+        self.weight = weight;
+        self.dirty = true;
+    }
+    pub fn set_italic(&mut self, italic: bool) {
+        self.italic = italic;
+        self.dirty = true;
+    }
+    pub fn set_z(&mut self, z: i32) {
+        self.z = z;
+        self.dirty = true;
+    }
 }
 
 impl Widget for Text {
-    fn id(&self) -> Option<SceneNodeId> { self.id }
+    fn root(&self) -> Option<SceneNodeId> {
+        self.id
+    }
+
+    fn name(&self) -> &str {
+        "Text"
+    }
 
     fn build(&mut self, ui: &mut Ui, _handle: WidgetHandle<()>) {
         let mut node = TextNode::new(&self.text, self.x, self.y, self.size);
@@ -73,8 +106,12 @@ impl Widget for Text {
     }
 
     fn remove(&mut self, ui: &mut Ui) {
-        if let Some(id) = self.id { ui.scene_mut().remove(id); }
+        if let Some(id) = self.id {
+            ui.scene_mut().remove(id);
+        }
     }
 
-    fn is_dirty(&self) -> bool { self.dirty }
+    fn is_dirty(&self) -> bool {
+        self.dirty
+    }
 }

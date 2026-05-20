@@ -16,6 +16,8 @@ use crate::widget::{AnyWidget, Widget, WidgetHandle};
 pub struct Slot {
     pub widget: Box<dyn AnyWidget>,
     pub generation: u32,
+    pub parent: Option<u32>,
+    pub children: Vec<u32>,
 }
 
 pub struct Ui {
@@ -71,6 +73,8 @@ impl Ui {
         self.slots.push(Some(Slot {
             widget: Box::new(widget),
             generation: 0,
+            parent: None,
+            children: Vec::new(),
         }));
         let mut slot = self.slots[index].take().unwrap();
         slot.widget.build(self, handle.untyped());
@@ -112,9 +116,16 @@ impl Ui {
         parent: WidgetHandle<P>,
         child: WidgetHandle<C>,
     ) {
-        let parent_id = self.get(parent).unwrap().id().unwrap();
-        let child_id = self.get(child).unwrap().id().unwrap();
+        let parent_id = self.get(parent).unwrap().root().unwrap();
+        let child_id = self.get(child).unwrap().root().unwrap();
         self.scene_mut().append(parent_id, child_id);
+
+        if let Some(Some(slot)) = self.slots.get_mut(parent.id as usize) {
+            slot.children.push(child.id);
+        }
+        if let Some(Some(slot)) = self.slots.get_mut(child.id as usize) {
+            slot.parent = Some(parent.id);
+        }
     }
 
     pub fn update(&mut self) {
@@ -124,6 +135,26 @@ impl Ui {
                     let mut slot = self.slots[i].take().unwrap();
                     slot.widget.update(self);
                     self.slots[i] = Some(slot);
+                }
+            }
+        }
+    }
+
+    pub fn print_tree(&self) {
+        fn print_node(slots: &[Option<Slot>], id: u32, depth: usize) {
+            let indent = "  ".repeat(depth);
+            if let Some(Some(slot)) = slots.get(id as usize) {
+                println!("{}[{}] {}", indent, id, slot.widget.name());
+                for &child in &slot.children {
+                    print_node(slots, child, depth + 1);
+                }
+            }
+        }
+
+        for (i, slot) in self.slots.iter().enumerate() {
+            if let Some(slot) = slot {
+                if slot.parent.is_none() {
+                    print_node(&self.slots, i as u32, 0);
                 }
             }
         }
@@ -154,7 +185,7 @@ pub trait IntoListenTarget {
 
 impl<W: AnyWidget + 'static> IntoListenTarget for WidgetHandle<W> {
     fn into_target(self, ui: &Ui) -> SceneNodeId {
-        ui.get(self).unwrap().id().unwrap()
+        ui.get(self).unwrap().root().unwrap()
     }
 }
 
@@ -203,7 +234,7 @@ impl Ui {
         handle: WidgetHandle<W>,
         mut f: impl FnMut(&E, &mut Ui) + 'static,
     ) -> ListenerHandle {
-        let scene_id = self.get(handle).unwrap().id().unwrap();
+        let scene_id = self.get(handle).unwrap().root().unwrap();
         self.register(
             Some(scene_id),
             TypeId::of::<E>(),
@@ -323,7 +354,7 @@ impl Ui {
                     .slots
                     .iter()
                     .flatten()
-                    .find(|s| s.widget.id() == Some(id))
+                    .find(|s| s.widget.root() == Some(id))
                 {
                     // handled below via events
                 }

@@ -3,7 +3,7 @@ use std::{cell::Cell, rc::Rc};
 use bento_shared::{GroupNode, RectNode, SceneNode, SceneNodeId};
 
 use crate::{
-    Click, MouseDown, MouseMove, MouseUp, Change, Ui,
+    Change, Click, MouseDown, MouseMove, MouseUp, Ui,
     widget::{Widget, WidgetHandle},
 };
 
@@ -52,8 +52,12 @@ impl Slider {
 }
 
 impl Widget for Slider {
-    fn id(&self) -> Option<SceneNodeId> {
+    fn root(&self) -> Option<SceneNodeId> {
         self.id
+    }
+
+    fn name(&self) -> &str {
+        "Slider"
     }
 
     fn build(&mut self, ui: &mut Ui, handle: WidgetHandle<()>) {
@@ -98,7 +102,7 @@ impl Widget for Slider {
                 let t = (mx - s.x) / s.w;
                 s.set_value(t.clamp(0.0, 1.0));
                 let val = s.value;
-                let root = s.id().unwrap();
+                let root = s.root().unwrap();
                 ui.send(root, Change { value: val });
             }
         });

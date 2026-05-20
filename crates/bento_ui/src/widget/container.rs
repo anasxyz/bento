@@ -48,10 +48,6 @@ impl Container {
         self.h
     }
 
-    pub fn id(&self) -> Option<SceneNodeId> {
-        self.id
-    }
-
     pub fn append(&self, ui: &mut Ui, child: SceneNodeId) {
         ui.scene_mut().append(self.id.unwrap(), child);
     }
@@ -72,8 +68,12 @@ impl Container {
 }
 
 impl Widget for Container {
-    fn id(&self) -> Option<SceneNodeId> {
+    fn root(&self) -> Option<SceneNodeId> {
         self.id
+    }
+
+    fn name(&self) -> &str {
+        "Container"
     }
 
     fn build(&mut self, ui: &mut Ui, _handle: WidgetHandle<()>) {

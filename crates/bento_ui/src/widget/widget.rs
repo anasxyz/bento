@@ -4,7 +4,8 @@ use crate::{ui::Ui, widget::WidgetHandle};
 use std::any::Any;
 
 pub trait Widget {
-    fn id(&self) -> Option<SceneNodeId>;
+    fn root(&self) -> Option<SceneNodeId>;
+    fn name(&self) -> &str;
     fn build(&mut self, ui: &mut Ui, handle: WidgetHandle<()>);
     fn update(&mut self, ui: &mut Ui);
     fn remove(&mut self, ui: &mut Ui);

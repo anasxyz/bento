@@ -80,8 +80,12 @@ impl Rect {
 }
 
 impl Widget for Rect {
-    fn id(&self) -> Option<SceneNodeId> {
+    fn root(&self) -> Option<SceneNodeId> {
         self.id
+    }
+
+    fn name(&self) -> &str {
+        "Rect"
     }
 
     fn build(&mut self, ui: &mut Ui, handle: WidgetHandle<()>) {
@@ -98,7 +102,7 @@ impl Widget for Rect {
     }
 
     fn update(&mut self, ui: &mut Ui) {
-        if let Some(SceneNode::Rect(r)) = ui.scene_mut().get_mut(self.id().unwrap()) {
+        if let Some(SceneNode::Rect(r)) = ui.scene_mut().get_mut(self.root().unwrap()) {
             r.color = self.color;
             r.x = self.x;
             r.y = self.y;
