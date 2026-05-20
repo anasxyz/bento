@@ -15,6 +15,8 @@ pub struct Rect {
     pub border_widths: [f32; 4],
     pub opacity: f32,
     pub z: i32,
+
+    pub dirty: bool,
 }
 
 impl Rect {
@@ -31,6 +33,7 @@ impl Rect {
             border_widths: [0.0; 4],
             opacity: 1.0,
             z: 1,
+            dirty: false,
         }
     }
 
@@ -39,66 +42,42 @@ impl Rect {
             .expect("Rect not added to Ui yet — call ui.add() first")
     }
 
-    pub fn set_color(&mut self, ui: &mut Ui, color: [f32; 4]) {
+    pub fn set_color(&mut self, color: [f32; 4]) {
         self.color = color;
-        if let Some(SceneNode::Rect(r)) = ui.scene_mut().get_mut(self.id()) {
-            r.color = color;
-            ui.needs_redraw = true;
-        }
+        self.dirty = true;
     }
 
-    pub fn set_pos(&mut self, ui: &mut Ui, x: f32, y: f32) {
+    pub fn set_pos(&mut self, x: f32, y: f32) {
         self.x = x;
         self.y = y;
-        if let Some(SceneNode::Rect(r)) = ui.scene_mut().get_mut(self.id()) {
-            r.x = x;
-            r.y = y;
-            ui.needs_redraw = true;
-        }
+        self.dirty = true;
     }
 
-    pub fn set_size(&mut self, ui: &mut Ui, w: f32, h: f32) {
+    pub fn set_size(&mut self, w: f32, h: f32) {
         self.w = w;
         self.h = h;
-        if let Some(SceneNode::Rect(r)) = ui.scene_mut().get_mut(self.id()) {
-            r.w = w;
-            r.h = h;
-            ui.needs_redraw = true;
-        }
+        self.dirty = true;
     }
 
-    pub fn set_radius(&mut self, ui: &mut Ui, r: f32) {
+    pub fn set_radius(&mut self, r: f32) {
         self.radii = [r; 4];
-        if let Some(SceneNode::Rect(n)) = ui.scene_mut().get_mut(self.id()) {
-            n.radii = [r; 4];
-            ui.needs_redraw = true;
-        }
+        self.dirty = true;
     }
 
-    pub fn set_border(&mut self, ui: &mut Ui, color: [f32; 4], width: f32) {
+    pub fn set_border(&mut self, color: [f32; 4], width: f32) {
         self.border_color = color;
         self.border_widths = [width; 4];
-        if let Some(SceneNode::Rect(r)) = ui.scene_mut().get_mut(self.id()) {
-            r.border_color = color;
-            r.border_widths = [width; 4];
-            ui.needs_redraw = true;
-        }
+        self.dirty = true;
     }
 
-    pub fn set_opacity(&mut self, ui: &mut Ui, opacity: f32) {
+    pub fn set_opacity(&mut self, opacity: f32) {
         self.opacity = opacity;
-        if let Some(SceneNode::Rect(r)) = ui.scene_mut().get_mut(self.id()) {
-            r.opacity = opacity;
-            ui.needs_redraw = true;
-        }
+        self.dirty = true;
     }
 
-    pub fn set_z(&mut self, ui: &mut Ui, z: i32) {
+    pub fn set_z(&mut self, z: i32) {
         self.z = z;
-        if let Some(SceneNode::Rect(r)) = ui.scene_mut().get_mut(self.id()) {
-            r.z = z;
-            ui.needs_redraw = true;
-        }
+        self.dirty = true;
     }
 }
 
@@ -114,9 +93,30 @@ impl Widget for Rect {
         self.id = Some(ui.scene_mut().add_rect(node));
     }
 
+    fn update(&mut self, ui: &mut Ui) {
+        if let Some(SceneNode::Rect(r)) = ui.scene_mut().get_mut(self.id()) {
+            r.color = self.color;
+            r.x = self.x;
+            r.y = self.y;
+            r.w = self.w;
+            r.h = self.h;
+            r.radii = self.radii;
+            r.border_color = self.border_color;
+            r.border_widths = self.border_widths;
+            r.opacity = self.opacity;
+            r.z = self.z;
+            ui.needs_redraw = true;
+        }
+        self.dirty = false;
+    }
+
     fn remove(&mut self, ui: &mut Ui) {
         if let Some(id) = self.id {
             ui.scene_mut().remove(id);
         }
+    }
+
+    fn is_dirty(&self) -> bool {
+        self.dirty
     }
 }
