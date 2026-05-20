@@ -45,6 +45,12 @@ impl Ui {
 
     pub fn add<W: Widget>(&mut self, mut widget: W) -> W {
         widget.build(self);
+        self.request_redraw();
         widget
+    }
+
+    pub fn remove<W: Widget>(&mut self, mut widget: W) {
+        widget.remove(self);
+        self.request_redraw();
     }
 }
