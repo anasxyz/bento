@@ -7,9 +7,14 @@ fn main() {
     let mut app = App::new();
     let mut ui = Ui::new();
 
-    let rect = ui.add(Rect::new(100.0, 100.0, 200.0, 100.0));
-    ui.listen(rect, move |e: &Click, ui| {
-        ui.get_mut(rect).unwrap().set_color([1.0, 0.0, 0.0, 1.0]);
+    let slider = ui.add(Slider::new(100.0, 100.0, 300.0, 20.0));
+    ui.listen(slider, |e: &SliderChanged, ui| {
+        println!("slider value: {}", e.value);
+    });
+
+    let slider2 = ui.add(Slider::new(20.0, 0.0, 300.0, 20.0));
+    ui.listen(slider2, |e: &SliderChanged, ui| {
+        println!("slider2 value: {}", e.value);
     });
 
     app.open_window(WindowConfig::default(), ui);

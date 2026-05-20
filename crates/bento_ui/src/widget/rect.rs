@@ -1,6 +1,9 @@
 use bento_shared::{RectNode, SceneNode, SceneNodeId};
 
-use crate::{ui::Ui, widget::Widget};
+use crate::{
+    ui::Ui,
+    widget::{Widget, WidgetHandle},
+};
 
 pub struct Rect {
     id: Option<SceneNodeId>,
@@ -81,7 +84,9 @@ impl Widget for Rect {
         self.id
     }
 
-    fn build(&mut self, ui: &mut Ui) {
+    fn build(&mut self, ui: &mut Ui, handle: WidgetHandle<()>) {
+        let handle: WidgetHandle<Rect> = WidgetHandle::new(handle.id, handle.generation);
+
         let mut node = RectNode::new(self.x, self.y, self.w, self.h);
         node.color = self.color;
         node.radii = self.radii;

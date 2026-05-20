@@ -21,7 +21,10 @@ pub struct Click {
     pub button: MouseButton,
 }
 
-
+#[derive(Clone, Copy)]
+pub struct SliderChanged {
+    pub value: f32,
+}
 
 #[derive(Clone, Copy)]
 pub struct MouseMove {

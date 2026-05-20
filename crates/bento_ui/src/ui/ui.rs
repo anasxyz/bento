@@ -65,15 +65,18 @@ impl Ui {
         self.needs_redraw = true;
     }
 
-    pub fn add<W: AnyWidget + 'static>(&mut self, mut widget: W) -> WidgetHandle<W> {
+    pub fn add<W: AnyWidget + 'static>(&mut self, widget: W) -> WidgetHandle<W> {
         let index = self.slots.len();
-        widget.build(self);
+        let handle = WidgetHandle::new(index as u32, 0);
         self.slots.push(Some(Slot {
             widget: Box::new(widget),
             generation: 0,
         }));
+        let mut slot = self.slots[index].take().unwrap();
+        slot.widget.build(self, handle.untyped());
+        self.slots[index] = Some(slot);
         self.request_redraw();
-        WidgetHandle::new(index as u32, 0)
+        handle
     }
 
     pub fn get<W: AnyWidget + 'static>(&self, handle: WidgetHandle<W>) -> Option<&W> {
@@ -135,6 +138,22 @@ pub struct ListenerHandle {
     id: u64,
 }
 
+pub trait IntoListenTarget {
+    fn into_target(self, ui: &Ui) -> SceneNodeId;
+}
+
+impl<W: AnyWidget + 'static> IntoListenTarget for WidgetHandle<W> {
+    fn into_target(self, ui: &Ui) -> SceneNodeId {
+        ui.get(self).unwrap().id().unwrap()
+    }
+}
+
+impl IntoListenTarget for SceneNodeId {
+    fn into_target(self, _ui: &Ui) -> SceneNodeId {
+        self
+    }
+}
+
 impl Ui {
     fn register(
         &mut self,
@@ -151,12 +170,12 @@ impl Ui {
         ListenerHandle { target, id }
     }
 
-    pub fn listen<W: AnyWidget + 'static, E: 'static>(
+    pub fn listen<T: IntoListenTarget, E: 'static>(
         &mut self,
-        handle: WidgetHandle<W>,
+        target: T,
         mut f: impl FnMut(&E, &mut Ui) + 'static,
     ) -> ListenerHandle {
-        let scene_id = self.get(handle).unwrap().id().unwrap();
+        let scene_id = target.into_target(self);
         self.register(
             Some(scene_id),
             TypeId::of::<E>(),
