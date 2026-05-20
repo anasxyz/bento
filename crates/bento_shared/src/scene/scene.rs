@@ -752,6 +752,34 @@ impl Scene {
             None => (sx, sy, w, h),
         }
     }
+
+    pub fn print_tree(&self) {
+        fn print_node(nodes: &Slab<SceneNode>, id: SceneNodeId, depth: usize) {
+            let indent = "  ".repeat(depth);
+            match nodes.get(id.0) {
+                Some(SceneNode::Rect(r)) => println!(
+                    "{}[{}] Rect [{:.0},{:.0} {:.0}x{:.0}]",
+                    indent, id.0, r.x, r.y, r.w, r.h
+                ),
+                Some(SceneNode::Text(t)) => println!("{}[{}] Text {:?}", indent, id.0, t.text),
+                Some(SceneNode::Image(i)) => println!(
+                    "{}[{}] Image [{:.0},{:.0} {:.0}x{:.0}]",
+                    indent, id.0, i.x, i.y, i.w, i.h
+                ),
+                Some(SceneNode::Group(g)) => {
+                    println!("{}[{}] Group", indent, id.0);
+                    for &child in &g.children {
+                        print_node(nodes, child, depth + 1);
+                    }
+                }
+                None => println!("{}[{}] [missing]", indent, id.0),
+            }
+        }
+
+        for &root_id in &self.root {
+            print_node(&self.nodes, root_id, 0);
+        }
+    }
 }
 
 impl fmt::Display for Scene {
