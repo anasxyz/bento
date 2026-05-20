@@ -9,5 +9,5 @@ pub(crate) mod widget;
 
 pub use ui::Ui;
 pub use input::keyboard::Key;
-pub use widget::{Rect, Slider, Text, Container};
+pub use widget::{Rect, Slider, Text, Container, Input};
 pub use events::types::*;

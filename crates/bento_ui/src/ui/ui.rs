@@ -32,7 +32,7 @@ pub struct Ui {
     pending_events: Vec<PendingEvent>,
     pending_removals: Vec<u64>,
 
-    focused: Option<SceneNodeId>,
+    focused: Option<u32>,
 }
 
 impl Ui {
@@ -65,6 +65,10 @@ impl Ui {
 
     pub fn request_redraw(&mut self) {
         self.needs_redraw = true;
+    }
+
+    pub fn focused(&self) -> Option<u32> {
+        self.focused
     }
 
     pub fn add<W: AnyWidget + 'static>(&mut self, widget: W) -> WidgetHandle<W> {
@@ -416,6 +420,29 @@ impl Ui {
             }
         }
 
+        // auto focus
+        if left.0 {
+            let mut new_focus: Option<u32> = None;
+            for (slot_idx, slot) in self.slots.iter().enumerate() {
+                if let Some(slot) = slot {
+                    if slot.widget.focusable() {
+                        if let Some(root) = slot.widget.root() {
+                            let (sx, sy, sw, sh) = self.scene.hitbox(root);
+                            if mx >= sx && mx <= sx + sw && my >= sy && my <= sy + sh {
+                                new_focus = Some(slot_idx as u32);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            if let Some(slot_id) = new_focus {
+                self.set_focused(slot_id);
+            } else {
+                self.clear_focused();
+            }
+        }
+
         // global mouse events
         if mdx != 0.0 || mdy != 0.0 {
             self.pending_events.push(PendingEvent {
@@ -503,19 +530,25 @@ impl Ui {
             .collect();
 
         if let Some(focused) = self.focused {
-            for e in &pressed_keys {
-                self.pending_events.push(PendingEvent {
-                    target: Some(focused),
-                    type_id: TypeId::of::<KeyPress>(),
-                    event: Box::new(*e),
-                });
-            }
-            for e in &released_keys {
-                self.pending_events.push(PendingEvent {
-                    target: Some(focused),
-                    type_id: TypeId::of::<KeyRelease>(),
-                    event: Box::new(*e),
-                });
+            let focused_scene_id = self.slots[focused as usize]
+                .as_ref()
+                .and_then(|s| s.widget.root());
+
+            if let Some(focused_scene_id) = focused_scene_id {
+                for e in &pressed_keys {
+                    self.pending_events.push(PendingEvent {
+                        target: Some(focused_scene_id),
+                        type_id: TypeId::of::<KeyPress>(),
+                        event: Box::new(*e),
+                    });
+                }
+                for e in &released_keys {
+                    self.pending_events.push(PendingEvent {
+                        target: Some(focused_scene_id),
+                        type_id: TypeId::of::<KeyRelease>(),
+                        event: Box::new(*e),
+                    });
+                }
             }
         }
         for e in &pressed_keys {
@@ -534,5 +567,26 @@ impl Ui {
         }
 
         self.flush();
+    }
+
+    pub fn set_focused(&mut self, slot_id: u32) {
+        if let Some(prev) = self.focused {
+            if let Some(Some(slot)) = self.slots.get_mut(prev as usize) {
+                slot.widget.set_dirty(true);
+            }
+        }
+        self.focused = Some(slot_id);
+        if let Some(Some(slot)) = self.slots.get_mut(slot_id as usize) {
+            slot.widget.set_dirty(true);
+        }
+    }
+
+    pub fn clear_focused(&mut self) {
+        if let Some(prev) = self.focused {
+            if let Some(Some(slot)) = self.slots.get_mut(prev as usize) {
+                slot.widget.set_dirty(true);
+            }
+        }
+        self.focused = None;
     }
 }

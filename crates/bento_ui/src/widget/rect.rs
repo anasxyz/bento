@@ -127,4 +127,8 @@ impl Widget for Rect {
     fn is_dirty(&self) -> bool {
         self.dirty
     }
+
+    fn set_dirty(&mut self, dirty: bool) {
+        self.dirty = dirty;
+    }
 }

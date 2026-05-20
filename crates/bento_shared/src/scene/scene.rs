@@ -502,6 +502,10 @@ impl ImageNode {
 
 #[derive(Debug)]
 pub struct GroupNode {
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
     pub rotate: f32,
     pub scale_x: f32,
     pub scale_y: f32,
@@ -518,6 +522,10 @@ pub struct GroupNode {
 impl GroupNode {
     pub fn new() -> Self {
         Self {
+            x: 0.0,
+            y: 0.0,
+            w: 0.0,
+            h: 0.0,
             rotate: 0.0,
             scale_x: 1.0,
             scale_y: 1.0,
@@ -530,6 +538,33 @@ impl GroupNode {
             parent: None,
             children: Vec::new(),
         }
+    }
+
+    pub fn x(&mut self, x: f32) -> &mut Self {
+        self.x = x;
+        self
+    }
+    pub fn y(&mut self, y: f32) -> &mut Self {
+        self.y = y;
+        self
+    }
+    pub fn w(&mut self, w: f32) -> &mut Self {
+        self.w = w;
+        self
+    }
+    pub fn h(&mut self, h: f32) -> &mut Self {
+        self.h = h;
+        self
+    }
+    pub fn pos(&mut self, x: f32, y: f32) -> &mut Self {
+        self.x = x;
+        self.y = y;
+        self
+    }
+    pub fn size(&mut self, w: f32, h: f32) -> &mut Self {
+        self.w = w;
+        self.h = h;
+        self
     }
 
     pub fn rotate(&mut self, angle: f32) -> &mut Self {
@@ -735,7 +770,7 @@ impl Scene {
             Some(SceneNode::Rect(r)) => (r.x, r.y, r.w, r.h),
             Some(SceneNode::Text(t)) => (t.x, t.y, t.w, t.h),
             Some(SceneNode::Image(i)) => (i.x, i.y, i.w, i.h),
-            Some(SceneNode::Group(g)) => return (0.0, 0.0, 0.0, 0.0),
+            Some(SceneNode::Group(g)) => (g.x, g.y, g.w, g.h),
             None => return (0.0, 0.0, 0.0, 0.0),
         };
         let (ox, oy, clip) = self.accumulated_offset_and_clip(id);

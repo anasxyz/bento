@@ -82,8 +82,12 @@ impl Widget for Container {
         let bg_id = ui.scene_mut().add_rect(bg);
 
         let mut g = GroupNode::new();
-        g.offset_x = self.offset_x;
-        g.offset_y = self.offset_y;
+        g.offset_x = self.x;
+        g.offset_y = self.y;
+        g.x = self.x;
+        g.y = self.y;
+        g.w = self.w;
+        g.h = self.h;
         if self.clip {
             g.clip = Some([self.x, self.y, self.w, self.h]);
         }
@@ -119,5 +123,9 @@ impl Widget for Container {
 
     fn is_dirty(&self) -> bool {
         self.dirty
+    }
+
+    fn set_dirty(&mut self, dirty: bool) {
+        self.dirty = dirty;
     }
 }

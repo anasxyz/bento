@@ -67,6 +67,10 @@ impl Widget for Slider {
         let mut g = GroupNode::new();
         g.offset_x = self.x;
         g.offset_y = self.y;
+        g.x = self.x;
+        g.y = self.y;
+        g.w = self.w;
+        g.h = self.h;
         let root = ui.scene_mut().add_group(g);
 
         let mut track = RectNode::new(0.0, self.h / 2.0 - 2.0, self.w, 5.0);
@@ -143,5 +147,9 @@ impl Widget for Slider {
 
     fn is_dirty(&self) -> bool {
         self.dirty
+    }
+
+    fn set_dirty(&mut self, dirty: bool) {
+        self.dirty = dirty;
     }
 }

@@ -10,6 +10,8 @@ pub trait Widget {
     fn update(&mut self, ui: &mut Ui);
     fn remove(&mut self, ui: &mut Ui);
     fn is_dirty(&self) -> bool;
+    fn set_dirty(&mut self, dirty: bool);
+    fn focusable(&self) -> bool { false }
 }
 
 pub trait AnyWidget: Widget + Any {
