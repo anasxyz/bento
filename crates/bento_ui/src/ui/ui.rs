@@ -6,6 +6,7 @@ use bento_shared::Scene;
 
 use crate::input::InputState;
 use crate::ui::asyncs::AsyncEventQueue;
+use crate::widget::Widget;
 
 pub struct Ui {
     pub scene: Scene,
@@ -41,4 +42,9 @@ impl Ui {
     }
 
     pub fn process_input(&mut self) {}
+
+    pub fn add<W: Widget>(&mut self, mut widget: W) -> W {
+        widget.build(self);
+        widget
+    }
 }
