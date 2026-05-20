@@ -107,6 +107,16 @@ impl Ui {
         self.request_redraw();
     }
 
+    pub fn append<P: AnyWidget + 'static, C: AnyWidget + 'static>(
+        &mut self,
+        parent: WidgetHandle<P>,
+        child: WidgetHandle<C>,
+    ) {
+        let parent_id = self.get(parent).unwrap().id().unwrap();
+        let child_id = self.get(child).unwrap().id().unwrap();
+        self.scene_mut().append(parent_id, child_id);
+    }
+
     pub fn update(&mut self) {
         for i in 0..self.slots.len() {
             if let Some(slot) = &self.slots[i] {
