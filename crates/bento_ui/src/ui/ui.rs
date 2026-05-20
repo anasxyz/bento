@@ -8,12 +8,10 @@ use crate::input::InputState;
 use crate::ui::asyncs::AsyncEventQueue;
 
 pub struct Ui {
-    scene: Scene,
-
-    input: InputState,
+    pub scene: Scene,
+    pub input: InputState,
     pub asyncs: AsyncEventQueue,
-
-    needs_redraw: bool,
+    pub needs_redraw: bool,
 }
 
 impl Ui {
@@ -25,4 +23,22 @@ impl Ui {
             needs_redraw: false,
         }
     }
+
+    pub fn scene(&self) -> &Scene {
+        &self.scene
+    }
+
+    pub fn scene_mut(&mut self) -> &mut Scene {
+        &mut self.scene
+    }
+
+    pub fn needs_redraw(&self) -> bool {
+        self.needs_redraw
+    }
+
+    pub fn mark_dirty(&mut self) {
+        self.needs_redraw = true;
+    }
+
+    pub fn process_input(&mut self) {}
 }

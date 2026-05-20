@@ -26,6 +26,13 @@ pub struct FontFamilyRange {
 }
 
 #[derive(Clone, PartialEq, Debug)]
+pub struct ColorRange {
+    pub start: usize,
+    pub end: usize,
+    pub color: [f32; 4],
+}
+
+#[derive(Clone, PartialEq, Debug)]
 pub enum TextAlign {
     Left,
     Center,

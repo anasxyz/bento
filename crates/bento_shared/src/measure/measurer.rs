@@ -1,4 +1,4 @@
-use crate::types::{LineMetrics, TextMeasureRequest, TextMeasureResult, TextMeasurer};
+use crate::measure::types::{LineMetrics, TextMeasureRequest, TextMeasureResult, TextMeasurer};
 use cosmic_text::{Attrs, Buffer, Family, Metrics, Shaping, Style as CStyle, Weight};
 use std::collections::HashMap;
 

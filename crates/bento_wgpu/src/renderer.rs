@@ -10,6 +10,12 @@ use crate::{
 use bento_shared::{GroupNode, Scene, SceneNode, SceneNodeId};
 use wgpu;
 
+pub fn transform(rotate: f32, scale_x: f32, scale_y: f32) -> [f32; 4] {
+    let cos = rotate.cos();
+    let sin = rotate.sin();
+    [cos * scale_x, sin * scale_x, -sin * scale_y, cos * scale_y]
+}
+
 // accumulated group state
 
 struct Accumulated {
@@ -43,7 +49,7 @@ impl Accumulated {
             opacity: self.opacity * g.opacity.unwrap_or(1.0),
             clip: merge_clip(self.clip, g.clip),
             offset_x: self.offset_x + g.x + g.offset_x,
-            offset_y: self.offset_y + g.y + g.offset_y,
+            offset_y: self.offset_y + g.x + g.offset_y,
         }
     }
 }
@@ -268,7 +274,7 @@ impl Renderer {
                                 r.border_color[3] * r.opacity * acc.opacity,
                             ],
                             border_widths: r.border_widths,
-                            transform: bento_shared::math::transform(
+                            transform: transform(
                                 r.rotate + acc.rotate,
                                 r.scale_x * acc.scale_x,
                                 r.scale_y * acc.scale_y,
@@ -343,7 +349,7 @@ impl Renderer {
                                 img.border_color[3] * img.opacity * acc.opacity,
                             ],
                             border_widths: img.border_widths,
-                            transform: bento_shared::math::transform(
+                            transform: transform(
                                 img.rotate + acc.rotate,
                                 img.scale_x * acc.scale_x,
                                 img.scale_y * acc.scale_y,

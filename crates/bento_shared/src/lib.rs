@@ -4,12 +4,11 @@
 pub(crate) mod measure;
 pub(crate) mod scene;
 
+pub use scene::{Scene, SceneNode, SceneNodeId};
+pub use scene::{RectNode, TextNode, ImageNode, GroupNode};
+pub use scene::types::{ColorRange, FontFamilyRange, ItalicRange, WeightRange, DecorationRange, TextAlign};
+pub use measure::MeasureCache;
+
 pub enum BentoEvent {
     Callback(u64),
-}
-
-pub fn transform(rotate: f32, scale_x: f32, scale_y: f32) -> [f32; 4] {
-    let cos = rotate.cos();
-    let sin = rotate.sin();
-    [cos * scale_x, sin * scale_x, -sin * scale_y, cos * scale_y]
 }
