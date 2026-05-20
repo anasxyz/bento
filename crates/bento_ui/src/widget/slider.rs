@@ -61,10 +61,6 @@ impl Widget for Slider {
         let thumb_h = self.h;
 
         let mut g = GroupNode::new();
-        g.x = self.x;
-        g.y = self.y;
-        g.w = self.w;
-        g.h = self.h;
         let root = ui.scene_mut().add_group(g);
 
         let mut track = RectNode::new(0.0, self.h / 2.0 - 2.0, self.w, 5.0);

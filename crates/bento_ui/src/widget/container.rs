@@ -82,10 +82,6 @@ impl Widget for Container {
         let bg_id = ui.scene_mut().add_rect(bg);
 
         let mut g = GroupNode::new();
-        g.x = self.x;
-        g.y = self.y;
-        g.w = self.w;
-        g.h = self.h;
         g.offset_x = self.offset_x;
         g.offset_y = self.offset_y;
         if self.clip {

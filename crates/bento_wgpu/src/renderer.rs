@@ -48,8 +48,8 @@ impl Accumulated {
             scale_y: self.scale_y * g.scale_y,
             opacity: self.opacity * g.opacity.unwrap_or(1.0),
             clip: merge_clip(self.clip, g.clip),
-            offset_x: self.offset_x + g.x + g.offset_x,
-            offset_y: self.offset_y + g.y + g.offset_y,
+            offset_x: self.offset_x + g.offset_x,
+            offset_y: self.offset_y + g.offset_y,
         }
     }
 }
