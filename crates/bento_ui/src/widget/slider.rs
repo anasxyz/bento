@@ -3,7 +3,7 @@ use std::{cell::Cell, rc::Rc};
 use bento_shared::{GroupNode, RectNode, SceneNode, SceneNodeId};
 
 use crate::{
-    Click, MouseDown, MouseMove, MouseUp, SliderChanged, Ui,
+    Click, MouseDown, MouseMove, MouseUp, Change, Ui,
     widget::{Widget, WidgetHandle},
 };
 
@@ -103,7 +103,7 @@ impl Widget for Slider {
                 s.set_value(t.clamp(0.0, 1.0));
                 let val = s.value;
                 let root = s.id().unwrap();
-                ui.send(root, SliderChanged { value: val });
+                ui.send(root, Change { value: val });
             }
         });
 

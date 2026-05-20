@@ -22,7 +22,7 @@ pub struct Click {
 }
 
 #[derive(Clone, Copy)]
-pub struct SliderChanged {
+pub struct Change {
     pub value: f32,
 }
 
