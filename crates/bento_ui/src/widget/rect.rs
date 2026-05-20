@@ -37,11 +37,6 @@ impl Rect {
         }
     }
 
-    pub fn id(&self) -> SceneNodeId {
-        self.id
-            .expect("Rect not added to Ui yet — call ui.add() first")
-    }
-
     pub fn set_color(&mut self, color: [f32; 4]) {
         self.color = color;
         self.dirty = true;
@@ -82,6 +77,10 @@ impl Rect {
 }
 
 impl Widget for Rect {
+    fn id(&self) -> Option<SceneNodeId> {
+        self.id
+    }
+
     fn build(&mut self, ui: &mut Ui) {
         let mut node = RectNode::new(self.x, self.y, self.w, self.h);
         node.color = self.color;
@@ -94,7 +93,7 @@ impl Widget for Rect {
     }
 
     fn update(&mut self, ui: &mut Ui) {
-        if let Some(SceneNode::Rect(r)) = ui.scene_mut().get_mut(self.id()) {
+        if let Some(SceneNode::Rect(r)) = ui.scene_mut().get_mut(self.id().unwrap()) {
             r.color = self.color;
             r.x = self.x;
             r.y = self.y;

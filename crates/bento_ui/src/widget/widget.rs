@@ -1,7 +1,10 @@
+use bento_shared::SceneNodeId;
+
 use crate::ui::Ui;
 use std::any::Any;
 
 pub trait Widget {
+    fn id(&self) -> Option<SceneNodeId>;
     fn build(&mut self, ui: &mut Ui);
     fn update(&mut self, ui: &mut Ui);
     fn remove(&mut self, ui: &mut Ui);
