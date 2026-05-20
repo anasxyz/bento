@@ -11,7 +11,7 @@ fn main() {
     let rect = ui.add(Rect::new(10.0, 10.0, 100.0, 50.0));
     ui.append(container, rect);
 
-    let slider = ui.add(Slider::new(0.0, 0.0, 100.0, 20.0));
+    let slider = ui.add(Slider::new(100.0, 100.0, 100.0, 20.0));
     ui.append(container, slider);
 
     ui.listen_global(move |e: &KeyPress, ui| {

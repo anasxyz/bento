@@ -65,11 +65,13 @@ impl Widget for Slider {
         let thumb_h = self.h;
 
         let mut g = GroupNode::new();
+        g.offset_x = self.x;
+        g.offset_y = self.y;
         let root = ui.scene_mut().add_group(g);
 
         let mut track = RectNode::new(0.0, self.h / 2.0 - 2.0, self.w, 5.0);
         track.color([0.3, 0.3, 0.3, 1.0]);
-        track.radius(10.0);
+        track.radius(3.0);
         let track_id = ui.scene_mut().add_rect(track);
 
         let thumb_x = (self.value - self.min) / (self.max - self.min) * (self.w - thumb_w);

@@ -28,7 +28,7 @@ impl Container {
             y,
             w,
             h,
-            color: [0.2, 0.2, 0.2, 1.0],
+            color: [0.2, 0.2, 0.2, 0.0],
             clip: false,
             offset_x: 0.0,
             offset_y: 0.0,
