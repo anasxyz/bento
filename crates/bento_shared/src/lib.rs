@@ -7,7 +7,7 @@ pub(crate) mod scene;
 pub use scene::{Scene, SceneNode, SceneNodeId};
 pub use scene::{RectNode, TextNode, ImageNode, GroupNode};
 pub use scene::types::{ColorRange, FontFamilyRange, ItalicRange, WeightRange, DecorationRange, TextAlign};
-pub use measure::MeasureCache;
+pub use measure::{MeasureCache, CosmicTextMeasurer, TextMeasurer, TextMeasureRequest, TextMeasureResult};
 
 pub enum BentoEvent {
     Callback(u64),

@@ -7,10 +7,10 @@ use winit::{
 };
 
 use crate::{config::WindowConfig, window::Window};
-use bento_ui::{Ui};
+use bento_ui::Ui;
 use bento_wgpu::RenderContext;
 
-use bento_shared::{BentoEvent};
+use bento_shared::{BentoEvent, CosmicTextMeasurer};
 use std::sync::Arc;
 
 pub struct App {
@@ -76,7 +76,6 @@ impl ApplicationHandler<BentoEvent> for App {
         match event {
             WindowEvent::RedrawRequested => {
                 win.ui.process_input();
-                win.ui.update();
 
                 if win.needs_render || win.ui.needs_redraw {
                     println!("rendering");
