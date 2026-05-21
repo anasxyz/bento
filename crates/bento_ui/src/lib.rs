@@ -10,4 +10,7 @@ pub(crate) mod widget;
 pub use ui::Ui;
 pub use input::keyboard::Key;
 pub use events::types::*;
-pub use widget::all::*;
+pub use widget::{
+    Widget,
+    all::*,
+};

@@ -1,6 +1,6 @@
 use bento_shared::RectNode;
 
-use crate::widget::Widget;
+use crate::{Ui, widget::Widget};
 
 #[derive(Copy, Clone)]
 pub struct Rect {
@@ -50,5 +50,13 @@ impl Widget for Rect {
 
     fn name(&self) -> &str {
         "Rect"
+    }
+
+    fn build(&mut self, ui: &mut Ui) {
+        println!("building rect");
+    }
+
+    fn hitbox(&self) -> (f32, f32, f32, f32) {
+        (self.x, self.y, self.w, self.h)
     }
 }

@@ -11,7 +11,7 @@ fn main() {
 
     ui.get_mut(rect).unwrap().set_x(100.0);
 
-    ui.remove(rect);
+    ui.print_slots();
 
     app.open_window(WindowConfig::default(), ui);
     app.run();

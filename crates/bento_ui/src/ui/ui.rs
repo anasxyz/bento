@@ -53,6 +53,7 @@ impl Ui {
     pub fn add<W: Widget + 'static>(&mut self, mut widget: W) -> WidgetHandle<W> {
         let index = self.slots.len();
         widget.set_id(index);
+        widget.build(self);
         self.slots.push(Some(Slot {
             widget: Box::new(widget),
             generation: 0,
@@ -76,6 +77,19 @@ impl Ui {
             .widget
             .as_any_mut()
             .downcast_mut::<W>()
+    }
+
+    pub fn append<W: Widget + 'static, C: Widget + 'static>(
+        &mut self,
+        handle: WidgetHandle<W>,
+        child: WidgetHandle<C>,
+    ) {
+        if let Some(Some(parent_slot)) = self.slots.get_mut(handle.id) {
+            parent_slot.children.push(child.id);
+        }
+        if let Some(Some(child_slot)) = self.slots.get_mut(child.id) {
+            child_slot.parent = Some(handle.id);
+        }
     }
 
     pub fn process_input(&mut self) {

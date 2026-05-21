@@ -1,9 +1,13 @@
 use std::any::Any;
 
+use crate::Ui;
+
 pub trait Widget {
     fn id(&self) -> usize;
-    fn set_id(&mut self, id: usize);
-    fn name(&self) -> &str;
+    fn set_id(&mut self, id: usize) {}
+    fn name(&self) -> &str { "unnamed" }
+    fn build(&mut self, ui: &mut Ui) {}
+    fn hitbox(&self) -> (f32, f32, f32, f32) { (0.0, 0.0, 0.0, 0.0) }
 }
 
 pub trait AnyWidget: Widget + Any {
