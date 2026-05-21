@@ -4,13 +4,13 @@ use crate::widget::Widget;
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct WidgetHandle<T> {
-    pub id: u32,
-    pub generation: u32,
+    pub id: usize,
+    pub generation: usize,
     _marker: PhantomData<fn() -> T>,
 }
 
 impl<T> WidgetHandle<T> {
-    pub fn new(id: u32, generation: u32) -> Self {
+    pub fn new(id: usize, generation: usize) -> Self {
         Self {
             id,
             generation,

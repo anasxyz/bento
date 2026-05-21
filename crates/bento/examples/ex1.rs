@@ -7,19 +7,11 @@ fn main() {
     let mut app = App::new();
     let mut ui = Ui::new();
 
-    let mut rect = Rect::new();
-    let mut rect2 = Rect::new();
+    let rect = ui.add(Rect::new());
 
-    ui.add(&mut rect);
-    ui.add(&mut rect2);
+    ui.get_mut(rect).unwrap().set_x(100.0);
 
-    rect.set_x(100.0);
-
-    ui.print_slots();
-
-    ui.remove(&rect);
-
-    ui.print_slots();
+    ui.remove(rect);
 
     app.open_window(WindowConfig::default(), ui);
     app.run();

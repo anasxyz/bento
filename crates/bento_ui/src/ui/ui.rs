@@ -10,13 +10,13 @@ use crate::events::types::{
 use crate::input::InputState;
 use crate::input::mouse::MouseButton;
 use crate::ui::asyncs::AsyncEventQueue;
-use crate::widget::Widget;
+use crate::widget::{AnyWidget, Widget, WidgetHandle};
 
 pub struct Slot {
-    pub widget: Box<dyn Widget>,
-    pub generation: u32,
-    pub children: Vec<u32>,
-    pub parent: Option<u32>,
+    pub widget: Box<dyn AnyWidget>,
+    pub generation: usize,
+    pub children: Vec<usize>,
+    pub parent: Option<usize>,
 }
 
 pub struct Ui {
@@ -50,24 +50,32 @@ impl Ui {
         &mut self.scene
     }
 
-    pub fn add<W: Widget + Clone + 'static>(&mut self, widget: &mut W) {
+    pub fn add<W: Widget + 'static>(&mut self, mut widget: W) -> WidgetHandle<W> {
         let index = self.slots.len();
         widget.set_id(index);
-        let mut cloned = widget.clone();
         self.slots.push(Some(Slot {
-            widget: Box::new(cloned),
+            widget: Box::new(widget),
             generation: 0,
             children: Vec::new(),
             parent: None,
         }));
+        WidgetHandle::new(index, 0)
     }
 
-    pub fn remove<W: Widget + 'static>(&mut self, widget: &W) {
-        let id = widget.id();
-
-        if let Some(slot) = self.slots.get_mut(id) {
+    pub fn remove<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) {
+        if let Some(slot) = self.slots.get_mut(handle.id) {
             *slot = None;
         }
+    }
+
+    pub fn get_mut<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) -> Option<&mut W> {
+        let id = handle.id;
+        self.slots
+            .get_mut(id)?
+            .as_mut()?
+            .widget
+            .as_any_mut()
+            .downcast_mut::<W>()
     }
 
     pub fn process_input(&mut self) {

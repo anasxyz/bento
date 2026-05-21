@@ -1,3 +1,5 @@
+use bento_shared::RectNode;
+
 use crate::widget::Widget;
 
 #[derive(Copy, Clone)]
@@ -8,6 +10,8 @@ pub struct Rect {
     pub y: f32,
     pub w: f32,
     pub h: f32,
+
+    pub color: [f32; 4],
 }
 
 impl Rect {
@@ -18,6 +22,7 @@ impl Rect {
             y: 0.0,
             w: 0.0,
             h: 0.0,
+            color: [0.0, 0.0, 0.0, 1.0],
         }
     }
 
