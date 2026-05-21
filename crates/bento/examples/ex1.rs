@@ -7,11 +7,7 @@ fn main() {
     let mut app = App::new();
     let mut ui = Ui::new();
 
-    let rect = ui.add(Rect::new());
-
-    ui.get_mut(rect).unwrap().set_x(100.0);
-
-    ui.append(rect, rect);
+    let btn = ui.add(Button::new());
 
     ui.print_slots();
 

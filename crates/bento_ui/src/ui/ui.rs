@@ -53,14 +53,22 @@ impl Ui {
     pub fn add<W: Widget + 'static>(&mut self, mut widget: W) -> WidgetHandle<W> {
         let index = self.slots.len();
         widget.set_id(index);
+        self.slots.push(None);
         widget.build(self);
-        self.slots.push(Some(Slot {
+        // any append() calls during build will have pushed to pending_children
+        let children: Vec<usize> = self
+            .slots
+            .iter()
+            .enumerate()
+            .filter_map(|(i, s)| s.as_ref().filter(|s| s.parent == Some(index)).map(|_| i))
+            .collect();
+        self.slots[index] = Some(Slot {
             widget: Box::new(widget),
             generation: 0,
-            children: Vec::new(),
+            children,
             parent: None,
-        }));
-        WidgetHandle::new(index, 0)
+        });
+        WidgetHandle::from_id(index)
     }
 
     pub fn add_child<P: Widget + 'static, C: Widget + 'static>(
@@ -143,8 +151,8 @@ impl Ui {
                     "[{}] {} parent={:?} children={:?} {:?}",
                     i,
                     s.widget.name(),
-                    s.generation,
                     s.parent,
+                    s.children,
                     s.widget.hitbox(),
                 );
             }
