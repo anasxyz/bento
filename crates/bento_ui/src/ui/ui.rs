@@ -83,7 +83,20 @@ impl Ui {
     }
 
     pub fn remove<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) {
-        if let Some(slot) = self.slots.get_mut(handle.id) {
+        self.remove_id(handle.id);
+    }
+
+    fn remove_id(&mut self, id: usize) {
+        let children = self
+            .slots
+            .get(id)
+            .and_then(|s| s.as_ref())
+            .map(|s| s.children.clone())
+            .unwrap_or_default();
+        for child_id in children {
+            self.remove_id(child_id);
+        }
+        if let Some(slot) = self.slots.get_mut(id) {
             *slot = None;
         }
     }
@@ -145,6 +158,12 @@ impl Ui {
 
 impl Ui {
     pub fn print_slots(&self) {
+        println!("[Slots]");
+        if self.slots.iter().all(|s| s.is_none()) {
+            println!("No slots");
+            println!("[Slots]");
+            return;
+        }
         for (i, slot) in self.slots.iter().enumerate() {
             if let Some(s) = slot {
                 println!(
@@ -157,5 +176,6 @@ impl Ui {
                 );
             }
         }
+        println!("[Slots]");
     }
 }

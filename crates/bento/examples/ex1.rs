@@ -11,6 +11,10 @@ fn main() {
 
     ui.print_slots();
 
+    ui.remove(btn);
+
+    ui.print_slots();
+
     app.open_window(WindowConfig::default(), ui);
     app.run();
 }
