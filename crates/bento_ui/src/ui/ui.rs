@@ -163,6 +163,7 @@ impl Ui {
             }
             if let Some(mut slot) = self.slots[i].take() {
                 slot.widget.update(self);
+                println!("updating widget id: {}, name: {}", slot.widget.id(), slot.widget.name());
                 slot.widget.set_dirty(false);
                 self.slots[i] = Some(slot);
                 self.request_redraw();

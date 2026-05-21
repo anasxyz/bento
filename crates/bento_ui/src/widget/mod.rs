@@ -1,7 +1,7 @@
-pub mod all;
+pub mod primitive;
+pub mod composite;
 mod handle;
 mod widget;
 
-pub use all::*;
 pub use handle::WidgetHandle;
 pub use widget::{AnyWidget, Widget};
