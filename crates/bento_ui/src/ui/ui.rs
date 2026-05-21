@@ -50,6 +50,10 @@ impl Ui {
         &mut self.scene
     }
 
+    pub fn request_redraw(&mut self) {
+        self.needs_redraw = true;
+    }
+
     pub fn add<W: Widget + 'static>(&mut self, mut widget: W) -> WidgetHandle<W> {
         let index = self.slots.len();
         widget.set_id(index);
@@ -68,6 +72,7 @@ impl Ui {
             children,
             parent: None,
         });
+        self.request_redraw();
         WidgetHandle::from_id(index)
     }
 
@@ -84,6 +89,7 @@ impl Ui {
 
     pub fn remove<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) {
         self.remove_id(handle.id);
+        self.request_redraw();
     }
 
     fn remove_id(&mut self, id: usize) {
@@ -96,8 +102,8 @@ impl Ui {
         for child_id in children {
             self.remove_id(child_id);
         }
-        if let Some(slot) = self.slots.get_mut(id) {
-            *slot = None;
+        if let Some(Some(mut slot)) = self.slots.get_mut(id).map(|s| s.take()) {
+            slot.widget.remove(self);
         }
     }
 
@@ -151,6 +157,10 @@ impl Ui {
         for (k, _) in self.input.keyboard.just_pressed() {
             if *k == Key::D {
                 self.print_slots();
+            }
+
+            if *k == Key::S {
+                self.scene.print_tree();
             }
         }
     }

@@ -8,6 +8,7 @@ pub trait Widget {
     fn name(&self) -> &str { "unnamed" }
     fn build(&mut self, ui: &mut Ui) {}
     fn update(&mut self, ui: &mut Ui) {}
+    fn remove(&mut self, ui: &mut Ui) {}
     fn hitbox(&self) -> (f32, f32, f32, f32) { (0.0, 0.0, 0.0, 0.0) }
 }
 

@@ -73,6 +73,12 @@ impl Widget for Rect {
         }
     }
 
+    fn remove(&mut self, ui: &mut Ui) {
+        if let Some(node_id) = self.node {
+            ui.scene_mut().remove(node_id);
+        }
+    }
+
     fn hitbox(&self) -> (f32, f32, f32, f32) {
         (self.x, self.y, self.w, self.h)
     }
