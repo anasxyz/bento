@@ -42,7 +42,7 @@ impl Ui {
             slots: Vec::new(),
 
             needs_redraw: false,
-            
+
             measurer: CosmicTextMeasurer::new(),
         }
     }
@@ -173,7 +173,6 @@ impl Ui {
             }
             if let Some(mut slot) = self.slots[i].take() {
                 slot.widget.update(self);
-                println!("updating widget id: {}, name: {}", slot.widget.id(), slot.widget.name());
                 slot.widget.set_dirty(false);
                 self.slots[i] = Some(slot);
                 self.request_redraw();
@@ -196,24 +195,34 @@ impl Ui {
 
 impl Ui {
     pub fn print_slots(&self) {
-        println!("[Slots]");
+        println!("\n[Ui]");
         if self.slots.iter().all(|s| s.is_none()) {
-            println!("No slots");
-            println!("[Slots]");
+            println!("  empty");
             return;
         }
         for (i, slot) in self.slots.iter().enumerate() {
             if let Some(s) = slot {
-                println!(
-                    "[{}] {} parent={:?} children={:?} {:?}",
-                    i,
-                    s.widget.name(),
-                    s.parent,
-                    s.children,
-                    s.widget.hitbox(),
-                );
+                if s.parent.is_none() {
+                    self.print_node(i, 0);
+                }
             }
         }
-        println!("[Slots]");
+        println!("\n");
+    }
+
+    fn print_node(&self, index: usize, depth: usize) {
+        let indent = "  ".repeat(depth);
+        if let Some(Some(s)) = self.slots.get(index) {
+            println!(
+                "{}[{}] {} {:?}",
+                indent,
+                index,
+                s.widget.name(),
+                s.widget.hitbox()
+            );
+            for &child_id in &s.children {
+                self.print_node(child_id, depth + 1);
+            }
+        }
     }
 }

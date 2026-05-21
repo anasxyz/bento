@@ -811,9 +811,13 @@ impl Scene {
             }
         }
 
+        println!("[Scene]");
+
         for &root_id in &self.root {
             print_node(&self.nodes, root_id, 0);
         }
+
+        println!("\n");
     }
 }
 
