@@ -79,7 +79,6 @@ impl ApplicationHandler<BentoEvent> for App {
                 win.ui.update();
 
                 if win.needs_render || win.ui.needs_redraw {
-                    println!("rendering");
                     let font_system = &mut win.ui.measurer.font_system;
                     let scene = &mut win.ui.scene;
                     win.renderer.render(

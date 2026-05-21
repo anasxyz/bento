@@ -27,7 +27,7 @@ impl Rect {
             h: 0.0,
             color: [0.0, 0.0, 0.0, 1.0],
 
-            dirty: false,
+            dirty: true,
         }
     }
 
@@ -64,7 +64,6 @@ impl Widget for Rect {
     fn name(&self) -> &str { "Rect" }
 
     fn build(&mut self, ui: &mut Ui) {
-        println!("building rect");
         let mut node = RectNode::new(self.x, self.y, self.w, self.h);
         node.color = self.color;
         let node_id = ui.scene_mut().add_rect(node);
@@ -72,7 +71,6 @@ impl Widget for Rect {
     }
 
     fn update(&mut self, ui: &mut Ui) {
-        println!("updating rect");
         if let Some(node_id) = self.node {
             if let Some(SceneNode::Rect(r)) = ui.scene_mut().get_mut(node_id) {
                 r.x = self.x;

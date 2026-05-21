@@ -21,6 +21,7 @@ impl Text {
         Self {
             id: 0,
             node: None,
+
             x: 0.0,
             y: 0.0,
             w: 0.0,
@@ -28,7 +29,8 @@ impl Text {
             content: content.to_string(),
             size: 14.0,
             color: [1.0, 1.0, 1.0, 1.0],
-            dirty: false,
+
+            dirty: true,
         }
     }
 

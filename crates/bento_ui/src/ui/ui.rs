@@ -112,6 +112,16 @@ impl Ui {
         }
     }
 
+    pub fn get<W: Widget + 'static>(&self, handle: WidgetHandle<W>) -> Option<&W> {
+        let id = handle.id;
+        self.slots
+            .get(id)?
+            .as_ref()?
+            .widget
+            .as_any()
+            .downcast_ref::<W>()
+    }
+
     pub fn get_mut<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) -> Option<&mut W> {
         let id = handle.id;
         self.slots
