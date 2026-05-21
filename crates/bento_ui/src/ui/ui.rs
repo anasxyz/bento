@@ -84,6 +84,20 @@ impl Ui {
         handle: WidgetHandle<W>,
         child: WidgetHandle<C>,
     ) {
+        // check if child is parent
+        if handle.id == child.id {
+            println!("Cannot append widget to itself");
+            return;
+        }
+
+        // check if child is already a child of parent
+        if let Some(Some(parent_slot)) = self.slots.get(handle.id) {
+            if parent_slot.children.contains(&child.id) {
+                println!("Cannot append, widget is already child of parent");
+                return;
+            }
+        }
+
         if let Some(Some(parent_slot)) = self.slots.get_mut(handle.id) {
             parent_slot.children.push(child.id);
         }
@@ -106,12 +120,12 @@ impl Ui {
         for (i, slot) in self.slots.iter().enumerate() {
             if let Some(s) = slot {
                 println!(
-                    "[{}] {} gen={} parent={:?} children={:?}",
+                    "[{}] {} parent={:?} children={:?} {:?}",
                     i,
                     s.widget.name(),
                     s.generation,
                     s.parent,
-                    s.children
+                    s.widget.hitbox(),
                 );
             }
         }
