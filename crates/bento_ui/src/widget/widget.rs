@@ -1,6 +1,9 @@
 use std::any::Any;
 
+use bento_wgpu::DrawList;
+
 use crate::Ui;
+use crate::accumulated::Accumulated;
 
 pub trait Widget {
     fn id(&self) -> usize;
@@ -12,6 +15,8 @@ pub trait Widget {
     fn hitbox(&self) -> (f32, f32, f32, f32) { (0.0, 0.0, 0.0, 0.0) }
     fn is_dirty(&self) -> bool { false }
     fn set_dirty(&mut self, dirty: bool) {}
+
+    fn render(&self, draw_list: &mut DrawList, acc: &Accumulated) {}
 }
 
 pub trait AnyWidget: Widget + Any {

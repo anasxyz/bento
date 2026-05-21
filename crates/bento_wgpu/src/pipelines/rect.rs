@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use bytemuck::{Pod, Zeroable};
 use wgpu;
 
@@ -24,6 +26,7 @@ pub struct RectPipeline {
     instances: Vec<RectInstance>,
     dirty: Vec<bool>,
     next_slot: u32,
+    id_to_slot: HashMap<u64, u32>,
 }
 
 impl RectPipeline {
@@ -112,7 +115,7 @@ impl RectPipeline {
                     offset: 96,
                     shader_location: 6,
                     format: wgpu::VertexFormat::Float32x4,
-                }, 
+                },
             ],
         };
 
@@ -175,6 +178,7 @@ impl RectPipeline {
             instances: Vec::new(),
             dirty: Vec::new(),
             next_slot: 0,
+            id_to_slot: HashMap::new(),
         }
     }
 
@@ -200,6 +204,19 @@ impl RectPipeline {
         });
         self.dirty.push(true);
         slot
+    }
+
+    pub fn get_or_alloc_slot(&mut self, id: u64) -> u32 {
+        if let Some(&slot) = self.id_to_slot.get(&id) {
+            return slot;
+        }
+        let slot = self.alloc_slot();
+        self.id_to_slot.insert(id, slot);
+        slot
+    }
+
+    pub fn slot_for_id(&self, id: u64) -> Option<u32> {
+        self.id_to_slot.get(&id).copied()
     }
 
     pub fn write_slot(&mut self, slot: u32, instance: RectInstance) {

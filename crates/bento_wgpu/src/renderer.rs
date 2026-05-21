@@ -1,4 +1,5 @@
 use crate::{
+    DrawList,
     context::RenderContext,
     pipelines::{
         image::{ImageInstance, ImagePipeline},
@@ -119,7 +120,7 @@ impl Renderer {
         font_system: &mut cosmic_text::FontSystem,
         surface: &mut Surface,
         clear_color: [f32; 4],
-        scene: &mut Scene,
+        draw_list: &DrawList,
     ) {
         let frame = match surface.surface.get_current_texture() {
             Ok(f) => f,
@@ -139,48 +140,103 @@ impl Renderer {
                 label: Some("frame"),
             });
 
-        // sort root nodes by z
-        let mut root_ids = scene.root.clone();
-        root_ids.sort_by_key(|id| match scene.nodes.get(id.0) {
-            Some(SceneNode::Rect(r)) => r.z,
-            Some(SceneNode::Text(t)) => t.z,
-            Some(SceneNode::Image(i)) => i.z,
-            Some(SceneNode::Group(g)) => g.z,
-            None => 0,
-        });
+        // process rects
+        for (id, r) in &draw_list.rects {
+            let slot = self.rect.get_or_alloc_slot(*id);
+            self.rect.write_slot(
+                slot,
+                RectInstance {
+                    pos_size: [r.x, r.y, r.w, r.h],
+                    color: [r.color[0], r.color[1], r.color[2], r.color[3] * r.opacity],
+                    radii: r.radii,
+                    border_color: r.border_color,
+                    border_widths: r.border_widths,
+                    transform: transform(r.rotate, r.scale_x, r.scale_y),
+                    clip: scale_clip(r.clip, surface.scale),
+                },
+            );
+        }
 
+        // process texts
         let mut specs: Vec<TextSpec> = Vec::new();
-        let mut text_slot: usize = 0;
+        for (_, t) in &draw_list.texts {
+            specs.push(TextSpec {
+                text: t.text.clone(),
+                x: t.x,
+                y: t.y,
+                size: t.size,
+                color: t.color,
+                rotate: t.rotate,
+                scale_x: t.scale_x,
+                scale_y: t.scale_y,
+                weight: t.weight,
+                italic: t.italic,
+                font_family: t.font_family.clone(),
+                max_width: t.max_width,
+                line_height: t.line_height,
+                letter_spacing: t.letter_spacing,
+                align: t.align.clone(),
+                opacity: t.opacity,
+                clip: t.clip,
+                color_ranges: t.color_ranges.clone(),
+                background_ranges: t.background_ranges.clone(),
+                underline_ranges: t.underline_ranges.clone(),
+                strikethrough_ranges: t.strikethrough_ranges.clone(),
+                weight_ranges: t.weight_ranges.clone(),
+                italic_ranges: t.italic_ranges.clone(),
+                font_family_ranges: t.font_family_ranges.clone(),
+            });
+        }
 
-        Self::traverse(
-            &root_ids,
-            scene,
-            // root surface clip to cull any nodes outside of window bounds
-            &Accumulated {
-                clip: Some([0.0, 0.0, surface.width as f32, surface.height as f32]),
-                ..Accumulated::identity()
-            },
-            &mut self.rect,
-            &mut self.image,
-            surface.scale,
-            &mut specs,
-            &mut text_slot,
-        );
         self.rect.upload(&ctx.device, &ctx.queue);
+        let specs: Vec<(u64, TextSpec)> = draw_list
+            .texts
+            .iter()
+            .map(|(id, t)| {
+                (
+                    *id,
+                    TextSpec {
+                        text: t.text.clone(),
+                        x: t.x,
+                        y: t.y,
+                        size: t.size,
+                        color: t.color,
+                        rotate: t.rotate,
+                        scale_x: t.scale_x,
+                        scale_y: t.scale_y,
+                        weight: t.weight,
+                        italic: t.italic,
+                        font_family: t.font_family.clone(),
+                        max_width: t.max_width,
+                        line_height: t.line_height,
+                        letter_spacing: t.letter_spacing,
+                        align: t.align.clone(),
+                        opacity: t.opacity,
+                        clip: t.clip,
+                        color_ranges: t.color_ranges.clone(),
+                        background_ranges: t.background_ranges.clone(),
+                        underline_ranges: t.underline_ranges.clone(),
+                        strikethrough_ranges: t.strikethrough_ranges.clone(),
+                        weight_ranges: t.weight_ranges.clone(),
+                        italic_ranges: t.italic_ranges.clone(),
+                        font_family_ranges: t.font_family_ranges.clone(),
+                    },
+                )
+            })
+            .collect();
+
         self.text
             .prepare(&specs, font_system, &ctx.device, &ctx.queue);
         self.image.upload(&ctx.device, &ctx.queue);
 
-        // upload decoration rects into transient buffer before pass begins
-        let all_bg_rects: Vec<RectInstance> = self.text.bg_rects.clone();
-        let all_line_rects: Vec<RectInstance> = self.text.line_rects.clone();
+        let all_bg_rects = self.text.bg_rects.clone();
+        let all_line_rects = self.text.line_rects.clone();
         let mut combined = all_bg_rects.clone();
         combined.extend_from_slice(&all_line_rects);
         self.rect
             .prepare_transient(&combined, &ctx.device, &ctx.queue);
         let line_offset = all_bg_rects.len() as u32;
 
-        // draw
         let [r, g, b, a] = clear_color;
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -203,15 +259,41 @@ impl Renderer {
                 occlusion_query_set: None,
             });
 
-            Self::draw_nodes(
-                &root_ids,
-                scene,
-                &self.rect,
-                &self.text,
-                &self.image,
-                &mut pass,
-                line_offset,
-            );
+            // draw rects
+            for (id, _) in &draw_list.rects {
+                let slot = self.rect.slot_for_id(*id);
+                if let Some(slot) = slot {
+                    self.rect.draw_slot(&mut pass, slot);
+                }
+            }
+
+            // draw texts
+            for (i, (id, _)) in draw_list.texts.iter().enumerate() {
+                let slot = match self.text.id_to_slot.get(id) {
+                    Some(&s) => s,
+                    None => continue,
+                };
+                if let Some(&(start, end)) = self.text.bg_ranges.get(i) {
+                    self.rect
+                        .draw_transient_range(&mut pass, start as u32, (end - start) as u32);
+                }
+                self.text.draw_range(&mut pass, slot);
+                if let Some(&(start, end)) = self.text.line_ranges.get(i) {
+                    self.rect.draw_transient_range(
+                        &mut pass,
+                        line_offset + start as u32,
+                        (end - start) as u32,
+                    );
+                }
+            }
+
+            // draw images
+            for (id, _) in &draw_list.images {
+                let slot = self.image.slot_for_id(*id);
+                if let Some(slot) = slot {
+                    self.image.draw_slot(&mut pass, slot);
+                }
+            }
         }
 
         ctx.queue.submit(Some(encoder.finish()));

@@ -703,6 +703,7 @@ pub struct TextPipeline {
     ranges: Vec<(u32, u32)>,
     cache: Vec<TextCache>,
     scale: f32,
+    pub id_to_slot: HashMap<u64, usize>,
 
     pub bg_rects: Vec<RectInstance>,
     pub bg_ranges: Vec<(usize, usize)>,
@@ -903,6 +904,7 @@ impl TextPipeline {
             ranges: Vec::new(),
             cache: Vec::new(),
             scale: 1.0,
+            id_to_slot: HashMap::new(),
             bg_rects: Vec::new(),
             bg_ranges: Vec::new(),
             line_rects: Vec::new(),
@@ -925,13 +927,18 @@ impl TextPipeline {
 
     pub fn prepare(
         &mut self,
-        specs: &[TextSpec],
+        specs: &[(u64, TextSpec)],
         font_system: &mut cosmic_text::FontSystem,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
     ) {
-        while self.cache.len() < specs.len() {
-            self.cache.push(TextCache::empty());
+        // ensure cache slots exist for all ids
+        for (id, _) in specs {
+            if !self.id_to_slot.contains_key(id) {
+                let slot = self.cache.len();
+                self.cache.push(TextCache::empty());
+                self.id_to_slot.insert(*id, slot);
+            }
         }
 
         let mut instances = Vec::<GlyphInstance>::new();
@@ -942,17 +949,22 @@ impl TextPipeline {
         self.line_rects.clear();
         self.line_ranges.clear();
 
-        for (i, (cache, spec)) in self.cache.iter_mut().zip(specs.iter()).enumerate() {
+        for (id, spec) in specs {
+            let slot = self.id_to_slot[id];
+            let cache = &mut self.cache[slot];
+
             let reshape = cache.needs_reshape(spec);
             let redraw = reshape || cache.needs_redraw(spec);
 
-            if reshape {
-                // println!("[bento_wgpu] text slot {} reshaping", i);
-            } else if redraw {
-                // println!("[bento_wgpu] text slot {} redraw only (no reshape)", i);
-            } else {
-                // println!("[bento_wgpu] text slot {} fully cached, skipping", i);
-            }
+            /*
+                        if reshape {
+                            println!("[text] slot {} reshaping", slot);
+                        } else if redraw {
+                            println!("[text] slot {} redraw only", slot);
+                        } else {
+                            println!("[text] slot {} fully cached, skipping", slot);
+                        }
+            */
 
             if redraw {
                 any_changed = true;

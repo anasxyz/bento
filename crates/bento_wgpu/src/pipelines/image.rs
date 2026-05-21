@@ -30,6 +30,7 @@ pub struct ImagePipeline {
     // slot -> image_id
     image_ids: Vec<u64>,
     next_slot: usize,
+    id_to_slot: HashMap<u64, usize>,
 }
 
 impl ImagePipeline {
@@ -212,6 +213,7 @@ impl ImagePipeline {
             dirty: Vec::new(),
             image_ids: Vec::new(),
             next_slot: 0,
+            id_to_slot: HashMap::new(),
         }
     }
 
@@ -303,6 +305,19 @@ impl ImagePipeline {
         self.dirty.push(true);
         self.image_ids.push(0);
         slot
+    }
+
+    pub fn get_or_alloc_slot(&mut self, id: u64) -> usize {
+        if let Some(&slot) = self.id_to_slot.get(&id) {
+            return slot;
+        }
+        let slot = self.alloc_slot();
+        self.id_to_slot.insert(id, slot);
+        slot
+    }
+
+    pub fn slot_for_id(&self, id: u64) -> Option<usize> {
+        self.id_to_slot.get(&id).copied()
     }
 
     pub fn write_slot(&mut self, slot: usize, instance: ImageInstance, image_id: u64) {

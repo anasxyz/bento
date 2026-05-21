@@ -7,10 +7,12 @@ mod context;
 mod surface;
 mod renderer;
 mod pipelines;
+mod draw;
 
 pub use context::RenderContext;
 pub use surface::Surface;
 pub use renderer::Renderer;
+pub use draw::{DrawList, RectDraw, TextDraw, ImageDraw};
 use pipelines::rect::RectInstance;
 
 use bento_shared::{

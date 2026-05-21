@@ -1,10 +1,11 @@
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 
-use bento_shared::{CosmicTextMeasurer, MeasureCache, Scene, SceneNodeId};
-use cosmic_text::FontSystem;
+use bento_shared::CosmicTextMeasurer;
+use bento_wgpu::DrawList;
 
 use crate::Key;
+use crate::accumulated::Accumulated;
 use crate::events::types::{
     Click, KeyPress, KeyRelease, MouseDown, MouseEnter, MouseLeave, MouseMove, MouseScroll, MouseUp,
 };
@@ -21,7 +22,6 @@ pub struct Slot {
 }
 
 pub struct Ui {
-    pub scene: Scene,
     pub input: InputState,
     pub asyncs: AsyncEventQueue,
 
@@ -35,7 +35,6 @@ pub struct Ui {
 impl Ui {
     pub fn new() -> Self {
         Self {
-            scene: Scene::new(),
             input: InputState::new(),
             asyncs: AsyncEventQueue::new(),
 
@@ -45,14 +44,6 @@ impl Ui {
 
             measurer: CosmicTextMeasurer::new(),
         }
-    }
-
-    pub fn scene(&self) -> &Scene {
-        &self.scene
-    }
-
-    pub fn scene_mut(&mut self) -> &mut Scene {
-        &mut self.scene
     }
 
     pub fn request_redraw(&mut self) {
@@ -107,8 +98,8 @@ impl Ui {
         for child_id in children {
             self.remove_id(child_id);
         }
-        if let Some(Some(mut slot)) = self.slots.get_mut(id).map(|s| s.take()) {
-            slot.widget.remove(self);
+        if let Some(slot) = self.slots.get_mut(id) {
+            *slot = None;
         }
     }
 
@@ -173,6 +164,7 @@ impl Ui {
             }
             if let Some(mut slot) = self.slots[i].take() {
                 slot.widget.update(self);
+                println!("updating widget {} in slot {}", slot.widget.name(), i);
                 slot.widget.set_dirty(false);
                 self.slots[i] = Some(slot);
                 self.request_redraw();
@@ -185,9 +177,27 @@ impl Ui {
             if *k == Key::D {
                 self.print_slots();
             }
+        }
+    }
 
-            if *k == Key::S {
-                self.scene.print_tree();
+    pub fn collect_draw_list(&self) -> DrawList {
+        let mut draw_list = DrawList::new();
+        for (i, slot) in self.slots.iter().enumerate() {
+            if let Some(s) = slot {
+                if s.parent.is_none() {
+                    self.render_slot(i, &mut draw_list, Accumulated::identity());
+                }
+            }
+        }
+        draw_list
+    }
+
+    fn render_slot(&self, id: usize, draw_list: &mut DrawList, acc: Accumulated) {
+        if let Some(Some(s)) = self.slots.get(id) {
+            s.widget.render(draw_list, &acc);
+            let child_acc = acc.push(0.0, 0.0, None); // widgets will expose offset/clip later
+            for &child_id in &s.children {
+                self.render_slot(child_id, draw_list, child_acc);
             }
         }
     }

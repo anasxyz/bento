@@ -12,7 +12,7 @@ fn main() {
     ui.asyncs.spawn(async move {
         tokio::time::sleep(std::time::Duration::from_secs(2)).await;
         move |ui: &mut Ui| {
-            ui.get_mut(button).unwrap().set_text("Hellooooooooooooooooooooo");
+            ui.remove(button);
         }
     });
 
