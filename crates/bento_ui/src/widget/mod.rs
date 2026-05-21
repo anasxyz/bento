@@ -1,12 +1,7 @@
-mod widget;
+pub mod primitive;
+pub mod composite;
 mod handle;
+mod widget;
 
-pub use widget::{AsAny, Widget};
-pub use handle::{WidgetHandle, WidgetId};
-
-mod primitives;
-
-pub use primitives::Rect;
-pub use primitives::Text;
-pub use primitives::Button;
-pub use primitives::Container;
+pub use handle::WidgetHandle;
+pub use widget::{AnyWidget, Widget};

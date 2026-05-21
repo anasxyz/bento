@@ -1,7 +1,6 @@
 use crate::pipelines::rect::RectInstance;
 use bento_shared::{
-    TextAlign,
-    scene::{ColorRange, DecorationRange, FontFamilyRange, ItalicRange, WeightRange},
+    ColorRange, DecorationRange, FontFamilyRange, ItalicRange, TextAlign, WeightRange,
 };
 use bytemuck::{Pod, Zeroable};
 use cosmic_text::{

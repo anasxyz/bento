@@ -7,7 +7,7 @@ use winit::{
 };
 
 use crate::{config::WindowConfig, window::Window};
-use bento_ui::{Ui, WindowResized};
+use bento_ui::Ui;
 use bento_wgpu::RenderContext;
 
 use bento_shared::{BentoEvent, CosmicTextMeasurer};
@@ -75,24 +75,18 @@ impl ApplicationHandler<BentoEvent> for App {
 
         match event {
             WindowEvent::RedrawRequested => {
-                let t1 = std::time::Instant::now();
                 win.ui.process_input();
+                win.ui.update();
 
-                let dirty = win.ui.any_dirty();
-
-                if dirty {
-                    let mut measurer =
-                        CosmicTextMeasurer::new(&mut win.font_system, &mut win.measure_cache);
-                    win.ui.update(&mut measurer);
-                }
-
-                if dirty || win.needs_render || win.ui.needs_redraw {
+                if win.needs_render || win.ui.needs_redraw {
+                    let font_system = &mut win.ui.measurer.font_system;
+                    let scene = &mut win.ui.scene;
                     win.renderer.render(
                         ctx,
-                        &mut win.font_system,
+                        font_system,
                         &mut win.surface,
                         win.config.clear_color,
-                        win.ui.scene_mut(),
+                        scene,
                     );
                     win.needs_render = false;
                     win.ui.needs_redraw = false;
@@ -100,8 +94,6 @@ impl ApplicationHandler<BentoEvent> for App {
 
                 win.ui.input.mouse.clear();
                 win.ui.input.keyboard.clear();
-
-                // println!("redraw took {:?}", t1.elapsed());
             }
 
             WindowEvent::KeyboardInput {
@@ -219,7 +211,6 @@ impl ApplicationHandler<BentoEvent> for App {
                 win.resize(ctx);
                 let w = win.surface.width;
                 let h = win.surface.height;
-                win.ui.send_global(WindowResized { w, h });
                 win.needs_render = true;
                 win.request_redraw();
             }

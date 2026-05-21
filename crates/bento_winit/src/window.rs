@@ -10,8 +10,6 @@ pub struct Window {
     pub config: WindowConfig,
     pub renderer: Renderer,
     pub surface: Surface<'static>,
-    pub font_system: FontSystem,
-    pub measure_cache: MeasureCache,
     pub ui: Ui,
     window: Arc<winit::window::Window>,
     pub last_frame: Option<std::time::Instant>,
@@ -41,15 +39,10 @@ impl Window {
         let surface = Surface::new(ctx, Arc::clone(&window), w, h, scale);
         let renderer = Renderer::new(ctx, &surface);
 
-        let mut font_system = FontSystem::new();
-        let measure_cache = MeasureCache::new(&mut font_system);
-
         Self {
             config,
             renderer,
             surface,
-            font_system,
-            measure_cache,
             ui,
             window,
             last_frame: None,

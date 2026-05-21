@@ -1,5 +1,5 @@
-use crate::Key;
-use crate::MouseButton;
+use crate::input::keyboard::Key;
+use crate::input::mouse::MouseButton;
 
 /// Event structs
 
@@ -21,7 +21,10 @@ pub struct Click {
     pub button: MouseButton,
 }
 
-
+#[derive(Clone, Copy)]
+pub struct Change {
+    pub value: f32,
+}
 
 #[derive(Clone, Copy)]
 pub struct MouseMove {

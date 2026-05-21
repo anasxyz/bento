@@ -1,9 +1,13 @@
-pub mod math;
-pub mod measure;
-pub mod scene;
+#![allow(dead_code)]
+#![allow(unused)]
 
-pub use measure::{LineMetrics, TextMeasureRequest, TextMeasureResult, TextMeasurer, CosmicTextMeasurer, MeasureCache};
-pub use scene::{GroupNode, ImageNode, SceneNode, RectNode, Scene, TextAlign, TextNode, SceneNodeId};
+pub(crate) mod measure;
+pub(crate) mod scene;
+
+pub use scene::{Scene, SceneNode, SceneNodeId};
+pub use scene::{RectNode, TextNode, ImageNode, GroupNode};
+pub use scene::types::{ColorRange, FontFamilyRange, ItalicRange, WeightRange, DecorationRange, TextAlign};
+pub use measure::{MeasureCache, CosmicTextMeasurer, TextMeasurer, TextMeasureRequest, TextMeasureResult};
 
 pub enum BentoEvent {
     Callback(u64),

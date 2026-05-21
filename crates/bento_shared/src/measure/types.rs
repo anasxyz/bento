@@ -1,4 +1,4 @@
-use crate::scene::{FontFamilyRange, ItalicRange, WeightRange};
+use crate::scene::types::{FontFamilyRange, ItalicRange, WeightRange};
 
 pub struct TextMeasureRequest<'a> {
     pub text: &'a str,

@@ -1,4 +1,4 @@
-use crate::measure::{LineMetrics, TextMeasureRequest, TextMeasureResult, TextMeasurer};
+use crate::measure::types::{LineMetrics, TextMeasureRequest, TextMeasureResult, TextMeasurer};
 use cosmic_text::{Attrs, Buffer, Family, Metrics, Shaping, Style as CStyle, Weight};
 use std::collections::HashMap;
 
@@ -57,18 +57,20 @@ impl MeasureCache {
     }
 }
 
-pub struct CosmicTextMeasurer<'a> {
-    pub font_system: &'a mut cosmic_text::FontSystem,
-    cache: &'a mut MeasureCache,
+pub struct CosmicTextMeasurer {
+    pub font_system: cosmic_text::FontSystem,
+    cache: MeasureCache,
 }
 
-impl<'a> CosmicTextMeasurer<'a> {
-    pub fn new(font_system: &'a mut cosmic_text::FontSystem, cache: &'a mut MeasureCache) -> Self {
+impl CosmicTextMeasurer {
+    pub fn new() -> Self {
+        let mut font_system = cosmic_text::FontSystem::new();
+        let cache = MeasureCache::new(&mut font_system);
         Self { font_system, cache }
     }
 }
 
-impl<'a> TextMeasurer for CosmicTextMeasurer<'a> {
+impl TextMeasurer for CosmicTextMeasurer {
     fn measure(&mut self, req: TextMeasureRequest<'_>) -> TextMeasureResult {
         let key = MeasureKey::from_request(&req);
         if let Some(result) = self.cache.cache.get(&key) {
@@ -79,10 +81,10 @@ impl<'a> TextMeasurer for CosmicTextMeasurer<'a> {
 
         self.cache
             .buffer
-            .set_metrics(self.font_system, Metrics::new(req.size, line_height));
+            .set_metrics(&mut self.font_system, Metrics::new(req.size, line_height));
         self.cache
             .buffer
-            .set_size(self.font_system, req.max_width, None);
+            .set_size(&mut self.font_system, req.max_width, None);
 
         let node_attrs = {
             let mut a = Attrs::new().weight(Weight(req.weight));
@@ -158,7 +160,7 @@ impl<'a> TextMeasurer for CosmicTextMeasurer<'a> {
 
         if has_ranges {
             self.cache.buffer.set_rich_text(
-                self.font_system,
+                &mut self.font_system,
                 rich_spans.into_iter(),
                 &base_attrs,
                 Shaping::Advanced,
@@ -166,7 +168,7 @@ impl<'a> TextMeasurer for CosmicTextMeasurer<'a> {
             );
         } else {
             self.cache.buffer.set_text(
-                self.font_system,
+                &mut self.font_system,
                 req.text,
                 &node_attrs,
                 Shaping::Advanced,
@@ -176,7 +178,7 @@ impl<'a> TextMeasurer for CosmicTextMeasurer<'a> {
 
         self.cache
             .buffer
-            .shape_until_scroll(self.font_system, false);
+            .shape_until_scroll(&mut self.font_system, false);
 
         let mut lines: Vec<LineMetrics> = Vec::new();
         let mut total_width: f32 = 0.0;
@@ -221,13 +223,6 @@ mod tests {
         scene::{FontFamilyRange, ItalicRange, WeightRange},
     };
 
-    fn make_measurer<'a>(
-        fs: &'a mut cosmic_text::FontSystem,
-        cache: &'a mut MeasureCache,
-    ) -> CosmicTextMeasurer<'a> {
-        CosmicTextMeasurer::new(fs, cache)
-    }
-
     fn req<'a>(text: &'a str, size: f32, max_width: Option<f32>) -> TextMeasureRequest<'a> {
         TextMeasureRequest {
             text,
@@ -248,7 +243,7 @@ mod tests {
     fn empty_string() {
         let mut fs = cosmic_text::FontSystem::new();
         let mut cache = MeasureCache::new(&mut fs);
-        let mut m = make_measurer(&mut fs, &mut cache);
+        let mut m = CosmicTextMeasurer::new();
         let r = m.measure(req("", 16.0, None));
         assert_eq!(r.width, 0.0, "empty string should have zero width");
         for line in &r.lines {
@@ -260,7 +255,7 @@ mod tests {
     fn whitespace_only() {
         let mut fs = cosmic_text::FontSystem::new();
         let mut cache = MeasureCache::new(&mut fs);
-        let mut m = make_measurer(&mut fs, &mut cache);
+        let mut m = CosmicTextMeasurer::new();
         let r = m.measure(req("   ", 16.0, None));
         assert!(r.height > 0.0, "whitespace should still have line height");
     }
@@ -269,7 +264,7 @@ mod tests {
     fn single_char() {
         let mut fs = cosmic_text::FontSystem::new();
         let mut cache = MeasureCache::new(&mut fs);
-        let mut m = make_measurer(&mut fs, &mut cache);
+        let mut m = CosmicTextMeasurer::new();
         let r = m.measure(req("A", 16.0, None));
         assert_eq!(r.line_count, 1);
         assert!(r.width > 0.0);
@@ -280,7 +275,7 @@ mod tests {
     fn no_wrap_without_max_width() {
         let mut fs = cosmic_text::FontSystem::new();
         let mut cache = MeasureCache::new(&mut fs);
-        let mut m = make_measurer(&mut fs, &mut cache);
+        let mut m = CosmicTextMeasurer::new();
         let r = m.measure(req(
             "The quick brown fox jumps over the lazy dog",
             16.0,
@@ -293,7 +288,7 @@ mod tests {
     fn wraps_with_max_width() {
         let mut fs = cosmic_text::FontSystem::new();
         let mut cache = MeasureCache::new(&mut fs);
-        let mut m = make_measurer(&mut fs, &mut cache);
+        let mut m = CosmicTextMeasurer::new();
         let r = m.measure(req(
             "The quick brown fox jumps over the lazy dog",
             16.0,
@@ -313,7 +308,7 @@ mod tests {
     fn height_equals_sum_of_line_heights() {
         let mut fs = cosmic_text::FontSystem::new();
         let mut cache = MeasureCache::new(&mut fs);
-        let mut m = make_measurer(&mut fs, &mut cache);
+        let mut m = CosmicTextMeasurer::new();
         let r = m.measure(req(
             "The quick brown fox jumps over the lazy dog",
             16.0,
@@ -332,7 +327,7 @@ mod tests {
     fn line_count_matches_lines_vec() {
         let mut fs = cosmic_text::FontSystem::new();
         let mut cache = MeasureCache::new(&mut fs);
-        let mut m = make_measurer(&mut fs, &mut cache);
+        let mut m = CosmicTextMeasurer::new();
         let r = m.measure(req(
             "The quick brown fox jumps over the lazy dog",
             16.0,
@@ -345,7 +340,7 @@ mod tests {
     fn larger_size_produces_larger_dimensions() {
         let mut fs = cosmic_text::FontSystem::new();
         let mut cache = MeasureCache::new(&mut fs);
-        let mut m = make_measurer(&mut fs, &mut cache);
+        let mut m = CosmicTextMeasurer::new();
         let small = m.measure(req("Hello world", 12.0, None));
         let large = m.measure(req("Hello world", 24.0, None));
         assert!(large.width > small.width, "larger font should be wider");
@@ -356,7 +351,7 @@ mod tests {
     fn bold_is_wider_than_regular() {
         let mut fs = cosmic_text::FontSystem::new();
         let mut cache = MeasureCache::new(&mut fs);
-        let mut m = make_measurer(&mut fs, &mut cache);
+        let mut m = CosmicTextMeasurer::new();
         let regular = m.measure(req("Hello world", 16.0, None));
         let bold_ranges = [WeightRange {
             start: 0,
@@ -377,7 +372,7 @@ mod tests {
     fn italic_range_does_not_crash() {
         let mut fs = cosmic_text::FontSystem::new();
         let mut cache = MeasureCache::new(&mut fs);
-        let mut m = make_measurer(&mut fs, &mut cache);
+        let mut m = CosmicTextMeasurer::new();
         let ranges = [ItalicRange { start: 0, end: 5 }];
         let r = m.measure(TextMeasureRequest {
             italic_ranges: &ranges,
@@ -391,7 +386,7 @@ mod tests {
     fn font_family_range_does_not_crash() {
         let mut fs = cosmic_text::FontSystem::new();
         let mut cache = MeasureCache::new(&mut fs);
-        let mut m = make_measurer(&mut fs, &mut cache);
+        let mut m = CosmicTextMeasurer::new();
         let ranges = [FontFamilyRange {
             start: 0,
             end: 5,
@@ -409,7 +404,7 @@ mod tests {
     fn deterministic() {
         let mut fs = cosmic_text::FontSystem::new();
         let mut cache = MeasureCache::new(&mut fs);
-        let mut m = make_measurer(&mut fs, &mut cache);
+        let mut m = CosmicTextMeasurer::new();
         let r1 = m.measure(req("Hello world", 16.0, Some(80.0)));
         let r2 = m.measure(req("Hello world", 16.0, Some(80.0)));
         assert_eq!(r1.width, r2.width);
@@ -426,7 +421,7 @@ mod tests {
     fn very_long_word_does_not_panic() {
         let mut fs = cosmic_text::FontSystem::new();
         let mut cache = MeasureCache::new(&mut fs);
-        let mut m = make_measurer(&mut fs, &mut cache);
+        let mut m = CosmicTextMeasurer::new();
         let long = "a".repeat(500);
         let r = m.measure(req(&long, 16.0, Some(100.0)));
         assert!(r.width > 0.0);
@@ -437,7 +432,7 @@ mod tests {
     fn multiline_explicit_newline() {
         let mut fs = cosmic_text::FontSystem::new();
         let mut cache = MeasureCache::new(&mut fs);
-        let mut m = make_measurer(&mut fs, &mut cache);
+        let mut m = CosmicTextMeasurer::new();
         let r = m.measure(req("line one\nline two\nline three", 16.0, None));
         assert_eq!(r.line_count, 3, "explicit newlines should produce 3 lines");
     }
@@ -446,7 +441,7 @@ mod tests {
     fn buffer_reuse_gives_same_results() {
         let mut fs = cosmic_text::FontSystem::new();
         let mut cache = MeasureCache::new(&mut fs);
-        let mut m = make_measurer(&mut fs, &mut cache);
+        let mut m = CosmicTextMeasurer::new();
 
         let _ = m.measure(req(
             "The quick brown fox jumps over the lazy dog and more text here",
@@ -460,7 +455,7 @@ mod tests {
 
         let mut fs2 = cosmic_text::FontSystem::new();
         let mut cache2 = MeasureCache::new(&mut fs2);
-        let mut m2 = make_measurer(&mut fs2, &mut cache2);
+        let mut m2 = CosmicTextMeasurer::new();
         let expected = m2.measure(req(
             "The quick brown fox jumps over the lazy dog and more text here",
             24.0,
@@ -480,7 +475,7 @@ mod tests {
     fn cache_returns_same_result() {
         let mut fs = cosmic_text::FontSystem::new();
         let mut cache = MeasureCache::new(&mut fs);
-        let mut m = make_measurer(&mut fs, &mut cache);
+        let mut m = CosmicTextMeasurer::new();
         let r1 = m.measure(req("Hello world", 16.0, Some(80.0)));
         let r2 = m.measure(req("Hello world", 16.0, Some(80.0)));
         assert_eq!(r1.width, r2.width);
@@ -492,7 +487,7 @@ mod tests {
     fn cache_invalidates_on_text_change() {
         let mut fs = cosmic_text::FontSystem::new();
         let mut cache = MeasureCache::new(&mut fs);
-        let mut m = make_measurer(&mut fs, &mut cache);
+        let mut m = CosmicTextMeasurer::new();
         let r1 = m.measure(req("Hello", 16.0, None));
         let r2 = m.measure(req("Hello world", 16.0, None));
         assert!(
@@ -505,7 +500,7 @@ mod tests {
     fn cache_invalidates_on_size_change() {
         let mut fs = cosmic_text::FontSystem::new();
         let mut cache = MeasureCache::new(&mut fs);
-        let mut m = make_measurer(&mut fs, &mut cache);
+        let mut m = CosmicTextMeasurer::new();
         let r1 = m.measure(req("Hello world", 16.0, None));
         let r2 = m.measure(req("Hello world", 24.0, None));
         assert!(
@@ -518,7 +513,7 @@ mod tests {
     fn bench_measure_performance() {
         let mut fs = cosmic_text::FontSystem::new();
         let mut cache = MeasureCache::new(&mut fs);
-        let mut m = make_measurer(&mut fs, &mut cache);
+        let mut m = CosmicTextMeasurer::new();
 
         let weight_ranges = [
             WeightRange {
@@ -594,7 +589,7 @@ mod tests {
         // timed runs — alternating two inputs with ranges, forces reshape every call
         let mut fs2 = cosmic_text::FontSystem::new();
         let mut cache2 = MeasureCache::new(&mut fs2);
-        let mut m2 = make_measurer(&mut fs2, &mut cache2);
+        let mut m2 = CosmicTextMeasurer::new();
         let start = std::time::Instant::now();
         for i in 0..iterations {
             let text = if i % 2 == 0 {
@@ -615,7 +610,7 @@ mod tests {
         // timed runs — same text, alternating max_width only (layout-only path)
         let mut fs4 = cosmic_text::FontSystem::new();
         let mut cache4 = MeasureCache::new(&mut fs4);
-        let mut m4 = make_measurer(&mut fs4, &mut cache4);
+        let mut m4 = CosmicTextMeasurer::new();
         let _ = m4.measure(TextMeasureRequest { ..request });
         let start = std::time::Instant::now();
         for i in 0..iterations {
@@ -635,7 +630,7 @@ mod tests {
 
         let mut fs3 = cosmic_text::FontSystem::new();
         let mut cache3 = MeasureCache::new(&mut fs3);
-        let mut m3 = make_measurer(&mut fs3, &mut cache3);
+        let mut m3 = CosmicTextMeasurer::new();
         let start = std::time::Instant::now();
         for i in 0..iterations {
             let text = if i % 2 == 0 {
@@ -678,9 +673,7 @@ mod tests {
         let iterations = 100u32; // fewer because this is slow
         let start = std::time::Instant::now();
         for _ in 0..iterations {
-            let mut fs = cosmic_text::FontSystem::new();
-            let mut cache = MeasureCache::new(&mut fs);
-            let mut m = CosmicTextMeasurer::new(&mut fs, &mut cache);
+            let mut m = CosmicTextMeasurer::new();
             let _ = m.measure(TextMeasureRequest {
                 text: "The quick brown fox jumps over the lazy dog and then some more words.",
                 font_family: "",

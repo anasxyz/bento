@@ -1,16 +1,16 @@
 use std::marker::PhantomData;
 
-use crate::Widget;
+use crate::widget::Widget;
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct WidgetHandle<T> {
-    pub id: u32,
-    pub generation: u32,
+    pub id: usize,
+    pub generation: usize,
     _marker: PhantomData<fn() -> T>,
 }
 
 impl<T> WidgetHandle<T> {
-    pub fn new(id: u32, generation: u32) -> Self {
+    pub fn new(id: usize, generation: usize) -> Self {
         Self {
             id,
             generation,
@@ -20,6 +20,16 @@ impl<T> WidgetHandle<T> {
 
     pub fn untyped(&self) -> WidgetHandle<()> {
         WidgetHandle::new(self.id, self.generation)
+    }
+}
+
+impl<W> WidgetHandle<W> {
+    pub fn from_id(id: usize) -> Self {
+        Self {
+            id,
+            generation: 0,
+            _marker: std::marker::PhantomData,
+        }
     }
 }
 
@@ -37,15 +47,5 @@ impl<T> Copy for WidgetHandle<T> {}
 impl<T> Clone for WidgetHandle<T> {
     fn clone(&self) -> Self {
         *self
-    }
-}
-
-pub trait WidgetId {
-    fn id(&self) -> u32;
-}
-
-impl<W: Widget + 'static> WidgetId for WidgetHandle<W> {
-    fn id(&self) -> u32 {
-        self.id
     }
 }
