@@ -23,6 +23,16 @@ impl<T> WidgetHandle<T> {
     }
 }
 
+impl<W> WidgetHandle<W> {
+    pub fn from_id(id: usize) -> Self {
+        Self {
+            id,
+            generation: 0,
+            _marker: std::marker::PhantomData,
+        }
+    }
+}
+
 impl<T> Default for WidgetHandle<T> {
     fn default() -> Self {
         Self {

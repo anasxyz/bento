@@ -63,6 +63,17 @@ impl Ui {
         WidgetHandle::new(index, 0)
     }
 
+    pub fn add_child<P: Widget + 'static, C: Widget + 'static>(
+        &mut self,
+        parent: &P,
+        child: C,
+    ) -> WidgetHandle<C> {
+        let child_handle = self.add(child);
+        let parent_handle = WidgetHandle::<P>::from_id(parent.id());
+        self.append(parent_handle, child_handle);
+        child_handle
+    }
+
     pub fn remove<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) {
         if let Some(slot) = self.slots.get_mut(handle.id) {
             *slot = None;
@@ -103,6 +114,15 @@ impl Ui {
         }
         if let Some(Some(child_slot)) = self.slots.get_mut(child.id) {
             child_slot.parent = Some(handle.id);
+        }
+    }
+
+    pub fn update(&mut self) {
+        for i in 0..self.slots.len() {
+            if let Some(mut slot) = self.slots[i].take() {
+                slot.widget.update(self);
+                self.slots[i] = Some(slot);
+            }
         }
     }
 

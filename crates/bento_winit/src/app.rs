@@ -76,6 +76,7 @@ impl ApplicationHandler<BentoEvent> for App {
         match event {
             WindowEvent::RedrawRequested => {
                 win.ui.process_input();
+                win.ui.update();
 
                 if win.needs_render || win.ui.needs_redraw {
                     println!("rendering");
