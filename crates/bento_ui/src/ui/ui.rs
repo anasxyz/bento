@@ -1,7 +1,8 @@
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 
-use bento_shared::{Scene, SceneNodeId};
+use bento_shared::{CosmicTextMeasurer, MeasureCache, Scene, SceneNodeId};
+use cosmic_text::FontSystem;
 
 use crate::Key;
 use crate::events::types::{
@@ -27,6 +28,8 @@ pub struct Ui {
     pub slots: Vec<Option<Slot>>,
 
     pub needs_redraw: bool,
+
+    pub measurer: CosmicTextMeasurer,
 }
 
 impl Ui {
@@ -39,6 +42,8 @@ impl Ui {
             slots: Vec::new(),
 
             needs_redraw: false,
+            
+            measurer: CosmicTextMeasurer::new(),
         }
     }
 
