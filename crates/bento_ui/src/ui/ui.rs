@@ -86,14 +86,14 @@ impl Ui {
     ) {
         // check if child is parent
         if handle.id == child.id {
-            println!("Cannot append widget to itself");
+            println!("[ERROR] Cannot append widget to itself");
             return;
         }
 
         // check if child is already a child of parent
         if let Some(Some(parent_slot)) = self.slots.get(handle.id) {
             if parent_slot.children.contains(&child.id) {
-                println!("Cannot append, widget is already child of parent");
+                println!("[ERROR] Cannot append, widget is already child of parent");
                 return;
             }
         }

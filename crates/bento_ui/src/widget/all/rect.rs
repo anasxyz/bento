@@ -2,7 +2,6 @@ use bento_shared::RectNode;
 
 use crate::{Ui, widget::Widget};
 
-#[derive(Copy, Clone)]
 pub struct Rect {
     id: usize,
 
