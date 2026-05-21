@@ -59,16 +59,9 @@ impl Rect {
 }
 
 impl Widget for Rect {
-    fn id(&self) -> usize {
-        self.id
-    }
-    fn set_id(&mut self, id: usize) {
-        self.id = id;
-    }
-
-    fn name(&self) -> &str {
-        "Rect"
-    }
+    fn id(&self) -> usize { self.id }
+    fn set_id(&mut self, id: usize) { self.id = id; }
+    fn name(&self) -> &str { "Rect" }
 
     fn build(&mut self, ui: &mut Ui) {
         println!("building rect");
@@ -97,15 +90,7 @@ impl Widget for Rect {
         }
     }
 
-    fn hitbox(&self) -> (f32, f32, f32, f32) {
-        (self.x, self.y, self.w, self.h)
-    }
-
-    fn is_dirty(&self) -> bool {
-        self.dirty
-    }
-
-    fn set_dirty(&mut self, dirty: bool) {
-        self.dirty = dirty;
-    }
+    fn hitbox(&self) -> (f32, f32, f32, f32) { (self.x, self.y, self.w, self.h) }
+    fn is_dirty(&self) -> bool { self.dirty }
+    fn set_dirty(&mut self, dirty: bool) { self.dirty = dirty; }
 }
