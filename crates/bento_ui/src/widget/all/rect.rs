@@ -11,6 +11,8 @@ pub struct Rect {
     pub w: f32,
     pub h: f32,
     pub color: [f32; 4],
+
+    dirty: bool,
 }
 
 impl Rect {
@@ -24,20 +26,35 @@ impl Rect {
             w: 0.0,
             h: 0.0,
             color: [0.0, 0.0, 0.0, 1.0],
+
+            dirty: false,
         }
     }
 
     pub fn set_x(&mut self, x: f32) {
+        if self.x == x { return; }
         self.x = x;
+        self.dirty = true;
     }
     pub fn set_y(&mut self, y: f32) {
+        if self.y == y { return; }
         self.y = y;
+        self.dirty = true;
     }
     pub fn set_w(&mut self, w: f32) {
+        if self.w == w { return; }
         self.w = w;
+        self.dirty = true;
     }
     pub fn set_h(&mut self, h: f32) {
+        if self.h == h { return; }
         self.h = h;
+        self.dirty = true;
+    }
+    pub fn set_color(&mut self, color: [f32; 4]) {
+        if self.color == color { return; }
+        self.color = color;
+        self.dirty = true;
     }
 }
 
@@ -62,6 +79,7 @@ impl Widget for Rect {
     }
 
     fn update(&mut self, ui: &mut Ui) {
+        println!("updating rect");
         if let Some(node_id) = self.node {
             if let Some(SceneNode::Rect(r)) = ui.scene_mut().get_mut(node_id) {
                 r.x = self.x;
@@ -81,5 +99,13 @@ impl Widget for Rect {
 
     fn hitbox(&self) -> (f32, f32, f32, f32) {
         (self.x, self.y, self.w, self.h)
+    }
+
+    fn is_dirty(&self) -> bool {
+        self.dirty
+    }
+
+    fn set_dirty(&mut self, dirty: bool) {
+        self.dirty = dirty;
     }
 }

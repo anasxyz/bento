@@ -10,6 +10,8 @@ pub trait Widget {
     fn update(&mut self, ui: &mut Ui) {}
     fn remove(&mut self, ui: &mut Ui) {}
     fn hitbox(&self) -> (f32, f32, f32, f32) { (0.0, 0.0, 0.0, 0.0) }
+    fn is_dirty(&self) -> bool { false }
+    fn set_dirty(&mut self, dirty: bool) {}
 }
 
 pub trait AnyWidget: Widget + Any {

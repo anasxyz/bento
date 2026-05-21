@@ -15,7 +15,7 @@ fn main() {
     ui.asyncs.spawn(async move {
         tokio::time::sleep(std::time::Duration::from_secs(2)).await;
         move |ui: &mut Ui| {
-            ui.remove(btn);
+            ui.get_mut(btn).unwrap().set_color([0.0, 1.0, 0.0, 1.0]);
         }
     });
 

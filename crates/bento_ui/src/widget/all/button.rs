@@ -10,6 +10,8 @@ pub struct Button {
     pub w: f32,
     pub h: f32,
     pub color: [f32; 4],
+
+    dirty: bool,
 }
 
 impl Button {
@@ -24,11 +26,35 @@ impl Button {
             w: 400.0,
             h: 200.0,
             color: [0.0, 0.0, 0.0, 1.0],
+
+            dirty: false,
         }
     }
 
+    pub fn set_x(&mut self, x: f32) {
+        if self.x == x { return; }
+        self.x = x;
+        self.dirty = true;
+    }
+    pub fn set_y(&mut self, y: f32) {
+        if self.y == y { return; }
+        self.y = y;
+        self.dirty = true;
+    }
+    pub fn set_w(&mut self, w: f32) {
+        if self.w == w { return; }
+        self.w = w;
+        self.dirty = true;
+    }
+    pub fn set_h(&mut self, h: f32) {
+        if self.h == h { return; }
+        self.h = h;
+        self.dirty = true;
+    }
     pub fn set_color(&mut self, color: [f32; 4]) {
+        if self.color == color { return; }
         self.color = color;
+        self.dirty = true;
     }
 }
 
@@ -49,20 +75,29 @@ impl Widget for Button {
     }
 
     fn update(&mut self, ui: &mut Ui) {
+        println!("updating button");
+        let bg = ui.get_mut(self.bg);
         if let Some(bg) = ui.get_mut(self.bg) {
-            bg.x = self.x;
-            bg.y = self.y;
-            bg.w = self.w;
-            bg.h = self.h;
-            bg.color = self.color;
+            bg.set_x(self.x);
+            bg.set_y(self.y);
+            bg.set_w(self.w);
+            bg.set_h(self.h);
+            bg.set_color(self.color);
         }
-
         if let Some(rect) = ui.get_mut(self.rect) {
-            rect.x = self.x + 10.0;
-            rect.y = self.y + 10.0;
-            rect.w = self.w - 20.0;
-            rect.h = self.h - 20.0;
-            rect.color = [0.0, 0.0, 0.0, 1.0];
+            rect.set_x(self.x + 10.0);
+            rect.set_y(self.y + 10.0);
+            rect.set_w(self.w - 20.0);
+            rect.set_h(self.h - 20.0);
+            rect.set_color([0.0, 0.0, 0.0, 1.0]);
         }
+    }
+
+    fn is_dirty(&self) -> bool {
+        self.dirty
+    }
+
+    fn set_dirty(&mut self, dirty: bool) {
+        self.dirty = dirty;
     }
 }

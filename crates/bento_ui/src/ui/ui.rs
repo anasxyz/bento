@@ -145,10 +145,22 @@ impl Ui {
     }
 
     pub fn update(&mut self) {
+        // Iterates forwards through slots. This works correctly because children
+        // always have higher slot indices than their parents, which is guaranteed by add_child.
+        // If I manually append a widget created before its parent, it might miss a frame.
         for i in 0..self.slots.len() {
+            if let Some(s) = self.slots[i].as_ref() {
+                if !s.widget.is_dirty() {
+                    continue;
+                }
+            } else {
+                continue;
+            }
             if let Some(mut slot) = self.slots[i].take() {
                 slot.widget.update(self);
+                slot.widget.set_dirty(false);
                 self.slots[i] = Some(slot);
+                self.request_redraw();
             }
         }
     }
