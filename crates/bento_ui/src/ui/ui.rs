@@ -4,7 +4,6 @@ use std::collections::{HashMap, HashSet};
 use bento_shared::CosmicTextMeasurer;
 use bento_wgpu::DrawList;
 
-use crate::Key;
 use crate::accumulated::Accumulated;
 use crate::events::types::{
     Click, KeyPress, KeyRelease, MouseDown, MouseEnter, MouseLeave, MouseMove, MouseScroll, MouseUp,
@@ -13,6 +12,7 @@ use crate::input::InputState;
 use crate::input::mouse::MouseButton;
 use crate::ui::asyncs::AsyncEventQueue;
 use crate::widget::{AnyWidget, Widget, WidgetHandle, WidgetMut};
+use crate::{Group, Key, Layout};
 
 pub struct Node {
     pub widget: Box<dyn AnyWidget>,
@@ -63,6 +63,7 @@ impl Ui {
             children,
             parent: None,
         });
+        self.dirty.insert(index);
         self.roots.push(index);
         self.request_redraw();
         WidgetHandle::from_id(index)
@@ -167,12 +168,124 @@ impl Ui {
     }
 
     pub fn update(&mut self) {
+        // pass 1: measure
         let dirty: Vec<usize> = self.dirty.drain().collect();
         for id in dirty {
             if let Some(mut node) = self.nodes[id].take() {
                 node.widget.update(self);
                 self.nodes[id] = Some(node);
                 self.request_redraw();
+            }
+        }
+
+        // layout
+        let roots = self.roots.clone();
+        for id in roots {
+            self.layout_node(id);
+        }
+
+        // pass 2: sync positions to children
+        let dirty: Vec<usize> = self.dirty.drain().collect();
+        for id in dirty {
+            if let Some(mut node) = self.nodes[id].take() {
+                node.widget.update(self);
+                self.nodes[id] = Some(node);
+                self.request_redraw();
+            }
+        }
+    }
+
+    fn layout_node(&mut self, id: usize) {
+        let children = match self.nodes[id].as_ref() {
+            Some(n) => n.children.clone(),
+            None => return,
+        };
+
+        let layout_info = match self.nodes[id].as_ref() {
+            Some(n) => n
+                .widget
+                .as_any()
+                .downcast_ref::<Group>()
+                .map(|g| (g.layout.clone(), g.x, g.y)),
+            None => return,
+        };
+
+        match layout_info {
+            None => {
+                for child_id in children {
+                    self.layout_node(child_id);
+                }
+            }
+            Some((Layout::None, _, _)) => {
+                for child_id in children {
+                    self.layout_node(child_id);
+                }
+            }
+            Some((Layout::Row { gap }, gx, gy)) => {
+                let mut cursor = gx;
+                for child_id in &children {
+                    self.layout_node(*child_id);
+                    let (_, _, w, _) = match self.nodes[*child_id].as_ref() {
+                        Some(n) => n.widget.hitbox(),
+                        None => continue,
+                    };
+                    if let Some(n) = self.nodes[*child_id].as_mut() {
+                        n.widget.set_position(cursor, gy);
+                        if n.widget.is_dirty() {
+                            self.dirty.insert(*child_id);
+                        }
+                    }
+                    cursor += w + gap;
+                }
+
+                let mut total_w = 0.0f32;
+                let mut total_h = 0.0f32;
+                for child_id in &children {
+                    if let Some(n) = self.nodes[*child_id].as_ref() {
+                        let (_, _, cw, ch) = n.widget.hitbox();
+                        total_w += cw + gap;
+                        total_h = total_h.max(ch);
+                    }
+                }
+                if let Some(n) = self.nodes[id].as_mut() {
+                    if let Some(g) = n.widget.as_any_mut().downcast_mut::<Group>() {
+                        g.w = total_w;
+                        g.h = total_h;
+                    }
+                }
+            }
+            Some((Layout::Column { gap }, gx, gy)) => {
+                let mut cursor = gy;
+                for child_id in &children {
+                    self.layout_node(*child_id);
+                    let (_, _, _, h) = match self.nodes[*child_id].as_ref() {
+                        Some(n) => n.widget.hitbox(),
+                        None => continue,
+                    };
+                    if let Some(n) = self.nodes[*child_id].as_mut() {
+                        n.widget.set_position(gx, cursor);
+                        if n.widget.is_dirty() {
+                            self.dirty.insert(*child_id);
+                        }
+                    }
+                    cursor += h + gap;
+                }
+
+                let mut total_w = 0.0f32;
+                let mut total_h = 0.0f32;
+                for child_id in &children {
+                    if let Some(n) = self.nodes[*child_id].as_ref() {
+                        let (_, _, cw, ch) = n.widget.hitbox();
+                        total_w = total_w.max(cw);
+                        total_h += ch + gap;
+                    }
+                }
+                if let Some(n) = self.nodes[id].as_mut() {
+                    if let Some(g) = n.widget.as_any_mut().downcast_mut::<Group>() {
+                        g.w = total_w;
+                        g.h = total_h;
+                    }
+                }
             }
         }
     }
@@ -188,7 +301,8 @@ impl Ui {
     fn render_node(&self, id: usize, draw_list: &mut DrawList, acc: Accumulated) {
         if let Some(Some(s)) = self.nodes.get(id) {
             s.widget.render(draw_list, &acc);
-            let child_acc = acc.push(0.0, 0.0, None);
+            let (ox, oy) = s.widget.render_offset();
+            let child_acc = acc.push(ox, oy, None);
             for &child_id in &s.children {
                 self.render_node(child_id, draw_list, child_acc);
             }

@@ -131,4 +131,9 @@ impl Widget for Text {
             },
         ));
     }
+
+    fn set_position(&mut self, x: f32, y: f32) {
+        self.set_x(x);
+        self.set_y(y);
+    }
 }

@@ -25,6 +25,10 @@ pub trait Widget {
     fn set_dirty(&mut self, dirty: bool) {}
 
     fn render(&self, draw_list: &mut DrawList, acc: &Accumulated) {}
+    fn render_offset(&self) -> (f32, f32) {
+        (0.0, 0.0)
+    }
+    fn set_position(&mut self, x: f32, y: f32) {}
 }
 
 pub trait AnyWidget: Widget + Any {
