@@ -170,17 +170,30 @@ impl Ui {
     pub fn update(&mut self) {
         // pass 1: measure
         let dirty: Vec<usize> = self.dirty.drain().collect();
+        let mut layout_dirty: HashSet<usize> = HashSet::new();
         for id in dirty {
             if let Some(mut node) = self.nodes[id].take() {
+                let old_hitbox = node.widget.hitbox();
                 node.widget.update(self);
+                let new_hitbox = node.widget.hitbox();
                 self.nodes[id] = Some(node);
                 self.request_redraw();
+                if old_hitbox != new_hitbox {
+                    let mut current = self.nodes[id].as_ref().unwrap().parent;
+                    while let Some(parent_id) = current {
+                        layout_dirty.insert(parent_id);
+                        current = self.nodes[parent_id].as_ref().and_then(|n| n.parent);
+                    }
+                }
             }
         }
 
+        println!("layout_dirty: {:?}", layout_dirty);
+
         // layout
-        let roots = self.roots.clone();
-        for id in roots {
+        let mut layout_dirty: Vec<usize> = layout_dirty.into_iter().collect();
+        layout_dirty.sort_by(|a, b| b.cmp(a));
+        for id in layout_dirty {
             self.layout_node(id);
         }
 
@@ -224,7 +237,6 @@ impl Ui {
             Some((Layout::Row { gap }, gx, gy)) => {
                 let mut cursor = gx;
                 for child_id in &children {
-                    self.layout_node(*child_id);
                     let (_, _, w, _) = match self.nodes[*child_id].as_ref() {
                         Some(n) => n.widget.hitbox(),
                         None => continue,
@@ -236,6 +248,7 @@ impl Ui {
                         }
                     }
                     cursor += w + gap;
+                    self.layout_node(*child_id);
                 }
 
                 let mut total_w = 0.0f32;
@@ -257,7 +270,6 @@ impl Ui {
             Some((Layout::Column { gap }, gx, gy)) => {
                 let mut cursor = gy;
                 for child_id in &children {
-                    self.layout_node(*child_id);
                     let (_, _, _, h) = match self.nodes[*child_id].as_ref() {
                         Some(n) => n.widget.hitbox(),
                         None => continue,
@@ -269,6 +281,7 @@ impl Ui {
                         }
                     }
                     cursor += h + gap;
+                    self.layout_node(*child_id);
                 }
 
                 let mut total_w = 0.0f32;
