@@ -922,6 +922,12 @@ impl TextPipeline {
         if scale != self.scale {
             self.scale = scale;
             self.cache.clear();
+            self.id_to_slot.clear();
+            self.ranges.clear();
+            self.bg_rects.clear();
+            self.bg_ranges.clear();
+            self.line_rects.clear();
+            self.line_ranges.clear();
         }
     }
 
@@ -948,7 +954,7 @@ impl TextPipeline {
             cache.needs_reshape(spec) || cache.needs_redraw(spec)
         });
 
-        if !any_changed {
+        if !any_changed && !self.ranges.is_empty() {
             return;
         }
 
