@@ -14,9 +14,8 @@ use crate::input::mouse::MouseButton;
 use crate::ui::asyncs::AsyncEventQueue;
 use crate::widget::{AnyWidget, Widget, WidgetHandle, WidgetMut};
 
-pub struct Slot {
+pub struct Node {
     pub widget: Box<dyn AnyWidget>,
-    pub generation: usize,
     pub children: Vec<usize>,
     pub parent: Option<usize>,
 }
@@ -24,13 +23,10 @@ pub struct Slot {
 pub struct Ui {
     pub input: InputState,
     pub asyncs: AsyncEventQueue,
-
-    pub slots: Vec<Option<Slot>>,
-
+    pub nodes: Vec<Option<Node>>,
+    pub roots: Vec<usize>,
     pub needs_redraw: bool,
-
     pub measurer: CosmicTextMeasurer,
-
     pub dirty: HashSet<usize>,
 }
 
@@ -39,13 +35,10 @@ impl Ui {
         Self {
             input: InputState::new(),
             asyncs: AsyncEventQueue::new(),
-
-            slots: Vec::new(),
-
+            nodes: Vec::new(),
+            roots: Vec::new(),
             needs_redraw: false,
-
             measurer: CosmicTextMeasurer::new(),
-
             dirty: HashSet::new(),
         }
     }
@@ -55,23 +48,22 @@ impl Ui {
     }
 
     pub fn add<W: Widget + 'static>(&mut self, mut widget: W) -> WidgetHandle<W> {
-        let index = self.slots.len();
+        let index = self.nodes.len();
         widget.set_id(index);
-        self.slots.push(None);
+        self.nodes.push(None);
         widget.build(self);
-        // any append() calls during build will have pushed to pending_children
         let children: Vec<usize> = self
-            .slots
+            .nodes
             .iter()
             .enumerate()
             .filter_map(|(i, s)| s.as_ref().filter(|s| s.parent == Some(index)).map(|_| i))
             .collect();
-        self.slots[index] = Some(Slot {
+        self.nodes[index] = Some(Node {
             widget: Box::new(widget),
-            generation: 0,
             children,
             parent: None,
         });
+        self.roots.push(index);
         self.request_redraw();
         WidgetHandle::from_id(index)
     }
@@ -94,7 +86,7 @@ impl Ui {
 
     fn remove_id(&mut self, id: usize) {
         let children = self
-            .slots
+            .nodes
             .get(id)
             .and_then(|s| s.as_ref())
             .map(|s| s.children.clone())
@@ -102,14 +94,15 @@ impl Ui {
         for child_id in children {
             self.remove_id(child_id);
         }
-        if let Some(slot) = self.slots.get_mut(id) {
-            *slot = None;
+        self.roots.retain(|&r| r != id);
+        if let Some(node) = self.nodes.get_mut(id) {
+            *node = None;
         }
     }
 
     pub fn get<W: Widget + 'static>(&self, handle: WidgetHandle<W>) -> Option<&W> {
         let id = handle.id;
-        self.slots
+        self.nodes
             .get(id)?
             .as_ref()?
             .widget
@@ -123,7 +116,7 @@ impl Ui {
     ) -> Option<WidgetMut<'_, W>> {
         let id = handle.id;
         let widget = self
-            .slots
+            .nodes
             .get_mut(id)?
             .as_mut()?
             .widget
@@ -141,7 +134,7 @@ impl Ui {
         handle: WidgetHandle<W>,
     ) -> Option<&mut W> {
         let id = handle.id;
-        self.slots
+        self.nodes
             .get_mut(id)?
             .as_mut()?
             .widget
@@ -154,34 +147,31 @@ impl Ui {
         handle: WidgetHandle<W>,
         child: WidgetHandle<C>,
     ) {
-        // check if child is parent
         if handle.id == child.id {
             println!("[ERROR] Cannot append widget to itself");
             return;
         }
-
-        // check if child is already a child of parent
-        if let Some(Some(parent_slot)) = self.slots.get(handle.id) {
-            if parent_slot.children.contains(&child.id) {
+        if let Some(Some(parent_node)) = self.nodes.get(handle.id) {
+            if parent_node.children.contains(&child.id) {
                 println!("[ERROR] Cannot append, widget is already child of parent");
                 return;
             }
         }
-
-        if let Some(Some(parent_slot)) = self.slots.get_mut(handle.id) {
-            parent_slot.children.push(child.id);
+        if let Some(Some(parent_node)) = self.nodes.get_mut(handle.id) {
+            parent_node.children.push(child.id);
         }
-        if let Some(Some(child_slot)) = self.slots.get_mut(child.id) {
-            child_slot.parent = Some(handle.id);
+        if let Some(Some(child_node)) = self.nodes.get_mut(child.id) {
+            child_node.parent = Some(handle.id);
         }
+        self.roots.retain(|&r| r != child.id);
     }
 
     pub fn update(&mut self) {
         let dirty: Vec<usize> = self.dirty.drain().collect();
         for id in dirty {
-            if let Some(mut slot) = self.slots[id].take() {
-                slot.widget.update(self);
-                self.slots[id] = Some(slot);
+            if let Some(mut node) = self.nodes[id].take() {
+                node.widget.update(self);
+                self.nodes[id] = Some(node);
                 self.request_redraw();
             }
         }
@@ -189,22 +179,18 @@ impl Ui {
 
     pub fn collect_draw_list(&self) -> DrawList {
         let mut draw_list = DrawList::new();
-        for (i, slot) in self.slots.iter().enumerate() {
-            if let Some(s) = slot {
-                if s.parent.is_none() {
-                    self.render_slot(i, &mut draw_list, Accumulated::identity());
-                }
-            }
+        for &id in &self.roots {
+            self.render_node(id, &mut draw_list, Accumulated::identity());
         }
         draw_list
     }
 
-    fn render_slot(&self, id: usize, draw_list: &mut DrawList, acc: Accumulated) {
-        if let Some(Some(s)) = self.slots.get(id) {
+    fn render_node(&self, id: usize, draw_list: &mut DrawList, acc: Accumulated) {
+        if let Some(Some(s)) = self.nodes.get(id) {
             s.widget.render(draw_list, &acc);
-            let child_acc = acc.push(0.0, 0.0, None); // widgets will expose offset/clip later
+            let child_acc = acc.push(0.0, 0.0, None);
             for &child_id in &s.children {
-                self.render_slot(child_id, draw_list, child_acc);
+                self.render_node(child_id, draw_list, child_acc);
             }
         }
     }
@@ -218,32 +204,28 @@ impl Ui {
     pub fn keyboard_stuff(&mut self) {
         for (k, _) in self.input.keyboard.just_pressed() {
             if *k == Key::D {
-                self.print_slots();
+                self.print_nodes();
             }
         }
     }
 }
 
 impl Ui {
-    pub fn print_slots(&self) {
+    pub fn print_nodes(&self) {
         println!("\n[Ui]");
-        if self.slots.iter().all(|s| s.is_none()) {
+        if self.roots.is_empty() {
             println!("  empty");
             return;
         }
-        for (i, slot) in self.slots.iter().enumerate() {
-            if let Some(s) = slot {
-                if s.parent.is_none() {
-                    self.print_node(i, 0);
-                }
-            }
+        for &id in &self.roots {
+            self.print_node(id, 0);
         }
         println!("\n");
     }
 
     fn print_node(&self, index: usize, depth: usize) {
         let indent = "  ".repeat(depth);
-        if let Some(Some(s)) = self.slots.get(index) {
+        if let Some(Some(s)) = self.nodes.get(index) {
             println!(
                 "{}[{}] {} {:?}",
                 indent,
