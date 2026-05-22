@@ -131,14 +131,14 @@ impl Widget for Button {
             self.h
         };
 
-        if let Some(bg) = ui.get_mut(self.bg) {
+        if let Some(mut bg) = ui.get_mut_raw(self.bg) {
             bg.set_x(self.x);
             bg.set_y(self.y);
             bg.set_w(w);
             bg.set_h(h);
             bg.set_color(self.color);
         }
-        if let Some(label) = ui.get_mut(self.label) {
+        if let Some(mut label) = ui.get_mut_raw(self.label) {
             label.set_content(&self.label_text);
             label.set_x(self.x + (w - lw) / 2.0);
             label.set_y(self.y + (h - lh) / 2.0);

@@ -12,7 +12,7 @@ use crate::events::types::{
 use crate::input::InputState;
 use crate::input::mouse::MouseButton;
 use crate::ui::asyncs::AsyncEventQueue;
-use crate::widget::{AnyWidget, Widget, WidgetHandle};
+use crate::widget::{AnyWidget, Widget, WidgetHandle, WidgetMut};
 
 pub struct Slot {
     pub widget: Box<dyn AnyWidget>,
@@ -117,8 +117,29 @@ impl Ui {
             .downcast_ref::<W>()
     }
 
-    pub fn get_mut<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) -> Option<&mut W> {
-        self.dirty.insert(handle.id); 
+    pub fn get_mut<W: Widget + 'static>(
+        &mut self,
+        handle: WidgetHandle<W>,
+    ) -> Option<WidgetMut<'_, W>> {
+        let id = handle.id;
+        let widget = self
+            .slots
+            .get_mut(id)?
+            .as_mut()?
+            .widget
+            .as_any_mut()
+            .downcast_mut::<W>()?;
+        Some(WidgetMut {
+            widget,
+            id,
+            dirty: &mut self.dirty,
+        })
+    }
+
+    pub(crate) fn get_mut_raw<W: Widget + 'static>(
+        &mut self,
+        handle: WidgetHandle<W>,
+    ) -> Option<&mut W> {
         let id = handle.id;
         self.slots
             .get_mut(id)?
