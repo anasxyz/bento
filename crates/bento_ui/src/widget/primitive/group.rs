@@ -1,5 +1,5 @@
 use crate::Ui;
-use crate::accumulated::Accumulated;
+use crate::acc::Accumulated;
 use crate::widget::Widget;
 use bento_wgpu::DrawList;
 
@@ -19,6 +19,7 @@ pub struct Group {
     pub scroll_x: f32,
     pub scroll_y: f32,
     pub layout: Layout,
+    pub z: i32,
     dirty: bool,
 }
 
@@ -33,6 +34,7 @@ impl Group {
             scroll_x: 0.0,
             scroll_y: 0.0,
             layout: Layout::None,
+            z: 0,
             dirty: true,
         }
     }
@@ -65,6 +67,13 @@ impl Group {
         self.scroll_y = y;
         self.dirty = true;
     }
+    pub fn set_z(&mut self, z: i32) {
+        if self.z == z {
+            return;
+        }
+        self.z = z;
+        self.dirty = true;
+    }
 }
 
 impl Widget for Group {
@@ -94,5 +103,9 @@ impl Widget for Group {
     fn set_position(&mut self, x: f32, y: f32) {
         self.set_x(x);
         self.set_y(y);
+    }
+
+    fn z(&self) -> i32 {
+        self.z
     }
 }

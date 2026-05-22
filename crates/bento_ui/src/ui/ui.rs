@@ -2,9 +2,9 @@ use std::any::{Any, TypeId};
 use std::collections::{HashMap, HashSet};
 
 use bento_shared::CosmicTextMeasurer;
-use bento_wgpu::DrawList;
+use bento_wgpu::{DrawCommand, DrawList};
 
-use crate::accumulated::Accumulated;
+use crate::acc::Accumulated;
 use crate::events::types::{
     Click, KeyPress, KeyRelease, MouseDown, MouseEnter, MouseLeave, MouseMove, MouseScroll, MouseUp,
 };
@@ -199,7 +199,6 @@ impl Ui {
         // layout
         let mut layout_dirty: Vec<usize> = layout_dirty.into_iter().collect();
         layout_dirty.sort_by(|a, b| b.cmp(a));
-        println!("layout_dirty: {:?}", layout_dirty);
         for id in layout_dirty {
             self.layout_node(id, &mut width_changed, &mut height_changed);
         }
@@ -221,15 +220,6 @@ impl Ui {
         width_changed: &mut HashSet<usize>,
         height_changed: &mut HashSet<usize>,
     ) {
-        println!(
-            "layout_node called for id={}, is_group={}",
-            id,
-            self.nodes[id]
-                .as_ref()
-                .and_then(|n| n.widget.as_any().downcast_ref::<Group>())
-                .is_some()
-        );
-
         let children = match self.nodes[id].as_ref() {
             Some(n) => n.children.clone(),
             None => return,
@@ -269,16 +259,7 @@ impl Ui {
                     }
                 }
 
-                println!(
-                    "column checking children: {:?} against height_changed: {:?}",
-                    children, height_changed
-                );
                 for child_id in &children[first_changed..] {
-                    println!("[layout] repositioning child {}", child_id);
-                    println!(
-                        "column first_changed: {}, height_changed: {:?}",
-                        first_changed, height_changed
-                    );
                     let (_, _, w, _) = match self.nodes[*child_id].as_ref() {
                         Some(n) => n.widget.hitbox(),
                         None => continue,
@@ -329,16 +310,7 @@ impl Ui {
                     }
                 }
 
-                println!(
-                    "column checking children: {:?} against height_changed: {:?}",
-                    children, height_changed
-                );
                 for child_id in &children[first_changed..] {
-                    println!("[layout] repositioning child {}", child_id);
-                    println!(
-                        "column first_changed: {}, height_changed: {:?}",
-                        first_changed, height_changed
-                    );
                     let (_, _, _, h) = match self.nodes[*child_id].as_ref() {
                         Some(n) => n.widget.hitbox(),
                         None => continue,
@@ -383,13 +355,26 @@ impl Ui {
         for &id in &self.roots {
             self.render_node(id, &mut draw_list, Accumulated::identity());
         }
+        for cmd in &draw_list.commands {
+            println!(
+                "cmd z={} type={}",
+                cmd.z(),
+                match cmd {
+                    DrawCommand::Rect(..) => "rect",
+                    DrawCommand::Text(..) => "text",
+                    DrawCommand::Image(..) => "image",
+                }
+            );
+        }
+        draw_list.sort_by_z();
         draw_list
     }
 
     fn render_node(&self, id: usize, draw_list: &mut DrawList, acc: Accumulated) {
         if let Some(Some(s)) = self.nodes.get(id) {
+            println!("rendering node z={}", s.widget.z());
             let (ox, oy) = s.widget.render_offset();
-            let my_acc = acc.push(ox, oy, None);
+            let my_acc = acc.push(ox, oy, None, s.widget.z());
             s.widget.render(draw_list, &my_acc);
             for &child_id in &s.children {
                 self.render_node(child_id, draw_list, my_acc);

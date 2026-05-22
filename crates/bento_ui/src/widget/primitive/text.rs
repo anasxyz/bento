@@ -1,4 +1,4 @@
-use crate::{Ui, accumulated::Accumulated, widget::Widget};
+use crate::{Ui, acc::Accumulated, widget::Widget};
 use bento_shared::{SceneNode, SceneNodeId, TextAlign, TextMeasureRequest, TextMeasurer, TextNode};
 use bento_wgpu::{DrawList, RectDraw, TextDraw};
 
@@ -12,6 +12,7 @@ pub struct Text {
     pub content: String,
     pub size: f32,
     pub color: [f32; 4],
+    pub z: i32,
 
     dirty: bool,
 }
@@ -28,6 +29,7 @@ impl Text {
             content: content.to_string(),
             size: 14.0,
             color: [1.0, 1.0, 1.0, 1.0],
+            z: 0,
 
             dirty: true,
         }
@@ -68,6 +70,13 @@ impl Text {
         self.color = color;
         self.dirty = true;
     }
+    pub fn set_z(&mut self, z: i32) {
+        if self.z == z {
+            return;
+        }
+        self.z = z;
+        self.dirty = true;
+    }
 }
 
 impl Widget for Text {
@@ -98,7 +107,7 @@ impl Widget for Text {
     }
 
     fn render(&self, draw_list: &mut DrawList, acc: &Accumulated) {
-        draw_list.texts.push((
+        draw_list.push_text(
             self.id as u64,
             TextDraw {
                 x: acc.offset_x,
@@ -120,7 +129,7 @@ impl Widget for Text {
                 rotate: acc.rotate,
                 scale_x: acc.scale_x,
                 scale_y: acc.scale_y,
-                z: 0,
+                z: acc.z,
                 color_ranges: Vec::new(),
                 background_ranges: Vec::new(),
                 underline_ranges: Vec::new(),
@@ -129,7 +138,7 @@ impl Widget for Text {
                 italic_ranges: Vec::new(),
                 font_family_ranges: Vec::new(),
             },
-        ));
+        );
     }
 
     fn set_position(&mut self, x: f32, y: f32) {
@@ -139,5 +148,9 @@ impl Widget for Text {
 
     fn render_offset(&self) -> (f32, f32) {
         (self.x, self.y)
+    }
+
+    fn z(&self) -> i32 {
+        self.z
     }
 }

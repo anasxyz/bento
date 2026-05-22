@@ -13,6 +13,7 @@ pub struct Button {
     pub w: f32,
     pub h: f32,
     pub color: [f32; 4],
+    pub z: i32,
     pub padding: f32,
     dirty: bool,
 }
@@ -29,6 +30,7 @@ impl Button {
             w: 0.0,
             h: 0.0,
             color: [0.2, 0.2, 0.2, 1.0],
+            z: 0,
             padding: 16.0,
             dirty: true,
         }
@@ -76,6 +78,13 @@ impl Button {
         self.color = color;
         self.dirty = true;
     }
+    pub fn set_z(&mut self, z: i32) {
+        if self.z == z {
+            return;
+        }
+        self.z = z;
+        self.dirty = true;
+    }
 }
 
 impl Widget for Button {
@@ -120,11 +129,13 @@ impl Widget for Button {
             bg.set_w(self.w);
             bg.set_h(self.h);
             bg.set_color(self.color);
+            bg.set_z(self.z);
         }
         if let Some(label) = ui.get_mut_raw(self.label) {
             label.set_content(&self.label_text);
             label.set_x((self.w - lw) / 2.0);
             label.set_y((self.h - lh) / 2.0);
+            label.set_z(self.z + 1);
         }
     }
 
@@ -146,5 +157,9 @@ impl Widget for Button {
 
     fn render_offset(&self) -> (f32, f32) {
         (self.x, self.y)
+    }
+
+    fn z(&self) -> i32 {
+        self.z
     }
 }

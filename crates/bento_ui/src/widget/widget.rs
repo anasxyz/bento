@@ -5,7 +5,7 @@ use std::ops::{Deref, DerefMut};
 use bento_wgpu::DrawList;
 
 use crate::Ui;
-use crate::accumulated::Accumulated;
+use crate::acc::Accumulated;
 
 pub trait Widget {
     fn id(&self) -> usize;
@@ -29,6 +29,9 @@ pub trait Widget {
         (0.0, 0.0)
     }
     fn set_position(&mut self, x: f32, y: f32) {}
+    fn z(&self) -> i32 {
+        0
+    }
 }
 
 pub trait AnyWidget: Widget + Any {

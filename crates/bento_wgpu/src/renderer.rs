@@ -1,5 +1,5 @@
 use crate::{
-    DrawList,
+    DrawCommand, DrawList,
     context::RenderContext,
     pipelines::{
         image::{ImageInstance, ImagePipeline},
@@ -101,62 +101,79 @@ impl Renderer {
                 label: Some("frame"),
             });
 
-        // process rects
-        for (id, r) in &draw_list.rects {
-            let slot = self.rect.get_or_alloc_slot(*id);
-            self.rect.write_slot(
-                slot,
-                RectInstance {
-                    pos_size: [r.x, r.y, r.w, r.h],
-                    color: [r.color[0], r.color[1], r.color[2], r.color[3] * r.opacity],
-                    radii: r.radii,
-                    border_color: r.border_color,
-                    border_widths: r.border_widths,
-                    transform: transform(r.rotate, r.scale_x, r.scale_y),
-                    clip: scale_clip(r.clip, surface.scale),
-                },
-            );
+        // process all commands — upload data to GPU
+        let mut text_specs: Vec<(u64, TextSpec)> = Vec::new();
+        for cmd in &draw_list.commands {
+            match cmd {
+                DrawCommand::Rect(id, r) => {
+                    let slot = self.rect.get_or_alloc_slot(*id);
+                    self.rect.write_slot(
+                        slot,
+                        RectInstance {
+                            pos_size: [r.x, r.y, r.w, r.h],
+                            color: [r.color[0], r.color[1], r.color[2], r.color[3] * r.opacity],
+                            radii: r.radii,
+                            border_color: r.border_color,
+                            border_widths: r.border_widths,
+                            transform: transform(r.rotate, r.scale_x, r.scale_y),
+                            clip: scale_clip(r.clip, surface.scale),
+                        },
+                    );
+                }
+                DrawCommand::Text(id, t) => {
+                    text_specs.push((
+                        *id,
+                        TextSpec {
+                            text: t.text.clone(),
+                            x: t.x,
+                            y: t.y,
+                            size: t.size,
+                            color: t.color,
+                            rotate: t.rotate,
+                            scale_x: t.scale_x,
+                            scale_y: t.scale_y,
+                            weight: t.weight,
+                            italic: t.italic,
+                            font_family: t.font_family.clone(),
+                            max_width: t.max_width,
+                            line_height: t.line_height,
+                            letter_spacing: t.letter_spacing,
+                            align: t.align.clone(),
+                            opacity: t.opacity,
+                            clip: t.clip,
+                            color_ranges: t.color_ranges.clone(),
+                            background_ranges: t.background_ranges.clone(),
+                            underline_ranges: t.underline_ranges.clone(),
+                            strikethrough_ranges: t.strikethrough_ranges.clone(),
+                            weight_ranges: t.weight_ranges.clone(),
+                            italic_ranges: t.italic_ranges.clone(),
+                            font_family_ranges: t.font_family_ranges.clone(),
+                        },
+                    ));
+                }
+                DrawCommand::Image(id, img) => {
+                    let slot = self.image.get_or_alloc_slot(*id);
+                    self.image.write_slot(
+                        slot,
+                        ImageInstance {
+                            pos_size: [img.x, img.y, img.w, img.h],
+                            radii: img.radii,
+                            border_color: img.border_color,
+                            border_widths: img.border_widths,
+                            transform: transform(img.rotate, img.scale_x, img.scale_y),
+                            clip: scale_clip(img.clip, surface.scale),
+                            opacity: img.opacity,
+                            _pad: [0.0; 3],
+                        },
+                        img.image_id,
+                    );
+                }
+            }
         }
 
         self.rect.upload(&ctx.device, &ctx.queue);
-        let specs: Vec<(u64, TextSpec)> = draw_list
-            .texts
-            .iter()
-            .map(|(id, t)| {
-                (
-                    *id,
-                    TextSpec {
-                        text: t.text.clone(),
-                        x: t.x,
-                        y: t.y,
-                        size: t.size,
-                        color: t.color,
-                        rotate: t.rotate,
-                        scale_x: t.scale_x,
-                        scale_y: t.scale_y,
-                        weight: t.weight,
-                        italic: t.italic,
-                        font_family: t.font_family.clone(),
-                        max_width: t.max_width,
-                        line_height: t.line_height,
-                        letter_spacing: t.letter_spacing,
-                        align: t.align.clone(),
-                        opacity: t.opacity,
-                        clip: t.clip,
-                        color_ranges: t.color_ranges.clone(),
-                        background_ranges: t.background_ranges.clone(),
-                        underline_ranges: t.underline_ranges.clone(),
-                        strikethrough_ranges: t.strikethrough_ranges.clone(),
-                        weight_ranges: t.weight_ranges.clone(),
-                        italic_ranges: t.italic_ranges.clone(),
-                        font_family_ranges: t.font_family_ranges.clone(),
-                    },
-                )
-            })
-            .collect();
-
         self.text
-            .prepare(&specs, font_system, &ctx.device, &ctx.queue);
+            .prepare(&text_specs, font_system, &ctx.device, &ctx.queue);
         self.image.upload(&ctx.device, &ctx.queue);
 
         let all_bg_rects = self.text.bg_rects.clone();
@@ -189,39 +206,40 @@ impl Renderer {
                 occlusion_query_set: None,
             });
 
-            // draw rects
-            for (id, _) in &draw_list.rects {
-                let slot = self.rect.slot_for_id(*id);
-                if let Some(slot) = slot {
-                    self.rect.draw_slot(&mut pass, slot);
-                }
-            }
-
-            // draw texts
-            for (i, (id, _)) in draw_list.texts.iter().enumerate() {
-                let slot = match self.text.id_to_slot.get(id) {
-                    Some(&s) => s,
-                    None => continue,
-                };
-                if let Some(&(start, end)) = self.text.bg_ranges.get(i) {
-                    self.rect
-                        .draw_transient_range(&mut pass, start as u32, (end - start) as u32);
-                }
-                self.text.draw_range(&mut pass, slot);
-                if let Some(&(start, end)) = self.text.line_ranges.get(i) {
-                    self.rect.draw_transient_range(
-                        &mut pass,
-                        line_offset + start as u32,
-                        (end - start) as u32,
-                    );
-                }
-            }
-
-            // draw images
-            for (id, _) in &draw_list.images {
-                let slot = self.image.slot_for_id(*id);
-                if let Some(slot) = slot {
-                    self.image.draw_slot(&mut pass, slot);
+            // draw in z order, batching consecutive same-type commands
+            let mut text_index = 0;
+            for cmd in &draw_list.commands {
+                match cmd {
+                    DrawCommand::Rect(id, _) => {
+                        if let Some(slot) = self.rect.slot_for_id(*id) {
+                            self.rect.draw_slot(&mut pass, slot);
+                        }
+                    }
+                    DrawCommand::Text(id, _) => {
+                        if let Some(&slot) = self.text.id_to_slot.get(id) {
+                            if let Some(&(start, end)) = self.text.bg_ranges.get(text_index) {
+                                self.rect.draw_transient_range(
+                                    &mut pass,
+                                    start as u32,
+                                    (end - start) as u32,
+                                );
+                            }
+                            self.text.draw_range(&mut pass, slot);
+                            if let Some(&(start, end)) = self.text.line_ranges.get(text_index) {
+                                self.rect.draw_transient_range(
+                                    &mut pass,
+                                    line_offset + start as u32,
+                                    (end - start) as u32,
+                                );
+                            }
+                        }
+                        text_index += 1; 
+                    }
+                    DrawCommand::Image(id, _) => {
+                        if let Some(slot) = self.image.slot_for_id(*id) {
+                            self.image.draw_slot(&mut pass, slot);
+                        }
+                    }
                 }
             }
         }

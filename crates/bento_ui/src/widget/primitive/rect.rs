@@ -1,7 +1,7 @@
 use bento_shared::{RectNode, SceneNode, SceneNodeId};
 use bento_wgpu::{DrawList, RectDraw};
 
-use crate::{Ui, accumulated::Accumulated, widget::Widget};
+use crate::{Ui, acc::Accumulated, widget::Widget};
 
 pub struct Rect {
     id: usize,
@@ -11,6 +11,7 @@ pub struct Rect {
     pub w: f32,
     pub h: f32,
     pub color: [f32; 4],
+    pub z: i32,
 
     dirty: bool,
 }
@@ -25,6 +26,7 @@ impl Rect {
             w,
             h,
             color: [0.0, 0.0, 0.0, 1.0],
+            z: 0,
 
             dirty: true,
         }
@@ -65,6 +67,13 @@ impl Rect {
         self.color = color;
         self.dirty = true;
     }
+    pub fn set_z(&mut self, z: i32) {
+        if self.z == z {
+            return;
+        }
+        self.z = z;
+        self.dirty = true;
+    }
 }
 
 impl Widget for Rect {
@@ -95,7 +104,7 @@ impl Widget for Rect {
     }
 
     fn render(&self, draw_list: &mut DrawList, acc: &Accumulated) {
-        draw_list.rects.push((
+        draw_list.push_rect(
             self.id as u64,
             RectDraw {
                 x: acc.offset_x,
@@ -111,9 +120,9 @@ impl Widget for Rect {
                 scale_y: acc.scale_y,
                 opacity: acc.opacity,
                 clip: acc.clip,
-                z: 0,
+                z: acc.z,
             },
-        ));
+        );
     }
 
     fn set_position(&mut self, x: f32, y: f32) {
@@ -123,5 +132,9 @@ impl Widget for Rect {
 
     fn render_offset(&self) -> (f32, f32) {
         (self.x, self.y)
+    }
+
+    fn z(&self) -> i32 {
+        self.z
     }
 }

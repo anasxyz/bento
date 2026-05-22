@@ -7,6 +7,7 @@ pub struct Accumulated {
     pub rotate: f32,
     pub scale_x: f32,
     pub scale_y: f32,
+    pub z: i32,
 }
 
 impl Accumulated {
@@ -19,10 +20,11 @@ impl Accumulated {
             rotate: 0.0,
             scale_x: 1.0,
             scale_y: 1.0,
+            z: 0,
         }
     }
 
-    pub fn push(&self, offset_x: f32, offset_y: f32, clip: Option<[f32; 4]>) -> Self {
+    pub fn push(&self, offset_x: f32, offset_y: f32, clip: Option<[f32; 4]>, z: i32) -> Self {
         Self {
             offset_x: self.offset_x + offset_x,
             offset_y: self.offset_y + offset_y,
@@ -31,6 +33,7 @@ impl Accumulated {
             rotate: self.rotate,
             scale_x: self.scale_x,
             scale_y: self.scale_y,
+            z: self.z + z,
         }
     }
 }
