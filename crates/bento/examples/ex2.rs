@@ -57,7 +57,6 @@ fn main() {
     ui.asyncs.spawn(async move {
         tokio::time::sleep(std::time::Duration::from_secs(2)).await;
         move |ui: &mut Ui| {
-            println!("--------------------------------");
             ui.get_mut(btn5).unwrap().set_text("I got much wider!");
             ui.get_mut(btn1).unwrap().set_text("I got much\n taller!");
         }

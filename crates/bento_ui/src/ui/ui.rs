@@ -197,11 +197,13 @@ impl Ui {
         }
 
         // layout
+        let t = std::time::Instant::now();
         let mut layout_dirty: Vec<usize> = layout_dirty.into_iter().collect();
         layout_dirty.sort_by(|a, b| b.cmp(a));
         for id in layout_dirty {
             self.layout_node(id, &mut width_changed, &mut height_changed);
         }
+        println!("layout time: {:?}", t.elapsed());
 
         // pass 2: sync
         let dirty: Vec<usize> = self.dirty.drain().collect();
@@ -355,24 +357,12 @@ impl Ui {
         for &id in &self.roots {
             self.render_node(id, &mut draw_list, Accumulated::identity());
         }
-        for cmd in &draw_list.commands {
-            println!(
-                "cmd z={} type={}",
-                cmd.z(),
-                match cmd {
-                    DrawCommand::Rect(..) => "rect",
-                    DrawCommand::Text(..) => "text",
-                    DrawCommand::Image(..) => "image",
-                }
-            );
-        }
         draw_list.sort_by_z();
         draw_list
     }
 
     fn render_node(&self, id: usize, draw_list: &mut DrawList, acc: Accumulated) {
         if let Some(Some(s)) = self.nodes.get(id) {
-            println!("rendering node z={}", s.widget.z());
             let (ox, oy) = s.widget.render_offset();
             let my_acc = acc.push(ox, oy, None, s.widget.z());
             s.widget.render(draw_list, &my_acc);
