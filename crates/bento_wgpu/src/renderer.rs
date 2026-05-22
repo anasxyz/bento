@@ -103,9 +103,20 @@ impl Renderer {
 
         // process all commands — upload data to GPU
         let mut text_specs: Vec<(u64, TextSpec)> = Vec::new();
+        let mut culled_text: std::collections::HashSet<u64> = std::collections::HashSet::new();
+
         for cmd in &draw_list.commands {
             match cmd {
                 DrawCommand::Rect(id, r) => {
+                    // cull
+                    if r.x + r.w < 0.0
+                        || r.x > surface.width
+                        || r.y + r.h < 0.0
+                        || r.y > surface.height
+                    {
+                        continue;
+                    }
+
                     let slot = self.rect.get_or_alloc_slot(*id);
                     self.rect.write_slot(
                         slot,
@@ -121,6 +132,14 @@ impl Renderer {
                     );
                 }
                 DrawCommand::Text(id, t) => {
+                    if t.x + t.w < 0.0
+                        || t.x > surface.width
+                        || t.y + t.h < 0.0
+                        || t.y > surface.height
+                    {
+                        culled_text.insert(*id);
+                        continue;
+                    }
                     text_specs.push((
                         *id,
                         TextSpec {
@@ -152,6 +171,15 @@ impl Renderer {
                     ));
                 }
                 DrawCommand::Image(id, img) => {
+                    // cull
+                    if img.x + img.w < 0.0
+                        || img.x > surface.width
+                        || img.y + img.h < 0.0
+                        || img.y > surface.height
+                    {
+                        continue;
+                    }
+
                     let slot = self.image.get_or_alloc_slot(*id);
                     self.image.write_slot(
                         slot,
@@ -171,9 +199,17 @@ impl Renderer {
             }
         }
 
+        /*
+                let visible = text_specs.len();
+                let culled = culled_text.len();
+                println!("text visible: {}, culled: {}", visible, culled);
+        */
+
         self.rect.upload(&ctx.device, &ctx.queue);
+        // let t = std::time::Instant::now();
         self.text
             .prepare(&text_specs, font_system, &ctx.device, &ctx.queue);
+        // println!("text prepare time: {:?}", t.elapsed());
         self.image.upload(&ctx.device, &ctx.queue);
 
         let all_bg_rects = self.text.bg_rects.clone();
@@ -206,7 +242,8 @@ impl Renderer {
                 occlusion_query_set: None,
             });
 
-            // draw in z order, batching consecutive same-type commands
+            // draw in z order
+            // text_index only counts non-culled texts since that matches text_specs order
             let mut text_index = 0;
             for cmd in &draw_list.commands {
                 match cmd {
@@ -216,6 +253,9 @@ impl Renderer {
                         }
                     }
                     DrawCommand::Text(id, _) => {
+                        if culled_text.contains(id) {
+                            continue;
+                        }
                         if let Some(&slot) = self.text.id_to_slot.get(id) {
                             if let Some(&(start, end)) = self.text.bg_ranges.get(text_index) {
                                 self.rect.draw_transient_range(
@@ -233,7 +273,7 @@ impl Renderer {
                                 );
                             }
                         }
-                        text_index += 1; 
+                        text_index += 1;
                     }
                     DrawCommand::Image(id, _) => {
                         if let Some(slot) = self.image.slot_for_id(*id) {
@@ -244,8 +284,10 @@ impl Renderer {
             }
         }
 
+        // let t = std::time::Instant::now();
         ctx.queue.submit(Some(encoder.finish()));
         frame.present();
+        // println!("present time: {:?}", t.elapsed());
     }
 
     pub fn resize(&mut self, ctx: &RenderContext, surface: &Surface) {

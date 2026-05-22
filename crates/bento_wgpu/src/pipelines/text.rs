@@ -941,8 +941,19 @@ impl TextPipeline {
             }
         }
 
+        // first pass: check if anything changed at all
+        let any_changed = specs.iter().any(|(id, spec)| {
+            let slot = self.id_to_slot[id];
+            let cache = &self.cache[slot];
+            cache.needs_reshape(spec) || cache.needs_redraw(spec)
+        });
+
+        if !any_changed {
+            return;
+        }
+
+        // something changed so rebuild everything
         let mut instances = Vec::<GlyphInstance>::new();
-        let mut any_changed = false;
         self.ranges.clear();
         self.bg_rects.clear();
         self.bg_ranges.clear();
@@ -956,19 +967,7 @@ impl TextPipeline {
             let reshape = cache.needs_reshape(spec);
             let redraw = reshape || cache.needs_redraw(spec);
 
-            /*
-                        if reshape {
-                            println!("[text] slot {} reshaping", slot);
-                        } else if redraw {
-                            println!("[text] slot {} redraw only", slot);
-                        } else {
-                            println!("[text] slot {} fully cached, skipping", slot);
-                        }
-            */
-
             if redraw {
-                any_changed = true;
-
                 if reshape {
                     cache.buffer = Some(shape_and_rasterise(
                         spec,
@@ -1003,7 +1002,7 @@ impl TextPipeline {
             self.line_ranges.push((line_start, self.line_rects.len()));
         }
 
-        if instances.is_empty() || !any_changed {
+        if instances.is_empty() {
             return;
         }
 
