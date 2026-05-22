@@ -199,6 +199,7 @@ impl Ui {
         // layout
         let mut layout_dirty: Vec<usize> = layout_dirty.into_iter().collect();
         layout_dirty.sort_by(|a, b| b.cmp(a));
+        println!("layout_dirty: {:?}", layout_dirty);
         for id in layout_dirty {
             self.layout_node(id, &mut width_changed, &mut height_changed);
         }
@@ -220,6 +221,15 @@ impl Ui {
         width_changed: &mut HashSet<usize>,
         height_changed: &mut HashSet<usize>,
     ) {
+        println!(
+            "layout_node called for id={}, is_group={}",
+            id,
+            self.nodes[id]
+                .as_ref()
+                .and_then(|n| n.widget.as_any().downcast_ref::<Group>())
+                .is_some()
+        );
+
         let children = match self.nodes[id].as_ref() {
             Some(n) => n.children.clone(),
             None => return,
@@ -230,7 +240,7 @@ impl Ui {
                 .widget
                 .as_any()
                 .downcast_ref::<Group>()
-                .map(|g| (g.layout.clone(), g.x, g.y)),
+                .map(|g| g.layout.clone()),
             None => return,
         };
 
@@ -240,18 +250,18 @@ impl Ui {
                     self.layout_node(child_id, width_changed, height_changed);
                 }
             }
-            Some((Layout::None, _, _)) => {
+            Some((Layout::None)) => {
                 for child_id in children {
                     self.layout_node(child_id, width_changed, height_changed);
                 }
             }
-            Some((Layout::Row { gap }, gx, gy)) => {
+            Some((Layout::Row { gap })) => {
                 let first_changed = children
                     .iter()
                     .position(|cid| width_changed.contains(cid))
                     .unwrap_or(children.len());
 
-                let mut cursor = gx;
+                let mut cursor = 0.0;
                 for child_id in &children[..first_changed] {
                     if let Some(n) = self.nodes[*child_id].as_ref() {
                         let (_, _, w, _) = n.widget.hitbox();
@@ -259,14 +269,22 @@ impl Ui {
                     }
                 }
 
+                println!(
+                    "column checking children: {:?} against height_changed: {:?}",
+                    children, height_changed
+                );
                 for child_id in &children[first_changed..] {
                     println!("[layout] repositioning child {}", child_id);
+                    println!(
+                        "column first_changed: {}, height_changed: {:?}",
+                        first_changed, height_changed
+                    );
                     let (_, _, w, _) = match self.nodes[*child_id].as_ref() {
                         Some(n) => n.widget.hitbox(),
                         None => continue,
                     };
                     if let Some(n) = self.nodes[*child_id].as_mut() {
-                        n.widget.set_position(cursor, gy);
+                        n.widget.set_position(cursor, 0.0);
                         if n.widget.is_dirty() {
                             self.dirty.insert(*child_id);
                         }
@@ -297,13 +315,13 @@ impl Ui {
                     }
                 }
             }
-            Some((Layout::Column { gap }, gx, gy)) => {
+            Some((Layout::Column { gap })) => {
                 let first_changed = children
                     .iter()
                     .position(|cid| height_changed.contains(cid))
                     .unwrap_or(children.len());
 
-                let mut cursor = gy;
+                let mut cursor = 0.0;
                 for child_id in &children[..first_changed] {
                     if let Some(n) = self.nodes[*child_id].as_ref() {
                         let (_, _, _, h) = n.widget.hitbox();
@@ -311,14 +329,22 @@ impl Ui {
                     }
                 }
 
+                println!(
+                    "column checking children: {:?} against height_changed: {:?}",
+                    children, height_changed
+                );
                 for child_id in &children[first_changed..] {
                     println!("[layout] repositioning child {}", child_id);
+                    println!(
+                        "column first_changed: {}, height_changed: {:?}",
+                        first_changed, height_changed
+                    );
                     let (_, _, _, h) = match self.nodes[*child_id].as_ref() {
                         Some(n) => n.widget.hitbox(),
                         None => continue,
                     };
                     if let Some(n) = self.nodes[*child_id].as_mut() {
-                        n.widget.set_position(gx, cursor);
+                        n.widget.set_position(0.0, cursor);
                         if n.widget.is_dirty() {
                             self.dirty.insert(*child_id);
                         }
@@ -362,11 +388,11 @@ impl Ui {
 
     fn render_node(&self, id: usize, draw_list: &mut DrawList, acc: Accumulated) {
         if let Some(Some(s)) = self.nodes.get(id) {
-            s.widget.render(draw_list, &acc);
             let (ox, oy) = s.widget.render_offset();
-            let child_acc = acc.push(ox, oy, None);
+            let my_acc = acc.push(ox, oy, None);
+            s.widget.render(draw_list, &my_acc);
             for &child_id in &s.children {
-                self.render_node(child_id, draw_list, child_acc);
+                self.render_node(child_id, draw_list, my_acc);
             }
         }
     }

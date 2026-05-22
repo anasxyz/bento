@@ -87,7 +87,7 @@ impl Widget for Group {
         self.dirty = dirty;
     }
     fn render_offset(&self) -> (f32, f32) {
-        (self.scroll_x, self.scroll_y)
+        (self.x + self.scroll_x, self.y + self.scroll_y)
     }
     fn update(&mut self, ui: &mut Ui) {}
     fn render(&self, draw_list: &mut DrawList, acc: &Accumulated) {}

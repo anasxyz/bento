@@ -16,14 +16,14 @@ pub struct Rect {
 }
 
 impl Rect {
-    pub fn new() -> Self {
+    pub fn new(w: f32, h: f32) -> Self {
         Self {
             id: 0,
 
             x: 0.0,
             y: 0.0,
-            w: 0.0,
-            h: 0.0,
+            w,
+            h,
             color: [0.0, 0.0, 0.0, 1.0],
 
             dirty: true,
@@ -98,8 +98,8 @@ impl Widget for Rect {
         draw_list.rects.push((
             self.id as u64,
             RectDraw {
-                x: self.x + acc.offset_x,
-                y: self.y + acc.offset_y,
+                x: acc.offset_x,
+                y: acc.offset_y,
                 w: self.w,
                 h: self.h,
                 color: self.color,
@@ -119,5 +119,9 @@ impl Widget for Rect {
     fn set_position(&mut self, x: f32, y: f32) {
         self.set_x(x);
         self.set_y(y);
+    }
+
+    fn render_offset(&self) -> (f32, f32) {
+        (self.x, self.y)
     }
 }

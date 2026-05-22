@@ -101,8 +101,8 @@ impl Widget for Text {
         draw_list.texts.push((
             self.id as u64,
             TextDraw {
-                x: self.x + acc.offset_x,
-                y: self.y + acc.offset_y,
+                x: acc.offset_x,
+                y: acc.offset_y,
                 w: self.w,
                 h: self.h,
                 text: self.content.clone(),
@@ -135,5 +135,9 @@ impl Widget for Text {
     fn set_position(&mut self, x: f32, y: f32) {
         self.set_x(x);
         self.set_y(y);
+    }
+
+    fn render_offset(&self) -> (f32, f32) {
+        (self.x, self.y)
     }
 }

@@ -90,7 +90,7 @@ impl Widget for Button {
     }
 
     fn build(&mut self, ui: &mut Ui) {
-        self.bg = ui.add_child(self, Rect::new());
+        self.bg = ui.add_child(self, Rect::new(0.0, 0.0));
         self.label = ui.add_child(self, Text::new(&self.label_text));
     }
 
@@ -115,16 +115,16 @@ impl Widget for Button {
         self.h = lh + self.padding * 2.0;
 
         if let Some(bg) = ui.get_mut_raw(self.bg) {
-            bg.set_x(self.x);
-            bg.set_y(self.y);
+            bg.set_x(0.0);
+            bg.set_y(0.0);
             bg.set_w(self.w);
             bg.set_h(self.h);
             bg.set_color(self.color);
         }
         if let Some(label) = ui.get_mut_raw(self.label) {
             label.set_content(&self.label_text);
-            label.set_x(self.x + (self.w - lw) / 2.0);
-            label.set_y(self.y + (self.h - lh) / 2.0);
+            label.set_x((self.w - lw) / 2.0);
+            label.set_y((self.h - lh) / 2.0);
         }
     }
 
@@ -142,5 +142,9 @@ impl Widget for Button {
     fn set_position(&mut self, x: f32, y: f32) {
         self.set_x(x);
         self.set_y(y);
+    }
+
+    fn render_offset(&self) -> (f32, f32) {
+        (self.x, self.y)
     }
 }
