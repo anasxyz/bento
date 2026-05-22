@@ -1,5 +1,3 @@
-// draw.rs in bento_wgpu (public)
-
 use bento_shared::{
     ColorRange, DecorationRange, FontFamilyRange, ItalicRange, TextAlign, WeightRange,
 };
