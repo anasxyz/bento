@@ -1,5 +1,5 @@
 use std::any::{Any, TypeId};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use bento_shared::CosmicTextMeasurer;
 use bento_wgpu::DrawList;
@@ -30,6 +30,8 @@ pub struct Ui {
     pub needs_redraw: bool,
 
     pub measurer: CosmicTextMeasurer,
+
+    pub dirty: HashSet<usize>,
 }
 
 impl Ui {
@@ -43,6 +45,8 @@ impl Ui {
             needs_redraw: false,
 
             measurer: CosmicTextMeasurer::new(),
+
+            dirty: HashSet::new(),
         }
     }
 
@@ -114,6 +118,7 @@ impl Ui {
     }
 
     pub fn get_mut<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) -> Option<&mut W> {
+        self.dirty.insert(handle.id); 
         let id = handle.id;
         self.slots
             .get_mut(id)?
@@ -151,22 +156,11 @@ impl Ui {
     }
 
     pub fn update(&mut self) {
-        // Iterates forwards through slots. This works correctly because children
-        // always have higher slot indices than their parents, which is guaranteed by add_child.
-        // If I manually append a widget created before its parent, it might miss a frame.
-        for i in 0..self.slots.len() {
-            if let Some(s) = self.slots[i].as_ref() {
-                if !s.widget.is_dirty() {
-                    continue;
-                }
-            } else {
-                continue;
-            }
-            if let Some(mut slot) = self.slots[i].take() {
+        let dirty: Vec<usize> = self.dirty.drain().collect();
+        for id in dirty {
+            if let Some(mut slot) = self.slots[id].take() {
                 slot.widget.update(self);
-                println!("updating widget {} in slot {}", slot.widget.name(), i);
-                slot.widget.set_dirty(false);
-                self.slots[i] = Some(slot);
+                self.slots[id] = Some(slot);
                 self.request_redraw();
             }
         }
