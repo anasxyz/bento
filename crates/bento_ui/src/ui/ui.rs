@@ -187,14 +187,6 @@ impl Ui {
         }
     }
 
-    pub fn process_input(&mut self) {
-        for (k, _) in self.input.keyboard.just_pressed() {
-            if *k == Key::D {
-                self.print_slots();
-            }
-        }
-    }
-
     pub fn collect_draw_list(&self) -> DrawList {
         let mut draw_list = DrawList::new();
         for (i, slot) in self.slots.iter().enumerate() {
@@ -213,6 +205,20 @@ impl Ui {
             let child_acc = acc.push(0.0, 0.0, None); // widgets will expose offset/clip later
             for &child_id in &s.children {
                 self.render_slot(child_id, draw_list, child_acc);
+            }
+        }
+    }
+}
+
+impl Ui {
+    pub fn process_input(&mut self) {
+        self.keyboard_stuff();
+    }
+
+    pub fn keyboard_stuff(&mut self) {
+        for (k, _) in self.input.keyboard.just_pressed() {
+            if *k == Key::D {
+                self.print_slots();
             }
         }
     }
