@@ -171,6 +171,8 @@ impl Ui {
         // pass 1: measure
         let dirty: Vec<usize> = self.dirty.drain().collect();
         let mut layout_dirty: HashSet<usize> = HashSet::new();
+        let mut width_changed: HashSet<usize> = HashSet::new();
+        let mut height_changed: HashSet<usize> = HashSet::new();
         for id in dirty {
             if let Some(mut node) = self.nodes[id].take() {
                 let old_hitbox = node.widget.hitbox();
@@ -178,7 +180,13 @@ impl Ui {
                 let new_hitbox = node.widget.hitbox();
                 self.nodes[id] = Some(node);
                 self.request_redraw();
-                if old_hitbox != new_hitbox {
+                if old_hitbox.2 != new_hitbox.2 {
+                    width_changed.insert(id);
+                }
+                if old_hitbox.3 != new_hitbox.3 {
+                    height_changed.insert(id);
+                }
+                if old_hitbox.2 != new_hitbox.2 || old_hitbox.3 != new_hitbox.3 {
                     let mut current = self.nodes[id].as_ref().unwrap().parent;
                     while let Some(parent_id) = current {
                         layout_dirty.insert(parent_id);
@@ -188,16 +196,14 @@ impl Ui {
             }
         }
 
-        println!("layout_dirty: {:?}", layout_dirty);
-
         // layout
         let mut layout_dirty: Vec<usize> = layout_dirty.into_iter().collect();
         layout_dirty.sort_by(|a, b| b.cmp(a));
         for id in layout_dirty {
-            self.layout_node(id);
+            self.layout_node(id, &mut width_changed, &mut height_changed);
         }
 
-        // pass 2: sync positions to children
+        // pass 2: sync
         let dirty: Vec<usize> = self.dirty.drain().collect();
         for id in dirty {
             if let Some(mut node) = self.nodes[id].take() {
@@ -208,7 +214,12 @@ impl Ui {
         }
     }
 
-    fn layout_node(&mut self, id: usize) {
+    fn layout_node(
+        &mut self,
+        id: usize,
+        width_changed: &mut HashSet<usize>,
+        height_changed: &mut HashSet<usize>,
+    ) {
         let children = match self.nodes[id].as_ref() {
             Some(n) => n.children.clone(),
             None => return,
@@ -226,17 +237,30 @@ impl Ui {
         match layout_info {
             None => {
                 for child_id in children {
-                    self.layout_node(child_id);
+                    self.layout_node(child_id, width_changed, height_changed);
                 }
             }
             Some((Layout::None, _, _)) => {
                 for child_id in children {
-                    self.layout_node(child_id);
+                    self.layout_node(child_id, width_changed, height_changed);
                 }
             }
             Some((Layout::Row { gap }, gx, gy)) => {
+                let first_changed = children
+                    .iter()
+                    .position(|cid| width_changed.contains(cid))
+                    .unwrap_or(children.len());
+
                 let mut cursor = gx;
-                for child_id in &children {
+                for child_id in &children[..first_changed] {
+                    if let Some(n) = self.nodes[*child_id].as_ref() {
+                        let (_, _, w, _) = n.widget.hitbox();
+                        cursor += w + gap;
+                    }
+                }
+
+                for child_id in &children[first_changed..] {
+                    println!("[layout] repositioning child {}", child_id);
                     let (_, _, w, _) = match self.nodes[*child_id].as_ref() {
                         Some(n) => n.widget.hitbox(),
                         None => continue,
@@ -248,7 +272,7 @@ impl Ui {
                         }
                     }
                     cursor += w + gap;
-                    self.layout_node(*child_id);
+                    self.layout_node(*child_id, width_changed, height_changed);
                 }
 
                 let mut total_w = 0.0f32;
@@ -262,14 +286,33 @@ impl Ui {
                 }
                 if let Some(n) = self.nodes[id].as_mut() {
                     if let Some(g) = n.widget.as_any_mut().downcast_mut::<Group>() {
+                        if g.w != total_w {
+                            width_changed.insert(id);
+                        }
+                        if g.h != total_h {
+                            height_changed.insert(id);
+                        }
                         g.w = total_w;
                         g.h = total_h;
                     }
                 }
             }
             Some((Layout::Column { gap }, gx, gy)) => {
+                let first_changed = children
+                    .iter()
+                    .position(|cid| height_changed.contains(cid))
+                    .unwrap_or(children.len());
+
                 let mut cursor = gy;
-                for child_id in &children {
+                for child_id in &children[..first_changed] {
+                    if let Some(n) = self.nodes[*child_id].as_ref() {
+                        let (_, _, _, h) = n.widget.hitbox();
+                        cursor += h + gap;
+                    }
+                }
+
+                for child_id in &children[first_changed..] {
+                    println!("[layout] repositioning child {}", child_id);
                     let (_, _, _, h) = match self.nodes[*child_id].as_ref() {
                         Some(n) => n.widget.hitbox(),
                         None => continue,
@@ -281,7 +324,7 @@ impl Ui {
                         }
                     }
                     cursor += h + gap;
-                    self.layout_node(*child_id);
+                    self.layout_node(*child_id, width_changed, height_changed);
                 }
 
                 let mut total_w = 0.0f32;
@@ -295,6 +338,12 @@ impl Ui {
                 }
                 if let Some(n) = self.nodes[id].as_mut() {
                     if let Some(g) = n.widget.as_any_mut().downcast_mut::<Group>() {
+                        if g.w != total_w {
+                            width_changed.insert(id);
+                        }
+                        if g.h != total_h {
+                            height_changed.insert(id);
+                        }
                         g.w = total_w;
                         g.h = total_h;
                     }
