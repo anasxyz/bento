@@ -203,6 +203,7 @@ impl Ui {
         for id in layout_dirty {
             self.layout_node(id, &mut width_changed, &mut height_changed);
         }
+        println!("layout time: {:?}", t.elapsed());
 
         // pass 2: sync
         let dirty: Vec<usize> = self.dirty.drain().collect();

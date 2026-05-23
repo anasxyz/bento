@@ -1,12 +1,12 @@
+use crate::acc::Accumulated;
 use crate::ui::Ui;
 use crate::widget::primitive::{Rect, Text};
 use crate::widget::{Widget, WidgetHandle};
-use bento_shared::{TextMeasureRequest, TextMeasurer};
+use bento_shared::{TextAlign, TextMeasureRequest, TextMeasurer};
+use bento_wgpu::{DrawList, RectDraw, TextDraw};
 
 pub struct Button {
     id: usize,
-    bg: WidgetHandle<Rect>,
-    label: WidgetHandle<Text>,
     pub label_text: String,
     pub x: f32,
     pub y: f32,
@@ -22,8 +22,6 @@ impl Button {
     pub fn new(text: &str) -> Self {
         Self {
             id: 0,
-            bg: WidgetHandle::from_id(0),
-            label: WidgetHandle::from_id(0),
             label_text: text.to_string(),
             x: 0.0,
             y: 0.0,
@@ -98,11 +96,6 @@ impl Widget for Button {
         "Button"
     }
 
-    fn build(&mut self, ui: &mut Ui) {
-        self.bg = ui.add_child(self, Rect::new(0.0, 0.0));
-        self.label = ui.add_child(self, Text::new(&self.label_text));
-    }
-
     fn update(&mut self, ui: &mut Ui) {
         let result = ui.measurer.measure(TextMeasureRequest {
             text: &self.label_text,
@@ -117,26 +110,62 @@ impl Widget for Button {
             italic_ranges: &[],
             font_family_ranges: &[],
         });
-        let lw = result.width;
-        let lh = result.height;
+        self.w = result.width + self.padding * 2.0;
+        self.h = result.height + self.padding * 2.0;
+    }
 
-        self.w = lw + self.padding * 2.0;
-        self.h = lh + self.padding * 2.0;
+    fn render(&self, draw_list: &mut DrawList, acc: &Accumulated) {
+        let x = acc.offset_x;
+        let y = acc.offset_y;
+        let lw = self.w - self.padding * 2.0;
+        let lh = self.h - self.padding * 2.0;
 
-        if let Some(bg) = ui.get_mut_raw(self.bg) {
-            bg.set_x(0.0);
-            bg.set_y(0.0);
-            bg.set_w(self.w);
-            bg.set_h(self.h);
-            bg.set_color(self.color);
-            bg.set_z(self.z);
-        }
-        if let Some(label) = ui.get_mut_raw(self.label) {
-            label.set_content(&self.label_text);
-            label.set_x((self.w - lw) / 2.0);
-            label.set_y((self.h - lh) / 2.0);
-            label.set_z(self.z + 1);
-        }
+        draw_list.push_rect(RectDraw {
+            x,
+            y,
+            w: self.w,
+            h: self.h,
+            color: self.color,
+            radii: [0.0; 4],
+            border_color: [0.0; 4],
+            border_widths: [0.0; 4],
+            rotate: acc.rotate,
+            scale_x: acc.scale_x,
+            scale_y: acc.scale_y,
+            opacity: acc.opacity,
+            clip: acc.clip,
+            z: self.z,
+        });
+
+        draw_list.push_text(TextDraw {
+            x: x + (self.w - lw) / 2.0,
+            y: y + (self.h - lh) / 2.0,
+            w: lw,
+            h: lh,
+            text: self.label_text.clone(),
+            size: 14.0,
+            color: [1.0, 1.0, 1.0, 1.0],
+            weight: 400,
+            italic: false,
+            font_family: String::new(),
+            max_width: None,
+            line_height: None,
+            letter_spacing: 0.0,
+            align: TextAlign::Left,
+            opacity: acc.opacity,
+            clip: acc.clip,
+            rotate: acc.rotate,
+            scale_x: acc.scale_x,
+            scale_y: acc.scale_y,
+            z: self.z + 1,
+            color_ranges: vec![],
+            background_ranges: vec![],
+            underline_ranges: vec![],
+            strikethrough_ranges: vec![],
+            weight_ranges: vec![],
+            italic_ranges: vec![],
+            font_family_ranges: vec![],
+        });
     }
 
     fn hitbox(&self) -> (f32, f32, f32, f32) {

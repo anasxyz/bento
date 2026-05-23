@@ -703,7 +703,6 @@ pub struct TextPipeline {
     ranges: Vec<(u32, u32)>,
     cache: Vec<TextCache>,
     scale: f32,
-    pub id_to_slot: HashMap<u64, usize>,
 
     pub bg_rects: Vec<RectInstance>,
     pub bg_ranges: Vec<(usize, usize)>,
@@ -904,7 +903,6 @@ impl TextPipeline {
             ranges: Vec::new(),
             cache: Vec::new(),
             scale: 1.0,
-            id_to_slot: HashMap::new(),
             bg_rects: Vec::new(),
             bg_ranges: Vec::new(),
             line_rects: Vec::new(),
@@ -922,7 +920,6 @@ impl TextPipeline {
         if scale != self.scale {
             self.scale = scale;
             self.cache.clear();
-            self.id_to_slot.clear();
             self.ranges.clear();
             self.bg_rects.clear();
             self.bg_ranges.clear();
@@ -933,42 +930,32 @@ impl TextPipeline {
 
     pub fn prepare(
         &mut self,
-        specs: &[(u64, TextSpec)],
+        specs: &[TextSpec],
         font_system: &mut cosmic_text::FontSystem,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
     ) {
-        // ensure cache slots exist for all ids
-        for (id, _) in specs {
-            if !self.id_to_slot.contains_key(id) {
-                let slot = self.cache.len();
-                self.cache.push(TextCache::empty());
-                self.id_to_slot.insert(*id, slot);
-            }
+        // grow cache to match number of specs
+        while self.cache.len() < specs.len() {
+            self.cache.push(TextCache::empty());
         }
 
-        // first pass: check if anything changed at all
-        let any_changed = specs.iter().any(|(id, spec)| {
-            let slot = self.id_to_slot[id];
-            let cache = &self.cache[slot];
-            cache.needs_reshape(spec) || cache.needs_redraw(spec)
-        });
+        let any_changed = specs
+            .iter()
+            .enumerate()
+            .any(|(i, spec)| self.cache[i].needs_reshape(spec) || self.cache[i].needs_redraw(spec));
 
         if !any_changed && !self.ranges.is_empty() {
             return;
         }
 
-        // something changed so rebuild everything
         let mut instances = Vec::<GlyphInstance>::new();
         self.ranges.clear();
         self.bg_rects.clear();
-        self.bg_ranges.clear();
         self.line_rects.clear();
-        self.line_ranges.clear();
 
-        for (id, spec) in specs {
-            let slot = self.id_to_slot[id];
-            let cache = &mut self.cache[slot];
+        for (i, spec) in specs.iter().enumerate() {
+            let cache = &mut self.cache[i];
 
             let reshape = cache.needs_reshape(spec);
             let redraw = reshape || cache.needs_redraw(spec);
@@ -984,14 +971,12 @@ impl TextPipeline {
                         self.scale,
                     ));
                 }
-
                 if let Some(buffer) = &cache.buffer {
                     cache.glyphs = build_glyphs(buffer, &self.atlas, spec, self.scale);
                     let (bg, lines) = build_decorations(buffer, spec);
                     cache.bg_rects = bg;
                     cache.line_rects = lines;
                 }
-
                 cache.update_from(spec);
             }
 
@@ -999,13 +984,8 @@ impl TextPipeline {
             instances.extend_from_slice(&cache.glyphs);
             self.ranges.push((start, cache.glyphs.len() as u32));
 
-            let bg_start = self.bg_rects.len();
             self.bg_rects.extend_from_slice(&cache.bg_rects);
-            self.bg_ranges.push((bg_start, self.bg_rects.len()));
-
-            let line_start = self.line_rects.len();
             self.line_rects.extend_from_slice(&cache.line_rects);
-            self.line_ranges.push((line_start, self.line_rects.len()));
         }
 
         if instances.is_empty() {
@@ -1036,6 +1016,14 @@ impl TextPipeline {
         pass.set_bind_group(0, &self.bind_group, &[]);
         pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         pass.draw(0..6, start..start + count);
+    }
+
+    pub fn bg_range(&self, index: usize) -> Option<(usize, usize)> {
+        self.bg_ranges.get(index).copied()
+    }
+
+    pub fn line_range(&self, index: usize) -> Option<(usize, usize)> {
+        self.line_ranges.get(index).copied()
     }
 }
 

@@ -22,15 +22,9 @@ pub struct ImagePipeline {
     sampler: wgpu::Sampler,
     screen_bind_group_layout: wgpu::BindGroupLayout,
     screen_bind_group: wgpu::BindGroup,
-    vertex_buffer: wgpu::Buffer,
-    capacity: usize,
     textures: HashMap<u64, (wgpu::Texture, wgpu::TextureView, wgpu::BindGroup)>,
-    instances: Vec<ImageInstance>,
-    dirty: Vec<bool>,
-    // slot -> image_id
-    image_ids: Vec<u64>,
-    next_slot: usize,
-    id_to_slot: HashMap<u64, usize>,
+    transient_buffer: wgpu::Buffer,
+    transient_capacity: usize,
 }
 
 impl ImagePipeline {
@@ -191,10 +185,10 @@ impl ImagePipeline {
             cache: None,
         });
 
-        let capacity = 64;
-        let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("image vertex buffer"),
-            size: (capacity * std::mem::size_of::<ImageInstance>()) as u64,
+        let transient_capacity = 64;
+        let transient_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("image transient buffer"),
+            size: (transient_capacity * std::mem::size_of::<ImageInstance>()) as u64,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -206,14 +200,9 @@ impl ImagePipeline {
             sampler,
             screen_bind_group_layout,
             screen_bind_group,
-            vertex_buffer,
-            capacity,
             textures: HashMap::new(),
-            instances: Vec::new(),
-            dirty: Vec::new(),
-            image_ids: Vec::new(),
-            next_slot: 0,
-            id_to_slot: HashMap::new(),
+            transient_buffer,
+            transient_capacity,
         }
     }
 
@@ -289,97 +278,40 @@ impl ImagePipeline {
         self.textures.insert(id, (texture, view, bind_group));
     }
 
-    pub fn alloc_slot(&mut self) -> usize {
-        let slot = self.next_slot;
-        self.next_slot += 1;
-        self.instances.push(ImageInstance {
-            pos_size: [0.0; 4],
-            radii: [0.0; 4],
-            border_color: [0.0; 4],
-            border_widths: [0.0; 4],
-            transform: [1.0, 0.0, 0.0, 1.0],
-            clip: [0.0, 0.0, f32::MAX, f32::MAX],
-            opacity: 1.0,
-            _pad: [0.0; 3],
-        });
-        self.dirty.push(true);
-        self.image_ids.push(0);
-        slot
-    }
-
-    pub fn get_or_alloc_slot(&mut self, id: u64) -> usize {
-        if let Some(&slot) = self.id_to_slot.get(&id) {
-            return slot;
-        }
-        let slot = self.alloc_slot();
-        self.id_to_slot.insert(id, slot);
-        slot
-    }
-
-    pub fn slot_for_id(&self, id: u64) -> Option<usize> {
-        self.id_to_slot.get(&id).copied()
-    }
-
-    pub fn write_slot(&mut self, slot: usize, instance: ImageInstance, image_id: u64) {
-        if bytemuck::bytes_of(&self.instances[slot]) != bytemuck::bytes_of(&instance)
-            || self.image_ids[slot] != image_id
-        {
-            self.instances[slot] = instance;
-            self.image_ids[slot] = image_id;
-            self.dirty[slot] = true;
-            println!("[image] slot {} marked dirty", slot);
-        } else {
-            println!("[image] slot {} fully cached, skipping", slot);
-        }
-    }
-
-    pub fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
-        if self.instances.is_empty() {
+    pub fn prepare_transient(
+        &mut self,
+        instances: &[ImageInstance],
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) {
+        if instances.is_empty() {
             return;
         }
-
-        if self.instances.len() > self.capacity {
-            self.capacity = self.instances.len().next_power_of_two();
-            self.vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("image vertex buffer"),
-                size: (self.capacity * std::mem::size_of::<ImageInstance>()) as u64,
+        if instances.len() > self.transient_capacity {
+            self.transient_capacity = instances.len().next_power_of_two();
+            self.transient_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("image transient buffer"),
+                size: (self.transient_capacity * std::mem::size_of::<ImageInstance>()) as u64,
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
-            queue.write_buffer(
-                &self.vertex_buffer,
-                0,
-                bytemuck::cast_slice(&self.instances),
-            );
-            for d in &mut self.dirty {
-                *d = false;
-            }
-            return;
         }
-
-        for (i, dirty) in self.dirty.iter_mut().enumerate() {
-            if *dirty {
-                println!("[image] uploading slot {}", i);
-                let offset = (i * std::mem::size_of::<ImageInstance>()) as u64;
-                queue.write_buffer(
-                    &self.vertex_buffer,
-                    offset,
-                    bytemuck::bytes_of(&self.instances[i]),
-                );
-                *dirty = false;
-            }
-        }
+        queue.write_buffer(&self.transient_buffer, 0, bytemuck::cast_slice(instances));
     }
 
-    pub fn draw_slot<'pass>(&'pass self, pass: &mut wgpu::RenderPass<'pass>, slot: usize) {
-        let image_id = self.image_ids[slot];
+    pub fn draw_slot<'pass>(
+        &'pass self,
+        pass: &mut wgpu::RenderPass<'pass>,
+        slot: usize,
+        image_id: u64,
+    ) {
         let Some((_, _, bind_group)) = self.textures.get(&image_id) else {
             return;
         };
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.screen_bind_group, &[]);
         pass.set_bind_group(1, bind_group, &[]);
-        pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        pass.set_vertex_buffer(0, self.transient_buffer.slice(..));
         pass.draw(0..6, slot as u32..slot as u32 + 1);
     }
 }

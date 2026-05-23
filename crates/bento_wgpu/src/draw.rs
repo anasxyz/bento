@@ -67,17 +67,17 @@ pub struct ImageDraw {
 }
 
 pub enum DrawCommand {
-    Rect(u64, RectDraw),
-    Text(u64, TextDraw),
-    Image(u64, ImageDraw),
+    Rect(RectDraw),
+    Text(TextDraw),
+    Image(ImageDraw),
 }
 
 impl DrawCommand {
     pub fn z(&self) -> i32 {
         match self {
-            DrawCommand::Rect(_, r) => r.z,
-            DrawCommand::Text(_, t) => t.z,
-            DrawCommand::Image(_, i) => i.z,
+            DrawCommand::Rect(r) => r.z,
+            DrawCommand::Text(t) => t.z,
+            DrawCommand::Image(i) => i.z,
         }
     }
 }
@@ -97,16 +97,14 @@ impl DrawList {
         self.commands.clear();
     }
 
-    pub fn push_rect(&mut self, id: u64, rect: RectDraw) {
-        self.commands.push(DrawCommand::Rect(id, rect));
+    pub fn push_rect(&mut self, rect: RectDraw) {
+        self.commands.push(DrawCommand::Rect(rect));
     }
-
-    pub fn push_text(&mut self, id: u64, text: TextDraw) {
-        self.commands.push(DrawCommand::Text(id, text));
+    pub fn push_text(&mut self, text: TextDraw) {
+        self.commands.push(DrawCommand::Text(text));
     }
-
-    pub fn push_image(&mut self, id: u64, image: ImageDraw) {
-        self.commands.push(DrawCommand::Image(id, image));
+    pub fn push_image(&mut self, image: ImageDraw) {
+        self.commands.push(DrawCommand::Image(image));
     }
 
     pub fn sort_by_z(&mut self) {

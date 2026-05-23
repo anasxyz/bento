@@ -105,7 +105,6 @@ impl Widget for Rect {
 
     fn render(&self, draw_list: &mut DrawList, acc: &Accumulated) {
         draw_list.push_rect(
-            self.id as u64,
             RectDraw {
                 x: acc.offset_x,
                 y: acc.offset_y,

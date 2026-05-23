@@ -108,7 +108,6 @@ impl Widget for Text {
 
     fn render(&self, draw_list: &mut DrawList, acc: &Accumulated) {
         draw_list.push_text(
-            self.id as u64,
             TextDraw {
                 x: acc.offset_x,
                 y: acc.offset_y,
