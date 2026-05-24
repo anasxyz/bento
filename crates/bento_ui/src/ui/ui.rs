@@ -28,6 +28,7 @@ pub struct Ui {
     pub needs_redraw: bool,
     pub measurer: TextMeasurer,
     pub dirty: HashSet<usize>,
+    pub layout_dirty: HashSet<usize>,
 }
 
 impl Ui {
@@ -40,6 +41,7 @@ impl Ui {
             needs_redraw: false,
             measurer: TextMeasurer::new(),
             dirty: HashSet::new(),
+            layout_dirty: HashSet::new(),
         }
     }
 
@@ -56,6 +58,10 @@ impl Ui {
             parent: None,
         });
         self.dirty.insert(index);
+        if let Some(parent_id) = self.nodes[index].as_ref().and_then(|n| n.parent) {
+            self.layout_dirty.insert(parent_id);
+        }
+        self.layout_dirty.insert(index);
         self.roots.push(index);
         self.request_redraw();
         WidgetHandle::from_id(index)
@@ -129,16 +135,13 @@ impl Ui {
             child_node.parent = Some(handle.id);
         }
         self.roots.retain(|&r| r != child.id);
+        self.layout_dirty.insert(handle.id);
     }
 
     pub fn update(&mut self) {
         let t = std::time::Instant::now();
-        // pass 1: measure
         let dirty: Vec<usize> = self.dirty.drain().collect();
         println!("[update] dirty count: {}", dirty.len());
-        let mut layout_dirty: HashSet<usize> = HashSet::new();
-        let mut width_changed: HashSet<usize> = HashSet::new();
-        let mut height_changed: HashSet<usize> = HashSet::new();
         for id in dirty {
             let Some(Some(node)) = self.nodes.get_mut(id) else {
                 continue;
@@ -147,44 +150,32 @@ impl Ui {
             node.widget.update(&mut self.measurer);
             let new_size = node.widget.size();
             self.request_redraw();
-            if old_size.0 != new_size.0 {
-                width_changed.insert(id);
-            }
-            if old_size.1 != new_size.1 {
-                height_changed.insert(id);
-            }
-            if old_size.0 != new_size.0 || old_size.1 != new_size.1 {
+            if old_size != new_size {
                 let mut current = self.nodes[id].as_ref().unwrap().parent;
                 while let Some(parent_id) = current {
-                    layout_dirty.insert(parent_id);
+                    self.layout_dirty.insert(parent_id);
                     current = self.nodes[parent_id].as_ref().and_then(|n| n.parent);
                 }
             }
         }
         println!("[update] measure time: {:?} +", t.elapsed());
 
-        // layout
         let t = std::time::Instant::now();
-        let mut layout_dirty: Vec<usize> = layout_dirty.into_iter().collect();
-        layout_dirty.sort_by(|a, b| b.cmp(a));
-        for id in layout_dirty {
-            self.layout_node(id, &mut width_changed, &mut height_changed);
+        let layout_ids: Vec<usize> = self.layout_dirty.drain().collect();
+        let mut layout_ids: Vec<usize> = layout_ids.into_iter().collect();
+        layout_ids.sort_by(|a, b| b.cmp(a));
+        for id in layout_ids {
+            self.layout_node(id);
         }
         println!("[update] layout time: {:?} +", t.elapsed());
 
-        // pass 2: clear position dirty widgets without re measuring
         if !self.dirty.is_empty() {
             self.dirty.clear();
             self.request_redraw();
         }
     }
 
-    fn layout_node(
-        &mut self,
-        id: usize,
-        width_changed: &mut HashSet<usize>,
-        height_changed: &mut HashSet<usize>,
-    ) {
+    fn layout_node(&mut self, id: usize) {
         let children = match self.nodes[id].as_ref() {
             Some(n) => n.children.clone(),
             None => return,
@@ -202,39 +193,27 @@ impl Ui {
         match layout_info {
             None => {
                 for child_id in children {
-                    self.layout_node(child_id, width_changed, height_changed);
+                    self.layout_node(child_id);
                 }
             }
-            Some((Layout::None)) => {
+            Some(Layout::None) => {
                 for child_id in children {
-                    self.layout_node(child_id, width_changed, height_changed);
+                    self.layout_node(child_id);
                 }
             }
-            Some((Layout::Row { gap })) => {
-                let first_changed = children
-                    .iter()
-                    .position(|cid| width_changed.contains(cid))
-                    .unwrap_or(children.len());
-
+            Some(Layout::Row { gap }) => {
                 let mut cursor = 0.0;
-                for child_id in &children[..first_changed] {
-                    if let Some(n) = self.nodes[*child_id].as_ref() {
-                        let (w, _) = n.widget.size();
-                        cursor += w + gap;
-                    }
-                }
-
-                for child_id in &children[first_changed..] {
+                for child_id in &children {
                     let (w, _) = match self.nodes[*child_id].as_ref() {
                         Some(n) => n.widget.size(),
                         None => continue,
                     };
                     if let Some(n) = self.nodes[*child_id].as_mut() {
                         n.widget.set_position(cursor, 0.0);
-                        self.dirty.insert(*child_id);
+                        self.request_redraw();
                     }
                     cursor += w + gap;
-                    self.layout_node(*child_id, width_changed, height_changed);
+                    self.layout_node(*child_id);
                 }
 
                 let mut total_w = 0.0f32;
@@ -248,42 +227,31 @@ impl Ui {
                 }
                 if let Some(n) = self.nodes[id].as_mut() {
                     if let Some(g) = n.widget.as_any_mut().downcast_mut::<Group>() {
-                        if g.w != total_w {
-                            width_changed.insert(id);
-                        }
-                        if g.h != total_h {
-                            height_changed.insert(id);
-                        }
+                        let size_changed = g.w != total_w || g.h != total_h;
                         g.w = total_w;
                         g.h = total_h;
+                        if size_changed {
+                            if let Some(parent_id) = self.nodes[id].as_ref().and_then(|n| n.parent)
+                            {
+                                self.layout_dirty.insert(parent_id);
+                            }
+                        }
                     }
                 }
             }
-            Some((Layout::Column { gap })) => {
-                let first_changed = children
-                    .iter()
-                    .position(|cid| height_changed.contains(cid))
-                    .unwrap_or(children.len());
-
+            Some(Layout::Column { gap }) => {
                 let mut cursor = 0.0;
-                for child_id in &children[..first_changed] {
-                    if let Some(n) = self.nodes[*child_id].as_ref() {
-                        let (_, h) = n.widget.size();
-                        cursor += h + gap;
-                    }
-                }
-
-                for child_id in &children[first_changed..] {
+                for child_id in &children {
                     let (_, h) = match self.nodes[*child_id].as_ref() {
                         Some(n) => n.widget.size(),
                         None => continue,
                     };
                     if let Some(n) = self.nodes[*child_id].as_mut() {
                         n.widget.set_position(0.0, cursor);
-                        self.dirty.insert(*child_id);
+                        self.request_redraw();
                     }
                     cursor += h + gap;
-                    self.layout_node(*child_id, width_changed, height_changed);
+                    self.layout_node(*child_id);
                 }
 
                 let mut total_w = 0.0f32;
@@ -297,14 +265,15 @@ impl Ui {
                 }
                 if let Some(n) = self.nodes[id].as_mut() {
                     if let Some(g) = n.widget.as_any_mut().downcast_mut::<Group>() {
-                        if g.w != total_w {
-                            width_changed.insert(id);
-                        }
-                        if g.h != total_h {
-                            height_changed.insert(id);
-                        }
+                        let size_changed = g.w != total_w || g.h != total_h;
                         g.w = total_w;
                         g.h = total_h;
+                        if size_changed {
+                            if let Some(parent_id) = self.nodes[id].as_ref().and_then(|n| n.parent)
+                            {
+                                self.layout_dirty.insert(parent_id);
+                            }
+                        }
                     }
                 }
             }
