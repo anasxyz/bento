@@ -158,15 +158,17 @@ impl Widget for TextInput {
         self.z
     }
 
-    fn on_event(&mut self, event: &dyn Any) -> Vec<Box<dyn Any>> {
-        let mut outgoing: Vec<Box<dyn Any>> = vec![];
+    fn on_event(&mut self, event: &dyn Any) -> (bool, Vec<Box<dyn Any>>) {
+        let mut changed = false;
 
         if event.downcast_ref::<FocusGained>().is_some() {
             self.focused = true;
+            changed = true;
         }
 
         if event.downcast_ref::<FocusLost>().is_some() {
             self.focused = false;
+            changed = true;
         }
 
         if let Some(e) = event.downcast_ref::<KeyPress>() {
@@ -177,6 +179,7 @@ impl Widget for TextInput {
                         let end_idx = char_to_byte(&self.value, self.cursor);
                         self.value.drain(byte_idx..end_idx);
                         self.cursor -= 1;
+                        changed = true;
                     }
                 }
                 Key::Delete => {
@@ -184,23 +187,33 @@ impl Widget for TextInput {
                         let byte_idx = char_to_byte(&self.value, self.cursor);
                         let end_idx = char_to_byte(&self.value, self.cursor + 1);
                         self.value.drain(byte_idx..end_idx);
+                        changed = true;
                     }
                 }
                 Key::Left => {
                     if self.cursor > 0 {
                         self.cursor -= 1;
+                        changed = true;
                     }
                 }
                 Key::Right => {
                     if self.cursor < self.value.chars().count() {
                         self.cursor += 1;
+                        changed = true;
                     }
                 }
                 Key::Home => {
-                    self.cursor = 0;
+                    if self.cursor != 0 {
+                        self.cursor = 0;
+                        changed = true;
+                    }
                 }
                 Key::End => {
-                    self.cursor = self.value.chars().count();
+                    let len = self.value.chars().count();
+                    if self.cursor != len {
+                        self.cursor = len;
+                        changed = true;
+                    }
                 }
                 _ => {
                     if let Some(ch) = e.ch {
@@ -208,13 +221,14 @@ impl Widget for TextInput {
                             let byte_idx = char_to_byte(&self.value, self.cursor);
                             self.value.insert(byte_idx, ch);
                             self.cursor += 1;
+                            changed = true;
                         }
                     }
                 }
             }
         }
 
-        outgoing
+        (changed, vec![])
     }
 
     fn render(&self, canvas: &mut Canvas) {

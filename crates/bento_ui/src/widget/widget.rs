@@ -66,7 +66,7 @@ pub trait Widget {
     ///
     /// Currently there's no way to stop propagation of events or mark an event as handled.
     /// The only case I can think of where it matters is is nested scroll containers.
-    fn on_event(&mut self, event: &dyn Any) -> Vec<Box<dyn Any>> { vec![] }
+    fn on_event(&mut self, event: &dyn Any) -> (bool, Vec<Box<dyn Any>>) { (false, vec![]) }
 }
 
 pub trait AnyWidget: Widget + Any {

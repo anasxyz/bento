@@ -618,14 +618,16 @@ impl Ui {
             i += 1;
         }
 
-        let outgoing = if let Some(Some(node)) = self.nodes.get_mut(node_id) {
+        let (changed, outgoing) = if let Some(Some(node)) = self.nodes.get_mut(node_id) {
             node.widget.on_event(event.as_ref())
         } else {
-            vec![]
+            (false, vec![])
         };
 
-        self.dirty.insert(node_id);
-        self.needs_redraw = true;
+        if changed {
+            self.dirty.insert(node_id);
+            self.needs_redraw = true;
+        }
 
         for event in outgoing {
             self.fire(node_id, event);

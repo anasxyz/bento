@@ -168,11 +168,4 @@ impl Widget for Button {
             font_family_ranges: vec![],
         });
     }
-
-    fn on_event(&mut self, event: &dyn Any) -> Vec<Box<dyn Any>> {
-        if event.downcast_ref::<Click>().is_some() {
-            return vec![Box::new(ButtonPressed)];
-        }
-        vec![]
-    }
 }
