@@ -75,9 +75,8 @@ impl Widget for TextInput {
             italic_ranges: &[],
             font_family_ranges: &[],
         });
-        println!("[update] measure time: {:?} +", t.elapsed());
-        self.text_w = result.width;
         self.text_h = result.height;
+        self.text_w = result.width;
         if matches!(self.height, Size::Auto) {
             self.h = self.text_h + self.padding * 2.0;
         }
@@ -85,34 +84,12 @@ impl Widget for TextInput {
             self.w = (result.width + self.padding * 2.0).max(100.0);
         }
 
-        // measure text up to cursor to get accurate cursor x
-        let text_before: String = self.value.chars().take(self.cursor).collect();
-        let t = std::time::Instant::now();
-        let cursor_result = measurer.measure(TextMeasureRequest {
-            text: if text_before.is_empty() {
-                " "
-            } else {
-                &text_before
-            },
-            font_family: "",
-            size: self.font_size,
-            weight: 400,
-            italic: false,
-            letter_spacing: 0.0,
-            line_height: None,
-            max_width: None,
-            weight_ranges: &[],
-            italic_ranges: &[],
-            font_family_ranges: &[],
-        });
-        println!("[update] second measure time: {:?} +", t.elapsed());
-        self.cursor_x = if text_before.is_empty() {
-            0.0
-        } else {
-            cursor_result.width
-        };
+        self.cursor_x = result
+            .glyph_positions
+            .get(self.cursor)
+            .copied()
+            .unwrap_or(result.width);
 
-        // update scroll offset to keep cursor visible
         let inner_w = self.w - self.padding * 2.0;
         let cursor_local = self.cursor_x - self.scroll_offset;
         if cursor_local < 0.0 {
@@ -120,18 +97,9 @@ impl Widget for TextInput {
         } else if cursor_local > inner_w {
             self.scroll_offset = self.cursor_x - inner_w;
         }
-        let total_text_w = result.width;
-        let max_scroll = (total_text_w - inner_w).max(0.0);
+        let max_scroll = (self.text_w - inner_w).max(0.0);
         self.scroll_offset = self.scroll_offset.clamp(0.0, max_scroll);
-        println!(
-            "[input] value_len={} result.width={:.1} inner_w={:.1} scroll={:.1} cursor_x={:.1} max_scroll={:.1}",
-            self.value.len(),
-            result.width,
-            inner_w,
-            self.scroll_offset,
-            self.cursor_x,
-            (result.width - inner_w).max(0.0)
-        );
+        println!("text input update took {:?}", t.elapsed());
     }
 
     fn size(&self) -> (f32, f32) {
@@ -288,7 +256,7 @@ impl Widget for TextInput {
         // cursor
         if self.focused {
             canvas.draw_list.push_rect(RectDraw {
-                x: canvas.x + self.padding + self.cursor_x - self.scroll_offset,
+                x: (canvas.x + self.padding + self.cursor_x - self.scroll_offset).floor(),
                 y: canvas.y + self.padding,
                 w: 1.5,
                 h: self.text_h,

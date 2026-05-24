@@ -186,11 +186,19 @@ impl TextMeasurer {
 
         let total_height = lines.iter().map(|l| l.height).sum();
 
+        let mut glyph_positions = vec![0.0f32];
+        for run in buffer.layout_runs() {
+            for glyph in run.glyphs {
+                glyph_positions.push(glyph.x + glyph.w);
+            }
+        }
+
         let result = TextMeasureResult {
             width: total_width,
             height: total_height,
             line_count: lines.len(),
             lines,
+            glyph_positions,
         };
 
         self.cache.cache.insert(key, (result.clone(), buffer));
@@ -238,6 +246,7 @@ pub struct TextMeasureResult {
     pub height: f32,
     pub line_count: usize,
     pub lines: Vec<LineMetrics>,
+    pub glyph_positions: Vec<f32>,
 }
 
 #[derive(Clone, PartialEq, Debug)]
