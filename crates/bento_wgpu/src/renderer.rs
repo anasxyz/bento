@@ -210,7 +210,7 @@ impl Renderer {
         let t = std::time::Instant::now();
         self.text
             .prepare(&text_specs, font_system, &ctx.device, &ctx.queue);
-        println!("text prepare time: {:?}", t.elapsed());
+        println!("[text] prepare time: {:?}", t.elapsed());
         let decoration_offset = rect_instances.len();
         rect_instances.extend_from_slice(&self.text.bg_rects);
         let line_offset = rect_instances.len();
@@ -289,7 +289,7 @@ impl Renderer {
         let t = std::time::Instant::now();
         ctx.queue.submit(Some(encoder.finish()));
         frame.present();
-        println!("present time: {:?}", t.elapsed());
+        println!("[renderer] present time: {:?}", t.elapsed());
     }
 
     pub fn resize(&mut self, ctx: &RenderContext, surface: &Surface) {

@@ -205,7 +205,7 @@ impl TextMeasurer for CosmicTextMeasurer {
         };
 
         self.cache.cache.insert(key, result.clone());
-        println!("measure time: {:?}", t.elapsed());
+        println!("[ui] measure time: {:?}", t.elapsed());
         result
     }
 }

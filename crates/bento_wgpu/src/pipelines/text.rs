@@ -354,14 +354,8 @@ impl TextCache {
     }
 }
 
-fn shape_and_rasterise(
-    spec: &TextSpec,
-    font_system: &mut cosmic_text::FontSystem,
-    atlas: &mut GlyphAtlas,
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    scale: f32,
-) -> Buffer {
+fn shape(spec: &TextSpec, font_system: &mut cosmic_text::FontSystem, scale: f32) -> Buffer {
+    let t = std::time::Instant::now();
     let line_height = spec.line_height.unwrap_or(spec.size * 1.4);
     let mut buffer = Buffer::new(font_system, Metrics::new(spec.size, line_height));
     buffer.set_size(font_system, spec.max_width, None);
@@ -419,7 +413,6 @@ fn shape_and_rasterise(
         }
         let slice = &spec.text[start..end];
         let first_char = slice.chars().next().unwrap();
-
         let span_attrs = if is_emoji(first_char) {
             base_attrs.clone()
         } else {
@@ -461,26 +454,29 @@ fn shape_and_rasterise(
         align,
     );
     buffer.shape_until_scroll(font_system, false);
+    println!("[text] shape time: {:?}", t.elapsed());
+    buffer
+}
 
+fn rasterise(
+    buffer: &Buffer,
+    spec: &TextSpec,
+    atlas: &mut GlyphAtlas,
+    font_system: &mut cosmic_text::FontSystem,
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    scale: f32,
+) {
+    let t = std::time::Instant::now();
     let raster_scale = scale * spec.scale_x.max(spec.scale_y);
-
-    /*
-     * was normally:
-     * let subpixel_offset = ((spec.x * scale).fract(), (spec.y * scale).fract());
-     *
-     * but this somehow causes text flickering while animating text on the framework level
-     * hence why its being set to 0,0 for now
-     */
     let subpixel_offset = (0.0, 0.0);
-
     for run in buffer.layout_runs() {
         for glyph in run.glyphs {
             let physical = glyph.physical(subpixel_offset, raster_scale);
             atlas.insert(physical.cache_key, font_system, device, queue);
         }
     }
-
-    buffer
+    println!("[text] rasterise time: {:?}", t.elapsed());
 }
 
 // glyph instance building
@@ -962,14 +958,17 @@ impl TextPipeline {
 
             if redraw {
                 if reshape {
-                    cache.buffer = Some(shape_and_rasterise(
+                    let buffer = shape(spec, font_system, self.scale);
+                    rasterise(
+                        &buffer,
                         spec,
-                        font_system,
                         &mut self.atlas,
+                        font_system,
                         device,
                         queue,
                         self.scale,
-                    ));
+                    );
+                    cache.buffer = Some(buffer);
                 }
                 if let Some(buffer) = &cache.buffer {
                     cache.glyphs = build_glyphs(buffer, &self.atlas, spec, self.scale);
