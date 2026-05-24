@@ -216,7 +216,7 @@ impl Ui {
             }
         }
 
-        // resolve and set size for non-auto children
+        // resolve and set size for non auto children
         for child_id in &children {
             if let Some(Some(node)) = self.nodes.get(*child_id) {
                 let ws = node.widget.width_sizing().clone();
@@ -249,6 +249,43 @@ impl Ui {
                 }
             }
             Some(Layout::Row { gap }) => {
+                // first pass: sum fixed widths and count fill children
+                let mut fixed_total = 0.0f32;
+                let mut fill_count = 0;
+                let child_count = children.len();
+                for child_id in &children {
+                    if let Some(Some(node)) = self.nodes.get(*child_id) {
+                        match node.widget.width_sizing() {
+                            Size::Fill => fill_count += 1,
+                            _ => fixed_total += node.widget.size().0,
+                        }
+                    }
+                }
+                let total_gap = if child_count > 0 {
+                    gap * (child_count - 1) as f32
+                } else {
+                    0.0
+                };
+                let remaining = (inner_w - fixed_total - total_gap).max(0.0);
+                let fill_w = if fill_count > 0 {
+                    remaining / fill_count as f32
+                } else {
+                    0.0
+                };
+
+                // second pass: set fill children widths
+                for child_id in &children {
+                    if let Some(Some(node)) = self.nodes.get(*child_id) {
+                        if matches!(node.widget.width_sizing(), Size::Fill) {
+                            let h = node.widget.size().1;
+                            if let Some(Some(node)) = self.nodes.get_mut(*child_id) {
+                                node.widget.set_size(fill_w, h);
+                            }
+                        }
+                    }
+                }
+
+                // third pass: position children
                 let mut cursor = 0.0;
                 for child_id in &children {
                     let (w, _) = match self.nodes[*child_id].as_ref() {
@@ -287,6 +324,43 @@ impl Ui {
                 }
             }
             Some(Layout::Column { gap }) => {
+                // first pass: sum fixed heights and count fill children
+                let mut fixed_total = 0.0f32;
+                let mut fill_count = 0;
+                let child_count = children.len();
+                for child_id in &children {
+                    if let Some(Some(node)) = self.nodes.get(*child_id) {
+                        match node.widget.height_sizing() {
+                            Size::Fill => fill_count += 1,
+                            _ => fixed_total += node.widget.size().1,
+                        }
+                    }
+                }
+                let total_gap = if child_count > 0 {
+                    gap * (child_count - 1) as f32
+                } else {
+                    0.0
+                };
+                let remaining = (inner_h - fixed_total - total_gap).max(0.0);
+                let fill_h = if fill_count > 0 {
+                    remaining / fill_count as f32
+                } else {
+                    0.0
+                };
+
+                // second pass: set fill children heights
+                for child_id in &children {
+                    if let Some(Some(node)) = self.nodes.get(*child_id) {
+                        if matches!(node.widget.height_sizing(), Size::Fill) {
+                            let w = node.widget.size().0;
+                            if let Some(Some(node)) = self.nodes.get_mut(*child_id) {
+                                node.widget.set_size(w, fill_h);
+                            }
+                        }
+                    }
+                }
+
+                // third pass: position children
                 let mut cursor = 0.0;
                 for child_id in &children {
                     let (_, h) = match self.nodes[*child_id].as_ref() {

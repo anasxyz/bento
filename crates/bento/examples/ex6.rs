@@ -8,7 +8,7 @@ fn main() {
 
     let mut col = Group::new();
     col.layout = Layout::Row { gap: 8.0 };
-    col.width = Size::Fixed(200.0);
+    col.width = Size::Fixed(150.0);
     let col = ui.add(col);
 
     let mut btn = Button::new("First button");

@@ -149,7 +149,7 @@ impl Widget for Button {
             letter_spacing: 0.0,
             align: TextAlign::Left,
             opacity: canvas.opacity,
-            clip: canvas.clip,
+            clip: Some([canvas.x, canvas.y, self.w, self.h]),
             rotate: canvas.rotate,
             scale_x: canvas.scale_x,
             scale_y: canvas.scale_y,
