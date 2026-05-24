@@ -15,12 +15,18 @@ fn main() {
     btn.width = Size::Fill;
     let btn = ui.add(btn);
 
-    let mut btn2 = Button::new("Second button");
-    btn2.width = Size::Fill;
-    let btn2 = ui.add(btn2);
-
     ui.append(col, btn);
-    ui.append(col, btn2);
+
+    let l = ui.listen(btn, |e: &Click, ui: &mut Ui| {
+        println!("Clicked button");
+    });
+
+    ui.asyncs.spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        move |ui: &mut Ui| {
+            ui.unlisten(l);
+        }
+    });
 
     app.open_window(WindowConfig::default(), ui);
     app.run();

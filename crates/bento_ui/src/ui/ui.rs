@@ -33,6 +33,9 @@ pub struct Ui {
     pub viewport_w: f32,
     pub viewport_h: f32,
 
+    listeners: Vec<Listener>,
+    next_listener_id: u64,
+
     pub debug: bool,
     pub hovered_node: Option<usize>,
     pub hovered_rect: Option<[f32; 4]>,
@@ -51,6 +54,9 @@ impl Ui {
             layout_dirty: HashSet::new(),
             viewport_w: 800.0,
             viewport_h: 600.0,
+
+            listeners: Vec::new(),
+            next_listener_id: 0,
 
             debug: false,
             hovered_node: None,
@@ -155,7 +161,7 @@ impl Ui {
         // update / measure pass
         let t = std::time::Instant::now();
         let dirty: Vec<usize> = self.dirty.drain().collect();
-        println!("[update] dirty count: {}", dirty.len());
+        // println!("[update] dirty count: {}", dirty.len());
         for id in dirty {
             let Some(Some(node)) = self.nodes.get_mut(id) else {
                 continue;
@@ -172,7 +178,7 @@ impl Ui {
                 }
             }
         }
-        println!("[update] measure time: {:?} +", t.elapsed());
+        // println!("[update] measure time: {:?} +", t.elapsed());
 
         // layout pass
         let t = std::time::Instant::now();
@@ -184,7 +190,7 @@ impl Ui {
                 self.layout_node(id, self.viewport_w, self.viewport_h);
             }
         }
-        println!("[update] layout time: {:?} +", t.elapsed());
+        // println!("[update] layout time: {:?} +", t.elapsed());
 
         // DEBUG
         // to update hovered node when hovering over a widget and it changes/moves
@@ -553,12 +559,73 @@ impl Ui {
     }
 }
 
+pub struct ListenerHandle(u64);
+
+struct Listener {
+    id: u64,
+    node_id: usize,
+    type_id: TypeId,
+    f: Box<dyn FnMut(&dyn Any, &mut Ui)>,
+}
+
+impl Ui {
+    pub fn listen<W: Widget + 'static, E: 'static>(
+        &mut self,
+        handle: WidgetHandle<W>,
+        f: impl FnMut(&E, &mut Ui) + 'static,
+    ) -> ListenerHandle {
+        let id = self.next_listener_id;
+        self.next_listener_id += 1;
+        let mut f = f;
+        self.listeners.push(Listener {
+            id,
+            node_id: handle.id,
+            type_id: TypeId::of::<E>(),
+            f: Box::new(move |event, ui| {
+                if let Some(e) = event.downcast_ref::<E>() {
+                    f(e, ui);
+                }
+            }),
+        });
+        ListenerHandle(id)
+    }
+
+    pub fn unlisten(&mut self, handle: ListenerHandle) {
+        self.listeners.retain(|l| l.id != handle.0);
+    }
+
+    fn fire<E: Any>(&mut self, node_id: usize, event: E) {
+        let type_id = TypeId::of::<E>();
+        let event = Box::new(event) as Box<dyn Any>;
+        let mut i = 0;
+        while i < self.listeners.len() {
+            if self.listeners[i].node_id == node_id && self.listeners[i].type_id == type_id {
+                let mut listener = self.listeners.remove(i);
+                (listener.f)(event.as_ref(), self);
+                self.listeners.insert(i, listener);
+            }
+            i += 1;
+        }
+    }
+}
+
 impl Ui {
     pub fn process_input(&mut self) {
         self.keyboard_stuff();
-        if self.debug {
-            if self.input.mouse.dx != 0.0 || self.input.mouse.dy != 0.0 {
-                self.hit_test();
+        if self.input.mouse.dx != 0.0 || self.input.mouse.dy != 0.0 {
+            self.hit_test();
+        }
+
+        if self.input.mouse.left.just_released {
+            if let Some(node_id) = self.hovered_node {
+                self.fire(
+                    node_id,
+                    Click {
+                        x: self.input.mouse.x,
+                        y: self.input.mouse.y,
+                        button: MouseButton::Left,
+                    },
+                );
             }
         }
     }
