@@ -13,7 +13,7 @@ use crate::input::mouse::MouseButton;
 use crate::layout::{Layout, Size};
 use crate::ui::asyncs::AsyncEventQueue;
 use crate::widget::{AnyWidget, Canvas, Widget, WidgetHandle};
-use crate::{Group, Key};
+use crate::{Group, HoverEnter, HoverLeave, Key};
 
 pub struct Node {
     pub widget: Box<dyn AnyWidget>,
@@ -612,10 +612,55 @@ impl Ui {
 impl Ui {
     pub fn process_input(&mut self) {
         self.keyboard_stuff();
-        if self.input.mouse.dx != 0.0 || self.input.mouse.dy != 0.0 {
-            self.hit_test();
-        }
+        self.mouse_stuff();
+    }
 
+    pub fn keyboard_stuff(&mut self) {
+        for (k, _) in self.input.keyboard.just_pressed() {
+            if *k == Key::D {
+                self.print_nodes();
+            }
+        }
+    }
+
+    pub fn mouse_stuff(&mut self) {
+        self.fire_hover_events();
+        self.fire_mouse_move();
+        self.fire_click_events();
+    }
+
+    fn fire_hover_events(&mut self) {
+        if self.input.mouse.dx != 0.0 || self.input.mouse.dy != 0.0 {
+            let prev = self.hovered_node;
+            self.hit_test();
+            if prev != self.hovered_node {
+                if let Some(old_id) = prev {
+                    self.fire(old_id, HoverLeave);
+                }
+                if let Some(new_id) = self.hovered_node {
+                    self.fire(new_id, HoverEnter);
+                }
+            }
+        }
+    }
+
+    fn fire_mouse_move(&mut self) {
+        if self.input.mouse.dx != 0.0 || self.input.mouse.dy != 0.0 {
+            if let Some(node_id) = self.hovered_node {
+                self.fire(
+                    node_id,
+                    MouseMove {
+                        x: self.input.mouse.x,
+                        y: self.input.mouse.y,
+                        dx: self.input.mouse.dx,
+                        dy: self.input.mouse.dy,
+                    },
+                );
+            }
+        }
+    }
+
+    fn fire_click_events(&mut self) {
         if self.input.mouse.left.just_released {
             if let Some(node_id) = self.hovered_node {
                 self.fire(
@@ -626,14 +671,6 @@ impl Ui {
                         button: MouseButton::Left,
                     },
                 );
-            }
-        }
-    }
-
-    pub fn keyboard_stuff(&mut self) {
-        for (k, _) in self.input.keyboard.just_pressed() {
-            if *k == Key::D {
-                self.print_nodes();
             }
         }
     }

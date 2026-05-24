@@ -17,15 +17,8 @@ fn main() {
 
     ui.append(col, btn);
 
-    let l = ui.listen(btn, |e: &Click, ui: &mut Ui| {
-        println!("Clicked button");
-    });
-
-    ui.asyncs.spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-        move |ui: &mut Ui| {
-            ui.unlisten(l);
-        }
+    let l = ui.listen(btn, |e: &HoverEnter, ui: &mut Ui| {
+        println!("hover event");
     });
 
     app.open_window(WindowConfig::default(), ui);
