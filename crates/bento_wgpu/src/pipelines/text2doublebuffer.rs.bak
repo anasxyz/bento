@@ -700,11 +700,12 @@ pub struct TextPipeline {
     cache: Vec<TextCache>,
     scale: f32,
 
-    origin_buffer: wgpu::Buffer,
+    origin_buffers: [wgpu::Buffer; 2],
     origin_stride: u64,
     origin_capacity: usize,
     origin_bind_group_layout: wgpu::BindGroupLayout,
-    origin_bind_group: wgpu::BindGroup,
+    origin_bind_groups: [wgpu::BindGroup; 2],
+    origin_frame: usize,
 
     pub bg_rects: Vec<RectInstance>,
     pub bg_ranges: Vec<(usize, usize)>,
@@ -747,12 +748,20 @@ impl TextPipeline {
         );
 
         let origin_capacity = 128;
-        let origin_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("text origin buffer"),
-            size: origin_stride * origin_capacity as u64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
+        let origin_buffers = [
+            device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("text origin buffer 0"),
+                size: origin_stride * origin_capacity as u64,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            }),
+            device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("text origin buffer 1"),
+                size: origin_stride * origin_capacity as u64,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            }),
+        ];
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("text bgl"),
@@ -820,18 +829,32 @@ impl TextPipeline {
                 }],
             });
 
-        let origin_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("text origin bind group"),
-            layout: &origin_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                    buffer: &origin_buffer,
-                    offset: 0,
-                    size: wgpu::BufferSize::new(8),
-                }),
-            }],
-        });
+        let origin_bind_groups = [
+            device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("text origin bind group 0"),
+                layout: &origin_bind_group_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &origin_buffers[0],
+                        offset: 0,
+                        size: wgpu::BufferSize::new(8),
+                    }),
+                }],
+            }),
+            device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("text origin bind group 1"),
+                layout: &origin_bind_group_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &origin_buffers[1],
+                        offset: 0,
+                        size: wgpu::BufferSize::new(8),
+                    }),
+                }],
+            }),
+        ];
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("text shader"),
@@ -948,11 +971,14 @@ impl TextPipeline {
             ranges: Vec::new(),
             cache: Vec::new(),
             scale: 1.0,
-            origin_buffer,
+
+            origin_buffers,
             origin_stride,
             origin_capacity,
             origin_bind_group_layout,
-            origin_bind_group,
+            origin_bind_groups,
+            origin_frame: 0,
+
             bg_rects: Vec::new(),
             bg_ranges: Vec::new(),
             line_rects: Vec::new(),
@@ -985,6 +1011,9 @@ impl TextPipeline {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
     ) {
+        let frame = self.origin_frame;
+        self.origin_frame = 1 - self.origin_frame;
+
         // grow cache to match number of specs
         while self.cache.len() < specs.len() {
             self.cache.push(TextCache::empty());
@@ -1002,25 +1031,46 @@ impl TextPipeline {
         // grow origin buffer if needed
         if specs.len() > self.origin_capacity {
             self.origin_capacity = specs.len().next_power_of_two();
-            self.origin_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("text origin buffer"),
-                size: self.origin_stride * self.origin_capacity as u64,
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
-            // recreate bind group pointing at new buffer
-            self.origin_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("text origin bind group"),
-                layout: &self.origin_bind_group_layout,
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: &self.origin_buffer,
-                        offset: 0,
-                        size: wgpu::BufferSize::new(8),
-                    }),
-                }],
-            });
+            self.origin_buffers = [
+                device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("text origin buffer 0"),
+                    size: self.origin_stride * self.origin_capacity as u64,
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                }),
+                device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("text origin buffer 1"),
+                    size: self.origin_stride * self.origin_capacity as u64,
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                }),
+            ];
+            self.origin_bind_groups = [
+                device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("text origin bind group 0"),
+                    layout: &self.origin_bind_group_layout,
+                    entries: &[wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                            buffer: &self.origin_buffers[0],
+                            offset: 0,
+                            size: wgpu::BufferSize::new(8),
+                        }),
+                    }],
+                }),
+                device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("text origin bind group 1"),
+                    layout: &self.origin_bind_group_layout,
+                    entries: &[wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                            buffer: &self.origin_buffers[1],
+                            offset: 0,
+                            size: wgpu::BufferSize::new(8),
+                        }),
+                    }],
+                }),
+            ];
         }
 
         let mut instances = Vec::<GlyphInstance>::new();
@@ -1047,7 +1097,12 @@ impl TextPipeline {
                 // write only 8 bytes at the right slot
                 let origin_floats = [origin_x, origin_y];
                 queue.write_buffer(
-                    &self.origin_buffer,
+                    &self.origin_buffers[0],
+                    offset,
+                    bytemuck::cast_slice(&origin_floats),
+                );
+                queue.write_buffer(
+                    &self.origin_buffers[1],
                     offset,
                     bytemuck::cast_slice(&origin_floats),
                 );
@@ -1142,7 +1197,8 @@ impl TextPipeline {
         let offset = (index as u64 * self.origin_stride) as u32;
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.bind_group, &[]);
-        pass.set_bind_group(1, &self.origin_bind_group, &[offset]);
+        let draw_frame = 1 - self.origin_frame;
+        pass.set_bind_group(1, &self.origin_bind_groups[draw_frame], &[offset]);
         pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         pass.draw(0..6, start..start + count);
     }
@@ -1189,3 +1245,4 @@ fn is_emoji(c: char) -> bool {
         | 0x3030 | 0x303D | 0x3297 | 0x3299
     )
 }
+

@@ -25,6 +25,12 @@ fn main() {
         ui.append(col, row);
     }
 
+    ui.asyncs.spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        move |ui: &mut Ui| {
+        }
+    });
+
     app.open_window(WindowConfig::default(), ui);
     app.run();
 }
