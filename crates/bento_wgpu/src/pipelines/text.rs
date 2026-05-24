@@ -1,6 +1,7 @@
 use crate::pipelines::rect::RectInstance;
-use bento_shared::{
-    ColorRange, DecorationRange, FontFamilyRange, ItalicRange, TextAlign, WeightRange,
+use crate::{
+    ColorRange, DecorationRange, FontFamilyRange, ItalicRange, TextAlign, TextMeasureRequest,
+    TextMeasurer, WeightRange,
 };
 use bytemuck::{Pod, Zeroable};
 use cosmic_text::{
@@ -927,7 +928,7 @@ impl TextPipeline {
     pub fn prepare(
         &mut self,
         specs: &[TextSpec],
-        font_system: &mut cosmic_text::FontSystem,
+        measurer: &mut TextMeasurer,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
     ) {
@@ -958,16 +959,34 @@ impl TextPipeline {
 
             if redraw {
                 if reshape {
-                    let buffer = shape(spec, font_system, self.scale);
-                    rasterise(
-                        &buffer,
-                        spec,
-                        &mut self.atlas,
-                        font_system,
-                        device,
-                        queue,
-                        self.scale,
-                    );
+                    let req = spec_to_measure_request(spec);
+                    let buffer = match measurer.take_buffer(&req) {
+                        Some(buf) => {
+                            rasterise(
+                                &buf,
+                                spec,
+                                &mut self.atlas,
+                                &mut measurer.font_system,
+                                device,
+                                queue,
+                                self.scale,
+                            );
+                            buf
+                        }
+                        None => {
+                            let buf = shape(spec, &mut measurer.font_system, self.scale);
+                            rasterise(
+                                &buf,
+                                spec,
+                                &mut self.atlas,
+                                &mut measurer.font_system,
+                                device,
+                                queue,
+                                self.scale,
+                            );
+                            buf
+                        }
+                    };
                     cache.buffer = Some(buffer);
                 }
                 if let Some(buffer) = &cache.buffer {
@@ -1023,6 +1042,22 @@ impl TextPipeline {
 
     pub fn line_range(&self, index: usize) -> Option<(usize, usize)> {
         self.line_ranges.get(index).copied()
+    }
+}
+
+fn spec_to_measure_request(spec: &TextSpec) -> TextMeasureRequest<'_> {
+    TextMeasureRequest {
+        text: &spec.text,
+        font_family: &spec.font_family,
+        size: spec.size,
+        weight: spec.weight,
+        italic: spec.italic,
+        letter_spacing: spec.letter_spacing,
+        line_height: spec.line_height,
+        max_width: spec.max_width,
+        weight_ranges: &spec.weight_ranges,
+        italic_ranges: &spec.italic_ranges,
+        font_family_ranges: &spec.font_family_ranges,
     }
 }
 

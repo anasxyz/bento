@@ -1,7 +1,7 @@
 use std::any::{Any, TypeId};
 use std::collections::{HashMap, HashSet};
 
-use bento_shared::CosmicTextMeasurer;
+use bento_wgpu::TextMeasurer;
 use bento_wgpu::{DrawCommand, DrawList};
 
 use crate::acc::Accumulated;
@@ -26,7 +26,7 @@ pub struct Ui {
     pub nodes: Vec<Option<Node>>,
     pub roots: Vec<usize>,
     pub needs_redraw: bool,
-    pub measurer: CosmicTextMeasurer,
+    pub measurer: TextMeasurer,
     pub dirty: HashSet<usize>,
 }
 
@@ -38,7 +38,7 @@ impl Ui {
             nodes: Vec::new(),
             roots: Vec::new(),
             needs_redraw: false,
-            measurer: CosmicTextMeasurer::new(),
+            measurer: TextMeasurer::new(),
             dirty: HashSet::new(),
         }
     }

@@ -10,7 +10,7 @@ use crate::{config::WindowConfig, window::Window};
 use bento_ui::Ui;
 use bento_wgpu::RenderContext;
 
-use bento_shared::{BentoEvent, CosmicTextMeasurer};
+use bento_shared::BentoEvent;
 use std::sync::Arc;
 
 pub struct App {
@@ -94,7 +94,7 @@ impl ApplicationHandler<BentoEvent> for App {
                     let t = std::time::Instant::now();
                     win.renderer.render(
                         ctx,
-                        &mut win.ui.measurer.font_system,
+                        &mut win.ui.measurer,
                         &mut win.surface,
                         win.config.clear_color,
                         &draw_list,

@@ -1,12 +1,9 @@
 use crate::{
-    DrawCommand, DrawList,
-    context::RenderContext,
-    pipelines::{
+    DrawCommand, DrawList, TextMeasurer, context::RenderContext, pipelines::{
         image::{ImageInstance, ImagePipeline},
         rect::{RectInstance, RectPipeline},
         text::{TextPipeline, TextSpec},
-    },
-    surface::Surface,
+    }, surface::Surface
 };
 use wgpu;
 
@@ -76,7 +73,7 @@ impl Renderer {
     pub fn render(
         &mut self,
         ctx: &mut RenderContext,
-        font_system: &mut cosmic_text::FontSystem,
+        measurer: &mut TextMeasurer,
         surface: &mut Surface,
         clear_color: [f32; 4],
         draw_list: &DrawList,
@@ -209,7 +206,7 @@ impl Renderer {
         // phase 2: prepare text, then append decorations to rect instances
         let t = std::time::Instant::now();
         self.text
-            .prepare(&text_specs, font_system, &ctx.device, &ctx.queue);
+            .prepare(&text_specs, measurer, &ctx.device, &ctx.queue);
         println!("[text] prepare time: {:?}", t.elapsed());
         let decoration_offset = rect_instances.len();
         rect_instances.extend_from_slice(&self.text.bg_rects);

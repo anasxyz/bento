@@ -1,6 +1,4 @@
-use bento_shared::{
-    ColorRange, DecorationRange, FontFamilyRange, ItalicRange, TextAlign, WeightRange,
-};
+use crate::{ColorRange, DecorationRange, FontFamilyRange, ItalicRange, TextAlign, WeightRange};
 
 pub struct RectDraw {
     pub x: f32,

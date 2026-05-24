@@ -1,5 +1,5 @@
 use crate::widget::{Canvas, Widget};
-use bento_shared::{CosmicTextMeasurer, TextAlign, TextMeasureRequest, TextMeasurer};
+use bento_wgpu::{TextAlign, TextMeasureRequest, TextMeasurer};
 use bento_wgpu::TextDraw;
 
 pub struct Text {
@@ -63,7 +63,7 @@ impl Widget for Text {
     fn z(&self) -> i32 {
         self.z
     }
-    fn update(&mut self, measurer: &mut CosmicTextMeasurer) {
+    fn update(&mut self, measurer: &mut TextMeasurer) {
         let result = measurer.measure(TextMeasureRequest {
             text: &self.content,
             font_family: "",

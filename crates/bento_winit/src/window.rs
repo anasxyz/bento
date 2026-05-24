@@ -1,5 +1,4 @@
 use crate::config::WindowConfig;
-use bento_shared::MeasureCache;
 use bento_ui::Ui;
 use bento_wgpu::{RenderContext, Renderer, Surface};
 use cosmic_text::FontSystem;

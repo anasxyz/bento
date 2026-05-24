@@ -1,11 +1,11 @@
 use crate::acc::Accumulated;
-use bento_shared::CosmicTextMeasurer;
+use bento_wgpu::TextMeasurer;
 use bento_wgpu::DrawList;
 use std::any::Any;
 
 pub trait Widget {
     fn name(&self) -> &str { "unnamed" }
-    fn update(&mut self, measurer: &mut CosmicTextMeasurer) {}
+    fn update(&mut self, measurer: &mut TextMeasurer) {}
     fn size(&self) -> (f32, f32) { (0.0, 0.0) }
     fn position(&self) -> (f32, f32) { (0.0, 0.0) }
     fn set_position(&mut self, x: f32, y: f32) {}

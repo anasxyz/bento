@@ -1,5 +1,5 @@
 use crate::{Widget, widget::Canvas};
-use bento_shared::{CosmicTextMeasurer, TextAlign, TextMeasureRequest, TextMeasurer};
+use bento_wgpu::{TextAlign, TextMeasureRequest, TextMeasurer};
 use bento_wgpu::{RectDraw, TextDraw};
 
 pub struct Button {
@@ -52,7 +52,7 @@ impl Widget for Button {
         "Button"
     }
 
-    fn update(&mut self, measurer: &mut CosmicTextMeasurer) {
+    fn update(&mut self, measurer: &mut TextMeasurer) {
         let result = measurer.measure(TextMeasureRequest {
             text: &self.label_text,
             font_family: "",
