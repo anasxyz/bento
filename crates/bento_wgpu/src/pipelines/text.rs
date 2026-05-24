@@ -15,7 +15,6 @@ use wgpu;
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct GlyphInstance {
     pub position: [f32; 2],
-    pub origin: [f32; 2],
     pub size: [f32; 2],
     pub uv: [f32; 2],
     pub uv_size: [f32; 2],
@@ -318,6 +317,10 @@ impl TextCache {
             || self.strikethrough_ranges != s.strikethrough_ranges
     }
 
+    fn needs_origin_update(&self, s: &TextSpec) -> bool {
+        self.x != s.x || self.y != s.y
+    }
+
     fn update_from(&mut self, s: &TextSpec) {
         self.text = s.text.clone();
         self.x = s.x;
@@ -481,6 +484,8 @@ fn rasterise(
 }
 
 // glyph instance building
+// origin (x, y of the text block) is not baked in here.
+// it lives in the origin uniform buffer and is supplied per draw call.
 
 fn build_glyphs(
     buffer: &Buffer,
@@ -505,12 +510,7 @@ fn build_glyphs(
         map
     };
     let raster_scale = scale * spec.scale_x.max(spec.scale_y);
-    let origin_x = (spec.x * scale).floor();
-    let origin_y = (spec.y * scale).floor();
 
-    /*
-     * see comment in shape_and_rasterise about subpixel offset
-     */
     let subpixel_offset = (0.0, 0.0);
 
     let (cos_r, sin_r) = (spec.rotate.cos(), spec.rotate.sin());
@@ -550,7 +550,6 @@ fn build_glyphs(
 
             instances.push(GlyphInstance {
                 position: [gx, gy],
-                origin: [origin_x, origin_y],
                 size: [
                     entry.w as f32 / spec.scale_x.max(spec.scale_y),
                     entry.h as f32 / spec.scale_x.max(spec.scale_y),
@@ -701,6 +700,12 @@ pub struct TextPipeline {
     cache: Vec<TextCache>,
     scale: f32,
 
+    origin_buffer: wgpu::Buffer,
+    origin_stride: u64,
+    origin_capacity: usize,
+    origin_bind_group_layout: wgpu::BindGroupLayout,
+    origin_bind_group: wgpu::BindGroup,
+
     pub bg_rects: Vec<RectInstance>,
     pub bg_ranges: Vec<(usize, usize)>,
     pub line_rects: Vec<RectInstance>,
@@ -717,6 +722,8 @@ impl TextPipeline {
         scale: f32,
     ) -> Self {
         let atlas = GlyphAtlas::new(device);
+        let origin_stride = device.limits().min_uniform_buffer_offset_alignment as u64;
+
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("glyph sampler"),
             address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -738,6 +745,14 @@ impl TextPipeline {
             0,
             bytemuck::cast_slice(&[screen_w * scale, screen_h * scale]),
         );
+
+        let origin_capacity = 128;
+        let origin_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("text origin buffer"),
+            size: origin_stride * origin_capacity as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("text bgl"),
@@ -790,6 +805,34 @@ impl TextPipeline {
             ],
         });
 
+        let origin_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("text origin bgl"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: true,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+
+        let origin_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("text origin bind group"),
+            layout: &origin_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                    buffer: &origin_buffer,
+                    offset: 0,
+                    size: wgpu::BufferSize::new(8),
+                }),
+            }],
+        });
+
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("text shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/text.wgsl").into()),
@@ -797,10 +840,20 @@ impl TextPipeline {
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("text pipeline layout"),
-            bind_group_layouts: &[&bind_group_layout],
+            bind_group_layouts: &[&bind_group_layout, &origin_bind_group_layout],
             push_constant_ranges: &[],
         });
 
+        // GlyphInstance layout with origin removed:
+        // position:  offset 0,  Float32x2  (8 bytes)
+        // size:      offset 8,  Float32x2  (8 bytes)
+        // uv:        offset 16, Float32x2  (8 bytes)
+        // uv_size:   offset 24, Float32x2  (8 bytes)
+        // color:     offset 32, Float32x4  (16 bytes)
+        // transform: offset 48, Float32x4  (16 bytes)
+        // is_color:  offset 64, Uint32     (4 bytes)
+        // _pad:                 [u32; 3]   (12 bytes)
+        // clip:      offset 80, Float32x4  (16 bytes)
         let vertex_layout = wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<GlyphInstance>() as u64,
             step_mode: wgpu::VertexStepMode::Instance,
@@ -828,27 +881,22 @@ impl TextPipeline {
                 wgpu::VertexAttribute {
                     offset: 32,
                     shader_location: 4,
-                    format: wgpu::VertexFormat::Float32x2,
+                    format: wgpu::VertexFormat::Float32x4,
                 },
                 wgpu::VertexAttribute {
-                    offset: 40,
+                    offset: 48,
                     shader_location: 5,
                     format: wgpu::VertexFormat::Float32x4,
                 },
                 wgpu::VertexAttribute {
-                    offset: 56,
+                    offset: 64,
                     shader_location: 6,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-                wgpu::VertexAttribute {
-                    offset: 72,
-                    shader_location: 7,
                     format: wgpu::VertexFormat::Uint32,
                 },
-                // account for _pad being [u32; 3] so 72 + 4 + 12 = 88
+                // _pad is [u32; 3] = 12 bytes, so 64 + 4 + 12 = 80
                 wgpu::VertexAttribute {
-                    offset: 88,
-                    shader_location: 8,
+                    offset: 80,
+                    shader_location: 7,
                     format: wgpu::VertexFormat::Float32x4,
                 },
             ],
@@ -900,6 +948,11 @@ impl TextPipeline {
             ranges: Vec::new(),
             cache: Vec::new(),
             scale: 1.0,
+            origin_buffer,
+            origin_stride,
+            origin_capacity,
+            origin_bind_group_layout,
+            origin_bind_group,
             bg_rects: Vec::new(),
             bg_ranges: Vec::new(),
             line_rects: Vec::new(),
@@ -946,6 +999,30 @@ impl TextPipeline {
             return;
         }
 
+        // grow origin buffer if needed
+        if specs.len() > self.origin_capacity {
+            self.origin_capacity = specs.len().next_power_of_two();
+            self.origin_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("text origin buffer"),
+                size: self.origin_stride * self.origin_capacity as u64,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            // recreate bind group pointing at new buffer
+            self.origin_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("text origin bind group"),
+                layout: &self.origin_bind_group_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &self.origin_buffer,
+                        offset: 0,
+                        size: wgpu::BufferSize::new(8),
+                    }),
+                }],
+            });
+        }
+
         let mut instances = Vec::<GlyphInstance>::new();
         self.ranges.clear();
         self.bg_rects.clear();
@@ -956,6 +1033,22 @@ impl TextPipeline {
 
             let reshape = cache.needs_reshape(spec);
             let redraw = reshape || cache.needs_redraw(spec);
+            let origin_update = reshape || cache.needs_origin_update(spec);
+
+            println!("[text {}] reshape={} redraw={}", i, reshape, redraw);
+
+            // write origin regardless of whether glyphs need rebuilding
+            if origin_update {
+                let origin_x = (spec.x * self.scale).floor();
+                let origin_y = (spec.y * self.scale).floor();
+                let offset = i as u64 * self.origin_stride;
+                // write only 8 bytes at the right slot
+                let mut padded = vec![0u8; self.origin_stride as usize];
+                let origin_floats = [origin_x, origin_y];
+                let bytes = bytemuck::cast_slice::<f32, u8>(&origin_floats);
+                padded[..8].copy_from_slice(bytes);
+                queue.write_buffer(&self.origin_buffer, offset, &padded);
+            }
 
             if redraw {
                 if reshape {
@@ -990,8 +1083,17 @@ impl TextPipeline {
                     cache.buffer = Some(buffer);
                 }
                 if let Some(buffer) = &cache.buffer {
+                    let t = std::time::Instant::now();
                     cache.glyphs = build_glyphs(buffer, &self.atlas, spec, self.scale);
+                    println!(
+                        "[text {}] build_glyphs: {:?}, {} glyphs",
+                        i,
+                        t.elapsed(),
+                        cache.glyphs.len()
+                    );
+                    let t = std::time::Instant::now();
                     let (bg, lines) = build_decorations(buffer, spec);
+                    println!("[text {}] build_decorations: {:?}", i, t.elapsed());
                     cache.bg_rects = bg;
                     cache.line_rects = lines;
                 }
@@ -1020,7 +1122,9 @@ impl TextPipeline {
             });
         }
 
+        let t = std::time::Instant::now();
         queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&instances));
+        println!("[text] write_buffer: {:?}", t.elapsed());
     }
 
     pub fn draw_range<'pass>(&'pass self, pass: &mut wgpu::RenderPass<'pass>, index: usize) {
@@ -1030,8 +1134,10 @@ impl TextPipeline {
         if count == 0 {
             return;
         }
+        let offset = (index as u64 * self.origin_stride) as u32;
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.bind_group, &[]);
+        pass.set_bind_group(1, &self.origin_bind_group, &[offset]);
         pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         pass.draw(0..6, start..start + count);
     }

@@ -5,16 +5,20 @@ struct Screen {
 @group(0) @binding(1) var atlas_tex: texture_2d<f32>;
 @group(0) @binding(2) var atlas_smp: sampler;
 
+struct Origin {
+  pos: vec2f,
+}
+@group(1) @binding(0) var<uniform> origin: Origin;
+
 struct Instance {
   @location(0) position: vec2f,
-  @location(1) origin: vec2f,
-  @location(2) size: vec2f,
-  @location(3) uv_pos: vec2f,
-  @location(4) uv_size: vec2f,
-  @location(5) color: vec4f,
-  @location(6) transform: vec4f,
-  @location(7) is_color: u32,
-  @location(8) clip: vec4f,
+  @location(1) size: vec2f,
+  @location(2) uv_pos: vec2f,
+  @location(3) uv_size: vec2f,
+  @location(4) color: vec4f,
+  @location(5) transform: vec4f,
+  @location(6) is_color: u32,
+  @location(7) clip: vec4f,
 }
 
 struct VOut {
@@ -41,8 +45,8 @@ fn vs_main(@builtin(vertex_index) vi: u32, inst: Instance) -> VOut {
   let c = inst.transform.z;
   let d = inst.transform.w;
 
-  let px = a * lx + c * ly + inst.origin.x;
-  let py = b * lx + d * ly + inst.origin.y;
+  let px = a * lx + c * ly + origin.pos.x;
+  let py = b * lx + d * ly + origin.pos.y;
 
   let ndcx =  (px / screen.size.x) * 2.0 - 1.0;
   let ndcy = -(py / screen.size.y) * 2.0 + 1.0;
