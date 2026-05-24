@@ -627,6 +627,7 @@ impl Ui {
         self.fire_hover_events();
         self.fire_mouse_move();
         self.fire_click_events();
+        self.fire_scroll_events();
     }
 
     fn fire_hover_events(&mut self) {
@@ -635,9 +636,11 @@ impl Ui {
             self.hit_test();
             if prev != self.hovered_node {
                 if let Some(old_id) = prev {
+                    println!("[event] HoverLeave on node {}", old_id);
                     self.fire(old_id, HoverLeave);
                 }
                 if let Some(new_id) = self.hovered_node {
+                    println!("[event] HoverEnter on node {}", new_id);
                     self.fire(new_id, HoverEnter);
                 }
             }
@@ -752,6 +755,24 @@ impl Ui {
                         x: self.input.mouse.x,
                         y: self.input.mouse.y,
                         button: MouseButton::Middle,
+                    },
+                );
+            }
+        }
+    }
+
+    fn fire_scroll_events(&mut self) {
+        if self.input.mouse.scroll_x != 0.0 || self.input.mouse.scroll_y != 0.0 {
+            if let Some(node_id) = self.hovered_node {
+                println!(
+                    "[event] MouseScroll on node {} ({}, {})",
+                    node_id, self.input.mouse.scroll_x, self.input.mouse.scroll_y
+                );
+                self.fire(
+                    node_id,
+                    MouseScroll {
+                        x: self.input.mouse.scroll_x,
+                        y: self.input.mouse.scroll_y,
                     },
                 );
             }
