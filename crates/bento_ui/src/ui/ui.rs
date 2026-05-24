@@ -1,8 +1,8 @@
 use std::any::{Any, TypeId};
 use std::collections::{HashMap, HashSet};
 
-use bento_wgpu::TextMeasurer;
 use bento_wgpu::{DrawCommand, DrawList};
+use bento_wgpu::{RectDraw, TextMeasurer};
 
 use crate::acc::Accumulated;
 use crate::events::types::{
@@ -32,6 +32,10 @@ pub struct Ui {
     pub layout_dirty: HashSet<usize>,
     pub viewport_w: f32,
     pub viewport_h: f32,
+
+    pub debug: bool,
+    pub hovered_node: Option<usize>,
+    pub hovered_rect: Option<[f32; 4]>,
 }
 
 impl Ui {
@@ -47,6 +51,10 @@ impl Ui {
             layout_dirty: HashSet::new(),
             viewport_w: 800.0,
             viewport_h: 600.0,
+
+            debug: false,
+            hovered_node: None,
+            hovered_rect: None,
         }
     }
 
@@ -173,6 +181,13 @@ impl Ui {
             self.layout_node(id, self.viewport_w, self.viewport_h);
         }
         println!("[update] layout time: {:?} +", t.elapsed());
+
+        // DEBUG
+        // to update hovered node when hovering over a widget and it changes/moves
+        // could remove as it doesn't matter to me that much
+        if self.debug {
+            self.hit_test();
+        }
 
         if !self.dirty.is_empty() {
             self.dirty.clear();
@@ -407,6 +422,102 @@ impl Ui {
             self.render_node(id, &mut draw_list, Accumulated::identity());
         }
         draw_list.sort_by_z();
+
+        // DEBUG
+        if self.debug {
+            if let Some([x, y, w, h]) = self.hovered_rect {
+                let rect_color = [0.0, 0.384, 1.0, 0.549];
+                let crosshair_color = [0.0, 0.533, 1.0, 1.0];
+                let t = 1.0;
+
+                draw_list.push_rect(RectDraw {
+                    x,
+                    y,
+                    w,
+                    h,
+                    color: rect_color,
+                    radii: [0.0; 4],
+                    border_color: [0.0; 4],
+                    border_widths: [0.0; 4],
+                    rotate: 0.0,
+                    scale_x: 1.0,
+                    scale_y: 1.0,
+                    opacity: 1.0,
+                    clip: None,
+                    z: i32::MAX,
+                });
+
+                // top
+                draw_list.push_rect(RectDraw {
+                    x: 0.0,
+                    y: y - t,
+                    w: self.viewport_w,
+                    h: t,
+                    color: crosshair_color,
+                    radii: [0.0; 4],
+                    border_color: [0.0; 4],
+                    border_widths: [0.0; 4],
+                    rotate: 0.0,
+                    scale_x: 1.0,
+                    scale_y: 1.0,
+                    opacity: 1.0,
+                    clip: None,
+                    z: i32::MAX,
+                });
+                // bottom
+                draw_list.push_rect(RectDraw {
+                    x: 0.0,
+                    y: y + h,
+                    w: self.viewport_w,
+                    h: t,
+                    color: crosshair_color,
+                    radii: [0.0; 4],
+                    border_color: [0.0; 4],
+                    border_widths: [0.0; 4],
+                    rotate: 0.0,
+                    scale_x: 1.0,
+                    scale_y: 1.0,
+                    opacity: 1.0,
+                    clip: None,
+                    z: i32::MAX,
+                });
+                // left
+                draw_list.push_rect(RectDraw {
+                    x: x - t,
+                    y: 0.0,
+                    w: t,
+                    h: self.viewport_h,
+                    color: crosshair_color,
+                    radii: [0.0; 4],
+                    border_color: [0.0; 4],
+                    border_widths: [0.0; 4],
+                    rotate: 0.0,
+                    scale_x: 1.0,
+                    scale_y: 1.0,
+                    opacity: 1.0,
+                    clip: None,
+                    z: i32::MAX,
+                });
+                // right
+                draw_list.push_rect(RectDraw {
+                    x: x + w,
+                    y: 0.0,
+                    w: t,
+                    h: self.viewport_h,
+                    color: crosshair_color,
+                    radii: [0.0; 4],
+                    border_color: [0.0; 4],
+                    border_widths: [0.0; 4],
+                    rotate: 0.0,
+                    scale_x: 1.0,
+                    scale_y: 1.0,
+                    opacity: 1.0,
+                    clip: None,
+                    z: i32::MAX,
+                });
+            }
+        }
+
         draw_list
     }
 
@@ -441,6 +552,11 @@ impl Ui {
 impl Ui {
     pub fn process_input(&mut self) {
         self.keyboard_stuff();
+        if self.debug {
+            if self.input.mouse.dx != 0.0 || self.input.mouse.dy != 0.0 {
+                self.hit_test();
+            }
+        }
     }
 
     pub fn keyboard_stuff(&mut self) {
@@ -449,6 +565,69 @@ impl Ui {
                 self.print_nodes();
             }
         }
+    }
+
+    pub fn debug(&mut self, debug: bool) {
+        self.debug = debug;
+    }
+
+    pub fn hit_test(&mut self) {
+        let mx = self.input.mouse.x;
+        let my = self.input.mouse.y;
+        let prev_hovered = self.hovered_node;
+        self.hovered_node = None;
+        self.hovered_rect = None;
+        for &id in &self.roots {
+            if let Some((hit, rect)) = self.hit_test_node(id, mx, my, Accumulated::identity()) {
+                self.hovered_node = Some(hit);
+                self.hovered_rect = Some(rect);
+            }
+        }
+        if self.hovered_node != prev_hovered {
+            self.needs_redraw = true;
+        }
+    }
+
+    fn hit_test_node(
+        &self,
+        id: usize,
+        mx: f32,
+        my: f32,
+        acc: Accumulated,
+    ) -> Option<(usize, [f32; 4])> {
+        let Some(Some(node)) = self.nodes.get(id) else {
+            return None;
+        };
+        let (ox, oy) = node
+            .widget
+            .as_any()
+            .downcast_ref::<Group>()
+            .map(|g| (g.x + g.scroll_x, g.y + g.scroll_y))
+            .unwrap_or_else(|| node.widget.position());
+        let my_acc = acc.push(ox, oy, None, node.widget.z());
+        let (w, h) = node.widget.size();
+        let x = my_acc.offset_x;
+        let y = my_acc.offset_y;
+
+        let mut result = None;
+        for &child_id in &node.children {
+            if let Some(hit) = self.hit_test_node(child_id, mx, my, my_acc) {
+                result = Some(hit);
+            }
+        }
+
+        if result.is_none()
+            && w > 0.0
+            && h > 0.0
+            && mx >= x
+            && mx <= x + w
+            && my >= y
+            && my <= y + h
+        {
+            result = Some((id, [x, y, w, h]));
+        }
+
+        result
     }
 }
 
