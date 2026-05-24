@@ -132,9 +132,10 @@ impl Ui {
     }
 
     pub fn update(&mut self) {
+        let t = std::time::Instant::now();
         // pass 1: measure
         let dirty: Vec<usize> = self.dirty.drain().collect();
-        println!("[ui] dirty count: {}", dirty.len());
+        println!("[update] dirty count: {}", dirty.len());
         let mut layout_dirty: HashSet<usize> = HashSet::new();
         let mut width_changed: HashSet<usize> = HashSet::new();
         let mut height_changed: HashSet<usize> = HashSet::new();
@@ -160,6 +161,7 @@ impl Ui {
                 }
             }
         }
+        println!("[update] measure time: {:?} +", t.elapsed());
 
         // layout
         let t = std::time::Instant::now();
@@ -168,7 +170,7 @@ impl Ui {
         for id in layout_dirty {
             self.layout_node(id, &mut width_changed, &mut height_changed);
         }
-        println!("[ui] layout time: {:?}", t.elapsed());
+        println!("[update] layout time: {:?} +", t.elapsed());
 
         // pass 2: clear position dirty widgets without re measuring
         if !self.dirty.is_empty() {
@@ -310,7 +312,6 @@ impl Ui {
     }
 
     pub fn collect_draw_list(&self) -> DrawList {
-        let t0 = std::time::Instant::now();
         let mut draw_list = DrawList::new();
         for &id in &self.roots {
             self.render_node(id, &mut draw_list, Accumulated::identity());
