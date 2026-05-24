@@ -76,16 +76,22 @@ impl ApplicationHandler<BentoEvent> for App {
         match event {
             WindowEvent::RedrawRequested => {
                 println!("----------------------------");
-                let t = std::time::Instant::now();
+                let t_total = std::time::Instant::now();
+
                 win.ui.process_input();
 
                 if win.ui.needs_redraw || !win.ui.dirty.is_empty() {
+                    let t = std::time::Instant::now();
                     win.ui.update();
+                    println!("update time: {:?}", t.elapsed());
                 }
 
                 if win.needs_render || win.ui.needs_redraw {
+                    let t = std::time::Instant::now();
                     let draw_list = win.ui.collect_draw_list();
                     println!("collect_draw_list time: {:?}", t.elapsed());
+
+                    let t = std::time::Instant::now();
                     win.renderer.render(
                         ctx,
                         &mut win.ui.measurer.font_system,
@@ -94,13 +100,14 @@ impl ApplicationHandler<BentoEvent> for App {
                         &draw_list,
                     );
                     println!("render time: {:?}", t.elapsed());
+
                     win.needs_render = false;
                     win.ui.needs_redraw = false;
                 }
 
                 win.ui.input.mouse.clear();
                 win.ui.input.keyboard.clear();
-                println!("total frame time: {:?}", t.elapsed());
+                println!("total frame time: {:?}", t_total.elapsed());
                 println!("----------------------------");
             }
 

@@ -7,58 +7,75 @@ fn main() {
     let mut ui = Ui::new();
 
     let mut col = Group::new();
-    col.layout = Layout::Column { gap: 8.0 };
+    col.layout = Layout::Column { gap: 4.0 };
     let col = ui.add(col);
 
-    let mut row1 = Group::new();
-    row1.layout = Layout::Row { gap: 8.0 };
-    let row1 = ui.add(row1);
+    let mut handles = Vec::new();
 
-    let mut row2 = Group::new();
-    row2.layout = Layout::Row { gap: 8.0 };
-    let row2 = ui.add(row2);
+    let texts = [
+        "The quick brown fox jumps over the lazy dog",
+        "Pack my box with five dozen liquor jugs",
+        "How vexingly quick daft zebras jump",
+        "The five boxing wizards jump quickly",
+        "Sphinx of black quartz judge my vow",
+        "Two driven jocks help fax my big quiz",
+        "Five quacking zephyrs jolt my wax bed",
+        "The jay pig fox zebra and my wolves",
+        "Blowzy red vixens fight for a quick jump",
+        "Jackdaws love my big sphinx of quartz",
+        "Pack my red box with five dozen quality jugs",
+        "Crazy Frederick bought many very exquisite opal jewels",
+        "We promptly judged antique ivory buckles for the next prize",
+        "A mad boxer shot a quick gloved jab to the jaw",
+        "Jaded zombies acted quaintly but kept driving flux",
+        "How quickly daft jumping zebras vex",
+        "Bright vixens jump dozy fowl quack",
+        "Quick wafting zephyrs vex bold jim",
+        "Waltz nymph for quick jigs vex bud",
+        "Glib jocks quiz nymph to vex dwarf",
+        "Sphinx of black quartz hear my vow",
+        "Pack my box with five dozen liquor",
+        "The five boxing wizards jump fast",
+        "How vexingly quick the daft zebras",
+        "Jumpy halfback vows to protect mix",
+    ];
 
-    let mut row3 = Group::new();
-    row3.layout = Layout::Row { gap: 8.0 };
-    let row3 = ui.add(row3);
+    for (i, &text) in texts.iter().enumerate() {
+        let mut t = Text::new(text);
+        t.set_x(0.0);
+        let h = ui.add(t);
+        ui.append(col, h);
+        handles.push(h);
+    }
 
-    let btn1 = ui.add(Button::new("A"));
-    let btn2 = ui.add(Button::new("B"));
-    let btn3 = ui.add(Button::new("C"));
-
-    let btn4 = ui.add(Button::new("D"));
-    let btn5 = ui.add(Button::new("E"));
-    let btn6 = ui.add(Button::new("F"));
-
-    let btn7 = ui.add(Button::new("G"));
-    let btn8 = ui.add(Button::new("H"));
-    let btn9 = ui.add(Button::new("I"));
-
-    ui.append(col, row1);
-    ui.append(col, row2);
-    ui.append(col, row3);
-
-    ui.append(row1, btn1);
-    ui.append(row1, btn2);
-    ui.append(row1, btn3);
-
-    ui.append(row2, btn4);
-    ui.append(row2, btn5);
-    ui.append(row2, btn6);
-
-    ui.append(row3, btn7);
-    ui.append(row3, btn8);
-    ui.append(row3, btn9);
-
-    // change btn5 (middle of row2)
-    // row1 and row3 should be completely silent
-    // in row2, only btn5 and btn6 should reposition
-    // col should reposition row2 and row3 only if row2 changes height
     ui.asyncs.spawn(async move {
         tokio::time::sleep(std::time::Duration::from_secs(2)).await;
         move |ui: &mut Ui| {
-            ui.get_mut(btn5).unwrap().set_text("I got much wider!");
-            ui.get_mut(btn1).unwrap().set_text("I got much\n taller!");
+            let new_texts = [
+                "CHANGED: The quick brown fox jumps over the lazy dog again",
+                "CHANGED: Pack my box with five dozen liquor jugs today",
+                "CHANGED: How vexingly quick daft zebras jump around",
+                "CHANGED: The five boxing wizards jump very quickly",
+                "CHANGED: Sphinx of black quartz judge my vow now",
+                "CHANGED: Two driven jocks help fax my big quiz today",
+                "CHANGED: Five quacking zephyrs jolt my wax bed hard",
+                "CHANGED: The jay pig fox zebra and my wolves howl",
+                "CHANGED: Blowzy red vixens fight for a quick jump up",
+                "CHANGED: Jackdaws love my big sphinx of quartz today",
+                "CHANGED: Pack my red box with five dozen quality jugs here",
+                "CHANGED: Crazy Frederick bought many very exquisite jewels",
+                "CHANGED: We promptly judged antique ivory buckles for prize",
+                "CHANGED: A mad boxer shot a quick gloved jab to jaw",
+                "CHANGED: Jaded zombies acted quaintly but kept driving",
+                "CHANGED: How quickly daft jumping zebras vex us all",
+                "CHANGED: Bright vixens jump dozy fowl quack loudly",
+                "CHANGED: Quick wafting zephyrs vex bold jim today",
+                "CHANGED: Waltz nymph for quick jigs vex bud now",
+                "CHANGED: Glib jocks quiz nymph to vex dwarf here",
+            ];
+            for (i, &text) in new_texts.iter().enumerate() {
+                ui.get_mut(handles[i]).unwrap().set_content(text);
+            }
         }
     });
 

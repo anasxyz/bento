@@ -134,6 +134,7 @@ impl Ui {
     pub fn update(&mut self) {
         // pass 1: measure
         let dirty: Vec<usize> = self.dirty.drain().collect();
+        println!("dirty count: {}", dirty.len());
         let mut layout_dirty: HashSet<usize> = HashSet::new();
         let mut width_changed: HashSet<usize> = HashSet::new();
         let mut height_changed: HashSet<usize> = HashSet::new();
@@ -312,11 +313,20 @@ impl Ui {
     }
 
     pub fn collect_draw_list(&self) -> DrawList {
+        let t0 = std::time::Instant::now();
         let mut draw_list = DrawList::new();
+        println!("DrawList::new time: {:?}", t0.elapsed());
+
+        let t = std::time::Instant::now();
         for &id in &self.roots {
             self.render_node(id, &mut draw_list, Accumulated::identity());
         }
+        println!("render_node time: {:?}", t.elapsed());
+
+        let t = std::time::Instant::now();
         draw_list.sort_by_z();
+        println!("sort_by_z time: {:?}", t.elapsed());
+
         draw_list
     }
 
