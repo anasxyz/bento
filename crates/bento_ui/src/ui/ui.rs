@@ -170,13 +170,10 @@ impl Ui {
         }
         println!("layout time: {:?}", t.elapsed());
 
-        // pass 2: sync
-        let dirty: Vec<usize> = self.dirty.drain().collect();
-        for id in dirty {
-            if let Some(Some(node)) = self.nodes.get_mut(id) {
-                node.widget.update(&mut self.measurer);
-                self.request_redraw();
-            }
+        // pass 2: clear position dirty widgets without re measuring
+        if !self.dirty.is_empty() {
+            self.dirty.clear();
+            self.request_redraw();
         }
     }
 
