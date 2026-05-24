@@ -13,7 +13,7 @@ use crate::input::mouse::MouseButton;
 use crate::layout::{Layout, Size};
 use crate::ui::asyncs::AsyncEventQueue;
 use crate::widget::{AnyWidget, Canvas, Widget, WidgetHandle};
-use crate::{Group, HoverEnter, HoverLeave, Key};
+use crate::{FocusGained, FocusLost, Group, HoverEnter, HoverLeave, Key};
 
 pub struct Node {
     pub widget: Box<dyn AnyWidget>,
@@ -39,6 +39,8 @@ pub struct Ui {
     pub debug: bool,
     pub hovered_node: Option<usize>,
     pub hovered_rect: Option<[f32; 4]>,
+
+    pub focused: Option<usize>,
 }
 
 impl Ui {
@@ -61,6 +63,8 @@ impl Ui {
             debug: false,
             hovered_node: None,
             hovered_rect: None,
+
+            focused: None,
         }
     }
 
@@ -557,6 +561,14 @@ impl Ui {
             }
         }
     }
+
+    pub fn set_focus<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) {
+        self.focused = Some(handle.id);
+    }
+
+    pub fn clear_focus(&mut self) {
+        self.focused = None;
+    }
 }
 
 pub struct ListenerHandle(u64);
@@ -621,6 +633,7 @@ impl Ui {
                 self.print_nodes();
             }
         }
+        self.fire_key_events();
     }
 
     pub fn mouse_stuff(&mut self) {
@@ -628,6 +641,22 @@ impl Ui {
         self.fire_mouse_move();
         self.fire_click_events();
         self.fire_scroll_events();
+    }
+
+    fn fire_key_events(&mut self) {
+        let pressed: Vec<(Key, Option<char>)> = self.input.keyboard.just_pressed().to_vec();
+        let released: Vec<Key> = self.input.keyboard.just_released().to_vec();
+
+        if let Some(node_id) = self.focused {
+            for (key, ch) in &pressed {
+                println!("[event] KeyPress {:?} on node {}", key, node_id);
+                self.fire(node_id, KeyPress { key: *key, ch: *ch });
+            }
+            for key in &released {
+                println!("[event] KeyRelease {:?} on node {}", key, node_id);
+                self.fire(node_id, KeyRelease { key: *key });
+            }
+        }
     }
 
     fn fire_hover_events(&mut self) {
@@ -677,6 +706,15 @@ impl Ui {
                 );
             }
             if self.input.mouse.left.just_released {
+                if self.focused != Some(node_id) {
+                    if let Some(old_id) = self.focused {
+                        println!("[event] FocusLost on node {}", old_id);
+                        self.fire(old_id, FocusLost);
+                    }
+                    self.focused = Some(node_id);
+                    println!("[event] FocusGained on node {}", node_id);
+                    self.fire(node_id, FocusGained);
+                }
                 println!("[event] MouseUp left on node {}", node_id);
                 self.fire(
                     node_id,
@@ -758,6 +796,12 @@ impl Ui {
                     },
                 );
             }
+        } else if self.input.mouse.left.just_released {
+            if let Some(old_id) = self.focused {
+                println!("[event] FocusLost on node {}", old_id);
+                self.fire(old_id, FocusLost);
+            }
+            self.focused = None;
         }
     }
 
