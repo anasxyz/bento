@@ -661,14 +661,97 @@ impl Ui {
     }
 
     fn fire_click_events(&mut self) {
-        if self.input.mouse.left.just_released {
-            if let Some(node_id) = self.hovered_node {
+        if let Some(node_id) = self.hovered_node {
+            if self.input.mouse.left.just_pressed {
+                println!("[event] MouseDown left on node {}", node_id);
+                self.fire(
+                    node_id,
+                    MouseDown {
+                        x: self.input.mouse.x,
+                        y: self.input.mouse.y,
+                        button: MouseButton::Left,
+                    },
+                );
+            }
+            if self.input.mouse.left.just_released {
+                println!("[event] MouseUp left on node {}", node_id);
+                self.fire(
+                    node_id,
+                    MouseUp {
+                        x: self.input.mouse.x,
+                        y: self.input.mouse.y,
+                        button: MouseButton::Left,
+                    },
+                );
+                println!("[event] Click left on node {}", node_id);
                 self.fire(
                     node_id,
                     Click {
                         x: self.input.mouse.x,
                         y: self.input.mouse.y,
                         button: MouseButton::Left,
+                    },
+                );
+            }
+            if self.input.mouse.right.just_pressed {
+                println!("[event] MouseDown right on node {}", node_id);
+                self.fire(
+                    node_id,
+                    MouseDown {
+                        x: self.input.mouse.x,
+                        y: self.input.mouse.y,
+                        button: MouseButton::Right,
+                    },
+                );
+            }
+            if self.input.mouse.right.just_released {
+                println!("[event] MouseUp right on node {}", node_id);
+                self.fire(
+                    node_id,
+                    MouseUp {
+                        x: self.input.mouse.x,
+                        y: self.input.mouse.y,
+                        button: MouseButton::Right,
+                    },
+                );
+                println!("[event] Click right on node {}", node_id);
+                self.fire(
+                    node_id,
+                    Click {
+                        x: self.input.mouse.x,
+                        y: self.input.mouse.y,
+                        button: MouseButton::Right,
+                    },
+                );
+            }
+            if self.input.mouse.middle.just_pressed {
+                println!("[event] MouseDown middle on node {}", node_id);
+                self.fire(
+                    node_id,
+                    MouseDown {
+                        x: self.input.mouse.x,
+                        y: self.input.mouse.y,
+                        button: MouseButton::Middle,
+                    },
+                );
+            }
+            if self.input.mouse.middle.just_released {
+                println!("[event] MouseUp middle on node {}", node_id);
+                self.fire(
+                    node_id,
+                    MouseUp {
+                        x: self.input.mouse.x,
+                        y: self.input.mouse.y,
+                        button: MouseButton::Middle,
+                    },
+                );
+                println!("[event] Click middle on node {}", node_id);
+                self.fire(
+                    node_id,
+                    Click {
+                        x: self.input.mouse.x,
+                        y: self.input.mouse.y,
+                        button: MouseButton::Middle,
                     },
                 );
             }
