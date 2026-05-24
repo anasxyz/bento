@@ -11,15 +11,9 @@ fn main() {
     col.width = Size::Fixed(150.0);
     let col = ui.add(col);
 
-    let mut btn = Button::new("First button");
-    btn.width = Size::Fill;
-    let btn = ui.add(btn);
-
-    ui.append(col, btn);
-
-    let l = ui.listen(btn, |e: &ButtonPressed, ui: &mut Ui| {
-        println!("ButtonPressed fire from on_event");
-    });
+    let mut input = TextInput::new();
+    input.width = Size::Fill;
+    let input = ui.add(input);
 
     app.open_window(WindowConfig::default(), ui);
     app.run();

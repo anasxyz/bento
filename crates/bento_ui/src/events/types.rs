@@ -23,7 +23,6 @@ pub struct Click {
 
 #[derive(Clone, Copy)]
 pub struct Change {
-    pub value: f32,
 }
 
 #[derive(Clone, Copy)]

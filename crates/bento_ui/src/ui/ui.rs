@@ -641,7 +641,7 @@ impl Ui {
 
     pub fn keyboard_stuff(&mut self) {
         for (k, _) in self.input.keyboard.just_pressed() {
-            if *k == Key::D {
+            if *k == Key::Equals {
                 self.print_nodes();
             }
         }
@@ -661,11 +661,9 @@ impl Ui {
 
         if let Some(node_id) = self.focused {
             for (key, ch) in &pressed {
-                println!("[event] KeyPress {:?} on node {}", key, node_id);
                 self.fire(node_id, Box::new(KeyPress { key: *key, ch: *ch }));
             }
             for key in &released {
-                println!("[event] KeyRelease {:?} on node {}", key, node_id);
                 self.fire(node_id, Box::new(KeyRelease { key: *key }));
             }
         }
@@ -677,11 +675,9 @@ impl Ui {
             self.hit_test();
             if prev != self.hovered_node {
                 if let Some(old_id) = prev {
-                    println!("[event] HoverLeave on node {}", old_id);
                     self.fire(old_id, Box::new(HoverLeave));
                 }
                 if let Some(new_id) = self.hovered_node {
-                    println!("[event] HoverEnter on node {}", new_id);
                     self.fire(new_id, Box::new(HoverEnter));
                 }
             }
@@ -707,7 +703,6 @@ impl Ui {
     fn fire_click_events(&mut self) {
         if let Some(node_id) = self.hovered_node {
             if self.input.mouse.left.just_pressed {
-                println!("[event] MouseDown left on node {}", node_id);
                 self.fire(
                     node_id,
                     Box::new(MouseDown {
@@ -720,14 +715,11 @@ impl Ui {
             if self.input.mouse.left.just_released {
                 if self.focused != Some(node_id) {
                     if let Some(old_id) = self.focused {
-                        println!("[event] FocusLost on node {}", old_id);
                         self.fire(old_id, Box::new(FocusLost));
                     }
                     self.focused = Some(node_id);
-                    println!("[event] FocusGained on node {}", node_id);
                     self.fire(node_id, Box::new(FocusGained));
                 }
-                println!("[event] MouseUp left on node {}", node_id);
                 self.fire(
                     node_id,
                     Box::new(MouseUp {
@@ -736,7 +728,6 @@ impl Ui {
                         button: MouseButton::Left,
                     }),
                 );
-                println!("[event] Click left on node {}", node_id);
                 self.fire(
                     node_id,
                     Box::new(Click {
@@ -747,7 +738,6 @@ impl Ui {
                 );
             }
             if self.input.mouse.right.just_pressed {
-                println!("[event] MouseDown right on node {}", node_id);
                 self.fire(
                     node_id,
                     Box::new(MouseDown {
@@ -758,7 +748,6 @@ impl Ui {
                 );
             }
             if self.input.mouse.right.just_released {
-                println!("[event] MouseUp right on node {}", node_id);
                 self.fire(
                     node_id,
                     Box::new(MouseUp {
@@ -767,7 +756,6 @@ impl Ui {
                         button: MouseButton::Right,
                     }),
                 );
-                println!("[event] Click right on node {}", node_id);
                 self.fire(
                     node_id,
                     Box::new(Click {
@@ -778,7 +766,6 @@ impl Ui {
                 );
             }
             if self.input.mouse.middle.just_pressed {
-                println!("[event] MouseDown middle on node {}", node_id);
                 self.fire(
                     node_id,
                     Box::new(MouseDown {
@@ -789,7 +776,6 @@ impl Ui {
                 );
             }
             if self.input.mouse.middle.just_released {
-                println!("[event] MouseUp middle on node {}", node_id);
                 self.fire(
                     node_id,
                     Box::new(MouseUp {
@@ -798,7 +784,6 @@ impl Ui {
                         button: MouseButton::Middle,
                     }),
                 );
-                println!("[event] Click middle on node {}", node_id);
                 self.fire(
                     node_id,
                     Box::new(Click {
@@ -810,7 +795,6 @@ impl Ui {
             }
         } else if self.input.mouse.left.just_released {
             if let Some(old_id) = self.focused {
-                println!("[event] FocusLost on node {}", old_id);
                 self.fire(old_id, Box::new(FocusLost));
             }
             self.focused = None;
@@ -820,10 +804,6 @@ impl Ui {
     fn fire_scroll_events(&mut self) {
         if self.input.mouse.scroll_x != 0.0 || self.input.mouse.scroll_y != 0.0 {
             if let Some(node_id) = self.hovered_node {
-                println!(
-                    "[event] MouseScroll on node {} ({}, {})",
-                    node_id, self.input.mouse.scroll_x, self.input.mouse.scroll_y
-                );
                 self.fire(
                     node_id,
                     Box::new(MouseScroll {
