@@ -4,4 +4,4 @@ mod handle;
 mod widget;
 
 pub use handle::WidgetHandle;
-pub use widget::{AnyWidget, Widget, WidgetMut};
+pub use widget::{AnyWidget, Widget, Canvas};

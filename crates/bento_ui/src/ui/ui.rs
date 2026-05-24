@@ -11,7 +11,7 @@ use crate::events::types::{
 use crate::input::InputState;
 use crate::input::mouse::MouseButton;
 use crate::ui::asyncs::AsyncEventQueue;
-use crate::widget::{AnyWidget, Widget, WidgetHandle, WidgetMut};
+use crate::widget::{AnyWidget, Canvas, Widget, WidgetHandle};
 use crate::{Group, Key, Layout};
 
 pub struct Node {
@@ -49,35 +49,16 @@ impl Ui {
 
     pub fn add<W: Widget + 'static>(&mut self, mut widget: W) -> WidgetHandle<W> {
         let index = self.nodes.len();
-        widget.set_id(index);
         self.nodes.push(None);
-        widget.build(self);
-        let children: Vec<usize> = self
-            .nodes
-            .iter()
-            .enumerate()
-            .filter_map(|(i, s)| s.as_ref().filter(|s| s.parent == Some(index)).map(|_| i))
-            .collect();
         self.nodes[index] = Some(Node {
             widget: Box::new(widget),
-            children,
+            children: Vec::new(),
             parent: None,
         });
         self.dirty.insert(index);
         self.roots.push(index);
         self.request_redraw();
         WidgetHandle::from_id(index)
-    }
-
-    pub fn add_child<P: Widget + 'static, C: Widget + 'static>(
-        &mut self,
-        parent: &P,
-        child: C,
-    ) -> WidgetHandle<C> {
-        let child_handle = self.add(child);
-        let parent_handle = WidgetHandle::<P>::from_id(parent.id());
-        self.append(parent_handle, child_handle);
-        child_handle
     }
 
     pub fn remove<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) {
@@ -101,6 +82,10 @@ impl Ui {
         }
     }
 
+    pub fn node_mut(&mut self, id: usize) -> Option<&mut Node> {
+        self.nodes.get_mut(id)?.as_mut()
+    }
+
     pub fn get<W: Widget + 'static>(&self, handle: WidgetHandle<W>) -> Option<&W> {
         let id = handle.id;
         self.nodes
@@ -111,30 +96,9 @@ impl Ui {
             .downcast_ref::<W>()
     }
 
-    pub fn get_mut<W: Widget + 'static>(
-        &mut self,
-        handle: WidgetHandle<W>,
-    ) -> Option<WidgetMut<'_, W>> {
+    pub fn get_mut<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) -> Option<&mut W> {
         let id = handle.id;
-        let widget = self
-            .nodes
-            .get_mut(id)?
-            .as_mut()?
-            .widget
-            .as_any_mut()
-            .downcast_mut::<W>()?;
-        Some(WidgetMut {
-            widget,
-            id,
-            dirty: &mut self.dirty,
-        })
-    }
-
-    pub(crate) fn get_mut_raw<W: Widget + 'static>(
-        &mut self,
-        handle: WidgetHandle<W>,
-    ) -> Option<&mut W> {
-        let id = handle.id;
+        self.dirty.insert(id);
         self.nodes
             .get_mut(id)?
             .as_mut()?
@@ -174,24 +138,24 @@ impl Ui {
         let mut width_changed: HashSet<usize> = HashSet::new();
         let mut height_changed: HashSet<usize> = HashSet::new();
         for id in dirty {
-            if let Some(mut node) = self.nodes[id].take() {
-                let old_hitbox = node.widget.hitbox();
-                node.widget.update(self);
-                let new_hitbox = node.widget.hitbox();
-                self.nodes[id] = Some(node);
-                self.request_redraw();
-                if old_hitbox.2 != new_hitbox.2 {
-                    width_changed.insert(id);
-                }
-                if old_hitbox.3 != new_hitbox.3 {
-                    height_changed.insert(id);
-                }
-                if old_hitbox.2 != new_hitbox.2 || old_hitbox.3 != new_hitbox.3 {
-                    let mut current = self.nodes[id].as_ref().unwrap().parent;
-                    while let Some(parent_id) = current {
-                        layout_dirty.insert(parent_id);
-                        current = self.nodes[parent_id].as_ref().and_then(|n| n.parent);
-                    }
+            let Some(Some(node)) = self.nodes.get_mut(id) else {
+                continue;
+            };
+            let old_size = node.widget.size();
+            node.widget.update(&mut self.measurer);
+            let new_size = node.widget.size();
+            self.request_redraw();
+            if old_size.0 != new_size.0 {
+                width_changed.insert(id);
+            }
+            if old_size.1 != new_size.1 {
+                height_changed.insert(id);
+            }
+            if old_size.0 != new_size.0 || old_size.1 != new_size.1 {
+                let mut current = self.nodes[id].as_ref().unwrap().parent;
+                while let Some(parent_id) = current {
+                    layout_dirty.insert(parent_id);
+                    current = self.nodes[parent_id].as_ref().and_then(|n| n.parent);
                 }
             }
         }
@@ -208,9 +172,8 @@ impl Ui {
         // pass 2: sync
         let dirty: Vec<usize> = self.dirty.drain().collect();
         for id in dirty {
-            if let Some(mut node) = self.nodes[id].take() {
-                node.widget.update(self);
-                self.nodes[id] = Some(node);
+            if let Some(Some(node)) = self.nodes.get_mut(id) {
+                node.widget.update(&mut self.measurer);
                 self.request_redraw();
             }
         }
@@ -256,21 +219,19 @@ impl Ui {
                 let mut cursor = 0.0;
                 for child_id in &children[..first_changed] {
                     if let Some(n) = self.nodes[*child_id].as_ref() {
-                        let (_, _, w, _) = n.widget.hitbox();
+                        let (w, _) = n.widget.size();
                         cursor += w + gap;
                     }
                 }
 
                 for child_id in &children[first_changed..] {
-                    let (_, _, w, _) = match self.nodes[*child_id].as_ref() {
-                        Some(n) => n.widget.hitbox(),
+                    let (w, _) = match self.nodes[*child_id].as_ref() {
+                        Some(n) => n.widget.size(),
                         None => continue,
                     };
                     if let Some(n) = self.nodes[*child_id].as_mut() {
                         n.widget.set_position(cursor, 0.0);
-                        if n.widget.is_dirty() {
-                            self.dirty.insert(*child_id);
-                        }
+                        self.dirty.insert(*child_id);
                     }
                     cursor += w + gap;
                     self.layout_node(*child_id, width_changed, height_changed);
@@ -280,7 +241,7 @@ impl Ui {
                 let mut total_h = 0.0f32;
                 for child_id in &children {
                     if let Some(n) = self.nodes[*child_id].as_ref() {
-                        let (_, _, cw, ch) = n.widget.hitbox();
+                        let (cw, ch) = n.widget.size();
                         total_w += cw + gap;
                         total_h = total_h.max(ch);
                     }
@@ -307,21 +268,19 @@ impl Ui {
                 let mut cursor = 0.0;
                 for child_id in &children[..first_changed] {
                     if let Some(n) = self.nodes[*child_id].as_ref() {
-                        let (_, _, _, h) = n.widget.hitbox();
+                        let (_, h) = n.widget.size();
                         cursor += h + gap;
                     }
                 }
 
                 for child_id in &children[first_changed..] {
-                    let (_, _, _, h) = match self.nodes[*child_id].as_ref() {
-                        Some(n) => n.widget.hitbox(),
+                    let (_, h) = match self.nodes[*child_id].as_ref() {
+                        Some(n) => n.widget.size(),
                         None => continue,
                     };
                     if let Some(n) = self.nodes[*child_id].as_mut() {
                         n.widget.set_position(0.0, cursor);
-                        if n.widget.is_dirty() {
-                            self.dirty.insert(*child_id);
-                        }
+                        self.dirty.insert(*child_id);
                     }
                     cursor += h + gap;
                     self.layout_node(*child_id, width_changed, height_changed);
@@ -331,7 +290,7 @@ impl Ui {
                 let mut total_h = 0.0f32;
                 for child_id in &children {
                     if let Some(n) = self.nodes[*child_id].as_ref() {
-                        let (_, _, cw, ch) = n.widget.hitbox();
+                        let (cw, ch) = n.widget.size();
                         total_w = total_w.max(cw);
                         total_h += ch + gap;
                     }
@@ -363,9 +322,25 @@ impl Ui {
 
     fn render_node(&self, id: usize, draw_list: &mut DrawList, acc: Accumulated) {
         if let Some(Some(s)) = self.nodes.get(id) {
-            let (ox, oy) = s.widget.render_offset();
+            let (ox, oy) = s
+                .widget
+                .as_any()
+                .downcast_ref::<Group>()
+                .map(|g| (g.x + g.scroll_x, g.y + g.scroll_y))
+                .unwrap_or_else(|| s.widget.position());
             let my_acc = acc.push(ox, oy, None, s.widget.z());
-            s.widget.render(draw_list, &my_acc);
+            let mut canvas = Canvas {
+                draw_list,
+                x: my_acc.offset_x,
+                y: my_acc.offset_y,
+                z: my_acc.z,
+                opacity: my_acc.opacity,
+                clip: my_acc.clip,
+                rotate: my_acc.rotate,
+                scale_x: my_acc.scale_x,
+                scale_y: my_acc.scale_y,
+            };
+            s.widget.render(&mut canvas);
             for &child_id in &s.children {
                 self.render_node(child_id, draw_list, my_acc);
             }
@@ -408,7 +383,7 @@ impl Ui {
                 indent,
                 index,
                 s.widget.name(),
-                s.widget.hitbox()
+                s.widget.size()
             );
             for &child_id in &s.children {
                 self.print_node(child_id, depth + 1);
