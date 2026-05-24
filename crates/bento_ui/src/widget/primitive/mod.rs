@@ -4,4 +4,4 @@ mod group;
 
 pub use rect::Rect;
 pub use text::Text;
-pub use group::{Group, Layout};
+pub use group::{Group};

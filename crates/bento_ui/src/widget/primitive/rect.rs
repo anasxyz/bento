@@ -1,3 +1,4 @@
+use crate::layout::Size;
 use crate::widget::{Canvas, Widget};
 use bento_wgpu::RectDraw;
 
@@ -6,6 +7,8 @@ pub struct Rect {
     pub y: f32,
     pub w: f32,
     pub h: f32,
+    pub width: Size,
+    pub height: Size,
     pub color: [f32; 4],
     pub z: i32,
 }
@@ -17,6 +20,8 @@ impl Rect {
             y: 0.0,
             w,
             h,
+            width: Size::Fixed(w),
+            height: Size::Fixed(h),
             color: [0.0, 0.0, 0.0, 1.0],
             z: 0,
         }
@@ -29,9 +34,11 @@ impl Rect {
     }
     pub fn set_w(&mut self, w: f32) {
         self.w = w;
+        self.width = Size::Fixed(w);
     }
     pub fn set_h(&mut self, h: f32) {
         self.h = h;
+        self.height = Size::Fixed(h);
     }
     pub fn set_color(&mut self, color: [f32; 4]) {
         self.color = color;
@@ -75,5 +82,15 @@ impl Widget for Rect {
             clip: canvas.clip,
             z: canvas.z,
         });
+    }
+    fn set_size(&mut self, w: f32, h: f32) {
+        self.w = w;
+        self.h = h;
+    }
+    fn width_sizing(&self) -> &Size {
+        &self.width
+    }
+    fn height_sizing(&self) -> &Size {
+        &self.height
     }
 }

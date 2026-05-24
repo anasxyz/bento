@@ -16,5 +16,3 @@ bento_macros = { workspace = true }
 bento_wgpu = { workspace = true }
 
 tokio = { workspace = true, features = ["time"] }
-taffy = { workspace = true }
-cosmic-text = { workspace = true }

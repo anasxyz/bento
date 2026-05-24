@@ -1,20 +1,13 @@
-use crate::Ui;
-use crate::acc::Accumulated;
+use crate::layout::{Layout, Size};
 use crate::widget::Widget;
-use bento_wgpu::DrawList;
-
-#[derive(Clone)]
-pub enum Layout {
-    None,
-    Row { gap: f32 },
-    Column { gap: f32 },
-}
 
 pub struct Group {
     pub x: f32,
     pub y: f32,
     pub w: f32,
     pub h: f32,
+    pub width: Size,
+    pub height: Size,
     pub scroll_x: f32,
     pub scroll_y: f32,
     pub layout: Layout,
@@ -28,6 +21,8 @@ impl Group {
             y: 0.0,
             w: 0.0,
             h: 0.0,
+            width: Size::Fixed(0.0),
+            height: Size::Fixed(0.0),
             scroll_x: 0.0,
             scroll_y: 0.0,
             layout: Layout::None,
@@ -83,5 +78,15 @@ impl Widget for Group {
     }
     fn z(&self) -> i32 {
         self.z
+    }
+    fn set_size(&mut self, w: f32, h: f32) {
+        self.w = w;
+        self.h = h;
+    }
+    fn width_sizing(&self) -> &Size {
+        &self.width
+    }
+    fn height_sizing(&self) -> &Size {
+        &self.height
     }
 }

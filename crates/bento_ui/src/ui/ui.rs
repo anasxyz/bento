@@ -10,9 +10,10 @@ use crate::events::types::{
 };
 use crate::input::InputState;
 use crate::input::mouse::MouseButton;
+use crate::layout::{Layout, Size};
 use crate::ui::asyncs::AsyncEventQueue;
 use crate::widget::{AnyWidget, Canvas, Widget, WidgetHandle};
-use crate::{Group, Key, Layout};
+use crate::{Group, Key};
 
 pub struct Node {
     pub widget: Box<dyn AnyWidget>,
@@ -29,6 +30,8 @@ pub struct Ui {
     pub measurer: TextMeasurer,
     pub dirty: HashSet<usize>,
     pub layout_dirty: HashSet<usize>,
+    pub viewport_w: f32,
+    pub viewport_h: f32,
 }
 
 impl Ui {
@@ -42,6 +45,8 @@ impl Ui {
             measurer: TextMeasurer::new(),
             dirty: HashSet::new(),
             layout_dirty: HashSet::new(),
+            viewport_w: 800.0,
+            viewport_h: 600.0,
         }
     }
 
@@ -165,7 +170,7 @@ impl Ui {
         let mut layout_ids: Vec<usize> = layout_ids.into_iter().collect();
         layout_ids.sort_by(|a, b| b.cmp(a));
         for id in layout_ids {
-            self.layout_node(id);
+            self.layout_node(id, self.viewport_w, self.viewport_h);
         }
         println!("[update] layout time: {:?} +", t.elapsed());
 
@@ -175,7 +180,7 @@ impl Ui {
         }
     }
 
-    fn layout_node(&mut self, id: usize) {
+    fn layout_node(&mut self, id: usize, available_w: f32, available_h: f32) {
         let children = match self.nodes[id].as_ref() {
             Some(n) => n.children.clone(),
             None => return,
@@ -190,15 +195,57 @@ impl Ui {
             None => return,
         };
 
-        match layout_info {
-            None => {
-                for child_id in children {
-                    self.layout_node(child_id);
+        let inner_w = match self.nodes[id].as_ref().unwrap().widget.width_sizing() {
+            Size::Auto => available_w,
+            s => s.clone().resolve(available_w),
+        };
+        let inner_h = match self.nodes[id].as_ref().unwrap().widget.height_sizing() {
+            Size::Auto => available_h,
+            s => s.clone().resolve(available_h),
+        };
+
+        // set group's own computed size if not auto
+        if let Some(Some(node)) = self.nodes.get_mut(id) {
+            if let Some(g) = node.widget.as_any_mut().downcast_mut::<Group>() {
+                if !matches!(g.width, Size::Auto) {
+                    g.w = inner_w;
+                }
+                if !matches!(g.height, Size::Auto) {
+                    g.h = inner_h;
                 }
             }
-            Some(Layout::None) => {
+        }
+
+        // resolve and set size for non-auto children
+        for child_id in &children {
+            if let Some(Some(node)) = self.nodes.get(*child_id) {
+                let ws = node.widget.width_sizing().clone();
+                let hs = node.widget.height_sizing().clone();
+                let needs_w = !ws.is_auto();
+                let needs_h = !hs.is_auto();
+                if needs_w || needs_h {
+                    let new_w = if needs_w {
+                        ws.resolve(inner_w)
+                    } else {
+                        node.widget.size().0
+                    };
+                    let new_h = if needs_h {
+                        hs.resolve(inner_h)
+                    } else {
+                        node.widget.size().1
+                    };
+                    if let Some(Some(node)) = self.nodes.get_mut(*child_id) {
+                        node.widget.set_size(new_w, new_h);
+                        self.layout_dirty.insert(*child_id);
+                    }
+                }
+            }
+        }
+
+        match layout_info {
+            None | Some(Layout::None) => {
                 for child_id in children {
-                    self.layout_node(child_id);
+                    self.layout_node(child_id, inner_w, inner_h);
                 }
             }
             Some(Layout::Row { gap }) => {
@@ -213,7 +260,7 @@ impl Ui {
                         self.request_redraw();
                     }
                     cursor += w + gap;
-                    self.layout_node(*child_id);
+                    self.layout_node(*child_id, inner_w, inner_h);
                 }
 
                 let mut total_w = 0.0f32;
@@ -251,7 +298,7 @@ impl Ui {
                         self.request_redraw();
                     }
                     cursor += h + gap;
-                    self.layout_node(*child_id);
+                    self.layout_node(*child_id, inner_w, inner_h);
                 }
 
                 let mut total_w = 0.0f32;

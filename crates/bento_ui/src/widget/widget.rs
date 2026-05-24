@@ -1,4 +1,5 @@
 use crate::acc::Accumulated;
+use crate::layout::Size;
 use bento_wgpu::TextMeasurer;
 use bento_wgpu::DrawList;
 use std::any::Any;
@@ -7,6 +8,9 @@ pub trait Widget {
     fn name(&self) -> &str { "unnamed" }
     fn update(&mut self, measurer: &mut TextMeasurer) {}
     fn size(&self) -> (f32, f32) { (0.0, 0.0) }
+    fn set_size(&mut self, w: f32, h: f32) {}
+    fn width_sizing(&self) -> &Size { &Size::Auto }
+    fn height_sizing(&self) -> &Size { &Size::Auto }
     fn position(&self) -> (f32, f32) { (0.0, 0.0) }
     fn set_position(&mut self, x: f32, y: f32) {}
     fn z(&self) -> i32 { 0 }

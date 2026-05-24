@@ -61,7 +61,9 @@ impl ApplicationHandler<BentoEvent> for App {
         }
         for (config, ui) in std::mem::take(&mut self.pending) {
             let ctx = self.ctx.as_ref().unwrap();
-            let win = Window::new(ctx, event_loop, config, ui);
+            let mut win = Window::new(ctx, event_loop, config, ui);
+            win.ui.viewport_w = win.surface.width;
+            win.ui.viewport_h = win.surface.height;
             win.request_redraw();
             self.windows.insert(win.id(), win);
         }
@@ -82,7 +84,10 @@ impl ApplicationHandler<BentoEvent> for App {
                 win.ui.process_input();
                 println!("= process input time: {:?}", t.elapsed());
 
-                if win.ui.needs_redraw || !win.ui.dirty.is_empty() {
+                if win.ui.needs_redraw
+                    || !win.ui.dirty.is_empty()
+                    || !win.ui.layout_dirty.is_empty()
+                {
                     let t = std::time::Instant::now();
                     win.ui.update();
                     println!("= update time: {:?}", t.elapsed());
@@ -228,6 +233,11 @@ impl ApplicationHandler<BentoEvent> for App {
                 win.resize(ctx);
                 let w = win.surface.width;
                 let h = win.surface.height;
+                win.ui.viewport_w = w;
+                win.ui.viewport_h = h;
+                for &id in &win.ui.roots {
+                    win.ui.layout_dirty.insert(id);
+                }
                 win.needs_render = true;
                 win.request_redraw();
             }
