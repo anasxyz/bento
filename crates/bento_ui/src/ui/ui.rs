@@ -606,9 +606,8 @@ impl Ui {
         self.listeners.retain(|l| l.id != handle.0);
     }
 
-    fn fire<E: Any>(&mut self, node_id: usize, event: E) {
-        let type_id = TypeId::of::<E>();
-        let event = Box::new(event) as Box<dyn Any>;
+    fn fire(&mut self, node_id: usize, event: Box<dyn Any>) {
+        let type_id = (*event).type_id();
         let mut i = 0;
         while i < self.listeners.len() {
             if self.listeners[i].node_id == node_id && self.listeners[i].type_id == type_id {
@@ -617,6 +616,19 @@ impl Ui {
                 self.listeners.insert(i, listener);
             }
             i += 1;
+        }
+
+        let outgoing = if let Some(Some(node)) = self.nodes.get_mut(node_id) {
+            node.widget.on_event(event.as_ref())
+        } else {
+            vec![]
+        };
+
+        self.dirty.insert(node_id);
+        self.needs_redraw = true;
+
+        for event in outgoing {
+            self.fire(node_id, event);
         }
     }
 }
@@ -650,11 +662,11 @@ impl Ui {
         if let Some(node_id) = self.focused {
             for (key, ch) in &pressed {
                 println!("[event] KeyPress {:?} on node {}", key, node_id);
-                self.fire(node_id, KeyPress { key: *key, ch: *ch });
+                self.fire(node_id, Box::new(KeyPress { key: *key, ch: *ch }));
             }
             for key in &released {
                 println!("[event] KeyRelease {:?} on node {}", key, node_id);
-                self.fire(node_id, KeyRelease { key: *key });
+                self.fire(node_id, Box::new(KeyRelease { key: *key }));
             }
         }
     }
@@ -666,11 +678,11 @@ impl Ui {
             if prev != self.hovered_node {
                 if let Some(old_id) = prev {
                     println!("[event] HoverLeave on node {}", old_id);
-                    self.fire(old_id, HoverLeave);
+                    self.fire(old_id, Box::new(HoverLeave));
                 }
                 if let Some(new_id) = self.hovered_node {
                     println!("[event] HoverEnter on node {}", new_id);
-                    self.fire(new_id, HoverEnter);
+                    self.fire(new_id, Box::new(HoverEnter));
                 }
             }
         }
@@ -681,12 +693,12 @@ impl Ui {
             if let Some(node_id) = self.hovered_node {
                 self.fire(
                     node_id,
-                    MouseMove {
+                    Box::new(MouseMove {
                         x: self.input.mouse.x,
                         y: self.input.mouse.y,
                         dx: self.input.mouse.dx,
                         dy: self.input.mouse.dy,
-                    },
+                    }),
                 );
             }
         }
@@ -698,108 +710,108 @@ impl Ui {
                 println!("[event] MouseDown left on node {}", node_id);
                 self.fire(
                     node_id,
-                    MouseDown {
+                    Box::new(MouseDown {
                         x: self.input.mouse.x,
                         y: self.input.mouse.y,
                         button: MouseButton::Left,
-                    },
+                    }),
                 );
             }
             if self.input.mouse.left.just_released {
                 if self.focused != Some(node_id) {
                     if let Some(old_id) = self.focused {
                         println!("[event] FocusLost on node {}", old_id);
-                        self.fire(old_id, FocusLost);
+                        self.fire(old_id, Box::new(FocusLost));
                     }
                     self.focused = Some(node_id);
                     println!("[event] FocusGained on node {}", node_id);
-                    self.fire(node_id, FocusGained);
+                    self.fire(node_id, Box::new(FocusGained));
                 }
                 println!("[event] MouseUp left on node {}", node_id);
                 self.fire(
                     node_id,
-                    MouseUp {
+                    Box::new(MouseUp {
                         x: self.input.mouse.x,
                         y: self.input.mouse.y,
                         button: MouseButton::Left,
-                    },
+                    }),
                 );
                 println!("[event] Click left on node {}", node_id);
                 self.fire(
                     node_id,
-                    Click {
+                    Box::new(Click {
                         x: self.input.mouse.x,
                         y: self.input.mouse.y,
                         button: MouseButton::Left,
-                    },
+                    }),
                 );
             }
             if self.input.mouse.right.just_pressed {
                 println!("[event] MouseDown right on node {}", node_id);
                 self.fire(
                     node_id,
-                    MouseDown {
+                    Box::new(MouseDown {
                         x: self.input.mouse.x,
                         y: self.input.mouse.y,
                         button: MouseButton::Right,
-                    },
+                    }),
                 );
             }
             if self.input.mouse.right.just_released {
                 println!("[event] MouseUp right on node {}", node_id);
                 self.fire(
                     node_id,
-                    MouseUp {
+                    Box::new(MouseUp {
                         x: self.input.mouse.x,
                         y: self.input.mouse.y,
                         button: MouseButton::Right,
-                    },
+                    }),
                 );
                 println!("[event] Click right on node {}", node_id);
                 self.fire(
                     node_id,
-                    Click {
+                    Box::new(Click {
                         x: self.input.mouse.x,
                         y: self.input.mouse.y,
                         button: MouseButton::Right,
-                    },
+                    }),
                 );
             }
             if self.input.mouse.middle.just_pressed {
                 println!("[event] MouseDown middle on node {}", node_id);
                 self.fire(
                     node_id,
-                    MouseDown {
+                    Box::new(MouseDown {
                         x: self.input.mouse.x,
                         y: self.input.mouse.y,
                         button: MouseButton::Middle,
-                    },
+                    }),
                 );
             }
             if self.input.mouse.middle.just_released {
                 println!("[event] MouseUp middle on node {}", node_id);
                 self.fire(
                     node_id,
-                    MouseUp {
+                    Box::new(MouseUp {
                         x: self.input.mouse.x,
                         y: self.input.mouse.y,
                         button: MouseButton::Middle,
-                    },
+                    }),
                 );
                 println!("[event] Click middle on node {}", node_id);
                 self.fire(
                     node_id,
-                    Click {
+                    Box::new(Click {
                         x: self.input.mouse.x,
                         y: self.input.mouse.y,
                         button: MouseButton::Middle,
-                    },
+                    }),
                 );
             }
         } else if self.input.mouse.left.just_released {
             if let Some(old_id) = self.focused {
                 println!("[event] FocusLost on node {}", old_id);
-                self.fire(old_id, FocusLost);
+                self.fire(old_id, Box::new(FocusLost));
             }
             self.focused = None;
         }
@@ -814,10 +826,10 @@ impl Ui {
                 );
                 self.fire(
                     node_id,
-                    MouseScroll {
+                    Box::new(MouseScroll {
                         x: self.input.mouse.scroll_x,
                         y: self.input.mouse.scroll_y,
-                    },
+                    }),
                 );
             }
         }

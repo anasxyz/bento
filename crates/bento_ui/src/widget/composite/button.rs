@@ -1,3 +1,6 @@
+use std::any::Any;
+
+use crate::Click;
 use crate::layout::Size;
 use crate::{Widget, widget::Canvas};
 use bento_wgpu::{RectDraw, TextDraw};
@@ -18,6 +21,8 @@ pub struct Button {
     label_w: f32,
     label_h: f32,
 }
+
+pub struct ButtonPressed;
 
 impl Button {
     pub fn new(text: &str) -> Self {
@@ -162,5 +167,12 @@ impl Widget for Button {
             italic_ranges: vec![],
             font_family_ranges: vec![],
         });
+    }
+
+    fn on_event(&mut self, event: &dyn Any) -> Vec<Box<dyn Any>> {
+        if event.downcast_ref::<Click>().is_some() {
+            return vec![Box::new(ButtonPressed)];
+        }
+        vec![]
     }
 }

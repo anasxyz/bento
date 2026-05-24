@@ -17,8 +17,8 @@ fn main() {
 
     ui.append(col, btn);
 
-    let l = ui.listen(btn, |e: &HoverEnter, ui: &mut Ui| {
-        println!("hover event");
+    let l = ui.listen(btn, |e: &ButtonPressed, ui: &mut Ui| {
+        println!("ButtonPressed fire from on_event");
     });
 
     app.open_window(WindowConfig::default(), ui);
