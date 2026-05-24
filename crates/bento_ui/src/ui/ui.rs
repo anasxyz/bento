@@ -152,6 +152,7 @@ impl Ui {
     }
 
     pub fn update(&mut self) {
+        // update / measure pass
         let t = std::time::Instant::now();
         let dirty: Vec<usize> = self.dirty.drain().collect();
         println!("[update] dirty count: {}", dirty.len());
@@ -173,12 +174,15 @@ impl Ui {
         }
         println!("[update] measure time: {:?} +", t.elapsed());
 
+        // layout pass
         let t = std::time::Instant::now();
-        let layout_ids: Vec<usize> = self.layout_dirty.drain().collect();
-        let mut layout_ids: Vec<usize> = layout_ids.into_iter().collect();
-        layout_ids.sort_by(|a, b| b.cmp(a));
-        for id in layout_ids {
-            self.layout_node(id, self.viewport_w, self.viewport_h);
+        while !self.layout_dirty.is_empty() {
+            let layout_ids: Vec<usize> = self.layout_dirty.drain().collect();
+            let mut layout_ids: Vec<usize> = layout_ids.into_iter().collect();
+            layout_ids.sort_by(|a, b| b.cmp(a));
+            for id in layout_ids {
+                self.layout_node(id, self.viewport_w, self.viewport_h);
+            }
         }
         println!("[update] layout time: {:?} +", t.elapsed());
 
