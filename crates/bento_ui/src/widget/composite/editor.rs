@@ -17,6 +17,7 @@ pub struct MultilineInput {
     pub color: [f32; 4],
     pub background: [f32; 4],
     pub font_size: f32,
+    pub font_family: String,
     pub line_height: f32,
     pub padding: f32,
     pub z: i32,
@@ -39,6 +40,10 @@ pub struct MultilineInput {
 
 impl MultilineInput {
     pub fn new() -> Self {
+        let font_size = 20.0;
+        let line_height = font_size * 1.3;
+        let font_family = "".to_string();
+
         Self {
             id: 0,
             x: 0.0,
@@ -49,9 +54,10 @@ impl MultilineInput {
             height: Size::Fixed(300.0),
             lines: vec![String::new()],
             color: [1.0, 1.0, 1.0, 1.0],
-            background: [0.15, 0.15, 0.15, 1.0],
-            font_size: 14.0,
-            line_height: 20.0,
+            background: [0.02, 0.02, 0.02, 1.0],
+            font_size: font_size,
+            font_family: font_family,
+            line_height: line_height,
             padding: 8.0,
             z: 0,
             cursor_line: 0,
@@ -499,12 +505,12 @@ impl Widget for MultilineInput {
                 self.id,
                 TextMeasureRequest {
                     text: if line.is_empty() { " " } else { line },
-                    font_family: "",
+                    font_family: self.font_family.as_str(),
                     size: self.font_size,
                     weight: 400,
                     italic: false,
                     letter_spacing: 0.0,
-                    line_height: None,
+                    line_height: Some(self.line_height),
                     max_width: Some(inner_w),
                     weight_ranges: &[],
                     italic_ranges: &[],
@@ -528,12 +534,12 @@ impl Widget for MultilineInput {
                     } else {
                         current_line
                     },
-                    font_family: "",
+                    font_family: self.font_family.as_str(),
                     size: self.font_size,
                     weight: 400,
                     italic: false,
                     letter_spacing: 0.0,
-                    line_height: None,
+                    line_height: Some(self.line_height),
                     max_width: Some(inner_w),
                     weight_ranges: &[],
                     italic_ranges: &[],
@@ -686,7 +692,7 @@ impl Widget for MultilineInput {
                         color: self.color,
                         weight: 400,
                         italic: false,
-                        font_family: String::new(),
+                        font_family: self.font_family.clone(),
                         max_width: Some(inner_w),
                         line_height: Some(self.line_height),
                         letter_spacing: 0.0,
@@ -718,7 +724,7 @@ impl Widget for MultilineInput {
             canvas.draw_list.push_rect(RectDraw {
                 x: (canvas.x + self.padding + self.cursor_x).floor(),
                 y: cursor_y,
-                w: 1.5,
+                w: 1.0,
                 h: self.line_height,
                 color: [1.0, 1.0, 1.0, 1.0],
                 radii: [0.0; 4],

@@ -260,7 +260,6 @@ impl Renderer {
                     DrawCommand::Text(_) => {
                         if !text_culled[text_cmd_index] {
                             if let Some((bg_start, bg_end)) = self.text.bg_range(text_index) {
-                                println!("[render] drawing bg range {}-{}", bg_start, bg_end);
                                 self.rect.draw_transient_range(
                                     &mut pass,
                                     decoration_offset as u32 + bg_start as u32,
