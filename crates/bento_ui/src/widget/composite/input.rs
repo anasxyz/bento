@@ -1,7 +1,8 @@
-use crate::Key;
 use crate::events::types::{Change, FocusGained, FocusLost, KeyPress};
 use crate::layout::Size;
-use crate::widget::{Canvas, Widget};
+use crate::ui::TimerHandle;
+use crate::widget::{Canvas, Widget, WidgetHandle};
+use crate::{Key, Ui};
 use bento_wgpu::{RectDraw, TextAlign, TextDraw, TextMeasureRequest, TextMeasurer};
 use std::any::Any;
 
@@ -24,6 +25,8 @@ pub struct TextInput {
     text_h: f32,
     cursor_x: f32,
     scroll_offset: f32,
+    blink_handle: Option<TimerHandle>,
+    cursor_visible: bool,
 }
 
 impl TextInput {
@@ -47,7 +50,84 @@ impl TextInput {
             text_h: 0.0,
             cursor_x: 0.0,
             scroll_offset: 0.0,
+            blink_handle: None,
+            cursor_visible: true,
         }
+    }
+}
+
+impl TextInput {
+    fn handle_key(&mut self, e: &KeyPress) -> bool {
+        match e.key {
+            Key::Backspace => {
+                if self.cursor > 0 {
+                    let byte_idx = char_to_byte(&self.value, self.cursor - 1);
+                    let end_idx = char_to_byte(&self.value, self.cursor);
+                    self.value.drain(byte_idx..end_idx);
+                    self.cursor -= 1;
+                    return true;
+                }
+            }
+            Key::Delete => {
+                if self.cursor < self.value.chars().count() {
+                    let byte_idx = char_to_byte(&self.value, self.cursor);
+                    let end_idx = char_to_byte(&self.value, self.cursor + 1);
+                    self.value.drain(byte_idx..end_idx);
+                    return true;
+                }
+            }
+            Key::Left => {
+                if self.cursor > 0 {
+                    self.cursor -= 1;
+                    return true;
+                }
+            }
+            Key::Right => {
+                if self.cursor < self.value.chars().count() {
+                    self.cursor += 1;
+                    return true;
+                }
+            }
+            Key::Home => {
+                if self.cursor != 0 {
+                    self.cursor = 0;
+                    return true;
+                }
+            }
+            Key::End => {
+                let len = self.value.chars().count();
+                if self.cursor != len {
+                    self.cursor = len;
+                    return true;
+                }
+            }
+            _ => {
+                if let Some(ch) = e.ch {
+                    if !ch.is_control() {
+                        let byte_idx = char_to_byte(&self.value, self.cursor);
+                        self.value.insert(byte_idx, ch);
+                        self.cursor += 1;
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
+}
+
+fn blink_tick(ui: &mut Ui, handle: WidgetHandle<TextInput>) {
+    let h = ui.asyncs.timer(0.53, move |ui| {
+        if let Some(input) = ui.get_mut_internal(handle) {
+            if input.focused {
+                input.cursor_visible = !input.cursor_visible;
+                ui.request_redraw();
+                blink_tick(ui, handle);
+            }
+        }
+    });
+    if let Some(input) = ui.get_mut_internal(handle) {
+        input.blink_handle = Some(h);
     }
 }
 
@@ -56,8 +136,44 @@ impl Widget for TextInput {
         "TextInput"
     }
 
+    fn build(&mut self, ui: &mut Ui, handle: WidgetHandle<()>) {
+        let handle = handle.typed::<TextInput>();
+
+        ui.listen(handle, move |e: &FocusGained, ui: &mut Ui| {
+            if let Some(input) = ui.get_mut(handle) {
+                input.focused = true;
+                input.cursor_visible = true;
+            }
+            blink_tick(ui, handle);
+        });
+
+        ui.listen(handle, move |e: &FocusLost, ui: &mut Ui| {
+            if let Some(input) = ui.get_mut(handle) {
+                input.focused = false;
+                input.cursor_visible = true;
+                if let Some(h) = input.blink_handle.take() {
+                    h.cancel();
+                }
+            }
+        });
+
+        ui.listen(handle, move |e: &KeyPress, ui: &mut Ui| {
+            if let Some(input) = ui.get_mut(handle) {
+                let changed = input.handle_key(e);
+                if changed {
+                    input.cursor_visible = true;
+                    if let Some(h) = input.blink_handle.take() {
+                        h.cancel();
+                    }
+                    ui.dirty.insert(handle.id);
+                    ui.request_redraw();
+                    blink_tick(ui, handle);
+                }
+            }
+        });
+    }
+
     fn update(&mut self, measurer: &mut TextMeasurer) {
-        let t = std::time::Instant::now();
         let result = measurer.measure(TextMeasureRequest {
             text: if self.value.is_empty() {
                 " "
@@ -99,7 +215,6 @@ impl Widget for TextInput {
         }
         let max_scroll = (self.text_w - inner_w).max(0.0);
         self.scroll_offset = self.scroll_offset.clamp(0.0, max_scroll);
-        println!("text input update took {:?}", t.elapsed());
     }
 
     fn size(&self) -> (f32, f32) {
@@ -124,79 +239,6 @@ impl Widget for TextInput {
     }
     fn z(&self) -> i32 {
         self.z
-    }
-
-    fn on_event(&mut self, event: &dyn Any) -> (bool, Vec<Box<dyn Any>>) {
-        let mut changed = false;
-
-        if event.downcast_ref::<FocusGained>().is_some() {
-            self.focused = true;
-            changed = true;
-        }
-
-        if event.downcast_ref::<FocusLost>().is_some() {
-            self.focused = false;
-            changed = true;
-        }
-
-        if let Some(e) = event.downcast_ref::<KeyPress>() {
-            match e.key {
-                Key::Backspace => {
-                    if self.cursor > 0 {
-                        let byte_idx = char_to_byte(&self.value, self.cursor - 1);
-                        let end_idx = char_to_byte(&self.value, self.cursor);
-                        self.value.drain(byte_idx..end_idx);
-                        self.cursor -= 1;
-                        changed = true;
-                    }
-                }
-                Key::Delete => {
-                    if self.cursor < self.value.chars().count() {
-                        let byte_idx = char_to_byte(&self.value, self.cursor);
-                        let end_idx = char_to_byte(&self.value, self.cursor + 1);
-                        self.value.drain(byte_idx..end_idx);
-                        changed = true;
-                    }
-                }
-                Key::Left => {
-                    if self.cursor > 0 {
-                        self.cursor -= 1;
-                        changed = true;
-                    }
-                }
-                Key::Right => {
-                    if self.cursor < self.value.chars().count() {
-                        self.cursor += 1;
-                        changed = true;
-                    }
-                }
-                Key::Home => {
-                    if self.cursor != 0 {
-                        self.cursor = 0;
-                        changed = true;
-                    }
-                }
-                Key::End => {
-                    let len = self.value.chars().count();
-                    if self.cursor != len {
-                        self.cursor = len;
-                        changed = true;
-                    }
-                }
-                _ => {
-                    if let Some(ch) = e.ch {
-                        if !ch.is_control() {
-                            let byte_idx = char_to_byte(&self.value, self.cursor);
-                            self.value.insert(byte_idx, ch);
-                            self.cursor += 1;
-                            changed = true;
-                        }
-                    }
-                }
-            }
-        }
-
-        (changed, vec![])
     }
 
     fn render(&self, canvas: &mut Canvas) {
@@ -254,7 +296,7 @@ impl Widget for TextInput {
         });
 
         // cursor
-        if self.focused {
+        if self.focused && self.cursor_visible {
             canvas.draw_list.push_rect(RectDraw {
                 x: (canvas.x + self.padding + self.cursor_x - self.scroll_offset).floor(),
                 y: canvas.y + self.padding,

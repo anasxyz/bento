@@ -74,16 +74,13 @@ impl Ui {
 
     pub fn add<W: Widget + 'static>(&mut self, mut widget: W) -> WidgetHandle<W> {
         let index = self.nodes.len();
-        self.nodes.push(None);
-        self.nodes[index] = Some(Node {
+        widget.build(self, WidgetHandle::<()>::from_id(index));
+        self.nodes.push(Some(Node {
             widget: Box::new(widget),
             children: Vec::new(),
             parent: None,
-        });
+        }));
         self.dirty.insert(index);
-        if let Some(parent_id) = self.nodes[index].as_ref().and_then(|n| n.parent) {
-            self.layout_dirty.insert(parent_id);
-        }
         self.layout_dirty.insert(index);
         self.roots.push(index);
         self.request_redraw();
@@ -128,6 +125,20 @@ impl Ui {
     pub fn get_mut<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) -> Option<&mut W> {
         let id = handle.id;
         self.dirty.insert(id);
+        self.nodes
+            .get_mut(id)?
+            .as_mut()?
+            .widget
+            .as_any_mut()
+            .downcast_mut::<W>()
+    }
+
+    /// Doesn't mark widgets as dirty
+    pub fn get_mut_internal<W: Widget + 'static>(
+        &mut self,
+        handle: WidgetHandle<W>,
+    ) -> Option<&mut W> {
+        let id = handle.id;
         self.nodes
             .get_mut(id)?
             .as_mut()?
@@ -616,21 +627,6 @@ impl Ui {
                 self.listeners.insert(i, listener);
             }
             i += 1;
-        }
-
-        let (changed, outgoing) = if let Some(Some(node)) = self.nodes.get_mut(node_id) {
-            node.widget.on_event(event.as_ref())
-        } else {
-            (false, vec![])
-        };
-
-        if changed {
-            self.dirty.insert(node_id);
-            self.needs_redraw = true;
-        }
-
-        for event in outgoing {
-            self.fire(node_id, event);
         }
     }
 }

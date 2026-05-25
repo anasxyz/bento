@@ -69,6 +69,7 @@ impl TextMeasurer {
     }
 
     pub fn measure(&mut self, req: TextMeasureRequest<'_>) -> TextMeasureResult {
+        let t = std::time::Instant::now();
         let key = MeasureKey::from_request(&req);
         if let Some((result, _)) = self.cache.cache.get(&key) {
             return result.clone();
@@ -202,6 +203,7 @@ impl TextMeasurer {
         };
 
         self.cache.cache.insert(key, (result.clone(), buffer));
+        println!("measure took {:?}", t.elapsed());
         result
     }
 

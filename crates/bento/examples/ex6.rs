@@ -15,6 +15,10 @@ fn main() {
     input.width = Size::Fill;
     let input = ui.add(input);
 
+    ui.asyncs.timer(0.5, move |ui| {
+        println!("timer");
+    });
+
     app.open_window(WindowConfig::default(), ui);
     app.run();
 }

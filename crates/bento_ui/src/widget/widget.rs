@@ -1,6 +1,7 @@
 use crate::Ui;
 use crate::acc::Accumulated;
 use crate::layout::Size;
+use crate::widget::WidgetHandle;
 use bento_wgpu::TextMeasurer;
 use bento_wgpu::DrawList;
 use std::any::Any;
@@ -9,6 +10,10 @@ pub trait Widget {
     /// The name of the widget. 
     /// Used mainly for debugging.
     fn name(&self) -> &str { "unnamed" }
+
+    /// Called when the widget is added to the ui.
+    /// Usually used to set up internal event listeners.
+    fn build(&mut self, ui: &mut Ui, handle: WidgetHandle<()>) {}
 
     /// Updates widget state. Called on every frame.
     /// Also used to allow widgets to measure themselves.
@@ -48,25 +53,6 @@ pub trait Widget {
     /// Allows the widget to describe how it should be rendered.
     /// The canvas is used to issue draw commands.
     fn render(&self, canvas: &mut Canvas) {}
-
-    /// Called when an event is fired from the widget.
-    /// The event can be downcast from `Any` to the specific event type.
-    ///
-    /// Few concenrs with this method:
-    ///
-    /// If a widget's on_event returns an event that trigger on_event again which returns the 
-    /// same event again.
-    ///
-    /// Listenes fire before on_event, so if if a user listen to a Click event and the widget 
-    /// also handles Click in on_event, the user's listener fires first. Not a big problem but 
-    /// should be documented.
-    ///
-    /// the fire function always marks the node as dirty even if on_event returned nothing and
-    /// nothing changed. Also not a big problem.
-    ///
-    /// Currently there's no way to stop propagation of events or mark an event as handled.
-    /// The only case I can think of where it matters is is nested scroll containers.
-    fn on_event(&mut self, event: &dyn Any) -> (bool, Vec<Box<dyn Any>>) { (false, vec![]) }
 }
 
 pub trait AnyWidget: Widget + Any {
