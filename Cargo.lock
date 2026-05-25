@@ -248,6 +248,7 @@ dependencies = [
  "bento_macros",
  "bento_shared",
  "bento_wgpu",
+ "cosmic-text",
  "tokio",
 ]
 

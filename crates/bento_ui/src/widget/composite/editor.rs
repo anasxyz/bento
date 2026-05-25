@@ -508,42 +508,43 @@ impl Widget for MultilineInput {
                 let row_y =
                     canvas.y + self.padding + visual_row as f32 * self.line_height - self.scroll_y;
 
-                if row_y + self.line_height >= canvas.y && row_y <= canvas.y + self.h {
-                    // only draw on the first visual row — cosmic-text handles wrapping internally
-                    if vr == 0 {
-                        canvas.draw_list.push_text(TextDraw {
-                            x: canvas.x + self.padding,
-                            y: row_y,
-                            w: inner_w,
-                            h: self.line_height * visual_rows_for_line as f32,
-                            text: line.clone(),
-                            size: self.font_size,
-                            color: self.color,
-                            weight: 400,
-                            italic: false,
-                            font_family: String::new(),
-                            max_width: Some(inner_w),
-                            line_height: Some(self.line_height),
-                            letter_spacing: 0.0,
-                            align: TextAlign::Left,
-                            opacity: canvas.opacity,
-                            clip,
-                            rotate: canvas.rotate,
-                            scale_x: canvas.scale_x,
-                            scale_y: canvas.scale_y,
-                            z: canvas.z + 1,
-                            color_ranges: vec![],
-                            background_ranges: vec![],
-                            underline_ranges: vec![],
-                            strikethrough_ranges: vec![],
-                            weight_ranges: vec![],
-                            italic_ranges: vec![],
-                            font_family_ranges: vec![],
-                        });
-                    }
+                let full_line_bottom = canvas.y
+                    + self.padding
+                    + (visual_row - vr + visual_rows_for_line) as f32 * self.line_height
+                    - self.scroll_y;
+                if vr == 0 && full_line_bottom >= canvas.y && row_y <= canvas.y + self.h {
+                    canvas.draw_list.push_text(TextDraw {
+                        x: canvas.x + self.padding,
+                        y: row_y,
+                        w: inner_w,
+                        h: self.line_height * visual_rows_for_line as f32,
+                        text: line.clone(),
+                        size: self.font_size,
+                        color: self.color,
+                        weight: 400,
+                        italic: false,
+                        font_family: String::new(),
+                        max_width: Some(inner_w),
+                        line_height: Some(self.line_height),
+                        letter_spacing: 0.0,
+                        align: TextAlign::Left,
+                        opacity: canvas.opacity,
+                        clip,
+                        rotate: canvas.rotate,
+                        scale_x: canvas.scale_x,
+                        scale_y: canvas.scale_y,
+                        z: canvas.z + 1,
+                        color_ranges: vec![],
+                        background_ranges: vec![],
+                        underline_ranges: vec![],
+                        strikethrough_ranges: vec![],
+                        weight_ranges: vec![],
+                        italic_ranges: vec![],
+                        font_family_ranges: vec![],
+                    });
                 }
-                visual_row += 1;
             }
+            visual_row += 1;
         }
 
         if self.focused && self.cursor_visible {

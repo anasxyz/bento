@@ -6,16 +6,9 @@ fn main() {
     let mut app = App::new();
     let mut ui = Ui::new();
 
-    let mut col = Group::new();
-    col.layout = Layout::None;
-    col.width = Size::Fixed(300.0);
-    let col = ui.add(col);
-
     let mut input = MultilineInput::new();
-    input.width = Size::Fill;
+    input.set_position(400.0, 200.0);
     let input = ui.add(input);
-
-    ui.append(col, input);
 
     app.open_window(WindowConfig::default(), ui);
     app.run();
