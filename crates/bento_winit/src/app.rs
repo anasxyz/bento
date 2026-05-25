@@ -89,6 +89,7 @@ impl ApplicationHandler<BentoEvent> for App {
                     || !win.ui.layout_dirty.is_empty()
                 {
                     let t = std::time::Instant::now();
+                    win.ui.measurer.trim_shape_cache();
                     win.ui.update();
                     // println!("= update time: {:?}", t.elapsed());
                 }

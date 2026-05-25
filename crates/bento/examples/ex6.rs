@@ -8,13 +8,11 @@ fn main() {
 
     let mut col = Group::new();
     col.layout = Layout::None;
-    col.width = Size::Fill;
-    col.height = Size::Fill;
+    col.width = Size::Fixed(300.0);
     let col = ui.add(col);
 
     let mut input = MultilineInput::new();
     input.width = Size::Fill;
-    input.height = Size::Fill;
     let input = ui.add(input);
 
     ui.append(col, input);
