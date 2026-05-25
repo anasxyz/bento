@@ -1,9 +1,12 @@
 use crate::{
-    DrawCommand, DrawList, TextMeasurer, context::RenderContext, pipelines::{
+    DrawCommand, DrawList, TextMeasurer,
+    context::RenderContext,
+    pipelines::{
         image::{ImageInstance, ImagePipeline},
         rect::{RectInstance, RectPipeline},
         text::{TextPipeline, TextSpec},
-    }, surface::Surface
+    },
+    surface::Surface,
 };
 use wgpu;
 
@@ -78,6 +81,7 @@ impl Renderer {
         clear_color: [f32; 4],
         draw_list: &DrawList,
     ) {
+        println!("[render] surface: {}x{} scale={}", surface.width, surface.height, surface.scale);
         let frame = match surface.surface.get_current_texture() {
             Ok(f) => f,
             Err(wgpu::SurfaceError::Outdated | wgpu::SurfaceError::Lost) => {
@@ -256,6 +260,7 @@ impl Renderer {
                     DrawCommand::Text(_) => {
                         if !text_culled[text_cmd_index] {
                             if let Some((bg_start, bg_end)) = self.text.bg_range(text_index) {
+                                println!("[render] drawing bg range {}-{}", bg_start, bg_end);
                                 self.rect.draw_transient_range(
                                     &mut pass,
                                     decoration_offset as u32 + bg_start as u32,

@@ -676,7 +676,6 @@ impl Widget for MultilineInput {
                         vec![]
                     };
 
-                        println!("[selection] line {} background_ranges: {:?}", line_idx, background_ranges);
                     canvas.draw_list.push_text(TextDraw {
                         x: canvas.x + self.padding,
                         y: row_y,

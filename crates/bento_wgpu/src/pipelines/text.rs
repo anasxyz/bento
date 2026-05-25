@@ -588,7 +588,11 @@ fn build_glyphs(
 
 // walk layout runs and produce background rects and line decoration rects
 // returns (bg_rects, line_rects)
-fn build_decorations(buffer: &Buffer, spec: &TextSpec) -> (Vec<RectInstance>, Vec<RectInstance>) {
+fn build_decorations(
+    buffer: &Buffer,
+    spec: &TextSpec,
+    scale: f32,
+) -> (Vec<RectInstance>, Vec<RectInstance>) {
     let byte_to_char: Vec<usize> = {
         let mut map = vec![0usize; spec.text.len() + 1];
         for (char_idx, (byte_idx, _)) in spec.text.char_indices().enumerate() {
@@ -607,7 +611,10 @@ fn build_decorations(buffer: &Buffer, spec: &TextSpec) -> (Vec<RectInstance>, Ve
 
     let mut bg_rects = Vec::new();
     let mut line_rects = Vec::new();
-    let clip = spec.clip.unwrap_or([0.0, 0.0, f32::MAX, f32::MAX]);
+    let clip = spec
+        .clip
+        .map(|c| [c[0] * scale, c[1] * scale, c[2] * scale, c[3] * scale])
+        .unwrap_or([0.0, 0.0, f32::MAX, f32::MAX]);
 
     for run in buffer.layout_runs() {
         let line_top = spec.y + run.line_top;
@@ -1098,7 +1105,7 @@ impl TextPipeline {
                     //    cache.glyphs.len()
                     // );
                     let t = std::time::Instant::now();
-                    let (bg, lines) = build_decorations(buffer, spec);
+                    let (bg, lines) = build_decorations(buffer, spec, self.scale);
                     // println!("[text {}] build_decorations: {:?}", i, t.elapsed());
                     cache.bg_rects = bg;
                     cache.line_rects = lines;
