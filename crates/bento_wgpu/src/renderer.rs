@@ -99,13 +99,13 @@ impl Renderer {
                 label: Some("frame"),
             });
 
+        let t_cpu = std::time::Instant::now();
+
         // phase 1: build CPU vecs from draw list
         let mut rect_instances: Vec<RectInstance> = Vec::new();
         let mut image_instances: Vec<ImageInstance> = Vec::new();
         let mut image_ids: Vec<u64> = Vec::new();
         let mut text_specs: Vec<TextSpec> = Vec::new();
-
-        // track which text commands are culled so we can skip them in the render pass
         let mut text_culled: Vec<bool> = Vec::new();
 
         for cmd in &draw_list.commands {
@@ -115,7 +115,6 @@ impl Renderer {
                         || r.x > surface.width
                         || r.y + r.h < 0.0
                         || r.y > surface.height;
-                    // push a zero-size instance for culled rects to keep indices aligned
                     rect_instances.push(if culled {
                         RectInstance {
                             pos_size: [0.0; 4],
@@ -206,11 +205,9 @@ impl Renderer {
             }
         }
 
-        // phase 2: prepare text, then append decorations to rect instances
-        let t = std::time::Instant::now();
+        // phase 2: prepare text, append decorations to rect instances
         self.text
             .prepare(&text_specs, measurer, &ctx.device, &ctx.queue);
-        // println!("[render] text prepare time: {:?}", t.elapsed());
         let decoration_offset = rect_instances.len();
         rect_instances.extend_from_slice(&self.text.bg_rects);
         let line_offset = rect_instances.len();
@@ -246,8 +243,8 @@ impl Renderer {
             });
 
             let mut rect_index: u32 = 0;
-            let mut text_index: usize = 0; // indexes into text_specs (non culled only)
-            let mut text_cmd_index: usize = 0; // indexes into text_culled
+            let mut text_index: usize = 0;
+            let mut text_cmd_index: usize = 0;
             let mut image_index: usize = 0;
 
             for cmd in &draw_list.commands {
@@ -286,10 +283,12 @@ impl Renderer {
             }
         }
 
-        let t = std::time::Instant::now();
         ctx.queue.submit(Some(encoder.finish()));
+        println!("[render] cpu time: {:?}", t_cpu.elapsed());
+
+        let t_present = std::time::Instant::now();
         frame.present();
-        // println!("[render] present time: {:?}", t.elapsed());
+        println!("[render] present time: {:?}", t_present.elapsed());
     }
 
     pub fn resize(&mut self, ctx: &RenderContext, surface: &Surface) {
