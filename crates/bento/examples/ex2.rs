@@ -5,7 +5,6 @@ use bento::*;
 fn main() {
     let mut app = App::new();
     let mut ui = Ui::new();
-    ui.debug(true);
 
     let mut col = Group::new();
     col.layout = Layout::Column { gap: 4.0 };
