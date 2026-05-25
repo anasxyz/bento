@@ -1026,7 +1026,9 @@ impl TextPipeline {
         let mut instances = Vec::<GlyphInstance>::new();
         self.ranges.clear();
         self.bg_rects.clear();
+        self.bg_ranges.clear();
         self.line_rects.clear();
+        self.line_ranges.clear();
 
         let t_loop = std::time::Instant::now();
         for (i, spec) in specs.iter().enumerate() {
@@ -1108,8 +1110,13 @@ impl TextPipeline {
             instances.extend_from_slice(&cache.glyphs);
             self.ranges.push((start, cache.glyphs.len() as u32));
 
+            let bg_start = self.bg_rects.len();
             self.bg_rects.extend_from_slice(&cache.bg_rects);
+            self.bg_ranges.push((bg_start, self.bg_rects.len()));
+
+            let line_start = self.line_rects.len();
             self.line_rects.extend_from_slice(&cache.line_rects);
+            self.line_ranges.push((line_start, self.line_rects.len()));
         }
         // println!("[text] total loop time: {:?}", t_loop.elapsed());
 

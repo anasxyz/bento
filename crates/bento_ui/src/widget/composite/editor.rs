@@ -34,6 +34,7 @@ pub struct MultilineInput {
     cached_line_glyph_positions: Vec<Vec<f32>>,
     cached_line_start_chars: Vec<usize>,
     current_visual_line_in_logical: usize,
+    selection_anchor: Option<(usize, usize)>,
 }
 
 impl MultilineInput {
@@ -67,6 +68,7 @@ impl MultilineInput {
             cached_line_glyph_positions: Vec::new(),
             cached_line_start_chars: Vec::new(),
             current_visual_line_in_logical: 0,
+            selection_anchor: None,
         }
     }
 
@@ -93,9 +95,82 @@ impl MultilineInput {
         self.line_visual_rows.iter().sum()
     }
 
-    fn handle_key(&mut self, e: &KeyPress) -> bool {
+    fn selection_range(&self) -> Option<((usize, usize), (usize, usize))> {
+        let anchor = self.selection_anchor?;
+        let cursor = (self.cursor_line, self.cursor_col);
+        if anchor == cursor {
+            return None;
+        }
+        if anchor < cursor {
+            Some((anchor, cursor))
+        } else {
+            Some((cursor, anchor))
+        }
+    }
+
+    fn selected_text(&self) -> String {
+        let Some(((start_line, start_col), (end_line, end_col))) = self.selection_range() else {
+            return String::new();
+        };
+        let mut result = String::new();
+        for line_idx in start_line..=end_line {
+            let line = &self.lines[line_idx];
+            let from = if line_idx == start_line { start_col } else { 0 };
+            let to = if line_idx == end_line {
+                end_col
+            } else {
+                line.chars().count()
+            };
+            if line_idx > start_line {
+                result.push('\n');
+            }
+            let start_byte = char_to_byte(line, from);
+            let end_byte = char_to_byte(line, to);
+            result.push_str(&line[start_byte..end_byte]);
+        }
+        result
+    }
+
+    fn delete_selection(&mut self) -> bool {
+        let Some(((start_line, start_col), (end_line, end_col))) = self.selection_range() else {
+            return false;
+        };
+        if start_line == end_line {
+            let line = &mut self.lines[start_line];
+            let start_byte = char_to_byte(line, start_col);
+            let end_byte = char_to_byte(line, end_col);
+            line.drain(start_byte..end_byte);
+            self.mark_line_dirty(start_line);
+        } else {
+            let end_byte = char_to_byte(&self.lines[end_line], end_col);
+            let tail = self.lines[end_line][end_byte..].to_string();
+            for line_idx in (start_line + 1..=end_line).rev() {
+                self.lines.remove(line_idx);
+                self.line_visual_rows.remove(line_idx);
+                self.line_dirty.remove(line_idx);
+            }
+            let start_byte = char_to_byte(&self.lines[start_line], start_col);
+            self.lines[start_line].truncate(start_byte);
+            self.lines[start_line].push_str(&tail);
+            self.mark_line_dirty(start_line);
+        }
+        self.cursor_line = start_line;
+        self.cursor_col = start_col;
+        self.selection_anchor = None;
+        true
+    }
+
+    fn handle_key(&mut self, e: &KeyPress, shift: bool, ctrl: bool) -> bool {
+        // ctrl+c copy
+        if ctrl && e.key == Key::C {
+            let text = self.selected_text();
+            println!("[copy] {:?}", text);
+            return false;
+        }
+
         match e.key {
             Key::Enter => {
+                self.delete_selection();
                 let line = &self.lines[self.cursor_line];
                 let byte_idx = char_to_byte(line, self.cursor_col);
                 let rest = line[byte_idx..].to_string();
@@ -109,6 +184,9 @@ impl MultilineInput {
                 return true;
             }
             Key::Backspace => {
+                if self.delete_selection() {
+                    return true;
+                }
                 if self.cursor_col > 0 {
                     let line = &mut self.lines[self.cursor_line];
                     let byte_idx = char_to_byte(line, self.cursor_col - 1);
@@ -129,6 +207,9 @@ impl MultilineInput {
                 }
             }
             Key::Delete => {
+                if self.delete_selection() {
+                    return true;
+                }
                 let line_len = self.lines[self.cursor_line].chars().count();
                 if self.cursor_col < line_len {
                     let line = &mut self.lines[self.cursor_line];
@@ -147,6 +228,20 @@ impl MultilineInput {
                 }
             }
             Key::Left => {
+                if shift {
+                    if self.selection_anchor.is_none() {
+                        self.selection_anchor = Some((self.cursor_line, self.cursor_col));
+                    }
+                } else {
+                    // if selection exists, jump to start of selection
+                    if let Some(((start_line, start_col), _)) = self.selection_range() {
+                        self.cursor_line = start_line;
+                        self.cursor_col = start_col;
+                        self.selection_anchor = None;
+                        return true;
+                    }
+                    self.selection_anchor = None;
+                }
                 if self.cursor_col > 0 {
                     self.cursor_col -= 1;
                     return true;
@@ -157,6 +252,20 @@ impl MultilineInput {
                 }
             }
             Key::Right => {
+                if shift {
+                    if self.selection_anchor.is_none() {
+                        self.selection_anchor = Some((self.cursor_line, self.cursor_col));
+                    }
+                } else {
+                    // if selection exists, jump to end of selection
+                    if let Some((_, (end_line, end_col))) = self.selection_range() {
+                        self.cursor_line = end_line;
+                        self.cursor_col = end_col;
+                        self.selection_anchor = None;
+                        return true;
+                    }
+                    self.selection_anchor = None;
+                }
                 let line_len = self.lines[self.cursor_line].chars().count();
                 if self.cursor_col < line_len {
                     self.cursor_col += 1;
@@ -168,8 +277,14 @@ impl MultilineInput {
                 }
             }
             Key::Up => {
+                if shift {
+                    if self.selection_anchor.is_none() {
+                        self.selection_anchor = Some((self.cursor_line, self.cursor_col));
+                    }
+                } else {
+                    self.selection_anchor = None;
+                }
                 if self.current_visual_line_in_logical > 0 {
-                    // move up within same logical line
                     let target_visual = self.current_visual_line_in_logical - 1;
                     let start = self
                         .cached_line_start_chars
@@ -193,13 +308,19 @@ impl MultilineInput {
                 }
             }
             Key::Down => {
+                if shift {
+                    if self.selection_anchor.is_none() {
+                        self.selection_anchor = Some((self.cursor_line, self.cursor_col));
+                    }
+                } else {
+                    self.selection_anchor = None;
+                }
                 let visual_rows_in_line = self
                     .line_visual_rows
                     .get(self.cursor_line)
                     .copied()
                     .unwrap_or(1);
                 if self.current_visual_line_in_logical + 1 < visual_rows_in_line {
-                    // move down within same logical line
                     let target_visual = self.current_visual_line_in_logical + 1;
                     let start = self
                         .cached_line_start_chars
@@ -223,12 +344,26 @@ impl MultilineInput {
                 }
             }
             Key::Home => {
+                if shift {
+                    if self.selection_anchor.is_none() {
+                        self.selection_anchor = Some((self.cursor_line, self.cursor_col));
+                    }
+                } else {
+                    self.selection_anchor = None;
+                }
                 if self.cursor_col != 0 {
                     self.cursor_col = 0;
                     return true;
                 }
             }
             Key::End => {
+                if shift {
+                    if self.selection_anchor.is_none() {
+                        self.selection_anchor = Some((self.cursor_line, self.cursor_col));
+                    }
+                } else {
+                    self.selection_anchor = None;
+                }
                 let len = self.lines[self.cursor_line].chars().count();
                 if self.cursor_col != len {
                     self.cursor_col = len;
@@ -238,6 +373,7 @@ impl MultilineInput {
             _ => {
                 if let Some(ch) = e.ch {
                     if !ch.is_control() {
+                        self.delete_selection();
                         let line = &mut self.lines[self.cursor_line];
                         let byte_idx = char_to_byte(line, self.cursor_col);
                         line.insert(byte_idx, ch);
@@ -312,8 +448,10 @@ impl Widget for MultilineInput {
         });
 
         ui.listen(handle, move |e: &KeyPress, ui: &mut Ui| {
+            let shift = ui.input.keyboard.modifiers.shift;
+            let ctrl = ui.input.keyboard.modifiers.ctrl;
             if let Some(input) = ui.get_mut_internal(handle) {
-                let changed = input.handle_key(e);
+                let changed = input.handle_key(e, shift, ctrl);
                 if changed {
                     input.cursor_visible = true;
                     if let Some(h) = input.blink_handle.take() {
@@ -341,7 +479,6 @@ impl Widget for MultilineInput {
     fn update(&mut self, measurer: &mut TextMeasurer) {
         let inner_w = self.w - self.padding * 2.0;
 
-        // if width changed, mark all lines dirty
         if (inner_w - self.cached_inner_w).abs() > 0.1 {
             self.cached_inner_w = inner_w;
             for d in &mut self.line_dirty {
@@ -353,7 +490,6 @@ impl Widget for MultilineInput {
 
         let mut cursor_result: Option<bento_wgpu::TextMeasureResult> = None;
 
-        // remeasure only dirty lines to update visual row counts
         for i in 0..self.lines.len() {
             if !self.line_dirty[i] {
                 continue;
@@ -382,7 +518,6 @@ impl Widget for MultilineInput {
             }
         }
 
-        // only measure current line if it wasn't already measured in the dirty loop
         let result = cursor_result.unwrap_or_else(|| {
             let current_line = &self.lines[self.cursor_line];
             measurer.measure_reuse(
@@ -407,11 +542,9 @@ impl Widget for MultilineInput {
             )
         });
 
-        // store for up/down navigation
         self.cached_line_glyph_positions = result.line_glyph_positions.clone();
         self.cached_line_start_chars = result.line_start_chars.clone();
 
-        // find which visual line the cursor is on using line_start_chars
         let mut visual_line_in_logical = result.line_start_chars.len().saturating_sub(1);
         let mut col_in_visual = self.cursor_col;
 
@@ -439,7 +572,6 @@ impl Widget for MultilineInput {
 
         self.cursor_visual_row = self.visual_row_of_line(self.cursor_line) + visual_line_in_logical;
 
-        // scroll to keep cursor visible
         let inner_h = self.h - self.padding * 2.0;
         let cursor_top = self.cursor_visual_row as f32 * self.line_height;
         let cursor_bottom = cursor_top + self.line_height;
@@ -500,8 +632,10 @@ impl Widget for MultilineInput {
 
         let clip = Some([canvas.x, canvas.y, self.w, self.h]);
         let inner_w = self.w - self.padding * 2.0;
-        let mut visual_row = 0usize;
 
+        // text with selection via background_ranges
+        let sel = self.selection_range();
+        let mut visual_row = 0usize;
         for (line_idx, line) in self.lines.iter().enumerate() {
             let visual_rows_for_line = self.line_visual_rows[line_idx];
             for vr in 0..visual_rows_for_line {
@@ -512,7 +646,37 @@ impl Widget for MultilineInput {
                     + self.padding
                     + (visual_row - vr + visual_rows_for_line) as f32 * self.line_height
                     - self.scroll_y;
+
                 if vr == 0 && full_line_bottom >= canvas.y && row_y <= canvas.y + self.h {
+                    let background_ranges = if let Some((
+                        (sel_start_line, sel_start_col),
+                        (sel_end_line, sel_end_col),
+                    )) = sel
+                    {
+                        if line_idx >= sel_start_line && line_idx <= sel_end_line {
+                            let from = if line_idx == sel_start_line {
+                                sel_start_col
+                            } else {
+                                0
+                            };
+                            let to = if line_idx == sel_end_line {
+                                sel_end_col
+                            } else {
+                                line.chars().count()
+                            };
+                            vec![bento_wgpu::DecorationRange {
+                                start: from,
+                                end: to,
+                                color: [0.2, 0.4, 0.8, 0.6],
+                            }]
+                        } else {
+                            vec![]
+                        }
+                    } else {
+                        vec![]
+                    };
+
+                        println!("[selection] line {} background_ranges: {:?}", line_idx, background_ranges);
                     canvas.draw_list.push_text(TextDraw {
                         x: canvas.x + self.padding,
                         y: row_y,
@@ -535,7 +699,7 @@ impl Widget for MultilineInput {
                         scale_y: canvas.scale_y,
                         z: canvas.z + 1,
                         color_ranges: vec![],
-                        background_ranges: vec![],
+                        background_ranges,
                         underline_ranges: vec![],
                         strikethrough_ranges: vec![],
                         weight_ranges: vec![],
@@ -543,10 +707,11 @@ impl Widget for MultilineInput {
                         font_family_ranges: vec![],
                     });
                 }
+                visual_row += 1;
             }
-            visual_row += 1;
         }
 
+        // cursor
         if self.focused && self.cursor_visible {
             let cursor_y =
                 canvas.y + self.padding + self.cursor_visual_row as f32 * self.line_height
@@ -565,7 +730,7 @@ impl Widget for MultilineInput {
                 scale_y: canvas.scale_y,
                 opacity: canvas.opacity,
                 clip,
-                z: canvas.z + 2,
+                z: canvas.z + 3,
             });
         }
     }
