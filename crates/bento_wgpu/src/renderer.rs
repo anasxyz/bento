@@ -81,7 +81,6 @@ impl Renderer {
         clear_color: [f32; 4],
         draw_list: &DrawList,
     ) {
-        println!("[render] surface: {}x{} scale={}", surface.width, surface.height, surface.scale);
         let frame = match surface.surface.get_current_texture() {
             Ok(f) => f,
             Err(wgpu::SurfaceError::Outdated | wgpu::SurfaceError::Lost) => {

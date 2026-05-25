@@ -6,6 +6,7 @@ use bento::*;
 fn main() {
     let mut app = App::new();
     let mut ui = Ui::new();
+    ui.debug = true;
 
     let text = ui.add(Text::new("Hello world"));
     ui.get_mut(text).unwrap().set_x(100.0);

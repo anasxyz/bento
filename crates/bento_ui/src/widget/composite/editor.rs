@@ -5,7 +5,7 @@ use crate::widget::{Canvas, Widget, WidgetHandle};
 use crate::{Key, Ui};
 use bento_wgpu::{RectDraw, TextAlign, TextDraw, TextMeasureRequest, TextMeasurer};
 
-pub struct MultilineInput {
+pub struct Editor {
     pub id: u64,
     pub x: f32,
     pub y: f32,
@@ -38,11 +38,11 @@ pub struct MultilineInput {
     selection_anchor: Option<(usize, usize)>,
 }
 
-impl MultilineInput {
+impl Editor {
     pub fn new() -> Self {
         let font_size = 20.0;
         let line_height = font_size * 1.3;
-        let font_family = "".to_string();
+        let font_family = "JetBrainsMono Nerd Font".to_string();
 
         Self {
             id: 0,
@@ -411,73 +411,77 @@ fn find_col_at_x(positions: &[f32], target_x: f32) -> usize {
         .unwrap_or(0)
 }
 
-fn blink_tick_multi(ui: &mut Ui, handle: WidgetHandle<MultilineInput>) {
+fn blink_tick_multi(ui: &mut Ui, handle: WidgetHandle<Editor>) {
     let h = ui.asyncs.timer(0.53, move |ui| {
-        if let Some(input) = ui.get_mut_internal(handle) {
+        if let Some(input) = ui.get_mut(handle) {
             if input.focused {
                 input.cursor_visible = !input.cursor_visible;
-                ui.needs_redraw = true;
+                ui.request_update(handle);
+                ui.request_redraw();
                 blink_tick_multi(ui, handle);
             }
         }
     });
-    if let Some(input) = ui.get_mut_internal(handle) {
+    if let Some(input) = ui.get_mut(handle) {
         input.blink_handle = Some(h);
+        ui.request_update(handle);
     }
 }
 
-impl Widget for MultilineInput {
+impl Widget for Editor {
     fn name(&self) -> &str {
-        "MultilineInput"
+        "Editor"
     }
 
     fn build(&mut self, ui: &mut Ui, handle: WidgetHandle<()>) {
         self.id = handle.id as u64;
-        let handle = handle.typed::<MultilineInput>();
+        let handle = handle.typed::<Editor>();
 
         ui.listen(handle, move |e: &FocusGained, ui: &mut Ui| {
-            if let Some(input) = ui.get_mut_internal(handle) {
+            if let Some(input) = ui.get_mut(handle) {
                 input.focused = true;
                 input.cursor_visible = true;
             }
+            ui.request_update(handle);
             blink_tick_multi(ui, handle);
         });
 
         ui.listen(handle, move |e: &FocusLost, ui: &mut Ui| {
-            if let Some(input) = ui.get_mut_internal(handle) {
+            if let Some(input) = ui.get_mut(handle) {
                 input.focused = false;
                 input.cursor_visible = true;
                 if let Some(h) = input.blink_handle.take() {
                     h.cancel();
                 }
+                ui.request_update(handle);
             }
         });
 
         ui.listen(handle, move |e: &KeyPress, ui: &mut Ui| {
             let shift = ui.input.keyboard.modifiers.shift;
             let ctrl = ui.input.keyboard.modifiers.ctrl;
-            if let Some(input) = ui.get_mut_internal(handle) {
+            if let Some(input) = ui.get_mut(handle) {
                 let changed = input.handle_key(e, shift, ctrl);
                 if changed {
                     input.cursor_visible = true;
                     if let Some(h) = input.blink_handle.take() {
                         h.cancel();
                     }
-                    ui.dirty.insert(handle.id);
-                    ui.needs_redraw = true;
+                    ui.request_update(handle);
+                    ui.request_redraw();
                     blink_tick_multi(ui, handle);
                 }
             }
         });
 
         ui.listen(handle, move |e: &MouseScroll, ui: &mut Ui| {
-            if let Some(input) = ui.get_mut_internal(handle) {
+            if let Some(input) = ui.get_mut(handle) {
                 let total = input.total_visual_rows();
                 let max_scroll =
                     (total as f32 * input.line_height - (input.h - input.padding * 2.0)).max(0.0);
                 input.scroll_y =
                     (input.scroll_y - e.y * input.line_height * 3.0).clamp(0.0, max_scroll);
-                ui.needs_redraw = true;
+                ui.request_redraw();
             }
         });
     }

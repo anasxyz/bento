@@ -5,6 +5,7 @@ use bento::*;
 fn main() {
     let mut app = App::new();
     let mut ui = Ui::new();
+    ui.debug = true;
 
     // full width column
     let mut col = Group::new();

@@ -12,10 +12,7 @@ fn main() {
     col.height = Size::Fill;
     let col = ui.add(col);
 
-    let mut input = MultilineInput::new();
-    input.width = Size::Fill;
-    input.height = Size::Fill;
-    let input = ui.add(input);
+    let input = ui.add(TextInput::new());
 
     ui.append(col, input);
 

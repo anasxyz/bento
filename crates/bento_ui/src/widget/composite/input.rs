@@ -118,16 +118,18 @@ impl TextInput {
 
 fn blink_tick(ui: &mut Ui, handle: WidgetHandle<TextInput>) {
     let h = ui.asyncs.timer(0.53, move |ui| {
-        if let Some(input) = ui.get_mut_internal(handle) {
+        if let Some(input) = ui.get_mut(handle) {
             if input.focused {
                 input.cursor_visible = !input.cursor_visible;
+                ui.request_update(handle);
                 ui.request_redraw();
                 blink_tick(ui, handle);
             }
         }
     });
-    if let Some(input) = ui.get_mut_internal(handle) {
+    if let Some(input) = ui.get_mut(handle) {
         input.blink_handle = Some(h);
+        ui.request_update(handle);
     }
 }
 

@@ -72,6 +72,18 @@ impl Ui {
         self.needs_redraw = true;
     }
 
+    pub fn request_update<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) {
+        self.dirty.insert(handle.id);
+    }
+
+    pub fn set<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>, f: impl FnOnce(&mut W)) {
+        if let Some(w) = self.get_mut(handle) {
+            f(w);
+            self.request_update(handle);
+            self.request_redraw();
+        }
+    }
+
     pub fn add<W: Widget + 'static>(&mut self, mut widget: W) -> WidgetHandle<W> {
         let index = self.nodes.len();
         widget.build(self, WidgetHandle::<()>::from_id(index));
@@ -113,9 +125,8 @@ impl Ui {
     }
 
     pub fn get<W: Widget + 'static>(&self, handle: WidgetHandle<W>) -> Option<&W> {
-        let id = handle.id;
         self.nodes
-            .get(id)?
+            .get(handle.id)?
             .as_ref()?
             .widget
             .as_any()
@@ -123,24 +134,8 @@ impl Ui {
     }
 
     pub fn get_mut<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) -> Option<&mut W> {
-        let id = handle.id;
-        self.dirty.insert(id);
         self.nodes
-            .get_mut(id)?
-            .as_mut()?
-            .widget
-            .as_any_mut()
-            .downcast_mut::<W>()
-    }
-
-    /// Doesn't mark widgets as dirty
-    pub fn get_mut_internal<W: Widget + 'static>(
-        &mut self,
-        handle: WidgetHandle<W>,
-    ) -> Option<&mut W> {
-        let id = handle.id;
-        self.nodes
-            .get_mut(id)?
+            .get_mut(handle.id)?
             .as_mut()?
             .widget
             .as_any_mut()

@@ -75,7 +75,7 @@ fn main() {
                 "CHANGED: Glib jocks quiz nymph to vex dwarf here",
             ];
             for (i, &text) in new_texts.iter().enumerate() {
-                ui.get_mut(handles[i]).unwrap().set_content(text);
+                ui.set(handles[i], |w| w.set_content(text));
             }
         }
     });
