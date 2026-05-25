@@ -6,6 +6,7 @@ use crate::{Key, Ui};
 use bento_wgpu::{RectDraw, TextAlign, TextDraw, TextMeasureRequest, TextMeasurer};
 
 pub struct MultilineInput {
+    pub id: u64,
     pub x: f32,
     pub y: f32,
     pub w: f32,
@@ -38,6 +39,7 @@ pub struct MultilineInput {
 impl MultilineInput {
     pub fn new() -> Self {
         Self {
+            id: 0,
             x: 0.0,
             y: 0.0,
             w: 400.0,
@@ -288,6 +290,7 @@ impl Widget for MultilineInput {
     }
 
     fn build(&mut self, ui: &mut Ui, handle: WidgetHandle<()>) {
+        self.id = handle.id as u64;
         let handle = handle.typed::<MultilineInput>();
 
         ui.listen(handle, move |e: &FocusGained, ui: &mut Ui| {
@@ -348,47 +351,60 @@ impl Widget for MultilineInput {
 
         self.ensure_cache_size();
 
+        let mut cursor_result: Option<bento_wgpu::TextMeasureResult> = None;
+
         // remeasure only dirty lines to update visual row counts
         for i in 0..self.lines.len() {
             if !self.line_dirty[i] {
                 continue;
             }
             let line = &self.lines[i];
-            let result = measurer.measure(TextMeasureRequest {
-                text: if line.is_empty() { " " } else { line },
-                font_family: "",
-                size: self.font_size,
-                weight: 400,
-                italic: false,
-                letter_spacing: 0.0,
-                line_height: None,
-                max_width: Some(inner_w),
-                weight_ranges: &[],
-                italic_ranges: &[],
-                font_family_ranges: &[],
-            });
+            let result = measurer.measure_reuse(
+                self.id,
+                TextMeasureRequest {
+                    text: if line.is_empty() { " " } else { line },
+                    font_family: "",
+                    size: self.font_size,
+                    weight: 400,
+                    italic: false,
+                    letter_spacing: 0.0,
+                    line_height: None,
+                    max_width: Some(inner_w),
+                    weight_ranges: &[],
+                    italic_ranges: &[],
+                    font_family_ranges: &[],
+                },
+            );
             self.line_visual_rows[i] = result.line_count.max(1);
             self.line_dirty[i] = false;
+            if i == self.cursor_line {
+                cursor_result = Some(result);
+            }
         }
 
-        // measure current line for cursor position — always a cache hit
-        let current_line = &self.lines[self.cursor_line];
-        let result = measurer.measure(TextMeasureRequest {
-            text: if current_line.is_empty() {
-                " "
-            } else {
-                current_line
-            },
-            font_family: "",
-            size: self.font_size,
-            weight: 400,
-            italic: false,
-            letter_spacing: 0.0,
-            line_height: None,
-            max_width: Some(inner_w),
-            weight_ranges: &[],
-            italic_ranges: &[],
-            font_family_ranges: &[],
+        // only measure current line if it wasn't already measured in the dirty loop
+        let result = cursor_result.unwrap_or_else(|| {
+            let current_line = &self.lines[self.cursor_line];
+            measurer.measure_reuse(
+                self.id,
+                TextMeasureRequest {
+                    text: if current_line.is_empty() {
+                        " "
+                    } else {
+                        current_line
+                    },
+                    font_family: "",
+                    size: self.font_size,
+                    weight: 400,
+                    italic: false,
+                    letter_spacing: 0.0,
+                    line_height: None,
+                    max_width: Some(inner_w),
+                    weight_ranges: &[],
+                    italic_ranges: &[],
+                    font_family_ranges: &[],
+                },
+            )
         });
 
         // store for up/down navigation
