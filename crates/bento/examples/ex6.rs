@@ -7,17 +7,17 @@ fn main() {
     let mut ui = Ui::new();
 
     let mut col = Group::new();
-    col.layout = Layout::Row { gap: 8.0 };
-    col.width = Size::Fixed(150.0);
+    col.layout = Layout::None;
+    col.width = Size::Fill;
+    col.height = Size::Fill;
     let col = ui.add(col);
 
-    let mut input = TextInput::new();
+    let mut input = MultilineInput::new();
     input.width = Size::Fill;
+    input.height = Size::Fill;
     let input = ui.add(input);
 
-    ui.asyncs.timer(0.5, move |ui| {
-        println!("timer");
-    });
+    ui.append(col, input);
 
     app.open_window(WindowConfig::default(), ui);
     app.run();
