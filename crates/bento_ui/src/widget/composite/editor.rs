@@ -4,7 +4,7 @@ use crate::events::types::{
 use crate::layout::Size;
 use crate::ui::TimerHandle;
 use crate::widget::{Canvas, Widget, WidgetHandle};
-use crate::{Key, Ui};
+use crate::{CursorIcon, HoverEnter, Key, Ui};
 use bento_wgpu::{
     DecorationRange, RectDraw, TextAlign, TextDraw, TextMeasureRequest, TextMeasurer,
 };
@@ -502,7 +502,6 @@ fn blink_tick(ui: &mut Ui, handle: WidgetHandle<Editor>) {
         if let Some(e) = ui.get_mut(handle) {
             if e.focused {
                 e.cursor_visible = !e.cursor_visible;
-                ui.request_update(handle);
                 ui.request_redraw();
                 blink_tick(ui, handle);
             }
@@ -550,6 +549,10 @@ impl Widget for Editor {
                 }
             }
             ui.request_update(handle);
+        });
+
+        ui.listen(handle, move |_: &HoverEnter, ui: &mut Ui| {
+            ui.set_cursor(CursorIcon::Text);
         });
 
         ui.listen(handle, move |ev: &KeyPress, ui: &mut Ui| {
@@ -770,6 +773,13 @@ impl Widget for Editor {
                         }])
                     })
                     .unwrap_or_default();
+
+
+                // skip pushing a TextDraw entirely for empty lines that have no selection on them
+                if line.is_empty() && background_ranges.is_empty() {
+                    vrow += rows;
+                    continue;
+                }
 
                 canvas.draw_list.push_text(TextDraw {
                     x: canvas.x + self.padding,

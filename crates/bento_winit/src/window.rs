@@ -56,6 +56,10 @@ impl Window {
         self.window.request_redraw();
     }
 
+    pub fn set_cursor(&self, cursor: winit::window::CursorIcon) {
+        self.window.set_cursor(cursor);
+    }
+
     pub fn resize(&mut self, ctx: &RenderContext) {
         let size = self.window.inner_size();
         let scale = self.window.scale_factor() as f32;

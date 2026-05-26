@@ -7,7 +7,7 @@ use winit::{
 };
 
 use crate::{config::WindowConfig, window::Window};
-use bento_ui::Ui;
+use bento_ui::{CursorIcon, Ui};
 use bento_wgpu::RenderContext;
 
 use bento_shared::BentoEvent;
@@ -91,6 +91,7 @@ impl ApplicationHandler<BentoEvent> for App {
                     let t = std::time::Instant::now();
                     win.ui.measurer.trim_shape_cache();
                     win.ui.update();
+                    win.set_cursor(to_winit_cursor(win.ui.cursor));
                     // println!("= update time: {:?}", t.elapsed());
                 }
 
@@ -265,5 +266,21 @@ impl ApplicationHandler<BentoEvent> for App {
                 }
             }
         }
+    }
+}
+
+pub fn to_winit_cursor(cursor: CursorIcon) -> winit::window::CursorIcon {
+    match cursor {
+        CursorIcon::Default => winit::window::CursorIcon::Default,
+        CursorIcon::Text => winit::window::CursorIcon::Text,
+        CursorIcon::Pointer => winit::window::CursorIcon::Pointer,
+        CursorIcon::ResizeHorizontal => winit::window::CursorIcon::EwResize,
+        CursorIcon::ResizeVertical => winit::window::CursorIcon::NsResize,
+        CursorIcon::ResizeNwSe => winit::window::CursorIcon::NwseResize,
+        CursorIcon::ResizeNeSw => winit::window::CursorIcon::NeswResize,
+        CursorIcon::Crosshair => winit::window::CursorIcon::Crosshair,
+        CursorIcon::NotAllowed => winit::window::CursorIcon::NotAllowed,
+        CursorIcon::Grab => winit::window::CursorIcon::Grab,
+        CursorIcon::Grabbing => winit::window::CursorIcon::Grabbing,
     }
 }

@@ -7,6 +7,7 @@ pub(crate) mod layout;
 pub(crate) mod ui;
 pub(crate) mod widget;
 pub(crate) mod acc;
+pub(crate) mod types;
 
 pub use ui::Ui;
 pub use input::keyboard::Key;
@@ -17,3 +18,4 @@ pub use widget::{
     composite::*,
 };
 pub use layout::*;
+pub use types::*;

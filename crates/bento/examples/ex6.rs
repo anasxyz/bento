@@ -8,8 +8,8 @@ fn main() {
 
     let group = ui.add(Group::new());
     ui.set(group, |w| {
-        w.width = Size::Fill;
-        w.height = Size::Fill;
+        w.width = Size::Fixed(200.0);
+        w.height = Size::Fixed(200.0);
     });
 
     let input = ui.add(Editor::new());

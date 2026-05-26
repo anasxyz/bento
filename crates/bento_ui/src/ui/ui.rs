@@ -11,6 +11,7 @@ use crate::events::types::{
 use crate::input::InputState;
 use crate::input::mouse::MouseButton;
 use crate::layout::{Layout, Size};
+use crate::types::CursorIcon;
 use crate::ui::asyncs::AsyncEventQueue;
 use crate::widget::{AnyWidget, Canvas, Widget, WidgetHandle};
 use crate::{FocusGained, FocusLost, Group, HoverEnter, HoverLeave, Key};
@@ -41,6 +42,8 @@ pub struct Ui {
     pub hovered_rect: Option<[f32; 4]>,
 
     pub focused: Option<usize>,
+
+    pub cursor: CursorIcon,
 }
 
 impl Ui {
@@ -65,6 +68,8 @@ impl Ui {
             hovered_rect: None,
 
             focused: None,
+
+            cursor: CursorIcon::Default,
         }
     }
 
@@ -568,6 +573,10 @@ impl Ui {
         }
     }
 
+    pub fn set_cursor(&mut self, cursor: CursorIcon) {
+        self.cursor = cursor;
+    }
+
     pub fn set_focus<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) {
         self.focused = Some(handle.id);
     }
@@ -667,6 +676,7 @@ impl Ui {
             let prev = self.hovered_node;
             self.hit_test();
             if prev != self.hovered_node {
+                self.cursor = CursorIcon::Default;
                 if let Some(old_id) = prev {
                     self.fire(old_id, Box::new(HoverLeave));
                 }
