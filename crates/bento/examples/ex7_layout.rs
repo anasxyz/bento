@@ -32,6 +32,7 @@ fn main() {
         e.width = Size::Fill;
         e.height = Size::Fill;
         e.use_spaces = true;
+        e.wrap = false;
     });
 
     let mut status = Rect::new(0.0, 24.0);

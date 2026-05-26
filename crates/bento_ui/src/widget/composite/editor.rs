@@ -41,6 +41,8 @@ pub struct Editor {
     blink_handle: Option<TimerHandle>,
 
     // scroll
+    pub wrap: bool,
+    scroll_x: f32,
     scroll_y: f32,
 
     // measure cache, per logical line
@@ -92,6 +94,8 @@ impl Editor {
             focused: false,
             cursor_visible: true,
             blink_handle: None,
+            wrap: true,
+            scroll_x: 0.0,
             scroll_y: 0.0,
             cached_inner_w: 0.0,
             line_visual_rows: vec![1],
@@ -210,7 +214,7 @@ impl Editor {
     // convert pixel position to (logical_line, col)
     fn pos_to_cursor(&self, mx: f32, my: f32, editor_x: f32, editor_y: f32) -> (usize, usize) {
         let rel_y = my - editor_y - self.padding + self.scroll_y;
-        let rel_x = mx - editor_x - self.padding;
+        let rel_x = mx - editor_x - self.padding + self.scroll_x;
         let visual_row =
             ((rel_y / self.line_height) as usize).min(self.total_visual_rows().saturating_sub(1));
 
@@ -688,6 +692,9 @@ impl Widget for Editor {
                 let inner_h = e.h - e.padding * 2.0;
                 let max_scroll = (e.total_visual_rows() as f32 * e.line_height - inner_h).max(0.0);
                 e.scroll_y = (e.scroll_y - ev.y * e.line_height * 3.0).clamp(0.0, max_scroll);
+                if !e.wrap {
+                    e.scroll_x = (e.scroll_x + ev.x * 20.0).max(0.0);
+                }
                 ui.request_redraw();
             }
         });
@@ -724,7 +731,7 @@ impl Widget for Editor {
                     letter_spacing: 0.0,
                     line_height: Some(self.line_height),
                     tab_width: self.tab_width as u16,
-                    max_width: Some(inner_w),
+                    max_width: if self.wrap { Some(inner_w) } else { None },
                     weight_ranges: &[],
                     italic_ranges: &[],
                     font_family_ranges: &[],
@@ -756,7 +763,7 @@ impl Widget for Editor {
                     letter_spacing: 0.0,
                     line_height: Some(self.line_height),
                     tab_width: self.tab_width as u16,
-                    max_width: Some(inner_w),
+                    max_width: if self.wrap { Some(inner_w) } else { None },
                     weight_ranges: &[],
                     italic_ranges: &[],
                     font_family_ranges: &[],
@@ -798,6 +805,13 @@ impl Widget for Editor {
             .and_then(|p| p.get(col_in_visual).or_else(|| p.last()))
             .copied()
             .unwrap_or(0.0);
+
+        let cursor_screen_x = self.cursor_x - self.scroll_x;
+        if cursor_screen_x < 0.0 {
+            self.scroll_x = self.cursor_x;
+        } else if cursor_screen_x > inner_w {
+            self.scroll_x = self.cursor_x - inner_w;
+        }
 
         self.cursor_visual_row = self.visual_row_of_line(self.cursor_line) + visual_in_logical;
 
@@ -871,9 +885,9 @@ impl Widget for Editor {
                 }
 
                 canvas.draw_list.push_text(TextDraw {
-                    x: canvas.x + self.padding,
+                    x: canvas.x + self.padding - self.scroll_x,
                     y: top,
-                    w: inner_w,
+                    w: inner_w + self.scroll_x,
                     h: self.line_height * rows as f32,
                     text: line.clone(),
                     size: self.font_size,
@@ -881,7 +895,7 @@ impl Widget for Editor {
                     weight: 400,
                     italic: false,
                     font_family: self.font_family.clone(),
-                    max_width: Some(inner_w),
+                    max_width: if self.wrap { Some(inner_w) } else { None },
                     line_height: Some(self.line_height),
                     tab_width: self.tab_width as u16,
                     letter_spacing: 0.0,
@@ -910,7 +924,7 @@ impl Widget for Editor {
             let cy = canvas.y + self.padding + self.cursor_visual_row as f32 * self.line_height
                 - self.scroll_y;
             canvas.draw_list.push_rect(RectDraw {
-                x: (canvas.x + self.padding + self.cursor_x).floor(),
+                x: (canvas.x + self.padding + self.cursor_x - self.scroll_x).floor(),
                 y: cy,
                 w: 1.0,
                 h: self.line_height,
