@@ -43,7 +43,7 @@ impl<'window> Surface<'window> {
             format,
             width:    phys_w.max(1),
             height:   phys_h.max(1),
-            present_mode: wgpu::PresentMode::AutoVsync,
+            present_mode: wgpu::PresentMode::Mailbox,
             alpha_mode,
             view_formats: vec![],
             desired_maximum_frame_latency: 1,

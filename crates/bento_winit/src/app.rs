@@ -77,12 +77,12 @@ impl ApplicationHandler<BentoEvent> for App {
 
         match event {
             WindowEvent::RedrawRequested => {
-                println!("----------------------------");
+                // println!("----------------------------");
                 let t_total = std::time::Instant::now();
 
                 let t = std::time::Instant::now();
                 win.ui.process_input();
-                println!("= process input time: {:?}", t.elapsed());
+                // println!("= process input time: {:?}", t.elapsed());
 
                 if win.ui.needs_redraw
                     || !win.ui.dirty.is_empty()
@@ -91,13 +91,13 @@ impl ApplicationHandler<BentoEvent> for App {
                     let t = std::time::Instant::now();
                     win.ui.measurer.trim_shape_cache();
                     win.ui.update();
-                    println!("= update time: {:?}", t.elapsed());
+                    // println!("= update time: {:?}", t.elapsed());
                 }
 
                 if win.needs_render || win.ui.needs_redraw {
                     let t = std::time::Instant::now();
                     let draw_list = win.ui.collect_draw_list();
-                    println!("= collect_draw_list time: {:?}", t.elapsed());
+                    // println!("= collect_draw_list time: {:?}", t.elapsed());
 
                     let t = std::time::Instant::now();
                     win.renderer.render(
@@ -107,7 +107,7 @@ impl ApplicationHandler<BentoEvent> for App {
                         win.config.clear_color,
                         &draw_list,
                     );
-                    println!("= render time: {:?}", t.elapsed());
+                    // println!("= render time: {:?}", t.elapsed());
 
                     win.needs_render = false;
                     win.ui.needs_redraw = false;
@@ -116,7 +116,7 @@ impl ApplicationHandler<BentoEvent> for App {
                 win.ui.input.mouse.clear();
                 win.ui.input.keyboard.clear();
                 println!("total frame time: {:?}", t_total.elapsed());
-                println!("----------------------------");
+                // println!("----------------------------");
             }
 
             WindowEvent::KeyboardInput {

@@ -284,11 +284,11 @@ impl Renderer {
         }
 
         ctx.queue.submit(Some(encoder.finish()));
-        println!("[render] cpu time: {:?}", t_cpu.elapsed());
+        // println!("[render] cpu time: {:?}", t_cpu.elapsed());
 
         let t_present = std::time::Instant::now();
         frame.present();
-        println!("[render] present time: {:?}", t_present.elapsed());
+        // println!("[render] present time: {:?}", t_present.elapsed());
     }
 
     pub fn resize(&mut self, ctx: &RenderContext, surface: &Surface) {

@@ -458,7 +458,7 @@ fn shape(spec: &TextSpec, font_system: &mut cosmic_text::FontSystem, scale: f32)
         align,
     );
     buffer.shape_until_scroll(font_system, false);
-    println!("[text] shape time: {:?}", t.elapsed());
+    // println!("[text] shape time: {:?}", t.elapsed());
     buffer
 }
 
@@ -480,7 +480,7 @@ fn rasterise(
             atlas.insert(physical.cache_key, font_system, device, queue);
         }
     }
-    println!("[text] rasterise time: {:?}", t.elapsed());
+    // println!("[text] rasterise time: {:?}", t.elapsed());
 }
 
 // glyph instance building
@@ -1045,7 +1045,7 @@ impl TextPipeline {
             let redraw = reshape || cache.needs_redraw(spec);
             let origin_update = reshape || cache.needs_origin_update(spec);
 
-            println!("[text {}] reshape={} redraw={}", i, reshape, redraw);
+            // println!("[text {}] reshape={} redraw={}", i, reshape, redraw);
 
             let t_origin = std::time::Instant::now();
             // write origin regardless of whether glyphs need rebuilding
@@ -1061,7 +1061,7 @@ impl TextPipeline {
                     bytemuck::cast_slice(&origin_floats),
                 );
             }
-            println!("[text {}] origin write: {:?}", i, t_origin.elapsed());
+            // println!("[text {}] origin write: {:?}", i, t_origin.elapsed());
 
             if redraw {
                 if reshape {
@@ -1106,7 +1106,7 @@ impl TextPipeline {
                     // );
                     let t = std::time::Instant::now();
                     let (bg, lines) = build_decorations(buffer, spec, self.scale);
-                    println!("[text {}] build_decorations: {:?}", i, t.elapsed());
+                    // println!("[text {}] build_decorations: {:?}", i, t.elapsed());
                     cache.bg_rects = bg;
                     cache.line_rects = lines;
                 }
@@ -1125,7 +1125,7 @@ impl TextPipeline {
             self.line_rects.extend_from_slice(&cache.line_rects);
             self.line_ranges.push((line_start, self.line_rects.len()));
         }
-        println!("[text] total loop time: {:?}", t_loop.elapsed());
+        // println!("[text] total loop time: {:?}", t_loop.elapsed());
 
         if instances.is_empty() {
             return;
@@ -1143,7 +1143,7 @@ impl TextPipeline {
 
         let t = std::time::Instant::now();
         queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&instances));
-        println!("[text] write_buffer: {:?}", t.elapsed());
+        // println!("[text] write_buffer: {:?}", t.elapsed());
     }
 
     pub fn draw_range<'pass>(&'pass self, pass: &mut wgpu::RenderPass<'pass>, index: usize) {
