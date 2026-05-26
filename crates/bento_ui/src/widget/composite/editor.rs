@@ -381,15 +381,25 @@ impl Editor {
                     true
                 } else if self.cursor_line > 0 {
                     self.cursor_line -= 1;
-                    self.cursor_col = self
-                        .cursor_col
-                        .min(self.lines[self.cursor_line].chars().count());
-                    self.current_visual_line_in_logical = self
+                    let rows = self
                         .line_visual_rows
                         .get(self.cursor_line)
                         .copied()
-                        .unwrap_or(1)
-                        .saturating_sub(1);
+                        .unwrap_or(1);
+                    let tv = rows - 1;
+                    let start = self
+                        .all_line_start_chars
+                        .get(self.cursor_line)
+                        .and_then(|v| v.get(tv))
+                        .copied()
+                        .unwrap_or(0);
+                    let pos = self
+                        .all_line_glyph_positions
+                        .get(self.cursor_line)
+                        .and_then(|v| v.get(tv))
+                        .map(|v| v.as_slice())
+                        .unwrap_or(&[]);
+                    self.cursor_col = start + find_col_at_x(pos, self.cursor_x);
                     true
                 } else {
                     false
