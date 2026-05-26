@@ -5,7 +5,6 @@ use bento::*;
 fn main() {
     let mut app = App::new();
     let mut ui = Ui::new();
-    ui.debug(true);
 
     let mut col = Group::new();
     col.layout = Layout::Column { gap: 4.0 };
@@ -75,7 +74,7 @@ fn main() {
                 "CHANGED: Glib jocks quiz nymph to vex dwarf here",
             ];
             for (i, &text) in new_texts.iter().enumerate() {
-                ui.get_mut(handles[i]).unwrap().set_content(text);
+                ui.set(handles[i], |w| w.set_content(text));
             }
         }
     });

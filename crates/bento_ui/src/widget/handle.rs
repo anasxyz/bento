@@ -33,6 +33,12 @@ impl<W> WidgetHandle<W> {
     }
 }
 
+impl WidgetHandle<()> {
+    pub fn typed<W>(self) -> WidgetHandle<W> {
+        WidgetHandle::from_id(self.id)
+    }
+}
+
 impl<T> Default for WidgetHandle<T> {
     fn default() -> Self {
         Self {

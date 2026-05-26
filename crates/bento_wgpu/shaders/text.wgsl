@@ -76,7 +76,7 @@ fn fs_main(in: VOut) -> @location(0) vec4f {
   } else {
     // 0.3 is for how full the text looks
     // + gamma correction for how strong the colour is
-    let g = pow(sample.r, 0.3);
+    let g = pow(sample.r, 0.5);
     let alpha = (g * (g * (3.0 - 2.0 * g))) * in.color.a;
     return vec4f(in.color.rgb * alpha, alpha);
   }

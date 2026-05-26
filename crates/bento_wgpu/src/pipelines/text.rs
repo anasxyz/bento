@@ -305,6 +305,19 @@ impl TextCache {
                 .any(|(a, b)| a.0 != b.start || a.1 != b.end || a.2 != b.font_family)
     }
 
+    fn needs_glyph_rebuild(&self, s: &TextSpec) -> bool {
+        self.color != s.color
+            || self.opacity != s.opacity
+            || self.clip != s.clip
+            || self.color_ranges != s.color_ranges
+    }
+
+    fn needs_decoration_rebuild(&self, s: &TextSpec) -> bool {
+        self.background_ranges != s.background_ranges
+            || self.underline_ranges != s.underline_ranges
+            || self.strikethrough_ranges != s.strikethrough_ranges
+    }
+
     fn needs_redraw(&self, s: &TextSpec) -> bool {
         self.x != s.x
             || self.y != s.y
@@ -458,7 +471,7 @@ fn shape(spec: &TextSpec, font_system: &mut cosmic_text::FontSystem, scale: f32)
         align,
     );
     buffer.shape_until_scroll(font_system, false);
-    println!("[text] shape time: {:?}", t.elapsed());
+    // println!("[text] shape time: {:?}", t.elapsed());
     buffer
 }
 
@@ -480,7 +493,7 @@ fn rasterise(
             atlas.insert(physical.cache_key, font_system, device, queue);
         }
     }
-    println!("[text] rasterise time: {:?}", t.elapsed());
+    // println!("[text] rasterise time: {:?}", t.elapsed());
 }
 
 // glyph instance building
@@ -588,7 +601,11 @@ fn build_glyphs(
 
 // walk layout runs and produce background rects and line decoration rects
 // returns (bg_rects, line_rects)
-fn build_decorations(buffer: &Buffer, spec: &TextSpec) -> (Vec<RectInstance>, Vec<RectInstance>) {
+fn build_decorations(
+    buffer: &Buffer,
+    spec: &TextSpec,
+    scale: f32,
+) -> (Vec<RectInstance>, Vec<RectInstance>) {
     let byte_to_char: Vec<usize> = {
         let mut map = vec![0usize; spec.text.len() + 1];
         for (char_idx, (byte_idx, _)) in spec.text.char_indices().enumerate() {
@@ -607,7 +624,10 @@ fn build_decorations(buffer: &Buffer, spec: &TextSpec) -> (Vec<RectInstance>, Ve
 
     let mut bg_rects = Vec::new();
     let mut line_rects = Vec::new();
-    let clip = spec.clip.unwrap_or([0.0, 0.0, f32::MAX, f32::MAX]);
+    let clip = spec
+        .clip
+        .map(|c| [c[0] * scale, c[1] * scale, c[2] * scale, c[3] * scale])
+        .unwrap_or([0.0, 0.0, f32::MAX, f32::MAX]);
 
     for run in buffer.layout_runs() {
         let line_top = spec.y + run.line_top;
@@ -947,7 +967,7 @@ impl TextPipeline {
             capacity,
             ranges: Vec::new(),
             cache: Vec::new(),
-            scale: 1.0,
+            scale: scale,
             origin_buffer,
             origin_stride,
             origin_capacity,
@@ -1026,7 +1046,9 @@ impl TextPipeline {
         let mut instances = Vec::<GlyphInstance>::new();
         self.ranges.clear();
         self.bg_rects.clear();
+        self.bg_ranges.clear();
         self.line_rects.clear();
+        self.line_ranges.clear();
 
         let t_loop = std::time::Instant::now();
         for (i, spec) in specs.iter().enumerate() {
@@ -1052,7 +1074,7 @@ impl TextPipeline {
                     bytemuck::cast_slice(&origin_floats),
                 );
             }
-            println!("[text {}] origin write: {:?}", i, t_origin.elapsed());
+            // println!("[text {}] origin write: {:?}", i, t_origin.elapsed());
 
             if redraw {
                 if reshape {
@@ -1087,19 +1109,23 @@ impl TextPipeline {
                     cache.buffer = Some(buffer);
                 }
                 if let Some(buffer) = &cache.buffer {
-                    let t = std::time::Instant::now();
-                    cache.glyphs = build_glyphs(buffer, &self.atlas, spec, self.scale);
-                    println!(
-                        "[text {}] build_glyphs: {:?}, {} glyphs",
-                        i,
-                        t.elapsed(),
-                        cache.glyphs.len()
-                    );
-                    let t = std::time::Instant::now();
-                    let (bg, lines) = build_decorations(buffer, spec);
-                    println!("[text {}] build_decorations: {:?}", i, t.elapsed());
-                    cache.bg_rects = bg;
-                    cache.line_rects = lines;
+                    if reshape || cache.needs_glyph_rebuild(spec) {
+                        let t = std::time::Instant::now();
+                        cache.glyphs = build_glyphs(buffer, &self.atlas, spec, self.scale);
+                        println!(
+                            "[text {}] build_glyphs: {:?}, {} glyphs",
+                            i,
+                            t.elapsed(),
+                            cache.glyphs.len()
+                        );
+                    }
+                    if reshape || cache.needs_decoration_rebuild(spec) {
+                        let t = std::time::Instant::now();
+                        let (bg, lines) = build_decorations(buffer, spec, self.scale);
+                        println!("[text {}] build_decorations: {:?}", i, t.elapsed());
+                        cache.bg_rects = bg;
+                        cache.line_rects = lines;
+                    }
                 }
                 cache.update_from(spec);
             }
@@ -1108,10 +1134,15 @@ impl TextPipeline {
             instances.extend_from_slice(&cache.glyphs);
             self.ranges.push((start, cache.glyphs.len() as u32));
 
+            let bg_start = self.bg_rects.len();
             self.bg_rects.extend_from_slice(&cache.bg_rects);
+            self.bg_ranges.push((bg_start, self.bg_rects.len()));
+
+            let line_start = self.line_rects.len();
             self.line_rects.extend_from_slice(&cache.line_rects);
+            self.line_ranges.push((line_start, self.line_rects.len()));
         }
-        println!("[text] total loop time: {:?}", t_loop.elapsed());
+        // println!("[text] total loop time: {:?}", t_loop.elapsed());
 
         if instances.is_empty() {
             return;
@@ -1129,7 +1160,7 @@ impl TextPipeline {
 
         let t = std::time::Instant::now();
         queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&instances));
-        println!("[text] write_buffer: {:?}", t.elapsed());
+        // println!("[text] write_buffer: {:?}", t.elapsed());
     }
 
     pub fn draw_range<'pass>(&'pass self, pass: &mut wgpu::RenderPass<'pass>, index: usize) {

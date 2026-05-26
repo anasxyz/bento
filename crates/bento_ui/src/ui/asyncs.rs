@@ -37,6 +37,17 @@ pub struct AsyncEventQueue {
     spawner: Option<Arc<dyn Fn(Pin<Box<dyn Future<Output = ()> + Send>>) + Send + Sync>>,
 }
 
+#[derive(Clone)]
+pub struct TimerHandle {
+    cancelled: Arc<Mutex<bool>>,
+}
+
+impl TimerHandle {
+    pub fn cancel(&self) {
+        *self.cancelled.lock().unwrap() = true;
+    }
+}
+
 impl AsyncEventQueue {
     pub fn new() -> Self {
         Self {
@@ -106,14 +117,23 @@ impl AsyncEventQueue {
     }
 
     /// Convenience wrapper around spawn for simple time delayed callbacks.
-    pub fn timer<C>(&mut self, duration: f32, callback: C)
+    pub fn timer<C>(&mut self, duration: f32, callback: C) -> TimerHandle
     where
         C: FnOnce(&mut Ui) + Send + 'static,
     {
+        let cancelled = Arc::new(Mutex::new(false));
+        let cancelled_clone = cancelled.clone();
+
         self.spawn(async move {
             tokio::time::sleep(std::time::Duration::from_secs_f32(duration)).await;
-            callback
+            move |ui: &mut Ui| {
+                if !*cancelled_clone.lock().unwrap() {
+                    callback(ui);
+                }
+            }
         });
+
+        TimerHandle { cancelled }
     }
 }
 

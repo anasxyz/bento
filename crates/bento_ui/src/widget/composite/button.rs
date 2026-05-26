@@ -1,3 +1,6 @@
+use std::any::Any;
+
+use crate::Click;
 use crate::layout::Size;
 use crate::{Widget, widget::Canvas};
 use bento_wgpu::{RectDraw, TextDraw};
@@ -18,6 +21,8 @@ pub struct Button {
     label_w: f32,
     label_h: f32,
 }
+
+pub struct ButtonPressed;
 
 impl Button {
     pub fn new(text: &str) -> Self {

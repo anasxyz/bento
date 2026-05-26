@@ -14,7 +14,7 @@ workspace = true
 bento_shared = { workspace = true }
 wgpu = { workspace = true }
 bytemuck = { workspace = true }
-cosmic-text = { workspace = true }
+cosmic-text = { workspace = true, features = ["shape-run-cache"] }
 swash = { workspace = true }
 etagere = { workspace = true }
 image = { workspace = true }

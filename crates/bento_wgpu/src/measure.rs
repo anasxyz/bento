@@ -57,6 +57,7 @@ impl MeasureCache {
 pub struct TextMeasurer {
     pub font_system: cosmic_text::FontSystem,
     cache: MeasureCache,
+    reuse_buffers: HashMap<u64, Buffer>,
 }
 
 impl TextMeasurer {
@@ -65,10 +66,16 @@ impl TextMeasurer {
         Self {
             font_system,
             cache: MeasureCache::new(),
+            reuse_buffers: HashMap::new(),
         }
     }
 
+    pub fn trim_shape_cache(&mut self) {
+        self.font_system.shape_run_cache.trim(2);
+    }
+
     pub fn measure(&mut self, req: TextMeasureRequest<'_>) -> TextMeasureResult {
+        let t = std::time::Instant::now();
         let key = MeasureKey::from_request(&req);
         if let Some((result, _)) = self.cache.cache.get(&key) {
             return result.clone();
@@ -170,31 +177,49 @@ impl TextMeasurer {
 
         buffer.shape_until_scroll(&mut self.font_system, false);
 
-        let mut lines: Vec<LineMetrics> = Vec::new();
-        let mut total_width: f32 = 0.0;
+        let result = extract_result(&buffer, req.text);
+        self.cache.cache.insert(key, (result.clone(), buffer));
+        println!("measure took {:?}", t.elapsed());
+        result
+    }
 
-        for run in buffer.layout_runs() {
-            let line_w = run.glyphs.iter().fold(0.0f32, |acc, g| acc.max(g.x + g.w));
-            let lm = LineMetrics {
-                width: line_w,
-                height: run.line_height,
-                baseline: run.line_y - run.line_top,
-            };
-            total_width = total_width.max(line_w.ceil());
-            lines.push(lm);
-        }
+    pub fn measure_reuse(&mut self, id: u64, req: TextMeasureRequest<'_>) -> TextMeasureResult {
+        let t = std::time::Instant::now();
+        let line_height = req.line_height.unwrap_or(req.size * 1.4);
+        let font_system = &mut self.font_system;
 
-        let total_height = lines.iter().map(|l| l.height).sum();
+        let buffer = self
+            .reuse_buffers
+            .entry(id)
+            .or_insert_with(|| Buffer::new(font_system, Metrics::new(req.size, line_height)));
 
-        let result = TextMeasureResult {
-            width: total_width,
-            height: total_height,
-            line_count: lines.len(),
-            lines,
+        buffer.set_metrics(font_system, Metrics::new(req.size, line_height));
+        buffer.set_size(font_system, req.max_width, None);
+
+        let node_attrs = {
+            let mut a = Attrs::new().weight(Weight(req.weight));
+            if req.italic {
+                a = a.style(CStyle::Italic);
+            }
+            if !req.font_family.is_empty() {
+                a = a.family(Family::Name(req.font_family));
+            }
+            if req.letter_spacing != 0.0 {
+                a = a.letter_spacing(req.letter_spacing);
+            }
+            a
         };
 
-        self.cache.cache.insert(key, (result.clone(), buffer));
-        result
+        buffer.set_text(font_system, req.text, &node_attrs, Shaping::Advanced, None);
+        buffer.shape_until_scroll(font_system, false);
+
+        println!("measure_reuse took {:?}", t.elapsed());
+
+        extract_result(buffer, req.text)
+    }
+
+    pub fn remove_reuse_buffer(&mut self, id: u64) {
+        self.reuse_buffers.remove(&id);
     }
 
     pub fn take_buffer(&mut self, req: &TextMeasureRequest<'_>) -> Option<Buffer> {
@@ -203,11 +228,58 @@ impl TextMeasurer {
     }
 }
 
+fn extract_result(buffer: &Buffer, text: &str) -> TextMeasureResult {
+    let mut lines: Vec<LineMetrics> = Vec::new();
+    let mut total_width: f32 = 0.0;
+    for run in buffer.layout_runs() {
+        let line_w = run.glyphs.iter().fold(0.0f32, |acc, g| acc.max(g.x + g.w));
+        lines.push(LineMetrics {
+            width: line_w,
+            height: run.line_height,
+            baseline: run.line_y - run.line_top,
+        });
+        total_width = total_width.max(line_w.ceil());
+    }
+    let total_height = lines.iter().map(|l| l.height).sum();
+
+    let mut glyph_positions = vec![0.0f32];
+    let mut line_glyph_positions: Vec<Vec<f32>> = Vec::new();
+    let mut line_start_chars: Vec<usize> = Vec::new();
+    for run in buffer.layout_runs() {
+        let mut line_positions = vec![0.0f32];
+        let start_char = run
+            .glyphs
+            .first()
+            .map(|g| byte_to_char(text, g.start))
+            .unwrap_or(0);
+        line_start_chars.push(start_char);
+        for glyph in run.glyphs {
+            glyph_positions.push(glyph.x + glyph.w);
+            line_positions.push(glyph.x + glyph.w);
+        }
+        line_glyph_positions.push(line_positions);
+    }
+
+    TextMeasureResult {
+        width: total_width,
+        height: total_height,
+        line_count: lines.len(),
+        lines,
+        glyph_positions,
+        line_glyph_positions,
+        line_start_chars,
+    }
+}
+
 fn char_to_byte(text: &str, char_idx: usize) -> usize {
     text.char_indices()
         .nth(char_idx)
         .map(|(i, _)| i)
         .unwrap_or(text.len())
+}
+
+fn byte_to_char(text: &str, byte_idx: usize) -> usize {
+    text[..byte_idx.min(text.len())].chars().count()
 }
 
 pub struct TextMeasureRequest<'a> {
@@ -238,6 +310,9 @@ pub struct TextMeasureResult {
     pub height: f32,
     pub line_count: usize,
     pub lines: Vec<LineMetrics>,
+    pub glyph_positions: Vec<f32>,
+    pub line_glyph_positions: Vec<Vec<f32>>,
+    pub line_start_chars: Vec<usize>,
 }
 
 #[derive(Clone, PartialEq, Debug)]

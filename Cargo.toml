@@ -28,7 +28,7 @@ wgpu = "25"
 bytemuck = { version = "1.14", features = ["derive"] }
 etagere = "0.2"
 swash = "0.2"
-cosmic-text = "0.18"
+cosmic-text = { version = "0.18", features = ["shape-run-cache"] }
 image = "0.25"
 resvg = "0.44"
 winit = "0.30"
