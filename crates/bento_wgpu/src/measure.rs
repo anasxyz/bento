@@ -83,6 +83,7 @@ impl TextMeasurer {
 
         let line_height = req.line_height.unwrap_or(req.size * 1.4);
         let mut buffer = Buffer::new(&mut self.font_system, Metrics::new(req.size, line_height));
+        buffer.set_tab_width(&mut self.font_system, req.tab_width);
         buffer.set_size(&mut self.font_system, req.max_width, None);
 
         let node_attrs = {
@@ -193,6 +194,7 @@ impl TextMeasurer {
             .entry(id)
             .or_insert_with(|| Buffer::new(font_system, Metrics::new(req.size, line_height)));
 
+        buffer.set_tab_width(font_system, req.tab_width);
         buffer.set_metrics(font_system, Metrics::new(req.size, line_height));
         buffer.set_size(font_system, req.max_width, None);
 
@@ -291,6 +293,7 @@ pub struct TextMeasureRequest<'a> {
     pub letter_spacing: f32,
     pub line_height: Option<f32>,
     pub max_width: Option<f32>,
+    pub tab_width: u16,
 
     pub weight_ranges: &'a [WeightRange],
     pub italic_ranges: &'a [ItalicRange],

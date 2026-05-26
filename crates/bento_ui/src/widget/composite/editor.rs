@@ -63,6 +63,9 @@ pub struct Editor {
     resize_start_mouse_y: f32,
     resize_start_w: f32,
     resize_start_h: f32,
+
+    pub tab_width: usize,
+    pub use_spaces: bool,
 }
 
 impl Editor {
@@ -104,6 +107,8 @@ impl Editor {
             resize_start_mouse_y: 0.0,
             resize_start_w: 0.0,
             resize_start_h: 0.0,
+            tab_width: 4,
+            use_spaces: false,
         }
     }
 }
@@ -497,6 +502,23 @@ impl Editor {
                 }
             }
 
+            Key::Tab => {
+                self.delete_selection();
+                if self.use_spaces {
+                    for _ in 0..self.tab_width {
+                        let byte = char_to_byte(&self.lines[self.cursor_line], self.cursor_col);
+                        self.lines[self.cursor_line].insert(byte, ' ');
+                        self.cursor_col += 1;
+                    }
+                } else {
+                    let byte = char_to_byte(&self.lines[self.cursor_line], self.cursor_col);
+                    self.lines[self.cursor_line].insert(byte, '\t');
+                    self.cursor_col += 1;
+                }
+                self.mark_dirty(self.cursor_line);
+                true
+            }
+
             _ => {
                 if let Some(ch) = e.ch {
                     if !ch.is_control() {
@@ -701,6 +723,7 @@ impl Widget for Editor {
                     italic: false,
                     letter_spacing: 0.0,
                     line_height: Some(self.line_height),
+                    tab_width: self.tab_width as u16,
                     max_width: Some(inner_w),
                     weight_ranges: &[],
                     italic_ranges: &[],
@@ -732,6 +755,7 @@ impl Widget for Editor {
                     italic: false,
                     letter_spacing: 0.0,
                     line_height: Some(self.line_height),
+                    tab_width: self.tab_width as u16,
                     max_width: Some(inner_w),
                     weight_ranges: &[],
                     italic_ranges: &[],
@@ -859,6 +883,7 @@ impl Widget for Editor {
                     font_family: self.font_family.clone(),
                     max_width: Some(inner_w),
                     line_height: Some(self.line_height),
+                    tab_width: self.tab_width as u16,
                     letter_spacing: 0.0,
                     align: TextAlign::Left,
                     opacity: canvas.opacity,

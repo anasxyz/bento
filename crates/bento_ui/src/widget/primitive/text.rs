@@ -81,6 +81,7 @@ impl Widget for Text {
             italic: false,
             letter_spacing: 0.0,
             line_height: None,
+            tab_width: 4,
             max_width,
             weight_ranges: &[],
             italic_ranges: &[],
@@ -115,6 +116,7 @@ impl Widget for Text {
                 Some(self.w)
             },
             line_height: None,
+            tab_width: 4,
             letter_spacing: 0.0,
             align: TextAlign::Left,
             opacity: canvas.opacity,

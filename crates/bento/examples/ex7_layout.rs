@@ -31,6 +31,7 @@ fn main() {
         e.lines = vec!["hello".to_string(), "world💁👌🎍😍".to_string()];
         e.width = Size::Fill;
         e.height = Size::Fill;
+        e.use_spaces = true;
     });
 
     let mut status = Rect::new(0.0, 24.0);

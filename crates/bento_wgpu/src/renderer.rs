@@ -158,6 +158,7 @@ impl Renderer {
                             font_family: t.font_family.clone(),
                             max_width: t.max_width,
                             line_height: t.line_height,
+                            tab_width: t.tab_width,
                             letter_spacing: t.letter_spacing,
                             align: t.align.clone(),
                             opacity: t.opacity,

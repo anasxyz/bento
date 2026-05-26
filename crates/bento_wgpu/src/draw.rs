@@ -30,6 +30,7 @@ pub struct TextDraw {
     pub font_family: String,
     pub max_width: Option<f32>,
     pub line_height: Option<f32>,
+    pub tab_width: u16,
     pub letter_spacing: f32,
     pub align: TextAlign,
     pub opacity: f32,

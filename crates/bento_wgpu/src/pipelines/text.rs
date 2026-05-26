@@ -42,6 +42,7 @@ pub struct TextSpec {
     pub font_family: String,
     pub max_width: Option<f32>,
     pub line_height: Option<f32>,
+    pub tab_width: u16,
     pub letter_spacing: f32,
     pub align: TextAlign,
     pub opacity: f32,
@@ -376,6 +377,7 @@ fn shape(spec: &TextSpec, font_system: &mut cosmic_text::FontSystem, scale: f32)
     let t = std::time::Instant::now();
     let line_height = spec.line_height.unwrap_or(spec.size * 1.4);
     let mut buffer = Buffer::new(font_system, Metrics::new(spec.size, line_height));
+    buffer.set_tab_width(font_system, spec.tab_width);
     buffer.set_size(font_system, spec.max_width, None);
 
     let align = match spec.align {
@@ -1197,6 +1199,7 @@ fn spec_to_measure_request(spec: &TextSpec) -> TextMeasureRequest<'_> {
         italic: spec.italic,
         letter_spacing: spec.letter_spacing,
         line_height: spec.line_height,
+        tab_width: spec.tab_width,
         max_width: spec.max_width,
         weight_ranges: &spec.weight_ranges,
         italic_ranges: &spec.italic_ranges,
