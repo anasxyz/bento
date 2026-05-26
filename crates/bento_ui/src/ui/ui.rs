@@ -879,6 +879,13 @@ impl Ui {
                         button: MouseButton::Left,
                     }),
                 );
+                if self.focused != Some(node_id) {
+                    if let Some(old_id) = self.focused {
+                        self.fire(old_id, Box::new(FocusLost));
+                    }
+                    self.focused = Some(node_id);
+                    self.fire(node_id, Box::new(FocusGained));
+                }
             }
             if self.input.mouse.right.just_pressed {
                 let now = std::time::Instant::now();
@@ -932,13 +939,6 @@ impl Ui {
 
         if let Some(node_id) = mouse_up_target {
             if self.input.mouse.left.just_released {
-                if self.focused != Some(node_id) {
-                    if let Some(old_id) = self.focused {
-                        self.fire(old_id, Box::new(FocusLost));
-                    }
-                    self.focused = Some(node_id);
-                    self.fire(node_id, Box::new(FocusGained));
-                }
                 self.fire(
                     node_id,
                     Box::new(MouseUp {

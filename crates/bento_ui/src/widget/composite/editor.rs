@@ -655,6 +655,7 @@ impl Widget for Editor {
                     e.selection_anchor = Some((line, col));
                 }
             }
+            ui.capture_mouse(handle);
             start_blink(ui, handle);
         });
 
@@ -704,6 +705,7 @@ impl Widget for Editor {
                     e.selection_anchor = None;
                 }
             }
+            ui.release_mouse();
         });
 
         ui.listen(handle, move |ev: &MouseScroll, ui: &mut Ui| {
