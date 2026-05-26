@@ -28,6 +28,8 @@ fn main() {
 
     let editor = ui.add(Editor::new());
     ui.set(editor, |e| {
+        e.set_font_size(14.0);
+        e.font_family = "ZedMono Nerd Font".to_string();
         e.width = Size::Fill;
         e.height = Size::Fill;
         e.use_spaces = true;

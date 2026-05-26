@@ -90,7 +90,7 @@ impl Editor {
             background: [0.02, 0.02, 0.02, 1.0],
             font_size,
             font_family: "JetBrainsMono Nerd Font".to_string(),
-            line_height: font_size * 1.3,
+            line_height: font_size * 1.5,
             lines: vec![String::new()],
             cursor_line: 0,
             cursor_col: 0,
@@ -121,6 +121,11 @@ impl Editor {
             max_line_width: 0.0,
             max_line_width_dirty: false,
         }
+    }
+
+    pub fn set_font_size(&mut self, size: f32) {
+        self.font_size = size;
+        self.line_height = size * 1.5;
     }
 }
 
