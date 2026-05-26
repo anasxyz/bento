@@ -6,7 +6,7 @@ const DOCK_B_X: f32 = 450.0;
 const DOCK_B_Y: f32 = 50.0;
 const DOCK_W: f32 = 300.0;
 const DOCK_H: f32 = 300.0;
-const SNAP_THRESHOLD: f32 = 40.0;
+const SNAP_THRESHOLD: f32 = 200.0;
 
 fn main() {
     let mut app = App::new();
@@ -48,7 +48,7 @@ fn main() {
     ui.append(panel, btn2);
 
     ui.listen(panel, move |_: &MouseUp, ui: &mut Ui| {
-        if let Some(p) = ui.get_mut(panel) {
+        ui.set(panel, |p| {
             let docks = [(DOCK_A_X, DOCK_A_Y), (DOCK_B_X, DOCK_B_Y)];
             for (dx, dy) in docks {
                 if (p.x - dx).abs() < SNAP_THRESHOLD && (p.y - dy).abs() < SNAP_THRESHOLD {
@@ -57,9 +57,7 @@ fn main() {
                     break;
                 }
             }
-        }
-        ui.request_layout(panel);
-        ui.request_redraw();
+        });
     });
 
     app.open_window(WindowConfig::default(), ui);

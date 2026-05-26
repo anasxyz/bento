@@ -98,6 +98,7 @@ impl Ui {
         if let Some(w) = self.get_mut(handle) {
             f(w);
             self.request_update(handle);
+            self.request_layout(handle);
             self.request_redraw();
         }
     }

@@ -321,7 +321,7 @@ impl Widget for LineInput {
     fn update(&mut self, measurer: &mut TextMeasurer) {
         let result = measurer.measure(TextMeasureRequest {
             text: if self.value.is_empty() {
-                " "
+                ""
             } else {
                 &self.value
             },

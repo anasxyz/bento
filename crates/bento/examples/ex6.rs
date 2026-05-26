@@ -12,7 +12,6 @@ fn main() {
 
     let input = ui.add(LineInput::new());
     ui.append(row, input);
-    
 
     app.open_window(WindowConfig::default(), ui);
     app.run();

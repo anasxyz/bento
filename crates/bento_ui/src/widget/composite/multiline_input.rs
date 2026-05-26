@@ -971,7 +971,7 @@ impl Widget for MultilineInput {
             canvas.draw_list.push_rect(RectDraw {
                 x: (canvas.x + self.padding + self.cursor_x - self.scroll_x).floor(),
                 y: cy,
-                w: 1.0,
+                w: 2.0,
                 h: self.line_height,
                 color: [1.0, 1.0, 1.0, 1.0],
                 radii: [0.0; 4],
