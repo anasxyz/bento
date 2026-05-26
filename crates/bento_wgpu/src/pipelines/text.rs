@@ -313,7 +313,8 @@ impl TextCache {
     }
 
     fn needs_decoration_rebuild(&self, s: &TextSpec) -> bool {
-        self.background_ranges != s.background_ranges
+        self.y != s.y
+            || self.background_ranges != s.background_ranges
             || self.underline_ranges != s.underline_ranges
             || self.strikethrough_ranges != s.strikethrough_ranges
     }
