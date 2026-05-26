@@ -32,6 +32,6 @@ fn main() {
 ```
 
 ## Screenshots
-<img src="screenshots/show2.png" width="800" height="600">
-<img src="screenshots/show1.png" width="800" height="600">
-<img src="screenshots/demo_dock.gif" width="800" height="600">
+<img src="media/show2.png" width="800" height="600">
+<img src="media/show1.png" width="800" height="600">
+<img src="media/demo_dock.gif" width="800" height="600">
