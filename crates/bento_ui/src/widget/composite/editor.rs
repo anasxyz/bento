@@ -266,6 +266,13 @@ impl Editor {
             return false;
         }
 
+        if ctrl && e.key == Key::A {
+            self.selection_anchor = Some((0, 0));
+            self.cursor_line = self.lines.len() - 1;
+            self.cursor_col = self.lines[self.cursor_line].chars().count();
+            return true;
+        }
+
         // set/extend selection anchor on shift, clear it otherwise
         // Called before moving the cursor
         let anchor = (self.cursor_line, self.cursor_col);
@@ -707,7 +714,7 @@ impl Widget for Editor {
                 if !e.wrap {
                     let inner_w = e.w - e.padding * 2.0;
                     let max_scroll_x = (e.max_line_width - inner_w).max(0.0);
-                    e.scroll_x = (e.scroll_x + ev.x * 20.0).clamp(0.0, max_scroll_x);
+                    e.scroll_x = (e.scroll_x - ev.x * 20.0).clamp(0.0, max_scroll_x);
                 }
                 ui.request_redraw();
             }

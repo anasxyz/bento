@@ -28,7 +28,9 @@ fn main() {
 
     let editor = ui.add(Editor::new());
     ui.set(editor, |e| {
-        e.lines = vec!["hello".to_string(), "world💁👌🎍😍".to_string()];
+        for i in 0..100 {
+            e.lines.push(format!("line {}", i));
+        }
         e.width = Size::Fill;
         e.height = Size::Fill;
         e.use_spaces = true;

@@ -218,7 +218,6 @@ impl Ui {
                 self.layout_node(id, self.viewport_w, self.viewport_h);
             }
         }
-        println!("layout time: {:?}", t.elapsed());
 
         // DEBUG
         // to update hovered node when hovering over a widget and it changes/moves
