@@ -305,6 +305,19 @@ impl TextCache {
                 .any(|(a, b)| a.0 != b.start || a.1 != b.end || a.2 != b.font_family)
     }
 
+    fn needs_glyph_rebuild(&self, s: &TextSpec) -> bool {
+        self.color != s.color
+            || self.opacity != s.opacity
+            || self.clip != s.clip
+            || self.color_ranges != s.color_ranges
+    }
+
+    fn needs_decoration_rebuild(&self, s: &TextSpec) -> bool {
+        self.background_ranges != s.background_ranges
+            || self.underline_ranges != s.underline_ranges
+            || self.strikethrough_ranges != s.strikethrough_ranges
+    }
+
     fn needs_redraw(&self, s: &TextSpec) -> bool {
         self.x != s.x
             || self.y != s.y
@@ -1045,7 +1058,7 @@ impl TextPipeline {
             let redraw = reshape || cache.needs_redraw(spec);
             let origin_update = reshape || cache.needs_origin_update(spec);
 
-            // println!("[text {}] reshape={} redraw={}", i, reshape, redraw);
+            println!("[text {}] reshape={} redraw={}", i, reshape, redraw);
 
             let t_origin = std::time::Instant::now();
             // write origin regardless of whether glyphs need rebuilding
@@ -1096,19 +1109,23 @@ impl TextPipeline {
                     cache.buffer = Some(buffer);
                 }
                 if let Some(buffer) = &cache.buffer {
-                    let t = std::time::Instant::now();
-                    cache.glyphs = build_glyphs(buffer, &self.atlas, spec, self.scale);
-                    // println!(
-                    //    "[text {}] build_glyphs: {:?}, {} glyphs",
-                    //    i,
-                    //    t.elapsed(),
-                    //    cache.glyphs.len()
-                    // );
-                    let t = std::time::Instant::now();
-                    let (bg, lines) = build_decorations(buffer, spec, self.scale);
-                    // println!("[text {}] build_decorations: {:?}", i, t.elapsed());
-                    cache.bg_rects = bg;
-                    cache.line_rects = lines;
+                    if reshape || cache.needs_glyph_rebuild(spec) {
+                        let t = std::time::Instant::now();
+                        cache.glyphs = build_glyphs(buffer, &self.atlas, spec, self.scale);
+                        println!(
+                            "[text {}] build_glyphs: {:?}, {} glyphs",
+                            i,
+                            t.elapsed(),
+                            cache.glyphs.len()
+                        );
+                    }
+                    if reshape || cache.needs_decoration_rebuild(spec) {
+                        let t = std::time::Instant::now();
+                        let (bg, lines) = build_decorations(buffer, spec, self.scale);
+                        println!("[text {}] build_decorations: {:?}", i, t.elapsed());
+                        cache.bg_rects = bg;
+                        cache.line_rects = lines;
+                    }
                 }
                 cache.update_from(spec);
             }

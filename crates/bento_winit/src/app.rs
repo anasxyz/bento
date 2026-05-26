@@ -77,7 +77,7 @@ impl ApplicationHandler<BentoEvent> for App {
 
         match event {
             WindowEvent::RedrawRequested => {
-                // println!("----------------------------");
+                println!("----------------------------");
                 let t_total = std::time::Instant::now();
 
                 let t = std::time::Instant::now();
@@ -116,7 +116,7 @@ impl ApplicationHandler<BentoEvent> for App {
                 win.ui.input.mouse.clear();
                 win.ui.input.keyboard.clear();
                 println!("total frame time: {:?}", t_total.elapsed());
-                // println!("----------------------------");
+                println!("----------------------------");
             }
 
             WindowEvent::KeyboardInput {
