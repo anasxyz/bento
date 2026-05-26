@@ -12,6 +12,10 @@ pub struct MouseButtonState {
     pub released: bool,
     pub just_pressed: bool,
     pub just_released: bool,
+    pub click_count: u32,
+    pub last_click_x: f32,
+    pub last_click_y: f32,
+    pub last_click_time: std::time::Instant,
 }
 
 pub struct Mouse {
@@ -48,18 +52,30 @@ impl Mouse {
                 released: false,
                 just_pressed: false,
                 just_released: false,
+                click_count: 0,
+                last_click_x: 0.0,
+                last_click_y: 0.0,
+                last_click_time: std::time::Instant::now(),
             },
             right: MouseButtonState {
                 pressed: false,
                 released: false,
                 just_pressed: false,
                 just_released: false,
+                click_count: 0,
+                last_click_x: 0.0,
+                last_click_y: 0.0,
+                last_click_time: std::time::Instant::now(),
             },
             middle: MouseButtonState {
                 pressed: false,
                 released: false,
                 just_pressed: false,
                 just_released: false,
+                click_count: 0,
+                last_click_x: 0.0,
+                last_click_y: 0.0,
+                last_click_time: std::time::Instant::now(),
             },
 
             inside_window: false,

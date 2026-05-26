@@ -858,6 +858,20 @@ impl Ui {
 
         if let Some(node_id) = hover_target {
             if self.input.mouse.left.just_pressed {
+                let now = std::time::Instant::now();
+                let dt = now
+                    .duration_since(self.input.mouse.left.last_click_time)
+                    .as_millis();
+                let dx = (self.input.mouse.x - self.input.mouse.left.last_click_x).abs();
+                let dy = (self.input.mouse.y - self.input.mouse.left.last_click_y).abs();
+                if dt < 400 && dx < 5.0 && dy < 5.0 {
+                    self.input.mouse.left.click_count += 1;
+                } else {
+                    self.input.mouse.left.click_count = 1;
+                }
+                self.input.mouse.left.last_click_time = now;
+                self.input.mouse.left.last_click_x = self.input.mouse.x;
+                self.input.mouse.left.last_click_y = self.input.mouse.y;
                 self.fire(
                     node_id,
                     Box::new(MouseDown {
@@ -868,6 +882,20 @@ impl Ui {
                 );
             }
             if self.input.mouse.right.just_pressed {
+                let now = std::time::Instant::now();
+                let dt = now
+                    .duration_since(self.input.mouse.right.last_click_time)
+                    .as_millis();
+                let dx = (self.input.mouse.x - self.input.mouse.right.last_click_x).abs();
+                let dy = (self.input.mouse.y - self.input.mouse.right.last_click_y).abs();
+                if dt < 400 && dx < 5.0 && dy < 5.0 {
+                    self.input.mouse.right.click_count += 1;
+                } else {
+                    self.input.mouse.right.click_count = 1;
+                }
+                self.input.mouse.right.last_click_time = now;
+                self.input.mouse.right.last_click_x = self.input.mouse.x;
+                self.input.mouse.right.last_click_y = self.input.mouse.y;
                 self.fire(
                     node_id,
                     Box::new(MouseDown {
@@ -878,6 +906,20 @@ impl Ui {
                 );
             }
             if self.input.mouse.middle.just_pressed {
+                let now = std::time::Instant::now();
+                let dt = now
+                    .duration_since(self.input.mouse.middle.last_click_time)
+                    .as_millis();
+                let dx = (self.input.mouse.x - self.input.mouse.middle.last_click_x).abs();
+                let dy = (self.input.mouse.y - self.input.mouse.middle.last_click_y).abs();
+                if dt < 400 && dx < 5.0 && dy < 5.0 {
+                    self.input.mouse.middle.click_count += 1;
+                } else {
+                    self.input.mouse.middle.click_count = 1;
+                }
+                self.input.mouse.middle.last_click_time = now;
+                self.input.mouse.middle.last_click_x = self.input.mouse.x;
+                self.input.mouse.middle.last_click_y = self.input.mouse.y;
                 self.fire(
                     node_id,
                     Box::new(MouseDown {

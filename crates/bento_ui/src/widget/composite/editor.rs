@@ -583,6 +583,7 @@ impl Widget for Editor {
         });
 
         ui.listen(handle, move |ev: &MouseDown, ui: &mut Ui| {
+            let click_count = ui.input.mouse.left.click_count;
             if let Some(e) = ui.get_mut(handle) {
                 if e.near_resize_corner(ev.x, ev.y) {
                     e.resizing = true;
@@ -596,7 +597,18 @@ impl Widget for Editor {
                 let (line, col) = e.pos_to_cursor(ev.x, ev.y, e.x, e.y);
                 e.cursor_line = line;
                 e.cursor_col = col;
-                e.selection_anchor = Some((line, col));
+                if click_count == 2 {
+                    let text = &e.lines[line];
+                    let start = word_start(text, col);
+                    let end = word_end(text, col);
+                    e.selection_anchor = Some((line, start));
+                    e.cursor_col = end;
+                } else if click_count >= 3 {
+                    e.selection_anchor = Some((line, 0));
+                    e.cursor_col = e.lines[line].chars().count();
+                } else {
+                    e.selection_anchor = Some((line, col));
+                }
             }
             start_blink(ui, handle);
         });
@@ -935,4 +947,37 @@ fn find_col_at_x(positions: &[f32], target_x: f32) -> usize {
         })
         .map(|(i, _)| i)
         .unwrap_or(0)
+}
+
+fn word_start(text: &str, col: usize) -> usize {
+    let chars: Vec<char> = text.chars().collect();
+    if col == 0 || chars.is_empty() {
+        return 0;
+    }
+    let mut i = col.min(chars.len()).saturating_sub(1);
+    if !chars[i].is_alphanumeric() && chars[i] != '_' {
+        return col;
+    }
+    while i > 0 && (chars[i - 1].is_alphanumeric() || chars[i - 1] == '_') {
+        i -= 1;
+    }
+    i
+}
+
+fn word_end(text: &str, col: usize) -> usize {
+    let chars: Vec<char> = text.chars().collect();
+    if chars.is_empty() {
+        return 0;
+    }
+    let mut i = col.min(chars.len());
+    if i >= chars.len() {
+        return chars.len();
+    }
+    if !chars[i].is_alphanumeric() && chars[i] != '_' {
+        return col;
+    }
+    while i < chars.len() && (chars[i].is_alphanumeric() || chars[i] == '_') {
+        i += 1;
+    }
+    i
 }
