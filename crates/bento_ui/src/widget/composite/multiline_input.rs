@@ -51,7 +51,7 @@ pub struct MultilineInput {
     line_dirty: Vec<bool>,
     // per line glyph positions for click/cursor navigation
     all_line_glyph_positions: Vec<Vec<Vec<f32>>>, // [line][visual_row][col]
-    all_line_start_chars: Vec<Vec<usize>>, // [line][visual_row]
+    all_line_start_chars: Vec<Vec<usize>>,        // [line][visual_row]
 
     // cursor render state, computed in update)
     cursor_x: f32,
@@ -67,6 +67,9 @@ pub struct MultilineInput {
     line_widths: Vec<f32>,
     max_line_width: f32,
     max_line_width_dirty: bool,
+
+    screen_x: f32,
+    screen_y: f32,
 }
 
 impl MultilineInput {
@@ -116,6 +119,8 @@ impl MultilineInput {
             max_line_width: 0.0,
             max_line_width_dirty: false,
             resizable: false,
+            screen_x: 0.0,
+            screen_y: 0.0,
         }
     }
 
@@ -127,8 +132,8 @@ impl MultilineInput {
 
 impl MultilineInput {
     fn near_resize_corner(&self, mx: f32, my: f32) -> bool {
-        let corner_x = self.x + self.w;
-        let corner_y = self.y + self.h;
+        let corner_x = self.screen_x + self.w;
+        let corner_y = self.screen_y + self.h;
         (mx - corner_x).abs() < 20.0 && (my - corner_y).abs() < 20.0
     }
 
@@ -641,7 +646,7 @@ impl Widget for MultilineInput {
                     ui.capture_mouse(handle);
                     return;
                 }
-                let (line, col) = e.pos_to_cursor(ev.x, ev.y, e.x, e.y);
+                let (line, col) = e.pos_to_cursor(ev.x, ev.y, e.screen_x, e.screen_y);
                 e.cursor_line = line;
                 e.cursor_col = col;
                 if click_count == 2 {
@@ -678,7 +683,7 @@ impl Widget for MultilineInput {
                 }
                 let near_corner = e.near_resize_corner(ev.x, ev.y);
                 let new_col = if left_pressed {
-                    Some(e.pos_to_cursor(ev.x, ev.y, e.x, e.y))
+                    Some(e.pos_to_cursor(ev.x, ev.y, e.screen_x, e.screen_y))
                 } else {
                     None
                 };
@@ -747,7 +752,7 @@ impl Widget for MultilineInput {
                 self.id,
                 TextMeasureRequest {
                     text: if self.lines[i].is_empty() {
-                        " "
+                        ""
                     } else {
                         &self.lines[i]
                     },
@@ -787,7 +792,7 @@ impl Widget for MultilineInput {
                 self.id,
                 TextMeasureRequest {
                     text: if self.lines[cursor_line].is_empty() {
-                        " "
+                        ""
                     } else {
                         &self.lines[cursor_line]
                     },
@@ -864,7 +869,10 @@ impl Widget for MultilineInput {
         self.scroll_y = self.scroll_y.clamp(0.0, max_scroll);
     }
 
-    fn render(&self, canvas: &mut Canvas) {
+    fn render(&mut self, canvas: &mut Canvas) {
+        self.screen_x = canvas.x;
+        self.screen_y = canvas.y;
+
         // background + border
         canvas.draw_list.push_rect(RectDraw {
             x: canvas.x,

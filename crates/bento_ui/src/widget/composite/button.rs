@@ -118,7 +118,7 @@ impl Widget for Button {
         self.z
     }
 
-    fn render(&self, canvas: &mut Canvas) {
+    fn render(&mut self, canvas: &mut Canvas) {
         let lw = self.label_w;
         let lh = self.label_h;
         canvas.draw_list.push_rect(RectDraw {

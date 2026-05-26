@@ -52,7 +52,7 @@ pub trait Widget {
 
     /// Allows the widget to describe how it should be rendered.
     /// The canvas is used to issue draw commands.
-    fn render(&self, canvas: &mut Canvas) {}
+    fn render(&mut self, canvas: &mut Canvas) {}
 }
 
 pub trait AnyWidget: Widget + Any {

@@ -31,6 +31,8 @@ pub struct LineInput {
     blink_handle: Option<TimerHandle>,
     cursor_visible: bool,
     glyph_positions: Vec<f32>,
+    screen_x: f32,
+    screen_y: f32,
 }
 
 impl LineInput {
@@ -58,6 +60,8 @@ impl LineInput {
             blink_handle: None,
             cursor_visible: true,
             glyph_positions: Vec::new(),
+            screen_x: 0.0,
+            screen_y: 0.0,
         }
     }
 
@@ -86,7 +90,7 @@ impl LineInput {
     }
 
     fn pos_to_col(&self, mx: f32) -> usize {
-        let rel_x = mx - self.x - self.padding + self.scroll_offset;
+        let rel_x = mx - self.screen_x - self.padding + self.scroll_offset;
         find_col_at_x(&self.glyph_positions, rel_x)
     }
 
@@ -361,7 +365,10 @@ impl Widget for LineInput {
         self.scroll_offset = self.scroll_offset.clamp(0.0, max_scroll);
     }
 
-    fn render(&self, canvas: &mut Canvas) {
+    fn render(&mut self, canvas: &mut Canvas) {
+        self.screen_x = canvas.x;
+        self.screen_y = canvas.y;
+
         canvas.draw_list.push_rect(RectDraw {
             x: canvas.x,
             y: canvas.y,

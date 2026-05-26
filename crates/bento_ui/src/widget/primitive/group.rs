@@ -1,7 +1,7 @@
 use bento_wgpu::RectDraw;
 
 use crate::Ui;
-use crate::events::types::{MouseDown, MouseMove, MouseUp};
+use crate::events::types::{MouseDown, MouseMove, MouseScroll, MouseUp};
 use crate::layout::{Layout, Size};
 use crate::widget::{Canvas, Widget, WidgetHandle};
 
@@ -18,10 +18,9 @@ pub struct Group {
     pub z: i32,
     pub background: Option<[f32; 4]>,
     pub draggable: bool,
+    pub scrollable: bool,
 
     dragging: bool,
-    drag_offset_x: f32,
-    drag_offset_y: f32,
 }
 
 impl Group {
@@ -39,9 +38,8 @@ impl Group {
             z: 0,
             background: None,
             draggable: false,
+            scrollable: false,
             dragging: false,
-            drag_offset_x: 0.0,
-            drag_offset_y: 0.0,
         }
     }
 
@@ -89,11 +87,9 @@ impl Widget for Group {
                 if !g.draggable {
                     return;
                 }
-                g.drag_offset_x = ev.x - g.x;
-                g.drag_offset_y = ev.y - g.y;
                 g.dragging = true;
+                ui.capture_mouse(handle);
             }
-            ui.capture_mouse(handle);
         });
 
         ui.listen(handle, move |ev: &MouseMove, ui: &mut Ui| {
@@ -101,8 +97,8 @@ impl Widget for Group {
                 if !g.dragging {
                     return;
                 }
-                g.x = ev.x - g.drag_offset_x;
-                g.y = ev.y - g.drag_offset_y;
+                g.x += ev.dx;
+                g.y += ev.dy;
             }
             ui.request_layout(handle);
             ui.request_redraw();
@@ -113,6 +109,16 @@ impl Widget for Group {
                 g.dragging = false;
             }
             ui.release_mouse();
+        });
+        ui.listen(handle, move |ev: &MouseScroll, ui: &mut Ui| {
+            if let Some(g) = ui.get_mut(handle) {
+                if !g.scrollable {
+                    return;
+                }
+                g.scroll_x += ev.x * 20.0;
+                g.scroll_y -= ev.y * 20.0;
+            }
+            ui.request_redraw();
         });
     }
     fn size(&self) -> (f32, f32) {
@@ -129,7 +135,7 @@ impl Widget for Group {
         self.z
     }
 
-    fn render(&self, canvas: &mut Canvas) {
+    fn render(&mut self, canvas: &mut Canvas) {
         if let Some(color) = self.background {
             canvas.draw_list.push_rect(RectDraw {
                 x: canvas.x,

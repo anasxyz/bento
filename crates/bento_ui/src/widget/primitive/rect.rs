@@ -65,7 +65,7 @@ impl Widget for Rect {
     fn z(&self) -> i32 {
         self.z
     }
-    fn render(&self, canvas: &mut Canvas) {
+    fn render(&mut self, canvas: &mut Canvas) {
         canvas.draw_list.push_rect(RectDraw {
             x: canvas.x,
             y: canvas.y,

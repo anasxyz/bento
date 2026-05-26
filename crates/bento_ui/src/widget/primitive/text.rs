@@ -98,7 +98,7 @@ impl Widget for Text {
             _ => result.height,
         };
     }
-    fn render(&self, canvas: &mut Canvas) {
+    fn render(&mut self, canvas: &mut Canvas) {
         canvas.draw_list.push_text(TextDraw {
             x: canvas.x,
             y: canvas.y,

@@ -389,11 +389,6 @@ impl Ui {
                     }
                 }
 
-                let (parent_x, parent_y) = self.nodes[id]
-                    .as_ref()
-                    .map(|n| n.widget.position())
-                    .unwrap_or((0.0, 0.0));
-
                 let mut cursor = 0.0;
                 for child_id in &children {
                     let (w, _) = match self.nodes[*child_id].as_ref() {
@@ -401,7 +396,7 @@ impl Ui {
                         None => continue,
                     };
                     if let Some(n) = self.nodes[*child_id].as_mut() {
-                        n.widget.set_position(parent_x + cursor, parent_y);
+                        n.widget.set_position(cursor, 0.0);
                         self.request_redraw();
                     }
                     cursor += w + gap;
@@ -517,11 +512,6 @@ impl Ui {
                     }
                 }
 
-                let (parent_x, parent_y) = self.nodes[id]
-                    .as_ref()
-                    .map(|n| n.widget.position())
-                    .unwrap_or((0.0, 0.0));
-
                 let mut cursor = 0.0;
                 for child_id in &children {
                     let (_, h) = match self.nodes[*child_id].as_ref() {
@@ -529,7 +519,7 @@ impl Ui {
                         None => continue,
                     };
                     if let Some(n) = self.nodes[*child_id].as_mut() {
-                        n.widget.set_position(parent_x, parent_y + cursor);
+                        n.widget.set_position(0.0, cursor);
                         self.request_redraw();
                     }
                     cursor += h + gap;
@@ -580,9 +570,10 @@ impl Ui {
         }
     }
 
-    pub fn collect_draw_list(&self) -> DrawList {
+    pub fn collect_draw_list(&mut self) -> DrawList {
+        let roots = self.roots.clone();
         let mut draw_list = DrawList::new();
-        for &id in &self.roots {
+        for id in roots {
             self.render_node(id, &mut draw_list, Accumulated::identity());
         }
         draw_list.sort_by_z();
@@ -685,15 +676,29 @@ impl Ui {
         draw_list
     }
 
-    fn render_node(&self, id: usize, draw_list: &mut DrawList, acc: Accumulated) {
-        if let Some(Some(s)) = self.nodes.get(id) {
-            let (ox, oy) = s
+    fn render_node(&mut self, id: usize, draw_list: &mut DrawList, acc: Accumulated) {
+        let (ox, oy, z, scroll) = {
+            let Some(Some(s)) = self.nodes.get(id) else {
+                return;
+            };
+            let (ox, oy) = s.widget.position();
+            let z = s.widget.z();
+            let scroll = s
                 .widget
                 .as_any()
                 .downcast_ref::<Group>()
-                .map(|g| (g.x + g.scroll_x, g.y + g.scroll_y))
-                .unwrap_or_else(|| s.widget.position());
-            let my_acc = acc.push_absolute(ox, oy, None, s.widget.z());
+                .map(|g| (g.scroll_x, g.scroll_y))
+                .unwrap_or((0.0, 0.0));
+            (ox, oy, z, scroll)
+        };
+
+        let my_acc = acc.push(ox, oy, None, z);
+        let children_acc = acc.push(ox + scroll.0, oy + scroll.1, None, z);
+
+        {
+            let Some(Some(s)) = self.nodes.get_mut(id) else {
+                return;
+            };
             let mut canvas = Canvas {
                 draw_list,
                 x: my_acc.offset_x,
@@ -706,9 +711,17 @@ impl Ui {
                 scale_y: my_acc.scale_y,
             };
             s.widget.render(&mut canvas);
-            for &child_id in &s.children {
-                self.render_node(child_id, draw_list, my_acc);
-            }
+        }
+
+        let children = {
+            let Some(Some(s)) = self.nodes.get(id) else {
+                return;
+            };
+            s.children.clone()
+        };
+
+        for child_id in children {
+            self.render_node(child_id, draw_list, children_acc);
         }
     }
 
@@ -1051,20 +1064,22 @@ impl Ui {
         let Some(Some(node)) = self.nodes.get(id) else {
             return None;
         };
-        let (ox, oy) = node
+        let (ox, oy) = node.widget.position();
+        let my_acc = acc.push(ox, oy, None, node.widget.z());
+        let scroll = node
             .widget
             .as_any()
             .downcast_ref::<Group>()
-            .map(|g| (g.x + g.scroll_x, g.y + g.scroll_y))
-            .unwrap_or_else(|| node.widget.position());
-        let my_acc = acc.push_absolute(ox, oy, None, node.widget.z());
+            .map(|g| (g.scroll_x, g.scroll_y))
+            .unwrap_or((0.0, 0.0));
+        let children_acc = acc.push(ox + scroll.0, oy + scroll.1, None, node.widget.z());
         let (w, h) = node.widget.size();
         let x = my_acc.offset_x;
         let y = my_acc.offset_y;
 
         let mut result = None;
         for &child_id in &node.children {
-            if let Some(hit) = self.hit_test_node(child_id, mx, my, my_acc) {
+            if let Some(hit) = self.hit_test_node(child_id, mx, my, children_acc) {
                 result = Some(hit);
             }
         }
