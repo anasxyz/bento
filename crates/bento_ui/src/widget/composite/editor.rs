@@ -68,6 +68,10 @@ pub struct Editor {
 
     pub tab_width: usize,
     pub use_spaces: bool,
+
+    line_widths: Vec<f32>,
+    max_line_width: f32,
+    max_line_width_dirty: bool,
 }
 
 impl Editor {
@@ -113,6 +117,9 @@ impl Editor {
             resize_start_h: 0.0,
             tab_width: 4,
             use_spaces: false,
+            line_widths: vec![0.0],
+            max_line_width: 0.0,
+            max_line_width_dirty: false,
         }
     }
 }
@@ -148,6 +155,8 @@ impl Editor {
         self.line_dirty.truncate(n);
         self.all_line_glyph_positions.truncate(n);
         self.all_line_start_chars.truncate(n);
+        self.line_widths.resize(n, 0.0);
+        self.line_widths.truncate(n);
     }
 
     fn selection_range(&self) -> Option<((usize, usize), (usize, usize))> {
@@ -200,6 +209,7 @@ impl Editor {
                 self.all_line_glyph_positions.remove(li);
                 self.all_line_start_chars.remove(li);
             }
+            self.max_line_width_dirty = true;
             let truncate_at = char_to_byte(&self.lines[sl], sc);
             self.lines[sl].truncate(truncate_at);
             self.lines[sl].push_str(&tail);
@@ -292,6 +302,7 @@ impl Editor {
                     true
                 } else if self.cursor_line > 0 {
                     let removed = self.lines.remove(self.cursor_line);
+                    self.max_line_width_dirty = true;
                     self.line_visual_rows.remove(self.cursor_line);
                     self.line_dirty.remove(self.cursor_line);
                     self.all_line_glyph_positions.remove(self.cursor_line);
@@ -320,6 +331,7 @@ impl Editor {
                     true
                 } else if self.cursor_line < self.lines.len() - 1 {
                     let next = self.lines.remove(self.cursor_line + 1);
+                    self.max_line_width_dirty = true;
                     self.line_visual_rows.remove(self.cursor_line + 1);
                     self.line_dirty.remove(self.cursor_line + 1);
                     self.all_line_glyph_positions.remove(self.cursor_line + 1);
@@ -693,7 +705,9 @@ impl Widget for Editor {
                 let max_scroll = (e.total_visual_rows() as f32 * e.line_height - inner_h).max(0.0);
                 e.scroll_y = (e.scroll_y - ev.y * e.line_height * 3.0).clamp(0.0, max_scroll);
                 if !e.wrap {
-                    e.scroll_x = (e.scroll_x + ev.x * 20.0).max(0.0);
+                    let inner_w = e.w - e.padding * 2.0;
+                    let max_scroll_x = (e.max_line_width - inner_w).max(0.0);
+                    e.scroll_x = (e.scroll_x + ev.x * 20.0).clamp(0.0, max_scroll_x);
                 }
                 ui.request_redraw();
             }
@@ -706,6 +720,8 @@ impl Widget for Editor {
         if (inner_w - self.cached_inner_w).abs() > 0.1 {
             self.cached_inner_w = inner_w;
             self.line_dirty.iter_mut().for_each(|d| *d = true);
+            self.max_line_width = 0.0;
+            self.max_line_width_dirty = false;
         }
 
         self.sync_cache_len();
@@ -741,12 +757,20 @@ impl Widget for Editor {
             self.all_line_glyph_positions[i] = result.line_glyph_positions.clone();
             self.all_line_start_chars[i] = result.line_start_chars.clone();
             self.line_dirty[i] = false;
+            self.line_widths[i] = result.width;
+            if !self.max_line_width_dirty {
+                self.max_line_width = self.max_line_width.max(result.width);
+            }
             if i == self.cursor_line {
                 cursor_result = Some(result);
             }
         }
 
         let cursor_line = self.cursor_line;
+        if self.max_line_width_dirty {
+            self.max_line_width = self.line_widths.iter().cloned().fold(0.0, f32::max);
+            self.max_line_width_dirty = false;
+        }
         let result = cursor_result.unwrap_or_else(|| {
             measurer.measure_reuse(
                 self.id,
@@ -806,12 +830,14 @@ impl Widget for Editor {
             .copied()
             .unwrap_or(0.0);
 
+        let max_scroll_x = (self.max_line_width - inner_w).max(0.0);
         let cursor_screen_x = self.cursor_x - self.scroll_x;
         if cursor_screen_x < 0.0 {
             self.scroll_x = self.cursor_x;
         } else if cursor_screen_x > inner_w {
             self.scroll_x = self.cursor_x - inner_w;
         }
+        self.scroll_x = self.scroll_x.clamp(0.0, max_scroll_x);
 
         self.cursor_visual_row = self.visual_row_of_line(self.cursor_line) + visual_in_logical;
 
