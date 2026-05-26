@@ -49,7 +49,7 @@ pub struct Editor {
     line_dirty: Vec<bool>,
     // per line glyph positions for click/cursor navigation
     all_line_glyph_positions: Vec<Vec<Vec<f32>>>, // [line][visual_row][col]
-    all_line_start_chars: Vec<Vec<usize>>, // [line][visual_row]
+    all_line_start_chars: Vec<Vec<usize>>,        // [line][visual_row]
 
     // cursor render state, computed in update)
     cursor_x: f32,
@@ -384,6 +384,12 @@ impl Editor {
                     self.cursor_col = self
                         .cursor_col
                         .min(self.lines[self.cursor_line].chars().count());
+                    self.current_visual_line_in_logical = self
+                        .line_visual_rows
+                        .get(self.cursor_line)
+                        .copied()
+                        .unwrap_or(1)
+                        .saturating_sub(1);
                     true
                 } else {
                     false
@@ -424,6 +430,7 @@ impl Editor {
                     self.cursor_col = self
                         .cursor_col
                         .min(self.lines[self.cursor_line].chars().count());
+                    self.current_visual_line_in_logical = 0;
                     true
                 } else {
                     false
@@ -655,6 +662,11 @@ impl Widget for Editor {
             )
         });
 
+        // always refresh cursor line positions from the result
+        let cl = self.cursor_line;
+        self.all_line_glyph_positions[cl] = result.line_glyph_positions.clone();
+        self.all_line_start_chars[cl] = result.line_start_chars.clone();
+
         let mut visual_in_logical = result.line_start_chars.len().saturating_sub(1);
         for (vi, &start) in result.line_start_chars.iter().enumerate() {
             let next = result
@@ -662,7 +674,9 @@ impl Widget for Editor {
                 .get(vi + 1)
                 .copied()
                 .unwrap_or(usize::MAX);
-            if self.cursor_col >= start && self.cursor_col < next {
+            if self.cursor_col >= start
+                && (self.cursor_col < next || vi + 1 == result.line_start_chars.len())
+            {
                 visual_in_logical = vi;
                 break;
             }
@@ -679,9 +693,9 @@ impl Widget for Editor {
         self.cursor_x = result
             .line_glyph_positions
             .get(visual_in_logical)
-            .and_then(|p| p.get(col_in_visual))
+            .and_then(|p| p.get(col_in_visual).or_else(|| p.last()))
             .copied()
-            .unwrap_or(result.width);
+            .unwrap_or(0.0);
 
         self.cursor_visual_row = self.visual_row_of_line(self.cursor_line) + visual_in_logical;
 
@@ -698,7 +712,6 @@ impl Widget for Editor {
     }
 
     fn render(&self, canvas: &mut Canvas) {
-        println!("text draws: {}", self.lines.len());
         // background + border
         canvas.draw_list.push_rect(RectDraw {
             x: canvas.x,
