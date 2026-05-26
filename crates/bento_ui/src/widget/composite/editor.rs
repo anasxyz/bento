@@ -71,10 +71,10 @@ impl Editor {
         Self {
             x: 0.0,
             y: 0.0,
-            w: 400.0,
-            h: 300.0,
-            width: Size::Fixed(400.0),
-            height: Size::Fixed(300.0),
+            w: 200.0,
+            h: 200.0,
+            width: Size::Fixed(200.0),
+            height: Size::Fixed(200.0),
             z: 0,
             padding: 8.0,
             color: [1.0, 1.0, 1.0, 1.0],
@@ -819,10 +819,11 @@ impl Widget for Editor {
                         }
                         let from = if li == sl { sc } else { 0 };
                         let to = if li == el { ec } else { line.chars().count() };
+                        // selection color
                         Some(vec![DecorationRange {
                             start: from,
                             end: to,
-                            color: [0.2, 0.4, 0.8, 0.6],
+                            color: [0.196, 0.592, 0.992, 1.0],
                         }])
                     })
                     .unwrap_or_default();

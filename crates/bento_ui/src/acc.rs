@@ -24,6 +24,19 @@ impl Accumulated {
         }
     }
 
+    pub fn push_absolute(&self, x: f32, y: f32, clip: Option<[f32; 4]>, z: i32) -> Self {
+        Self {
+            offset_x: x,
+            offset_y: y,
+            opacity: self.opacity,
+            clip: merge_clip(self.clip, clip),
+            rotate: self.rotate,
+            scale_x: self.scale_x,
+            scale_y: self.scale_y,
+            z: self.z + z,
+        }
+    }
+
     pub fn push(&self, offset_x: f32, offset_y: f32, clip: Option<[f32; 4]>, z: i32) -> Self {
         Self {
             offset_x: self.offset_x + offset_x,

@@ -1,5 +1,7 @@
+use bento_wgpu::RectDraw;
+
 use crate::layout::{Layout, Size};
-use crate::widget::Widget;
+use crate::widget::{Canvas, Widget};
 
 pub struct Group {
     pub x: f32,
@@ -12,6 +14,7 @@ pub struct Group {
     pub scroll_y: f32,
     pub layout: Layout,
     pub z: i32,
+    pub background: Option<[f32; 4]>,
 }
 
 impl Group {
@@ -27,6 +30,7 @@ impl Group {
             scroll_y: 0.0,
             layout: Layout::None,
             z: 0,
+            background: None,
         }
     }
 
@@ -79,6 +83,28 @@ impl Widget for Group {
     fn z(&self) -> i32 {
         self.z
     }
+
+    fn render(&self, canvas: &mut Canvas) {
+        if let Some(color) = self.background {
+            canvas.draw_list.push_rect(RectDraw {
+                x: canvas.x,
+                y: canvas.y,
+                w: self.w,
+                h: self.h,
+                color,
+                radii: [0.0; 4],
+                border_color: [0.0; 4],
+                border_widths: [0.0; 4],
+                rotate: canvas.rotate,
+                scale_x: canvas.scale_x,
+                scale_y: canvas.scale_y,
+                opacity: canvas.opacity,
+                clip: canvas.clip,
+                z: canvas.z,
+            });
+        }
+    }
+
     fn set_size(&mut self, w: f32, h: f32) {
         self.w = w;
         self.h = h;
