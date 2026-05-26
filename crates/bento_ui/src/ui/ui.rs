@@ -41,6 +41,8 @@ pub struct Ui {
     pub hovered_node: Option<usize>,
     pub hovered_rect: Option<[f32; 4]>,
 
+    pub captured_widget: Option<usize>,
+
     pub focused: Option<usize>,
 
     pub cursor: CursorIcon,
@@ -67,6 +69,8 @@ impl Ui {
             hovered_node: None,
             hovered_rect: None,
 
+            captured_widget: None,
+
             focused: None,
 
             cursor: CursorIcon::Default,
@@ -79,6 +83,15 @@ impl Ui {
 
     pub fn request_update<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) {
         self.dirty.insert(handle.id);
+    }
+
+    pub fn request_layout<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) {
+        self.layout_dirty.insert(handle.id);
+        let mut current = self.nodes[handle.id].as_ref().and_then(|n| n.parent);
+        while let Some(parent_id) = current {
+            self.layout_dirty.insert(parent_id);
+            current = self.nodes[parent_id].as_ref().and_then(|n| n.parent);
+        }
     }
 
     pub fn set<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>, f: impl FnOnce(&mut W)) {
@@ -276,7 +289,6 @@ impl Ui {
                     };
                     if let Some(Some(node)) = self.nodes.get_mut(*child_id) {
                         node.widget.set_size(new_w, new_h);
-                        self.layout_dirty.insert(*child_id);
                     }
                 }
             }
@@ -313,13 +325,18 @@ impl Ui {
                     0.0
                 };
 
-                // second pass: set fill children widths
+                // second pass: set fill children widths and heights
                 for child_id in &children {
                     if let Some(Some(node)) = self.nodes.get(*child_id) {
-                        if matches!(node.widget.width_sizing(), Size::Fill) {
-                            let h = node.widget.size().1;
+                        let set_w = matches!(node.widget.width_sizing(), Size::Fill);
+                        let set_h = matches!(node.widget.height_sizing(), Size::Fill);
+                        if set_w || set_h {
+                            let cur_w = node.widget.size().0;
+                            let cur_h = node.widget.size().1;
+                            let new_w = if set_w { fill_w } else { cur_w };
+                            let new_h = if set_h { inner_h } else { cur_h };
                             if let Some(Some(node)) = self.nodes.get_mut(*child_id) {
-                                node.widget.set_size(fill_w, h);
+                                node.widget.set_size(new_w, new_h);
                             }
                         }
                     }
@@ -351,9 +368,19 @@ impl Ui {
                 }
                 if let Some(n) = self.nodes[id].as_mut() {
                     if let Some(g) = n.widget.as_any_mut().downcast_mut::<Group>() {
-                        let size_changed = g.w != total_w || g.h != total_h;
-                        g.w = total_w;
-                        g.h = total_h;
+                        let final_w = if matches!(g.width, Size::Auto) {
+                            total_w
+                        } else {
+                            g.w
+                        };
+                        let final_h = if matches!(g.height, Size::Auto) {
+                            total_h
+                        } else {
+                            g.h
+                        };
+                        let size_changed = g.w != final_w || g.h != final_h;
+                        g.w = final_w;
+                        g.h = final_h;
                         if size_changed {
                             if let Some(parent_id) = self.nodes[id].as_ref().and_then(|n| n.parent)
                             {
@@ -426,9 +453,19 @@ impl Ui {
                 }
                 if let Some(n) = self.nodes[id].as_mut() {
                     if let Some(g) = n.widget.as_any_mut().downcast_mut::<Group>() {
-                        let size_changed = g.w != total_w || g.h != total_h;
-                        g.w = total_w;
-                        g.h = total_h;
+                        let final_w = if matches!(g.width, Size::Auto) {
+                            total_w
+                        } else {
+                            g.w
+                        };
+                        let final_h = if matches!(g.height, Size::Auto) {
+                            total_h
+                        } else {
+                            g.h
+                        };
+                        let size_changed = g.w != final_w || g.h != final_h;
+                        g.w = final_w;
+                        g.h = final_h;
                         if size_changed {
                             if let Some(parent_id) = self.nodes[id].as_ref().and_then(|n| n.parent)
                             {
@@ -584,6 +621,14 @@ impl Ui {
     pub fn clear_focus(&mut self) {
         self.focused = None;
     }
+
+    pub fn capture_mouse(&mut self, handle: WidgetHandle<impl Widget + 'static>) {
+        self.captured_widget = Some(handle.id);
+    }
+
+    pub fn release_mouse(&mut self) {
+        self.captured_widget = None;
+    }
 }
 
 pub struct ListenerHandle(u64);
@@ -689,7 +734,8 @@ impl Ui {
 
     fn fire_mouse_move(&mut self) {
         if self.input.mouse.dx != 0.0 || self.input.mouse.dy != 0.0 {
-            if let Some(node_id) = self.hovered_node {
+            let target = self.captured_widget.or(self.hovered_node);
+            if let Some(node_id) = target {
                 self.fire(
                     node_id,
                     Box::new(MouseMove {
@@ -704,36 +750,14 @@ impl Ui {
     }
 
     fn fire_click_events(&mut self) {
-        if let Some(node_id) = self.hovered_node {
+        let mouse_up_target = self.captured_widget.or(self.hovered_node);
+        let hover_target = self.hovered_node;
+
+        if let Some(node_id) = hover_target {
             if self.input.mouse.left.just_pressed {
                 self.fire(
                     node_id,
                     Box::new(MouseDown {
-                        x: self.input.mouse.x,
-                        y: self.input.mouse.y,
-                        button: MouseButton::Left,
-                    }),
-                );
-            }
-            if self.input.mouse.left.just_released {
-                if self.focused != Some(node_id) {
-                    if let Some(old_id) = self.focused {
-                        self.fire(old_id, Box::new(FocusLost));
-                    }
-                    self.focused = Some(node_id);
-                    self.fire(node_id, Box::new(FocusGained));
-                }
-                self.fire(
-                    node_id,
-                    Box::new(MouseUp {
-                        x: self.input.mouse.x,
-                        y: self.input.mouse.y,
-                        button: MouseButton::Left,
-                    }),
-                );
-                self.fire(
-                    node_id,
-                    Box::new(Click {
                         x: self.input.mouse.x,
                         y: self.input.mouse.y,
                         button: MouseButton::Left,
@@ -750,24 +774,6 @@ impl Ui {
                     }),
                 );
             }
-            if self.input.mouse.right.just_released {
-                self.fire(
-                    node_id,
-                    Box::new(MouseUp {
-                        x: self.input.mouse.x,
-                        y: self.input.mouse.y,
-                        button: MouseButton::Right,
-                    }),
-                );
-                self.fire(
-                    node_id,
-                    Box::new(Click {
-                        x: self.input.mouse.x,
-                        y: self.input.mouse.y,
-                        button: MouseButton::Right,
-                    }),
-                );
-            }
             if self.input.mouse.middle.just_pressed {
                 self.fire(
                     node_id,
@@ -778,6 +784,56 @@ impl Ui {
                     }),
                 );
             }
+        }
+
+        if let Some(node_id) = mouse_up_target {
+            if self.input.mouse.left.just_released {
+                if self.focused != Some(node_id) {
+                    if let Some(old_id) = self.focused {
+                        self.fire(old_id, Box::new(FocusLost));
+                    }
+                    self.focused = Some(node_id);
+                    self.fire(node_id, Box::new(FocusGained));
+                }
+                self.fire(
+                    node_id,
+                    Box::new(MouseUp {
+                        x: self.input.mouse.x,
+                        y: self.input.mouse.y,
+                        button: MouseButton::Left,
+                    }),
+                );
+                if hover_target == Some(node_id) {
+                    self.fire(
+                        node_id,
+                        Box::new(Click {
+                            x: self.input.mouse.x,
+                            y: self.input.mouse.y,
+                            button: MouseButton::Left,
+                        }),
+                    );
+                }
+            }
+            if self.input.mouse.right.just_released {
+                self.fire(
+                    node_id,
+                    Box::new(MouseUp {
+                        x: self.input.mouse.x,
+                        y: self.input.mouse.y,
+                        button: MouseButton::Right,
+                    }),
+                );
+                if hover_target == Some(node_id) {
+                    self.fire(
+                        node_id,
+                        Box::new(Click {
+                            x: self.input.mouse.x,
+                            y: self.input.mouse.y,
+                            button: MouseButton::Right,
+                        }),
+                    );
+                }
+            }
             if self.input.mouse.middle.just_released {
                 self.fire(
                     node_id,
@@ -787,14 +843,16 @@ impl Ui {
                         button: MouseButton::Middle,
                     }),
                 );
-                self.fire(
-                    node_id,
-                    Box::new(Click {
-                        x: self.input.mouse.x,
-                        y: self.input.mouse.y,
-                        button: MouseButton::Middle,
-                    }),
-                );
+                if hover_target == Some(node_id) {
+                    self.fire(
+                        node_id,
+                        Box::new(Click {
+                            x: self.input.mouse.x,
+                            y: self.input.mouse.y,
+                            button: MouseButton::Middle,
+                        }),
+                    );
+                }
             }
         } else if self.input.mouse.left.just_released {
             if let Some(old_id) = self.focused {

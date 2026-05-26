@@ -179,7 +179,7 @@ impl TextMeasurer {
 
         let result = extract_result(&buffer, req.text);
         self.cache.cache.insert(key, (result.clone(), buffer));
-        println!("measure took {:?}", t.elapsed());
+        // println!("measure took {:?}", t.elapsed());
         result
     }
 
@@ -213,7 +213,7 @@ impl TextMeasurer {
         buffer.set_text(font_system, req.text, &node_attrs, Shaping::Advanced, None);
         buffer.shape_until_scroll(font_system, false);
 
-        println!("measure_reuse took {:?}", t.elapsed());
+        // println!("measure_reuse took {:?}", t.elapsed());
 
         extract_result(buffer, req.text)
     }

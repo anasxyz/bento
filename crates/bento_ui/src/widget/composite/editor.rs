@@ -57,6 +57,12 @@ pub struct Editor {
     current_visual_line_in_logical: usize,
 
     id: u64,
+
+    resizing: bool,
+    resize_start_mouse_x: f32,
+    resize_start_mouse_y: f32,
+    resize_start_w: f32,
+    resize_start_h: f32,
 }
 
 impl Editor {
@@ -93,11 +99,22 @@ impl Editor {
             cursor_visual_row: 0,
             current_visual_line_in_logical: 0,
             id: 0,
+            resizing: false,
+            resize_start_mouse_x: 0.0,
+            resize_start_mouse_y: 0.0,
+            resize_start_w: 0.0,
+            resize_start_h: 0.0,
         }
     }
 }
 
 impl Editor {
+    fn near_resize_corner(&self, mx: f32, my: f32) -> bool {
+        let corner_x = self.x + self.w;
+        let corner_y = self.y + self.h;
+        (mx - corner_x).abs() < 20.0 && (my - corner_y).abs() < 20.0
+    }
+
     fn total_visual_rows(&self) -> usize {
         self.line_visual_rows.iter().sum()
     }
@@ -567,6 +584,15 @@ impl Widget for Editor {
 
         ui.listen(handle, move |ev: &MouseDown, ui: &mut Ui| {
             if let Some(e) = ui.get_mut(handle) {
+                if e.near_resize_corner(ev.x, ev.y) {
+                    e.resizing = true;
+                    e.resize_start_mouse_x = ev.x;
+                    e.resize_start_mouse_y = ev.y;
+                    e.resize_start_w = e.w;
+                    e.resize_start_h = e.h;
+                    ui.capture_mouse(handle);
+                    return;
+                }
                 let (line, col) = e.pos_to_cursor(ev.x, ev.y, e.x, e.y);
                 e.cursor_line = line;
                 e.cursor_col = col;
@@ -576,13 +602,35 @@ impl Widget for Editor {
         });
 
         ui.listen(handle, move |ev: &MouseMove, ui: &mut Ui| {
-            if !ui.input.mouse.left.pressed {
-                return;
-            }
+            let left_pressed = ui.input.mouse.left.pressed;
             if let Some(e) = ui.get_mut(handle) {
-                let (line, col) = e.pos_to_cursor(ev.x, ev.y, e.x, e.y);
-                e.cursor_line = line;
-                e.cursor_col = col;
+                if e.resizing {
+                    let dx = ev.x - e.resize_start_mouse_x;
+                    let dy = ev.y - e.resize_start_mouse_y;
+                    e.w = (e.resize_start_w + dx).max(100.0);
+                    e.h = (e.resize_start_h + dy).max(60.0);
+                    e.width = Size::Fixed(e.w);
+                    e.height = Size::Fixed(e.h);
+                    ui.request_layout(handle);
+                    ui.request_update(handle);
+                    ui.request_redraw();
+                    return;
+                }
+                let near_corner = e.near_resize_corner(ev.x, ev.y);
+                let new_col = if left_pressed {
+                    Some(e.pos_to_cursor(ev.x, ev.y, e.x, e.y))
+                } else {
+                    None
+                };
+                if let Some((line, col)) = new_col {
+                    e.cursor_line = line;
+                    e.cursor_col = col;
+                }
+                if near_corner {
+                    ui.set_cursor(CursorIcon::ResizeNwSe);
+                } else {
+                    ui.set_cursor(CursorIcon::Text);
+                }
             }
             ui.request_update(handle);
             ui.request_redraw();
@@ -590,6 +638,11 @@ impl Widget for Editor {
 
         ui.listen(handle, move |_: &MouseUp, ui: &mut Ui| {
             if let Some(e) = ui.get_mut(handle) {
+                if e.resizing {
+                    e.resizing = false;
+                    ui.release_mouse();
+                    return;
+                }
                 if e.selection_anchor == Some((e.cursor_line, e.cursor_col)) {
                     e.selection_anchor = None;
                 }
@@ -773,7 +826,6 @@ impl Widget for Editor {
                         }])
                     })
                     .unwrap_or_default();
-
 
                 // skip pushing a TextDraw entirely for empty lines that have no selection on them
                 if line.is_empty() && background_ranges.is_empty() {

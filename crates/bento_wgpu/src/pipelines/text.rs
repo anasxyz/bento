@@ -1059,7 +1059,7 @@ impl TextPipeline {
             let redraw = reshape || cache.needs_redraw(spec);
             let origin_update = reshape || cache.needs_origin_update(spec);
 
-            println!("[text {}] reshape={} redraw={}", i, reshape, redraw);
+            // println!("[text {}] reshape={} redraw={}", i, reshape, redraw);
 
             let t_origin = std::time::Instant::now();
             // write origin regardless of whether glyphs need rebuilding
@@ -1113,17 +1113,17 @@ impl TextPipeline {
                     if reshape || cache.needs_glyph_rebuild(spec) {
                         let t = std::time::Instant::now();
                         cache.glyphs = build_glyphs(buffer, &self.atlas, spec, self.scale);
-                        println!(
-                            "[text {}] build_glyphs: {:?}, {} glyphs",
-                            i,
-                            t.elapsed(),
-                            cache.glyphs.len()
-                        );
+                        // println!(
+                        //     "[text {}] build_glyphs: {:?}, {} glyphs",
+                        //     i,
+                        //     t.elapsed(),
+                        //     cache.glyphs.len()
+                        // );
                     }
                     if reshape || cache.needs_decoration_rebuild(spec) {
                         let t = std::time::Instant::now();
                         let (bg, lines) = build_decorations(buffer, spec, self.scale);
-                        println!("[text {}] build_decorations: {:?}", i, t.elapsed());
+                        // println!("[text {}] build_decorations: {:?}", i, t.elapsed());
                         cache.bg_rects = bg;
                         cache.line_rects = lines;
                     }
