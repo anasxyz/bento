@@ -19,8 +19,11 @@ pub struct Group {
     pub background: Option<[f32; 4]>,
     pub draggable: bool,
     pub scrollable: bool,
+    pub clip: bool,
 
     dragging: bool,
+    drag_offset_x: f32,
+    drag_offset_y: f32,
 }
 
 impl Group {
@@ -40,6 +43,9 @@ impl Group {
             draggable: false,
             scrollable: false,
             dragging: false,
+            drag_offset_x: 0.0,
+            drag_offset_y: 0.0,
+            clip: false,
         }
     }
 
@@ -87,6 +93,8 @@ impl Widget for Group {
                 if !g.draggable {
                     return;
                 }
+                g.drag_offset_x = ev.x - g.x;
+                g.drag_offset_y = ev.y - g.y;
                 g.dragging = true;
                 ui.capture_mouse(handle);
             }
@@ -97,8 +105,8 @@ impl Widget for Group {
                 if !g.dragging {
                     return;
                 }
-                g.x += ev.dx;
-                g.y += ev.dy;
+                g.x = ev.x - g.drag_offset_x;
+                g.y = ev.y - g.drag_offset_y;
             }
             ui.request_layout(handle);
             ui.request_redraw();

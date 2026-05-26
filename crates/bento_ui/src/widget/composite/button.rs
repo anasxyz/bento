@@ -1,7 +1,8 @@
 use std::any::Any;
 
-use crate::Click;
 use crate::layout::Size;
+use crate::widget::WidgetHandle;
+use crate::{Click, HoverEnter, HoverLeave, Ui};
 use crate::{Widget, widget::Canvas};
 use bento_wgpu::{RectDraw, TextDraw};
 use bento_wgpu::{TextAlign, TextMeasureRequest, TextMeasurer};
@@ -15,11 +16,14 @@ pub struct Button {
     pub width: Size,
     pub height: Size,
     pub color: [f32; 4],
+    pub text_color: [f32; 4],
     pub z: i32,
     pub padding: f32,
+    pub font_size: f32,
 
     label_w: f32,
     label_h: f32,
+    hovered: bool,
 }
 
 impl Button {
@@ -35,9 +39,12 @@ impl Button {
             color: [0.2, 0.2, 0.2, 1.0],
             z: 0,
             padding: 16.0,
+            text_color: [1.0, 1.0, 1.0, 1.0],
+            font_size: 14.0,
 
             label_w: 0.0,
             label_h: 0.0,
+            hovered: false,
         }
     }
     pub fn set_text(&mut self, text: &str) {
@@ -58,6 +65,9 @@ impl Button {
     pub fn set_z(&mut self, z: i32) {
         self.z = z;
     }
+    pub fn set_font_size(&mut self, size: f32) {
+        self.font_size = size;
+    }
 }
 
 impl Widget for Button {
@@ -65,11 +75,29 @@ impl Widget for Button {
         "Button"
     }
 
+    fn build(&mut self, ui: &mut Ui, handle: WidgetHandle<()>) {
+        let handle = handle.typed::<Button>();
+
+        ui.listen(handle, move |_: &HoverEnter, ui: &mut Ui| {
+            if let Some(b) = ui.get_mut(handle) {
+                b.hovered = true;
+            }
+            ui.request_redraw();
+        });
+
+        ui.listen(handle, move |_: &HoverLeave, ui: &mut Ui| {
+            if let Some(b) = ui.get_mut(handle) {
+                b.hovered = false;
+            }
+            ui.request_redraw();
+        });
+    }
+
     fn update(&mut self, measurer: &mut TextMeasurer) {
         let result = measurer.measure(TextMeasureRequest {
             text: &self.label_text,
             font_family: "",
-            size: 14.0,
+            size: self.font_size,
             weight: 400,
             italic: false,
             letter_spacing: 0.0,
@@ -121,12 +149,17 @@ impl Widget for Button {
     fn render(&mut self, canvas: &mut Canvas) {
         let lw = self.label_w;
         let lh = self.label_h;
+        let color = if self.hovered {
+            [0.3, 0.3, 0.3, 1.0]
+        } else {
+            self.color
+        };
         canvas.draw_list.push_rect(RectDraw {
             x: canvas.x,
             y: canvas.y,
             w: self.w,
             h: self.h,
-            color: self.color,
+            color: color,
             radii: [0.0; 4],
             border_color: [0.0; 4],
             border_widths: [0.0; 4],
@@ -143,8 +176,8 @@ impl Widget for Button {
             w: lw,
             h: lh,
             text: self.label_text.clone(),
-            size: 14.0,
-            color: [1.0, 1.0, 1.0, 1.0],
+            size: self.font_size,
+            color: self.text_color,
             weight: 400,
             italic: false,
             font_family: String::new(),
@@ -154,7 +187,7 @@ impl Widget for Button {
             letter_spacing: 0.0,
             align: TextAlign::Left,
             opacity: canvas.opacity,
-            clip: Some([canvas.x, canvas.y, self.w, self.h]),
+            clip: canvas.clip,
             rotate: canvas.rotate,
             scale_x: canvas.scale_x,
             scale_y: canvas.scale_y,

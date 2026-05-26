@@ -676,24 +676,41 @@ impl Ui {
         draw_list
     }
 
+    fn intersects_clip(clip: Option<[f32; 4]>, ox: f32, oy: f32, w: f32, h: f32) -> bool {
+        let Some([cx, cy, cw, ch]) = clip else {
+            return true;
+        };
+        ox + w > cx && ox < cx + cw && oy + h > cy && oy < cy + ch
+    }
+
     fn render_node(&mut self, id: usize, draw_list: &mut DrawList, acc: Accumulated) {
-        let (ox, oy, z, scroll) = {
+        let (ox, oy, z, scroll, w, h, do_clip, children) = {
             let Some(Some(s)) = self.nodes.get(id) else {
                 return;
             };
             let (ox, oy) = s.widget.position();
             let z = s.widget.z();
-            let scroll = s
-                .widget
-                .as_any()
-                .downcast_ref::<Group>()
+            let group = s.widget.as_any().downcast_ref::<Group>();
+            let scroll = group
                 .map(|g| (g.scroll_x, g.scroll_y))
                 .unwrap_or((0.0, 0.0));
-            (ox, oy, z, scroll)
+            let (w, h) = s.widget.size();
+            let do_clip = group.map(|g| g.clip).unwrap_or(false);
+            let children = s.children.clone();
+            (ox, oy, z, scroll, w, h, do_clip, children)
         };
 
         let my_acc = acc.push(ox, oy, None, z);
-        let children_acc = acc.push(ox + scroll.0, oy + scroll.1, None, z);
+        if !Self::intersects_clip(acc.clip, my_acc.offset_x, my_acc.offset_y, w, h) {
+            return;
+        }
+
+        let clip = if do_clip {
+            Some([my_acc.offset_x, my_acc.offset_y, w, h])
+        } else {
+            None
+        };
+        let children_acc = acc.push(ox + scroll.0, oy + scroll.1, clip, z);
 
         {
             let Some(Some(s)) = self.nodes.get_mut(id) else {
@@ -712,13 +729,6 @@ impl Ui {
             };
             s.widget.render(&mut canvas);
         }
-
-        let children = {
-            let Some(Some(s)) = self.nodes.get(id) else {
-                return;
-            };
-            s.children.clone()
-        };
 
         for child_id in children {
             self.render_node(child_id, draw_list, children_acc);

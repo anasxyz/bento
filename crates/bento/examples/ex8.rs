@@ -13,6 +13,7 @@ fn main() {
     panel.width = Size::Fixed(300.0);
     panel.height = Size::Fixed(300.0);
     panel.background = Some([0.15, 0.15, 0.15, 1.0]);
+    panel.clip = true;
     let panel = ui.add(panel);
 
     let label = ui.add(Text::new("Drag me"));
