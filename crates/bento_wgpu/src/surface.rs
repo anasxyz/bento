@@ -26,7 +26,7 @@ impl<'window> Surface<'window> {
         let format = caps
             .formats
             .iter()
-            .find(|f| **f == wgpu::TextureFormat::Rgba8UnormSrgb)
+            .find(|f| **f == wgpu::TextureFormat::Rgba8Unorm)
             .copied()
             .unwrap_or(caps.formats[0]);
 
