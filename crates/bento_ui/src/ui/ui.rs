@@ -406,7 +406,15 @@ impl Ui {
                         self.request_redraw();
                     }
                     cursor += w + gap;
-                    self.layout_node(*child_id, content_w, inner_h);
+                    let child_w = self.nodes[*child_id]
+                        .as_ref()
+                        .map(|n| n.widget.size().0)
+                        .unwrap_or(content_w);
+                    let child_h = self.nodes[*child_id]
+                        .as_ref()
+                        .map(|n| n.widget.size().1)
+                        .unwrap_or(inner_h);
+                    self.layout_node(*child_id, child_w, child_h);
                 }
 
                 let mut total_w = 0.0f32;
@@ -526,7 +534,15 @@ impl Ui {
                         self.request_redraw();
                     }
                     cursor += h + gap;
-                    self.layout_node(*child_id, inner_w, content_h);
+                    let child_w = self.nodes[*child_id]
+                        .as_ref()
+                        .map(|n| n.widget.size().0)
+                        .unwrap_or(inner_w);
+                    let child_h = self.nodes[*child_id]
+                        .as_ref()
+                        .map(|n| n.widget.size().1)
+                        .unwrap_or(content_h);
+                    self.layout_node(*child_id, child_w, child_h);
                 }
 
                 let mut total_w = 0.0f32;
