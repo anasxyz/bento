@@ -9,8 +9,7 @@ use bento_wgpu::{
     DecorationRange, RectDraw, TextAlign, TextDraw, TextMeasureRequest, TextMeasurer,
 };
 
-pub struct Editor {
-    // layout
+pub struct MultilineInput {
     pub x: f32,
     pub y: f32,
     pub w: f32,
@@ -19,16 +18,18 @@ pub struct Editor {
     pub height: Size,
     pub z: i32,
     pub padding: f32,
-
-    // appearance
     pub color: [f32; 4],
     pub background: [f32; 4],
     pub font_size: f32,
     pub font_family: String,
     pub line_height: f32,
-
-    // content
     pub lines: Vec<String>,
+    pub wrap: bool,
+    pub tab_width: usize,
+    pub use_spaces: bool,
+    pub resizable: bool,
+
+    id: u64,
 
     // cursor and selection
     cursor_line: usize,
@@ -41,7 +42,6 @@ pub struct Editor {
     blink_handle: Option<TimerHandle>,
 
     // scroll
-    pub wrap: bool,
     scroll_x: f32,
     scroll_y: f32,
 
@@ -51,14 +51,12 @@ pub struct Editor {
     line_dirty: Vec<bool>,
     // per line glyph positions for click/cursor navigation
     all_line_glyph_positions: Vec<Vec<Vec<f32>>>, // [line][visual_row][col]
-    all_line_start_chars: Vec<Vec<usize>>,        // [line][visual_row]
+    all_line_start_chars: Vec<Vec<usize>>, // [line][visual_row]
 
     // cursor render state, computed in update)
     cursor_x: f32,
     cursor_visual_row: usize,
     current_visual_line_in_logical: usize,
-
-    id: u64,
 
     resizing: bool,
     resize_start_mouse_x: f32,
@@ -66,15 +64,12 @@ pub struct Editor {
     resize_start_w: f32,
     resize_start_h: f32,
 
-    pub tab_width: usize,
-    pub use_spaces: bool,
-
     line_widths: Vec<f32>,
     max_line_width: f32,
     max_line_width_dirty: bool,
 }
 
-impl Editor {
+impl MultilineInput {
     pub fn new() -> Self {
         let font_size = 20.0;
         Self {
@@ -120,6 +115,7 @@ impl Editor {
             line_widths: vec![0.0],
             max_line_width: 0.0,
             max_line_width_dirty: false,
+            resizable: false,
         }
     }
 
@@ -129,7 +125,7 @@ impl Editor {
     }
 }
 
-impl Editor {
+impl MultilineInput {
     fn near_resize_corner(&self, mx: f32, my: f32) -> bool {
         let corner_x = self.x + self.w;
         let corner_y = self.y + self.h;
@@ -263,7 +259,7 @@ impl Editor {
     }
 }
 
-impl Editor {
+impl MultilineInput {
     // returns true if the document/cursor changed and a redraw is needed
     fn handle_key(&mut self, e: &KeyPress, shift: bool, ctrl: bool) -> bool {
         if ctrl && e.key == Key::C {
@@ -564,7 +560,7 @@ impl Editor {
     }
 }
 
-fn blink_tick(ui: &mut Ui, handle: WidgetHandle<Editor>) {
+fn blink_tick(ui: &mut Ui, handle: WidgetHandle<MultilineInput>) {
     let h = ui.asyncs.timer(0.53, move |ui| {
         if let Some(e) = ui.get_mut(handle) {
             if e.focused {
@@ -579,7 +575,7 @@ fn blink_tick(ui: &mut Ui, handle: WidgetHandle<Editor>) {
     }
 }
 
-fn start_blink(ui: &mut Ui, handle: WidgetHandle<Editor>) {
+fn start_blink(ui: &mut Ui, handle: WidgetHandle<MultilineInput>) {
     if let Some(e) = ui.get_mut(handle) {
         e.cursor_visible = true;
         if let Some(h) = e.blink_handle.take() {
@@ -591,14 +587,14 @@ fn start_blink(ui: &mut Ui, handle: WidgetHandle<Editor>) {
     blink_tick(ui, handle);
 }
 
-impl Widget for Editor {
+impl Widget for MultilineInput {
     fn name(&self) -> &str {
-        "Editor"
+        "MultilineInput"
     }
 
     fn build(&mut self, ui: &mut Ui, handle: WidgetHandle<()>) {
         self.id = handle.id as u64;
-        let handle = handle.typed::<Editor>();
+        let handle = handle.typed::<MultilineInput>();
 
         ui.listen(handle, move |_: &FocusGained, ui: &mut Ui| {
             if let Some(e) = ui.get_mut(handle) {
@@ -634,8 +630,9 @@ impl Widget for Editor {
 
         ui.listen(handle, move |ev: &MouseDown, ui: &mut Ui| {
             let click_count = ui.input.mouse.left.click_count;
+            let resizable = ui.get(handle).map(|e| e.resizable).unwrap_or(false);
             if let Some(e) = ui.get_mut(handle) {
-                if e.near_resize_corner(ev.x, ev.y) {
+                if resizable && e.near_resize_corner(ev.x, ev.y) {
                     e.resizing = true;
                     e.resize_start_mouse_x = ev.x;
                     e.resize_start_mouse_y = ev.y;

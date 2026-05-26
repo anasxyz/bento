@@ -13,7 +13,7 @@ fn main() {
     row.height = Size::Fill;
     let row = ui.add(row);
 
-    let editor = ui.add(Editor::new());
+    let editor = ui.add(MultilineInput::new());
     ui.set(editor, |e| {
         e.set_font_size(20.0);
         e.color = [0.88, 0.88, 0.88, 1.0];
