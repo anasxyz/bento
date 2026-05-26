@@ -10,7 +10,7 @@
 * Async support
 * Custom layout engine
 
-## Usage
+## Example
 
 ```rust
 use bento::*;
@@ -30,3 +30,7 @@ fn main() {
     app.run();
 }
 ```
+
+## Screenshots
+<img src="screenshots/show2.png" width="800" height="600">
+<img src="screenshots/show1.png" width="800" height="600">
