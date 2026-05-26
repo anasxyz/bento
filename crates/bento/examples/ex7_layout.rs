@@ -28,6 +28,7 @@ fn main() {
 
     let editor = ui.add(Editor::new());
     ui.set(editor, |e| {
+        e.lines = vec!["hello".to_string(), "world💁👌🎍😍".to_string()];
         e.width = Size::Fill;
         e.height = Size::Fill;
     });
