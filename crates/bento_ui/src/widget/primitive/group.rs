@@ -1,7 +1,9 @@
 use bento_wgpu::RectDraw;
 
+use crate::Ui;
+use crate::events::types::{MouseDown, MouseMove, MouseUp};
 use crate::layout::{Layout, Size};
-use crate::widget::{Canvas, Widget};
+use crate::widget::{Canvas, Widget, WidgetHandle};
 
 pub struct Group {
     pub x: f32,
@@ -15,6 +17,11 @@ pub struct Group {
     pub layout: Layout,
     pub z: i32,
     pub background: Option<[f32; 4]>,
+    pub draggable: bool,
+
+    dragging: bool,
+    drag_offset_x: f32,
+    drag_offset_y: f32,
 }
 
 impl Group {
@@ -31,6 +38,10 @@ impl Group {
             layout: Layout::None,
             z: 0,
             background: None,
+            draggable: false,
+            dragging: false,
+            drag_offset_x: 0.0,
+            drag_offset_y: 0.0,
         }
     }
 
@@ -69,6 +80,40 @@ impl Group {
 impl Widget for Group {
     fn name(&self) -> &str {
         "Group"
+    }
+    fn build(&mut self, ui: &mut Ui, handle: WidgetHandle<()>) {
+        let handle = handle.typed::<Group>();
+
+        ui.listen(handle, move |ev: &MouseDown, ui: &mut Ui| {
+            if let Some(g) = ui.get_mut(handle) {
+                if !g.draggable {
+                    return;
+                }
+                g.drag_offset_x = ev.x - g.x;
+                g.drag_offset_y = ev.y - g.y;
+                g.dragging = true;
+            }
+            ui.capture_mouse(handle);
+        });
+
+        ui.listen(handle, move |ev: &MouseMove, ui: &mut Ui| {
+            if let Some(g) = ui.get_mut(handle) {
+                if !g.dragging {
+                    return;
+                }
+                g.x = ev.x - g.drag_offset_x;
+                g.y = ev.y - g.drag_offset_y;
+            }
+            ui.request_layout(handle);
+            ui.request_redraw();
+        });
+
+        ui.listen(handle, move |_: &MouseUp, ui: &mut Ui| {
+            if let Some(g) = ui.get_mut(handle) {
+                g.dragging = false;
+            }
+            ui.release_mouse();
+        });
     }
     fn size(&self) -> (f32, f32) {
         (self.w, self.h)

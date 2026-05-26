@@ -22,8 +22,6 @@ pub struct Button {
     label_h: f32,
 }
 
-pub struct ButtonPressed;
-
 impl Button {
     pub fn new(text: &str) -> Self {
         Self {
