@@ -124,7 +124,7 @@ impl Widget for Group {
                     return;
                 }
                 g.scroll_x += ev.x * 20.0;
-                g.scroll_y -= ev.y * 20.0;
+                g.scroll_y += ev.y * 20.0;
             }
             ui.request_redraw();
         });
