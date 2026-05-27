@@ -89,44 +89,43 @@ impl Widget for Group {
         let handle = handle.typed::<Group>();
 
         ui.listen(handle, move |ev: &MouseDown, ui: &mut Ui| {
-            if let Some(g) = ui.get_mut(handle) {
+            ui.set(handle, |g| {
                 if !g.draggable {
                     return;
                 }
                 g.drag_offset_x = ev.x - g.x;
                 g.drag_offset_y = ev.y - g.y;
                 g.dragging = true;
-                ui.capture_mouse(handle);
-            }
+            });
+
+            ui.capture_mouse(handle);
         });
 
         ui.listen(handle, move |ev: &MouseMove, ui: &mut Ui| {
-            if let Some(g) = ui.get_mut(handle) {
+            ui.set(handle, |g| {
                 if !g.dragging {
                     return;
                 }
                 g.x = ev.x - g.drag_offset_x;
                 g.y = ev.y - g.drag_offset_y;
-            }
-            ui.request_layout(handle);
-            ui.request_redraw();
+            });
         });
 
         ui.listen(handle, move |_: &MouseUp, ui: &mut Ui| {
-            if let Some(g) = ui.get_mut(handle) {
+            ui.set(handle, |g| {
                 g.dragging = false;
-            }
+            });
             ui.release_mouse();
         });
+
         ui.listen(handle, move |ev: &MouseScroll, ui: &mut Ui| {
-            if let Some(g) = ui.get_mut(handle) {
+            ui.set(handle, |g| {
                 if !g.scrollable {
                     return;
                 }
                 g.scroll_x += ev.x * 20.0;
                 g.scroll_y += ev.y * 20.0;
-            }
-            ui.request_redraw();
+            });
         });
     }
     fn size(&self) -> (f32, f32) {

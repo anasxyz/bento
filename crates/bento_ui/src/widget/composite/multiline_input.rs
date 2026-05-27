@@ -619,10 +619,6 @@ impl Widget for MultilineInput {
             ui.request_update(handle);
         });
 
-        ui.listen(handle, move |_: &HoverEnter, ui: &mut Ui| {
-            ui.set_cursor(CursorIcon::Text);
-        });
-
         ui.listen(handle, move |ev: &KeyPress, ui: &mut Ui| {
             let shift = ui.input.keyboard.modifiers.shift;
             let ctrl = ui.input.keyboard.modifiers.ctrl;
@@ -691,7 +687,7 @@ impl Widget for MultilineInput {
                     e.cursor_line = line;
                     e.cursor_col = col;
                 }
-                if near_corner {
+                if near_corner && e.resizable {
                     ui.set_cursor(CursorIcon::ResizeNwSe);
                 } else {
                     ui.set_cursor(CursorIcon::Text);
