@@ -88,7 +88,7 @@ impl MultilineInput {
             background: [0.02, 0.02, 0.02, 1.0],
             font_size,
             font_family: "JetBrainsMono Nerd Font".to_string(),
-            line_height: font_size * 1.5,
+            line_height: font_size * 1.2,
             lines: vec![String::new()],
             cursor_line: 0,
             cursor_col: 0,
@@ -126,7 +126,7 @@ impl MultilineInput {
 
     pub fn set_font_size(&mut self, size: f32) {
         self.font_size = size;
-        self.line_height = size * 1.5;
+        self.line_height = size * 1.2;
     }
 }
 

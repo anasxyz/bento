@@ -94,6 +94,7 @@ impl Widget for Button {
     }
 
     fn update(&mut self, measurer: &mut TextMeasurer) {
+        println!("update: {}", self.label_text);
         let result = measurer.measure(TextMeasureRequest {
             text: &self.label_text,
             font_family: "",

@@ -46,11 +46,13 @@ pub struct Ui {
     pub focused: Option<usize>,
 
     pub cursor: CursorIcon,
+
+    pub overlay_id: usize,
 }
 
 impl Ui {
     pub fn new() -> Self {
-        Self {
+        let mut ui = Self {
             input: InputState::new(),
             asyncs: AsyncEventQueue::new(),
             nodes: Vec::new(),
@@ -74,7 +76,18 @@ impl Ui {
             focused: None,
 
             cursor: CursorIcon::Default,
-        }
+
+            overlay_id: 0,
+        };
+
+        let overlay = Group::new();
+        let handle = ui.add(overlay);
+        ui.overlay_id = handle.id;
+        ui
+    }
+
+    pub fn overlay(&self) -> WidgetHandle<Group> {
+        WidgetHandle::from_id(self.overlay_id)
     }
 
     pub fn request_redraw(&mut self) {
@@ -98,8 +111,15 @@ impl Ui {
         if let Some(w) = self.get_mut(handle) {
             f(w);
             self.request_update(handle);
-            self.request_layout(handle);
             self.request_redraw();
+            // only request layout if widget has children
+            if self.nodes[handle.id]
+                .as_ref()
+                .map(|n| !n.children.is_empty())
+                .unwrap_or(false)
+            {
+                self.request_layout(handle);
+            }
         }
     }
 
@@ -685,7 +705,7 @@ impl Ui {
     }
 
     fn render_node(&mut self, id: usize, draw_list: &mut DrawList, acc: Accumulated) {
-        let (ox, oy, z, scroll, w, h, do_clip, children) = {
+        let (ox, oy, z, scroll, w, h, do_clip, visible, children) = {
             let Some(Some(s)) = self.nodes.get(id) else {
                 return;
             };
@@ -697,9 +717,14 @@ impl Ui {
                 .unwrap_or((0.0, 0.0));
             let (w, h) = s.widget.size();
             let do_clip = group.map(|g| g.clip).unwrap_or(false);
+            let visible = group.map(|g| g.visible).unwrap_or(true);
             let children = s.children.clone();
-            (ox, oy, z, scroll, w, h, do_clip, children)
+            (ox, oy, z, scroll, w, h, do_clip, visible, children)
         };
+
+        if !visible {
+            return;
+        }
 
         let my_acc = acc.push(ox, oy, None, z);
         if !Self::intersects_clip(acc.clip, my_acc.offset_x, my_acc.offset_y, w, h) {
@@ -788,6 +813,26 @@ impl Ui {
         ListenerHandle(id)
     }
 
+    pub fn listen_global<E: 'static>(
+        &mut self,
+        f: impl FnMut(&E, &mut Ui) + 'static,
+    ) -> ListenerHandle {
+        let id = self.next_listener_id;
+        self.next_listener_id += 1;
+        let mut f = f;
+        self.listeners.push(Listener {
+            id,
+            node_id: usize::MAX,
+            type_id: TypeId::of::<E>(),
+            f: Box::new(move |event, ui| {
+                if let Some(e) = event.downcast_ref::<E>() {
+                    f(e, ui);
+                }
+            }),
+        });
+        ListenerHandle(id)
+    }
+
     pub fn unlisten(&mut self, handle: ListenerHandle) {
         self.listeners.retain(|l| l.id != handle.0);
     }
@@ -797,6 +842,19 @@ impl Ui {
         let mut i = 0;
         while i < self.listeners.len() {
             if self.listeners[i].node_id == node_id && self.listeners[i].type_id == type_id {
+                let mut listener = self.listeners.remove(i);
+                (listener.f)(event.as_ref(), self);
+                self.listeners.insert(i, listener);
+            }
+            i += 1;
+        }
+    }
+
+    fn fire_global(&mut self, event: Box<dyn Any>) {
+        let type_id = (*event).type_id();
+        let mut i = 0;
+        while i < self.listeners.len() {
+            if self.listeners[i].node_id == usize::MAX && self.listeners[i].type_id == type_id {
                 let mut listener = self.listeners.remove(i);
                 (listener.f)(event.as_ref(), self);
                 self.listeners.insert(i, listener);
@@ -903,6 +961,11 @@ impl Ui {
                         button: MouseButton::Left,
                     }),
                 );
+                self.fire_global(Box::new(MouseDown {
+                    x: self.input.mouse.x,
+                    y: self.input.mouse.y,
+                    button: MouseButton::Left,
+                }));
                 if self.focused != Some(node_id) {
                     if let Some(old_id) = self.focused {
                         self.fire(old_id, Box::new(FocusLost));
@@ -934,6 +997,11 @@ impl Ui {
                         button: MouseButton::Right,
                     }),
                 );
+                self.fire_global(Box::new(MouseDown {
+                    x: self.input.mouse.x,
+                    y: self.input.mouse.y,
+                    button: MouseButton::Right,
+                }));
             }
             if self.input.mouse.middle.just_pressed {
                 let now = std::time::Instant::now();
@@ -958,6 +1026,11 @@ impl Ui {
                         button: MouseButton::Middle,
                     }),
                 );
+                self.fire_global(Box::new(MouseDown {
+                    x: self.input.mouse.x,
+                    y: self.input.mouse.y,
+                    button: MouseButton::Middle,
+                }));
             }
         }
 
@@ -1075,12 +1148,15 @@ impl Ui {
         let Some(Some(node)) = self.nodes.get(id) else {
             return None;
         };
+        let group = node.widget.as_any().downcast_ref::<Group>();
+        let visible = group.map(|g| g.visible).unwrap_or(true);
+        if !visible {
+            return None;
+        }
+
         let (ox, oy) = node.widget.position();
         let my_acc = acc.push(ox, oy, None, node.widget.z());
-        let scroll = node
-            .widget
-            .as_any()
-            .downcast_ref::<Group>()
+        let scroll = group
             .map(|g| (g.scroll_x, g.scroll_y))
             .unwrap_or((0.0, 0.0));
         let children_acc = acc.push(ox + scroll.0, oy + scroll.1, None, node.widget.z());

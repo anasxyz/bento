@@ -9,6 +9,8 @@ use cosmic_text::{
 };
 use etagere::{Allocation, AtlasAllocator, size2};
 use std::collections::HashMap;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use wgpu;
 
 #[repr(C)]
@@ -720,7 +722,7 @@ pub struct TextPipeline {
     sampler: wgpu::Sampler,
     capacity: usize,
     ranges: Vec<(u32, u32)>,
-    cache: Vec<TextCache>,
+    cache: HashMap<u64, TextCache>,
     scale: f32,
 
     origin_buffer: wgpu::Buffer,
@@ -969,7 +971,7 @@ impl TextPipeline {
             sampler,
             capacity,
             ranges: Vec::new(),
-            cache: Vec::new(),
+            cache: HashMap::new(),
             scale: scale,
             origin_buffer,
             origin_stride,
@@ -1008,15 +1010,18 @@ impl TextPipeline {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
     ) {
-        // grow cache to match number of specs
-        while self.cache.len() < specs.len() {
-            self.cache.push(TextCache::empty());
-        }
-
-        let any_changed = specs
-            .iter()
-            .enumerate()
-            .any(|(i, spec)| self.cache[i].needs_reshape(spec) || self.cache[i].needs_redraw(spec));
+        let any_changed = specs.iter().any(|spec| {
+            let mut hasher = DefaultHasher::new();
+            spec.text.hash(&mut hasher);
+            spec.size.to_bits().hash(&mut hasher);
+            spec.weight.hash(&mut hasher);
+            spec.font_family.hash(&mut hasher);
+            let key = hasher.finish();
+            match self.cache.get(&key) {
+                None => true,
+                Some(cache) => cache.needs_reshape(spec) || cache.needs_redraw(spec),
+            }
+        });
 
         if !any_changed && !self.ranges.is_empty() {
             return;
@@ -1055,7 +1060,15 @@ impl TextPipeline {
 
         let t_loop = std::time::Instant::now();
         for (i, spec) in specs.iter().enumerate() {
-            let cache = &mut self.cache[i];
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            spec.text.hash(&mut hasher);
+            spec.size.to_bits().hash(&mut hasher);
+            spec.weight.hash(&mut hasher);
+            spec.font_family.hash(&mut hasher);
+            let key = hasher.finish();
+            let cache = self.cache.entry(key).or_insert_with(TextCache::empty);
 
             let reshape = cache.needs_reshape(spec);
             let redraw = reshape || cache.needs_redraw(spec);

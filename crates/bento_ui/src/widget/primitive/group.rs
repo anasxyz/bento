@@ -20,6 +20,7 @@ pub struct Group {
     pub draggable: bool,
     pub scrollable: bool,
     pub clip: bool,
+    pub visible: bool,
 
     dragging: bool,
     drag_offset_x: f32,
@@ -46,6 +47,7 @@ impl Group {
             drag_offset_x: 0.0,
             drag_offset_y: 0.0,
             clip: false,
+            visible: true,
         }
     }
 

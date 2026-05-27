@@ -18,6 +18,18 @@ impl<T> WidgetHandle<T> {
         }
     }
 
+    pub fn invalid() -> Self {
+        Self {
+            id: usize::MAX,
+            generation: 0,
+            _marker: PhantomData,
+        }
+    }
+
+    pub fn is_valid(&self) -> bool {
+        self.id != usize::MAX
+    }
+
     pub fn untyped(&self) -> WidgetHandle<()> {
         WidgetHandle::new(self.id, self.generation)
     }
