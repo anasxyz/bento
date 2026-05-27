@@ -1,48 +1,75 @@
-#![allow(dead_code)]
 #![allow(unused)]
-
+#![allow(dead_code)]
 use bento::*;
 
 fn main() {
     let mut app = App::new();
     let mut ui = Ui::new();
 
-    let toggle = ui.add(Button::new("Select..."));
-    ui.set(toggle, |b| {
+    let label = ui.add(Text::new("Choose an option:"));
+    ui.set(label, |t| {
+        t.set_x(200.0);
+        t.set_y(170.0);
+    });
+
+    let dropdown = ui.build(Dropdown::new("Select..."), |ui, dropdown| {
+        ui.set(dropdown, |d| {
+            d.x = 200.0;
+            d.y = 200.0;
+        });
+
+        let og = ui.get(dropdown).unwrap().options_group;
+
+        let opt1 = ui.add(Button::new("Option A"));
+        ui.set(opt1, |b| {
+            b.width = Size::Fill;
+            b.z = 100;
+        });
+        let opt2 = ui.add(Button::new("Option B"));
+        ui.set(opt2, |b| {
+            b.width = Size::Fill;
+            b.z = 100;
+        });
+        let opt3 = ui.add(Button::new("Option C"));
+        ui.set(opt3, |b| {
+            b.width = Size::Fill;
+            b.z = 100;
+        });
+
+        ui.append(og, opt1);
+        ui.append(og, opt2);
+        ui.append(og, opt3);
+
+        ui.listen(opt1, move |_: &Click, ui: &mut Ui| {
+            ui.set(dropdown, |d| d.label = "Option A".to_string());
+        });
+        ui.listen(opt2, move |_: &Click, ui: &mut Ui| {
+            ui.set(dropdown, |d| d.label = "Option B".to_string());
+        });
+        ui.listen(opt3, move |_: &Click, ui: &mut Ui| {
+            ui.set(dropdown, |d| d.label = "Option C".to_string());
+        });
+    });
+
+    let result = ui.add(Text::new("Nothing selected yet"));
+    ui.set(result, |t| {
+        t.set_x(200.0);
+        t.set_y(260.0);
+    });
+
+    let confirm = ui.add(Button::new("Confirm"));
+    ui.set(confirm, |b| {
         b.x = 200.0;
-        b.y = 200.0;
+        b.y = 300.0;
     });
-
-    let mut options = Group::new();
-    options.x = 200.0;
-    options.y = 232.0;
-    options.layout = Layout::Column { gap: 0.0 };
-    options.background = Some([0.2, 0.2, 0.2, 1.0]);
-    options.visible = false;
-    let options = ui.add(options);
-
-    let opt1 = ui.add(Button::new("Option A"));
-    let opt2 = ui.add(Button::new("Option B"));
-    let opt3 = ui.add(Button::new("Option C"));
-    ui.append(options, opt1);
-    ui.append(options, opt2);
-    ui.append(options, opt3);
-
-    ui.listen(toggle, move |_: &Click, ui: &mut Ui| {
-        ui.set(options, |g| g.visible = !g.visible);
-    });
-
-    ui.listen(opt1, move |_: &Click, ui: &mut Ui| {
-        ui.set(toggle, |b| b.label_text = "Option A".to_string());
-        ui.set(options, |g| g.visible = false);
-    });
-    ui.listen(opt2, move |_: &Click, ui: &mut Ui| {
-        ui.set(toggle, |b| b.label_text = "Option B".to_string());
-        ui.set(options, |g| g.visible = false);
-    });
-    ui.listen(opt3, move |_: &Click, ui: &mut Ui| {
-        ui.set(toggle, |b| b.label_text = "Option C".to_string());
-        ui.set(options, |g| g.visible = false);
+    ui.listen(confirm, move |_: &Click, ui: &mut Ui| {
+        let selected = ui
+            .get(dropdown)
+            .map(|d| d.label.clone())
+            .unwrap_or_default();
+        ui.set(result, |t| {
+            t.set_content(&format!("You chose: {}", selected))
+        });
     });
 
     app.open_window(WindowConfig::default(), ui);

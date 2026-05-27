@@ -87,7 +87,8 @@ impl Widget for Group {
     fn name(&self) -> &str {
         "Group"
     }
-    fn build(&mut self, ui: &mut Ui, handle: WidgetHandle<()>) {
+
+    fn build(ui: &mut Ui, handle: WidgetHandle<()>) {
         let handle = handle.typed::<Group>();
 
         ui.listen(handle, move |ev: &MouseDown, ui: &mut Ui| {
@@ -130,6 +131,7 @@ impl Widget for Group {
             });
         });
     }
+
     fn size(&self) -> (f32, f32) {
         (self.w, self.h)
     }

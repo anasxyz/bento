@@ -236,7 +236,7 @@ impl Widget for LineInput {
         "LineInput"
     }
 
-    fn build(&mut self, ui: &mut Ui, handle: WidgetHandle<()>) {
+    fn build(ui: &mut Ui, handle: WidgetHandle<()>) {
         let handle = handle.typed::<LineInput>();
 
         ui.listen(handle, move |_: &FocusGained, ui: &mut Ui| {

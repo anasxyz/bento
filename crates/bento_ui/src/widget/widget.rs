@@ -11,9 +11,12 @@ pub trait Widget {
     /// Used mainly for debugging.
     fn name(&self) -> &str { "unnamed" }
 
+    fn init(&mut self) {}
+
     /// Called when the widget is added to the ui.
     /// Usually used to set up internal event listeners.
-    fn build(&mut self, ui: &mut Ui, handle: WidgetHandle<()>) {}
+    /// Important to note: does not take a self param.
+    fn build(ui: &mut Ui, handle: WidgetHandle<()>) where Self: Sized {}
 
     /// Updates widget state. Called on every frame.
     /// Also used to allow widgets to measure themselves.

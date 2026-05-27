@@ -111,21 +111,24 @@ impl Ui {
         if let Some(w) = self.get_mut(handle) {
             f(w);
             self.request_update(handle);
+            self.request_layout(handle);
             self.request_redraw();
-            // only request layout if widget has children
-            if self.nodes[handle.id]
-                .as_ref()
-                .map(|n| !n.children.is_empty())
-                .unwrap_or(false)
-            {
-                self.request_layout(handle);
-            }
         }
+    }
+
+    pub fn build<W: Widget + 'static>(
+        &mut self,
+        widget: W,
+        f: impl FnOnce(&mut Ui, WidgetHandle<W>),
+    ) -> WidgetHandle<W> {
+        let handle = self.add(widget);
+        f(self, handle);
+        handle
     }
 
     pub fn add<W: Widget + 'static>(&mut self, mut widget: W) -> WidgetHandle<W> {
         let index = self.nodes.len();
-        widget.build(self, WidgetHandle::<()>::from_id(index));
+        widget.init();
         self.nodes.push(Some(Node {
             widget: Box::new(widget),
             children: Vec::new(),
@@ -135,6 +138,7 @@ impl Ui {
         self.layout_dirty.insert(index);
         self.roots.push(index);
         self.request_redraw();
+        W::build(self, WidgetHandle::<()>::from_id(index));
         WidgetHandle::from_id(index)
     }
 
@@ -1127,10 +1131,14 @@ impl Ui {
         let prev_hovered = self.hovered_node;
         self.hovered_node = None;
         self.hovered_rect = None;
+        let mut best_z = i32::MIN;
         for &id in &self.roots {
-            if let Some((hit, rect)) = self.hit_test_node(id, mx, my, Accumulated::identity()) {
-                self.hovered_node = Some(hit);
-                self.hovered_rect = Some(rect);
+            if let Some((hit, rect, z)) = self.hit_test_node(id, mx, my, Accumulated::identity()) {
+                if z >= best_z {
+                    best_z = z;
+                    self.hovered_node = Some(hit);
+                    self.hovered_rect = Some(rect);
+                }
             }
         }
         if self.hovered_node != prev_hovered {
@@ -1144,7 +1152,7 @@ impl Ui {
         mx: f32,
         my: f32,
         acc: Accumulated,
-    ) -> Option<(usize, [f32; 4])> {
+    ) -> Option<(usize, [f32; 4], i32)> {
         let Some(Some(node)) = self.nodes.get(id) else {
             return None;
         };
@@ -1164,22 +1172,30 @@ impl Ui {
         let x = my_acc.offset_x;
         let y = my_acc.offset_y;
 
-        let mut result = None;
+        let mut result: Option<(usize, [f32; 4], i32)> = None;
         for &child_id in &node.children {
             if let Some(hit) = self.hit_test_node(child_id, mx, my, children_acc) {
-                result = Some(hit);
+                match &result {
+                    None => result = Some(hit),
+                    Some(prev) => {
+                        if hit.2 >= prev.2 {
+                            result = Some(hit);
+                        }
+                    }
+                }
             }
         }
 
-        if result.is_none()
-            && w > 0.0
-            && h > 0.0
-            && mx >= x
-            && mx <= x + w
-            && my >= y
-            && my <= y + h
-        {
-            result = Some((id, [x, y, w, h]));
+        if w > 0.0 && h > 0.0 && mx >= x && mx <= x + w && my >= y && my <= y + h {
+            let my_z = my_acc.z;
+            match &result {
+                None => result = Some((id, [x, y, w, h], my_z)),
+                Some(prev) => {
+                    if my_z > prev.2 {
+                        result = Some((id, [x, y, w, h], my_z));
+                    }
+                }
+            }
         }
 
         result

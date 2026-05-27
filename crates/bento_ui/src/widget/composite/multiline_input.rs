@@ -597,9 +597,9 @@ impl Widget for MultilineInput {
         "MultilineInput"
     }
 
-    fn build(&mut self, ui: &mut Ui, handle: WidgetHandle<()>) {
-        self.id = handle.id as u64;
+    fn build(ui: &mut Ui, handle: WidgetHandle<()>) {
         let handle = handle.typed::<MultilineInput>();
+        ui.get_mut(handle).unwrap().id = handle.id as u64;
 
         ui.listen(handle, move |_: &FocusGained, ui: &mut Ui| {
             if let Some(e) = ui.get_mut(handle) {

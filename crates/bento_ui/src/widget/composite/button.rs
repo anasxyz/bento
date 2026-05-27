@@ -75,16 +75,14 @@ impl Widget for Button {
         "Button"
     }
 
-    fn build(&mut self, ui: &mut Ui, handle: WidgetHandle<()>) {
+    fn build(ui: &mut Ui, handle: WidgetHandle<()>) {
         let handle = handle.typed::<Button>();
-
         ui.listen(handle, move |_: &HoverEnter, ui: &mut Ui| {
             if let Some(b) = ui.get_mut(handle) {
                 b.hovered = true;
             }
             ui.request_redraw();
         });
-
         ui.listen(handle, move |_: &HoverLeave, ui: &mut Ui| {
             if let Some(b) = ui.get_mut(handle) {
                 b.hovered = false;
