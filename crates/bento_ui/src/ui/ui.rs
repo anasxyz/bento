@@ -20,6 +20,8 @@ pub struct Node {
     pub widget: Box<dyn AnyWidget>,
     pub children: Vec<usize>,
     pub parent: Option<usize>,
+    pub build_fn: fn(&mut Ui, usize),
+    pub update_fn: fn(&mut Ui, usize),
 }
 
 pub struct Ui {
@@ -46,8 +48,6 @@ pub struct Ui {
     pub focused: Option<usize>,
 
     pub cursor: CursorIcon,
-
-    pub overlay_id: usize,
 }
 
 impl Ui {
@@ -76,18 +76,9 @@ impl Ui {
             focused: None,
 
             cursor: CursorIcon::Default,
-
-            overlay_id: 0,
         };
 
-        let overlay = Group::new();
-        let handle = ui.add(overlay);
-        ui.overlay_id = handle.id;
         ui
-    }
-
-    pub fn overlay(&self) -> WidgetHandle<Group> {
-        WidgetHandle::from_id(self.overlay_id)
     }
 
     pub fn request_redraw(&mut self) {
@@ -116,16 +107,6 @@ impl Ui {
         }
     }
 
-    pub fn build<W: Widget + 'static>(
-        &mut self,
-        widget: W,
-        f: impl FnOnce(&mut Ui, WidgetHandle<W>),
-    ) -> WidgetHandle<W> {
-        let handle = self.add(widget);
-        f(self, handle);
-        handle
-    }
-
     pub fn add<W: Widget + 'static>(&mut self, mut widget: W) -> WidgetHandle<W> {
         let index = self.nodes.len();
         widget.init();
@@ -133,12 +114,15 @@ impl Ui {
             widget: Box::new(widget),
             children: Vec::new(),
             parent: None,
+            build_fn: |ui, id| W::build(ui, WidgetHandle::<()>::from_id(id)),
+            update_fn: |ui, id| W::update(ui, WidgetHandle::<()>::from_id(id)),
         }));
         self.dirty.insert(index);
         self.layout_dirty.insert(index);
         self.roots.push(index);
         self.request_redraw();
-        W::build(self, WidgetHandle::<()>::from_id(index));
+        let build_fn = self.nodes[index].as_ref().unwrap().build_fn;
+        build_fn(self, index);
         WidgetHandle::from_id(index)
     }
 
@@ -216,12 +200,13 @@ impl Ui {
         let dirty: Vec<usize> = self.dirty.drain().collect();
         // println!("[update] dirty count: {}", dirty.len());
         for id in dirty {
-            let Some(Some(node)) = self.nodes.get_mut(id) else {
+            let Some(Some(node)) = self.nodes.get(id) else {
                 continue;
             };
             let old_size = node.widget.size();
-            node.widget.update(&mut self.measurer);
-            let new_size = node.widget.size();
+            let update_fn = node.update_fn;
+            update_fn(self, id);
+            let new_size = self.nodes[id].as_ref().unwrap().widget.size();
             self.request_redraw();
             if old_size != new_size {
                 let mut current = self.nodes[id].as_ref().unwrap().parent;

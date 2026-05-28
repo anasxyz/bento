@@ -202,6 +202,53 @@ impl LineInput {
         }
         false
     }
+
+    fn inner_update(&mut self, measurer: &mut TextMeasurer) {
+        let result = measurer.measure(TextMeasureRequest {
+            text: if self.value.is_empty() {
+                ""
+            } else {
+                &self.value
+            },
+            font_family: "",
+            size: self.font_size,
+            weight: 400,
+            italic: false,
+            letter_spacing: 0.0,
+            line_height: None,
+            tab_width: 4,
+            max_width: None,
+            weight_ranges: &[],
+            italic_ranges: &[],
+            font_family_ranges: &[],
+        });
+        self.text_h = result.height;
+        self.text_w = result.width;
+        self.glyph_positions = result.glyph_positions.clone();
+
+        if matches!(self.height, Size::Auto) {
+            self.h = self.text_h + self.padding * 2.0;
+        }
+        if matches!(self.width, Size::Auto) {
+            self.w = (result.width + self.padding * 2.0).max(100.0);
+        }
+
+        self.cursor_x = result
+            .glyph_positions
+            .get(self.cursor)
+            .copied()
+            .unwrap_or(result.width);
+
+        let inner_w = self.w - self.padding * 2.0;
+        let cursor_local = self.cursor_x - self.scroll_offset;
+        if cursor_local < 0.0 {
+            self.scroll_offset = self.cursor_x;
+        } else if cursor_local > inner_w {
+            self.scroll_offset = self.cursor_x - inner_w;
+        }
+        let max_scroll = (self.text_w - inner_w).max(0.0);
+        self.scroll_offset = self.scroll_offset.clamp(0.0, max_scroll);
+    }
 }
 
 fn blink_tick(ui: &mut Ui, handle: WidgetHandle<LineInput>) {
@@ -318,51 +365,13 @@ impl Widget for LineInput {
         });
     }
 
-    fn update(&mut self, measurer: &mut TextMeasurer) {
-        let result = measurer.measure(TextMeasureRequest {
-            text: if self.value.is_empty() {
-                ""
-            } else {
-                &self.value
-            },
-            font_family: "",
-            size: self.font_size,
-            weight: 400,
-            italic: false,
-            letter_spacing: 0.0,
-            line_height: None,
-            tab_width: 4,
-            max_width: None,
-            weight_ranges: &[],
-            italic_ranges: &[],
-            font_family_ranges: &[],
-        });
-        self.text_h = result.height;
-        self.text_w = result.width;
-        self.glyph_positions = result.glyph_positions.clone();
-
-        if matches!(self.height, Size::Auto) {
-            self.h = self.text_h + self.padding * 2.0;
+    fn update(ui: &mut Ui, handle: WidgetHandle<()>) {
+        let handle = handle.typed::<LineInput>();
+        if let Some(node) = ui.nodes.get_mut(handle.id).and_then(|n| n.as_mut()) {
+            if let Some(e) = node.widget.as_any_mut().downcast_mut::<LineInput>() {
+                e.inner_update(&mut ui.measurer);
+            }
         }
-        if matches!(self.width, Size::Auto) {
-            self.w = (result.width + self.padding * 2.0).max(100.0);
-        }
-
-        self.cursor_x = result
-            .glyph_positions
-            .get(self.cursor)
-            .copied()
-            .unwrap_or(result.width);
-
-        let inner_w = self.w - self.padding * 2.0;
-        let cursor_local = self.cursor_x - self.scroll_offset;
-        if cursor_local < 0.0 {
-            self.scroll_offset = self.cursor_x;
-        } else if cursor_local > inner_w {
-            self.scroll_offset = self.cursor_x - inner_w;
-        }
-        let max_scroll = (self.text_w - inner_w).max(0.0);
-        self.scroll_offset = self.scroll_offset.clamp(0.0, max_scroll);
     }
 
     fn render(&mut self, canvas: &mut Canvas) {

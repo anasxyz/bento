@@ -20,7 +20,8 @@ pub trait Widget {
 
     /// Updates widget state. Called on every frame.
     /// Also used to allow widgets to measure themselves.
-    fn update(&mut self, measurer: &mut TextMeasurer) {}
+    /// Important to note: does not take a self param.
+    fn update(ui: &mut Ui, handle: WidgetHandle<()>) where Self: Sized {}
 
     /// Returns the size of the widget.
     /// Fields `w` and `h` are the size of the widget.

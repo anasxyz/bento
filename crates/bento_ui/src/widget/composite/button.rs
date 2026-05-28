@@ -68,30 +68,8 @@ impl Button {
     pub fn set_font_size(&mut self, size: f32) {
         self.font_size = size;
     }
-}
 
-impl Widget for Button {
-    fn name(&self) -> &str {
-        "Button"
-    }
-
-    fn build(ui: &mut Ui, handle: WidgetHandle<()>) {
-        let handle = handle.typed::<Button>();
-        ui.listen(handle, move |_: &HoverEnter, ui: &mut Ui| {
-            if let Some(b) = ui.get_mut(handle) {
-                b.hovered = true;
-            }
-            ui.request_redraw();
-        });
-        ui.listen(handle, move |_: &HoverLeave, ui: &mut Ui| {
-            if let Some(b) = ui.get_mut(handle) {
-                b.hovered = false;
-            }
-            ui.request_redraw();
-        });
-    }
-
-    fn update(&mut self, measurer: &mut TextMeasurer) {
+    fn inner_update(&mut self, measurer: &mut TextMeasurer) {
         println!("update: {}", self.label_text);
         let result = measurer.measure(TextMeasureRequest {
             text: &self.label_text,
@@ -116,6 +94,37 @@ impl Widget for Button {
         }
         if matches!(self.height, Size::Auto) {
             self.h = result.height + self.padding * 2.0;
+        }
+    }
+}
+
+impl Widget for Button {
+    fn name(&self) -> &str {
+        "Button"
+    }
+
+    fn build(ui: &mut Ui, handle: WidgetHandle<()>) {
+        let handle = handle.typed::<Button>();
+        ui.listen(handle, move |_: &HoverEnter, ui: &mut Ui| {
+            if let Some(b) = ui.get_mut(handle) {
+                b.hovered = true;
+            }
+            ui.request_redraw();
+        });
+        ui.listen(handle, move |_: &HoverLeave, ui: &mut Ui| {
+            if let Some(b) = ui.get_mut(handle) {
+                b.hovered = false;
+            }
+            ui.request_redraw();
+        });
+    }
+
+    fn update(ui: &mut Ui, handle: WidgetHandle<()>) {
+        let handle = handle.typed::<Button>();
+        if let Some(node) = ui.nodes.get_mut(handle.id).and_then(|n| n.as_mut()) {
+            if let Some(e) = node.widget.as_any_mut().downcast_mut::<Button>() {
+                e.inner_update(&mut ui.measurer);
+            }
         }
     }
 

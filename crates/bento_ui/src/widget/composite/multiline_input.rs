@@ -563,6 +563,145 @@ impl MultilineInput {
             }
         }
     }
+
+    fn inner_update(&mut self, measurer: &mut TextMeasurer) {
+        let inner_w = self.w - self.padding * 2.0;
+
+        if (inner_w - self.cached_inner_w).abs() > 0.1 {
+            self.cached_inner_w = inner_w;
+            self.line_dirty.iter_mut().for_each(|d| *d = true);
+            self.max_line_width = 0.0;
+            self.max_line_width_dirty = false;
+        }
+
+        self.sync_cache_len();
+
+        let mut cursor_result = None;
+
+        for i in 0..self.lines.len() {
+            if !self.line_dirty[i] {
+                continue;
+            }
+            let result = measurer.measure_reuse(
+                self.id,
+                TextMeasureRequest {
+                    text: if self.lines[i].is_empty() {
+                        ""
+                    } else {
+                        &self.lines[i]
+                    },
+                    font_family: &self.font_family,
+                    size: self.font_size,
+                    weight: 400,
+                    italic: false,
+                    letter_spacing: 0.0,
+                    line_height: Some(self.line_height),
+                    tab_width: self.tab_width as u16,
+                    max_width: if self.wrap { Some(inner_w) } else { None },
+                    weight_ranges: &[],
+                    italic_ranges: &[],
+                    font_family_ranges: &[],
+                },
+            );
+            self.line_visual_rows[i] = result.line_count.max(1);
+            self.all_line_glyph_positions[i] = result.line_glyph_positions.clone();
+            self.all_line_start_chars[i] = result.line_start_chars.clone();
+            self.line_dirty[i] = false;
+            self.line_widths[i] = result.width;
+            if !self.max_line_width_dirty {
+                self.max_line_width = self.max_line_width.max(result.width);
+            }
+            if i == self.cursor_line {
+                cursor_result = Some(result);
+            }
+        }
+
+        let cursor_line = self.cursor_line;
+        if self.max_line_width_dirty {
+            self.max_line_width = self.line_widths.iter().cloned().fold(0.0, f32::max);
+            self.max_line_width_dirty = false;
+        }
+        let result = cursor_result.unwrap_or_else(|| {
+            measurer.measure_reuse(
+                self.id,
+                TextMeasureRequest {
+                    text: if self.lines[cursor_line].is_empty() {
+                        ""
+                    } else {
+                        &self.lines[cursor_line]
+                    },
+                    font_family: &self.font_family,
+                    size: self.font_size,
+                    weight: 400,
+                    italic: false,
+                    letter_spacing: 0.0,
+                    line_height: Some(self.line_height),
+                    tab_width: self.tab_width as u16,
+                    max_width: if self.wrap { Some(inner_w) } else { None },
+                    weight_ranges: &[],
+                    italic_ranges: &[],
+                    font_family_ranges: &[],
+                },
+            )
+        });
+
+        // always refresh cursor line positions from the result
+        let cl = self.cursor_line;
+        self.all_line_glyph_positions[cl] = result.line_glyph_positions.clone();
+        self.all_line_start_chars[cl] = result.line_start_chars.clone();
+
+        let mut visual_in_logical = result.line_start_chars.len().saturating_sub(1);
+        for (vi, &start) in result.line_start_chars.iter().enumerate() {
+            let next = result
+                .line_start_chars
+                .get(vi + 1)
+                .copied()
+                .unwrap_or(usize::MAX);
+            if self.cursor_col >= start
+                && (self.cursor_col < next || vi + 1 == result.line_start_chars.len())
+            {
+                visual_in_logical = vi;
+                break;
+            }
+        }
+        self.current_visual_line_in_logical = visual_in_logical;
+
+        let col_in_visual = self.cursor_col
+            - result
+                .line_start_chars
+                .get(visual_in_logical)
+                .copied()
+                .unwrap_or(0);
+
+        self.cursor_x = result
+            .line_glyph_positions
+            .get(visual_in_logical)
+            .and_then(|p| p.get(col_in_visual).or_else(|| p.last()))
+            .copied()
+            .unwrap_or(0.0);
+
+        let max_scroll_x = (self.max_line_width - inner_w).max(0.0);
+        let cursor_screen_x = self.cursor_x - self.scroll_x;
+        if cursor_screen_x < 0.0 {
+            self.scroll_x = self.cursor_x;
+        } else if cursor_screen_x > inner_w {
+            self.scroll_x = self.cursor_x - inner_w;
+        }
+        self.scroll_x = self.scroll_x.clamp(0.0, max_scroll_x);
+
+        self.cursor_visual_row = self.visual_row_of_line(self.cursor_line) + visual_in_logical;
+
+        let inner_h = self.h - self.padding * 2.0;
+        let top = self.cursor_visual_row as f32 * self.line_height;
+        let bottom = top + self.line_height;
+        if top < self.scroll_y {
+            self.scroll_y = top;
+        } else if bottom > self.scroll_y + inner_h {
+            self.scroll_y = bottom - inner_h;
+        }
+        let max_scroll = (self.total_visual_rows() as f32 * self.line_height - inner_h).max(0.0);
+        self.scroll_y = self.scroll_y.clamp(0.0, max_scroll);
+    }
 }
 
 fn blink_tick(ui: &mut Ui, handle: WidgetHandle<MultilineInput>) {
@@ -726,143 +865,13 @@ impl Widget for MultilineInput {
         });
     }
 
-    fn update(&mut self, measurer: &mut TextMeasurer) {
-        let inner_w = self.w - self.padding * 2.0;
-
-        if (inner_w - self.cached_inner_w).abs() > 0.1 {
-            self.cached_inner_w = inner_w;
-            self.line_dirty.iter_mut().for_each(|d| *d = true);
-            self.max_line_width = 0.0;
-            self.max_line_width_dirty = false;
-        }
-
-        self.sync_cache_len();
-
-        let mut cursor_result = None;
-
-        for i in 0..self.lines.len() {
-            if !self.line_dirty[i] {
-                continue;
-            }
-            let result = measurer.measure_reuse(
-                self.id,
-                TextMeasureRequest {
-                    text: if self.lines[i].is_empty() {
-                        ""
-                    } else {
-                        &self.lines[i]
-                    },
-                    font_family: &self.font_family,
-                    size: self.font_size,
-                    weight: 400,
-                    italic: false,
-                    letter_spacing: 0.0,
-                    line_height: Some(self.line_height),
-                    tab_width: self.tab_width as u16,
-                    max_width: if self.wrap { Some(inner_w) } else { None },
-                    weight_ranges: &[],
-                    italic_ranges: &[],
-                    font_family_ranges: &[],
-                },
-            );
-            self.line_visual_rows[i] = result.line_count.max(1);
-            self.all_line_glyph_positions[i] = result.line_glyph_positions.clone();
-            self.all_line_start_chars[i] = result.line_start_chars.clone();
-            self.line_dirty[i] = false;
-            self.line_widths[i] = result.width;
-            if !self.max_line_width_dirty {
-                self.max_line_width = self.max_line_width.max(result.width);
-            }
-            if i == self.cursor_line {
-                cursor_result = Some(result);
+    fn update(ui: &mut Ui, handle: WidgetHandle<()>) {
+        let handle = handle.typed::<MultilineInput>();
+        if let Some(node) = ui.nodes.get_mut(handle.id).and_then(|n| n.as_mut()) {
+            if let Some(e) = node.widget.as_any_mut().downcast_mut::<MultilineInput>() {
+                e.inner_update(&mut ui.measurer);
             }
         }
-
-        let cursor_line = self.cursor_line;
-        if self.max_line_width_dirty {
-            self.max_line_width = self.line_widths.iter().cloned().fold(0.0, f32::max);
-            self.max_line_width_dirty = false;
-        }
-        let result = cursor_result.unwrap_or_else(|| {
-            measurer.measure_reuse(
-                self.id,
-                TextMeasureRequest {
-                    text: if self.lines[cursor_line].is_empty() {
-                        ""
-                    } else {
-                        &self.lines[cursor_line]
-                    },
-                    font_family: &self.font_family,
-                    size: self.font_size,
-                    weight: 400,
-                    italic: false,
-                    letter_spacing: 0.0,
-                    line_height: Some(self.line_height),
-                    tab_width: self.tab_width as u16,
-                    max_width: if self.wrap { Some(inner_w) } else { None },
-                    weight_ranges: &[],
-                    italic_ranges: &[],
-                    font_family_ranges: &[],
-                },
-            )
-        });
-
-        // always refresh cursor line positions from the result
-        let cl = self.cursor_line;
-        self.all_line_glyph_positions[cl] = result.line_glyph_positions.clone();
-        self.all_line_start_chars[cl] = result.line_start_chars.clone();
-
-        let mut visual_in_logical = result.line_start_chars.len().saturating_sub(1);
-        for (vi, &start) in result.line_start_chars.iter().enumerate() {
-            let next = result
-                .line_start_chars
-                .get(vi + 1)
-                .copied()
-                .unwrap_or(usize::MAX);
-            if self.cursor_col >= start
-                && (self.cursor_col < next || vi + 1 == result.line_start_chars.len())
-            {
-                visual_in_logical = vi;
-                break;
-            }
-        }
-        self.current_visual_line_in_logical = visual_in_logical;
-
-        let col_in_visual = self.cursor_col
-            - result
-                .line_start_chars
-                .get(visual_in_logical)
-                .copied()
-                .unwrap_or(0);
-
-        self.cursor_x = result
-            .line_glyph_positions
-            .get(visual_in_logical)
-            .and_then(|p| p.get(col_in_visual).or_else(|| p.last()))
-            .copied()
-            .unwrap_or(0.0);
-
-        let max_scroll_x = (self.max_line_width - inner_w).max(0.0);
-        let cursor_screen_x = self.cursor_x - self.scroll_x;
-        if cursor_screen_x < 0.0 {
-            self.scroll_x = self.cursor_x;
-        } else if cursor_screen_x > inner_w {
-            self.scroll_x = self.cursor_x - inner_w;
-        }
-        self.scroll_x = self.scroll_x.clamp(0.0, max_scroll_x);
-
-        self.cursor_visual_row = self.visual_row_of_line(self.cursor_line) + visual_in_logical;
-
-        let inner_h = self.h - self.padding * 2.0;
-        let top = self.cursor_visual_row as f32 * self.line_height;
-        let bottom = top + self.line_height;
-        if top < self.scroll_y {
-            self.scroll_y = top;
-        } else if bottom > self.scroll_y + inner_h {
-            self.scroll_y = bottom - inner_h;
-        }
-        let max_scroll = (self.total_visual_rows() as f32 * self.line_height - inner_h).max(0.0);
-        self.scroll_y = self.scroll_y.clamp(0.0, max_scroll);
     }
 
     fn render(&mut self, canvas: &mut Canvas) {

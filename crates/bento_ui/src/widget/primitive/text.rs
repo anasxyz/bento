@@ -1,5 +1,6 @@
+use crate::Ui;
 use crate::layout::Size;
-use crate::widget::{Canvas, Widget};
+use crate::widget::{Canvas, Widget, WidgetHandle};
 use bento_wgpu::{TextAlign, TextDraw, TextMeasureRequest, TextMeasurer};
 
 pub struct Text {
@@ -48,26 +49,8 @@ impl Text {
     pub fn set_z(&mut self, z: i32) {
         self.z = z;
     }
-}
 
-impl Widget for Text {
-    fn name(&self) -> &str {
-        "Text"
-    }
-    fn size(&self) -> (f32, f32) {
-        (self.w, self.h)
-    }
-    fn position(&self) -> (f32, f32) {
-        (self.x, self.y)
-    }
-    fn set_position(&mut self, x: f32, y: f32) {
-        self.x = x;
-        self.y = y;
-    }
-    fn z(&self) -> i32 {
-        self.z
-    }
-    fn update(&mut self, measurer: &mut TextMeasurer) {
+    fn inner_update(&mut self, measurer: &mut TextMeasurer) {
         let max_width = match &self.width {
             Size::Fixed(w) => Some(*w),
             Size::Auto => None,
@@ -98,6 +81,35 @@ impl Widget for Text {
             _ => result.height,
         };
     }
+}
+
+impl Widget for Text {
+    fn name(&self) -> &str {
+        "Text"
+    }
+    fn size(&self) -> (f32, f32) {
+        (self.w, self.h)
+    }
+    fn position(&self) -> (f32, f32) {
+        (self.x, self.y)
+    }
+    fn set_position(&mut self, x: f32, y: f32) {
+        self.x = x;
+        self.y = y;
+    }
+    fn z(&self) -> i32 {
+        self.z
+    }
+
+    fn update(ui: &mut Ui, handle: WidgetHandle<()>) {
+        let handle = handle.typed::<Text>();
+        if let Some(node) = ui.nodes.get_mut(handle.id).and_then(|n| n.as_mut()) {
+            if let Some(e) = node.widget.as_any_mut().downcast_mut::<Text>() {
+                e.inner_update(&mut ui.measurer);
+            }
+        }
+    }
+
     fn render(&mut self, canvas: &mut Canvas) {
         canvas.draw_list.push_text(TextDraw {
             x: canvas.x,
