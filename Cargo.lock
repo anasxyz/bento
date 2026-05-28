@@ -215,7 +215,6 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 name = "bento"
 version = "0.1.0"
 dependencies = [
- "bento_shared",
  "bento_ui",
  "bento_winit",
  "futures",
@@ -234,19 +233,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "bento_shared"
-version = "0.1.0"
-dependencies = [
- "cosmic-text",
- "slab",
-]
-
-[[package]]
 name = "bento_ui"
 version = "0.1.0"
 dependencies = [
  "bento_macros",
- "bento_shared",
  "bento_wgpu",
  "cosmic-text",
  "tokio",
@@ -256,7 +246,6 @@ dependencies = [
 name = "bento_wgpu"
 version = "0.1.0"
 dependencies = [
- "bento_shared",
  "bytemuck",
  "cosmic-text",
  "etagere",
@@ -273,7 +262,6 @@ dependencies = [
 name = "bento_winit"
 version = "0.1.0"
 dependencies = [
- "bento_shared",
  "bento_ui",
  "bento_wgpu",
  "cosmic-text",

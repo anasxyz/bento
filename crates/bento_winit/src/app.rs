@@ -10,7 +10,6 @@ use crate::{config::WindowConfig, window::Window};
 use bento_ui::{CursorIcon, Ui};
 use bento_wgpu::RenderContext;
 
-use bento_shared::BentoEvent;
 use std::sync::Arc;
 
 pub struct App {
@@ -19,6 +18,10 @@ pub struct App {
     windows: HashMap<WindowId, Window>,
     close_queue: Vec<WindowId>,
     runtime: tokio::runtime::Runtime,
+}
+
+pub enum BentoEvent {
+    Callback(u64),
 }
 
 impl App {

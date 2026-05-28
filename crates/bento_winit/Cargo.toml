@@ -11,7 +11,6 @@ categories.workspace = true
 workspace = true
 
 [dependencies]
-bento_shared = { workspace = true }
 bento_wgpu = { workspace = true }
 bento_ui = { workspace = true }
 

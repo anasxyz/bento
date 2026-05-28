@@ -11,7 +11,6 @@ categories.workspace = true
 workspace = true
 
 [dependencies]
-bento_shared = { workspace = true }
 wgpu = { workspace = true }
 bytemuck = { workspace = true }
 cosmic-text = { workspace = true, features = ["shape-run-cache"] }
