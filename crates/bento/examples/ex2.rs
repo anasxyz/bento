@@ -49,7 +49,7 @@ fn main() {
     }
 
     ui.asyncs.spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        tokio::time::sleep(web_time::Duration::from_secs(2)).await;
         move |ui: &mut Ui| {
             let new_texts = [
                 "CHANGED: The quick brown fox jumps over the lazy dog again",

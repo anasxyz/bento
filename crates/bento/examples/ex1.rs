@@ -21,7 +21,7 @@ fn main() {
     });
 
     ui.asyncs.spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        tokio::time::sleep(web_time::Duration::from_secs(2)).await;
         move |ui: &mut Ui| {
             ui.set(text, |t| {
                 t.set_x(200.0);
@@ -33,7 +33,7 @@ fn main() {
     });
 
     ui.asyncs.spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_secs(4)).await;
+        tokio::time::sleep(web_time::Duration::from_secs(4)).await;
         move |ui: &mut Ui| {
             ui.set(text, |t| {
                 t.set_x(400.0);
