@@ -196,7 +196,7 @@ impl Ui {
 
     pub fn update(&mut self) {
         // update / measure pass
-        let t = std::time::Instant::now();
+        let t = web_time::Instant::now();
         let dirty: Vec<usize> = self.dirty.drain().collect();
         // println!("[update] dirty count: {}", dirty.len());
         for id in dirty {
@@ -219,7 +219,7 @@ impl Ui {
         // println!("[update] measure time: {:?} +", t.elapsed());
 
         // layout pass
-        let t = std::time::Instant::now();
+        let t = web_time::Instant::now();
         while !self.layout_dirty.is_empty() {
             let layout_ids: Vec<usize> = self.layout_dirty.drain().collect();
             let mut layout_ids: Vec<usize> = layout_ids.into_iter().collect();
@@ -928,7 +928,7 @@ impl Ui {
 
         if let Some(node_id) = hover_target {
             if self.input.mouse.left.just_pressed {
-                let now = std::time::Instant::now();
+                let now = web_time::Instant::now();
                 let dt = now
                     .duration_since(self.input.mouse.left.last_click_time)
                     .as_millis();
@@ -964,7 +964,7 @@ impl Ui {
                 }
             }
             if self.input.mouse.right.just_pressed {
-                let now = std::time::Instant::now();
+                let now = web_time::Instant::now();
                 let dt = now
                     .duration_since(self.input.mouse.right.last_click_time)
                     .as_millis();
@@ -993,7 +993,7 @@ impl Ui {
                 }));
             }
             if self.input.mouse.middle.just_pressed {
-                let now = std::time::Instant::now();
+                let now = web_time::Instant::now();
                 let dt = now
                     .duration_since(self.input.mouse.middle.last_click_time)
                     .as_millis();

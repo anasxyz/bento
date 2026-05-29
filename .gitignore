@@ -1,3 +1,4 @@
 /target
 *.txt
 /fonts
+/bento_wgpu/fonts

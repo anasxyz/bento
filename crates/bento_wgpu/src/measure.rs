@@ -62,7 +62,17 @@ pub struct TextMeasurer {
 
 impl TextMeasurer {
     pub fn new() -> Self {
+        #[cfg(not(target_arch = "wasm32"))]
         let font_system = cosmic_text::FontSystem::new();
+
+        /// TODO: change hardcoded font loading
+        #[cfg(target_arch = "wasm32")]
+        let font_system = {
+            let mut db = cosmic_text::fontdb::Database::new();
+            db.load_font_data(include_bytes!("../fonts/tex-gyre-cursor.regular.otf").to_vec());
+            cosmic_text::FontSystem::new_with_locale_and_db("en-US".to_string(), db)
+        };
+
         Self {
             font_system,
             cache: MeasureCache::new(),
@@ -75,7 +85,7 @@ impl TextMeasurer {
     }
 
     pub fn measure(&mut self, req: TextMeasureRequest<'_>) -> TextMeasureResult {
-        let t = std::time::Instant::now();
+        let t = web_time::Instant::now();
         let key = MeasureKey::from_request(&req);
         if let Some((result, _)) = self.cache.cache.get(&key) {
             return result.clone();
@@ -185,7 +195,7 @@ impl TextMeasurer {
     }
 
     pub fn measure_reuse(&mut self, id: u64, req: TextMeasureRequest<'_>) -> TextMeasureResult {
-        let t = std::time::Instant::now();
+        let t = web_time::Instant::now();
         let line_height = req.line_height.unwrap_or(req.size * 1.4);
         let font_system = &mut self.font_system;
 

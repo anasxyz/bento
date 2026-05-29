@@ -36,14 +36,14 @@ impl RectPipeline {
 
         let screen_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("rect screen uniform"),
-            size: 8,
+            size: 16,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
         queue.write_buffer(
             &screen_buffer,
             0,
-            bytemuck::cast_slice(&[screen_w, screen_h]),
+            bytemuck::cast_slice(&[screen_w, screen_h, 0.0f32, 0.0f32]),
         );
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {

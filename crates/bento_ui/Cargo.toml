@@ -14,5 +14,13 @@ workspace = true
 bento_macros = { workspace = true }
 bento_wgpu = { workspace = true }
 
-tokio = { workspace = true, features = ["time"] }
 cosmic-text = { workspace = true }
+web-time = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { version = "1", features = ["time"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = { workspace = true }
+web-sys = { workspace = true, features = ["Window"] }
+wasm-bindgen-futures = { workspace = true }
