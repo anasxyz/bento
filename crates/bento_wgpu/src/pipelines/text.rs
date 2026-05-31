@@ -1010,23 +1010,6 @@ impl TextPipeline {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
     ) {
-        let any_changed = specs.iter().any(|spec| {
-            let mut hasher = DefaultHasher::new();
-            spec.text.hash(&mut hasher);
-            spec.size.to_bits().hash(&mut hasher);
-            spec.weight.hash(&mut hasher);
-            spec.font_family.hash(&mut hasher);
-            let key = hasher.finish();
-            match self.cache.get(&key) {
-                None => true,
-                Some(cache) => cache.needs_reshape(spec) || cache.needs_redraw(spec),
-            }
-        });
-
-        if !any_changed && !self.ranges.is_empty() {
-            return;
-        }
-
         // grow origin buffer if needed
         if specs.len() > self.origin_capacity {
             self.origin_capacity = specs.len().next_power_of_two();
