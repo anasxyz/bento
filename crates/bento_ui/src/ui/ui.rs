@@ -48,6 +48,8 @@ pub struct Ui {
     pub focused: Option<usize>,
 
     pub cursor: CursorIcon,
+
+    pub state_map: HashMap<TypeId, Box<dyn Any>>,
 }
 
 impl Ui {
@@ -76,9 +78,38 @@ impl Ui {
             focused: None,
 
             cursor: CursorIcon::Default,
+
+            state_map: HashMap::new(),
         };
 
         ui
+    }
+
+    pub fn set_state<T: 'static>(&mut self, state: T) {
+        self.state_map.insert(TypeId::of::<T>(), Box::new(state));
+    }
+
+    pub fn state<T: 'static>(&self) -> &T {
+        self.state_map
+            .get(&TypeId::of::<T>())
+            .unwrap()
+            .downcast_ref::<T>()
+            .unwrap()
+    }
+
+    pub fn state_mut<T: 'static>(&mut self) -> &mut T {
+        self.state_map
+            .get_mut(&TypeId::of::<T>())
+            .unwrap()
+            .downcast_mut::<T>()
+            .unwrap()
+    }
+
+    pub fn with_state<T: 'static>(&mut self, f: impl FnOnce(&mut T, &mut Ui)) {
+        let mut state = self.state_map.remove(&TypeId::of::<T>()).unwrap();
+        let s = state.downcast_mut::<T>().unwrap();
+        f(s, self);
+        self.state_map.insert(TypeId::of::<T>(), state);
     }
 
     pub fn request_redraw(&mut self) {

@@ -137,28 +137,19 @@ impl ApplicationHandler<BentoEvent> for App {
 
         match event {
             WindowEvent::RedrawRequested => {
-                // println!("----------------------------");
-                let t_total = web_time::Instant::now();
-
-                let t = web_time::Instant::now();
                 win.ui.process_input();
-                // println!("= process input time: {:?}", t.elapsed());
 
                 if win.ui.needs_redraw
                     || !win.ui.dirty.is_empty()
                     || !win.ui.layout_dirty.is_empty()
                 {
-                    let t = web_time::Instant::now();
                     win.ui.measurer.trim_shape_cache();
                     win.ui.update();
                     win.set_cursor(to_winit_cursor(win.ui.cursor));
-                    // println!("= update time: {:?}", t.elapsed());
                 }
 
                 if win.needs_render || win.ui.needs_redraw {
-                    let t = web_time::Instant::now();
                     let draw_list = win.ui.collect_draw_list();
-                    // println!("= collect_draw_list time: {:?}", t.elapsed());
 
                     let t = web_time::Instant::now();
                     win.renderer.render(
@@ -168,7 +159,6 @@ impl ApplicationHandler<BentoEvent> for App {
                         win.config.clear_color,
                         &draw_list,
                     );
-                    // println!("= render time: {:?}", t.elapsed());
 
                     win.needs_render = false;
                     win.ui.needs_redraw = false;
@@ -176,8 +166,6 @@ impl ApplicationHandler<BentoEvent> for App {
 
                 win.ui.input.mouse.clear();
                 win.ui.input.keyboard.clear();
-                // println!("total frame time: {:?}", t_total.elapsed());
-                // println!("----------------------------");
             }
 
             WindowEvent::KeyboardInput {
