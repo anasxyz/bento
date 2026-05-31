@@ -54,7 +54,10 @@ impl RenderContext {
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 #[cfg(target_arch = "wasm32")]
-                required_limits: wgpu::Limits::downlevel_webgl2_defaults(),
+                // adapter.limits() to query adapter limits
+                // or wgpu::Limits::default()
+                required_limits: wgpu::Limits::downlevel_webgl2_defaults()
+                    .using_resolution(adapter.limits()),
                 #[cfg(not(target_arch = "wasm32"))]
                 required_limits: wgpu::Limits::default(),
                 ..wgpu::DeviceDescriptor::default()

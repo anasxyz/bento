@@ -69,7 +69,7 @@ impl TextMeasurer {
         #[cfg(target_arch = "wasm32")]
         let font_system = {
             let mut db = cosmic_text::fontdb::Database::new();
-            db.load_font_data(include_bytes!("../../fonts/tex-gyre-cursor.regular.otf").to_vec());
+            db.load_font_data(include_bytes!("../../../fonts/tex-gyre-cursor.regular.otf").to_vec());
             cosmic_text::FontSystem::new_with_locale_and_db("en-US".to_string(), db)
         };
 
