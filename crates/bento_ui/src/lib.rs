@@ -4,7 +4,7 @@
 pub(crate) mod events;
 pub(crate) mod input;
 pub(crate) mod types;
-pub(crate) mod reactive;
+pub mod reactive;
 
 pub use events::types::*;
 pub use input::keyboard::Key;

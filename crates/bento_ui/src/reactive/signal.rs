@@ -2,11 +2,10 @@ use super::runtime;
 use std::marker::PhantomData;
 
 pub struct Signal<T> {
-    id: usize,
+    pub(crate) id: usize,
     _phantom: PhantomData<T>,
 }
 
-// Manual impls so we don't require T: Copy/Clone on the handle itself
 impl<T> Copy for Signal<T> {}
 impl<T> Clone for Signal<T> {
     fn clone(&self) -> Self {
@@ -39,7 +38,9 @@ impl<T: Clone + 'static> Signal<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::reactive::state;
+    use crate::reactive::{runtime, state};
+    use std::cell::Cell;
+    use std::rc::Rc;
 
     #[test]
     fn signal_get_set() {
@@ -59,10 +60,31 @@ mod tests {
     #[test]
     fn signal_is_copy() {
         let count = state(0i32);
-        // this is a copy so no clone needed
-        let also_count = count; 
+        let also_count = count;
         count.set(10);
-        // same underlying id
-        assert_eq!(also_count.get(), 10); 
+        assert_eq!(also_count.get(), 10);
+    }
+
+    #[test]
+    fn signal_notifies_subscriber() {
+        let count = state(0i32);
+        let notified = Rc::new(Cell::new(false));
+        let notified_clone = notified.clone();
+
+        let sub_id = runtime::next_subscriber_id();
+        runtime::register_subscriber(
+            sub_id,
+            0,
+            Rc::new(move || {
+                notified_clone.set(true);
+            }),
+        );
+
+        runtime::push_observer(sub_id);
+        let _ = count.get();
+        runtime::pop_observer();
+
+        count.set(1);
+        assert!(notified.get());
     }
 }
