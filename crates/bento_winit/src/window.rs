@@ -59,7 +59,7 @@ impl Window {
             ui,
             window,
             last_frame: None,
-            needs_render: false,
+            needs_render: true,
         }
     }
 
@@ -77,7 +77,7 @@ impl Window {
             ui,
             window,
             last_frame: None,
-            needs_render: false,
+            needs_render: true
         }
     }
 
