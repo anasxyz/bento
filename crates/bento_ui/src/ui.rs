@@ -2,11 +2,12 @@ use std::cell::Cell;
 
 use bento_wgpu::{DrawList, TextMeasurer};
 
-use crate::View;
+use crate::{View, input::InputState};
 
 pub struct Ui {
     pub view: Box<dyn View>,
     pub measurer: TextMeasurer,
+    pub input: InputState,
 }
 
 impl Ui {
@@ -14,6 +15,7 @@ impl Ui {
         Self {
             view: Box::new(view),
             measurer: TextMeasurer::new(),
+            input: InputState::new(),
         }
     }
 

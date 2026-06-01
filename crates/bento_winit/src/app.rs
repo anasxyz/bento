@@ -124,7 +124,11 @@ impl ApplicationHandler<BentoEvent> for App {
         match event {
             WindowEvent::RedrawRequested => {
                 if win.needs_redraw() || Ui::needs_redraw() {
-                    println!("win.needs_redraw: {}\nUi::needs_redraw: {}", win.needs_redraw(), Ui::needs_redraw());
+                    println!(
+                        "win.needs_redraw: {}\nUi::needs_redraw: {}",
+                        win.needs_redraw(),
+                        Ui::needs_redraw()
+                    );
                     let draw_list = win.ui.collect_draw_list();
                     win.renderer.render(
                         ctx,
@@ -135,6 +139,9 @@ impl ApplicationHandler<BentoEvent> for App {
                     );
                     win.needs_redraw = false;
                 }
+
+                win.ui.input.keyboard.clear();
+                win.ui.input.mouse.clear();
             }
 
             WindowEvent::KeyboardInput {
@@ -146,15 +153,98 @@ impl ApplicationHandler<BentoEvent> for App {
                         ..
                     },
                 ..
-            } => {}
+            } => {
+                let key = crate::input::keycode_to_key(keycode);
+                let ch = text.and_then(|s| s.chars().next());
+                match state {
+                    winit::event::ElementState::Pressed => {
+                        match key {
+                            bento_ui::Key::LShift | bento_ui::Key::RShift => {
+                                win.ui.input.keyboard.modifiers.shift = true
+                            }
+                            bento_ui::Key::LCtrl | bento_ui::Key::RCtrl => {
+                                win.ui.input.keyboard.modifiers.ctrl = true
+                            }
+                            bento_ui::Key::LAlt | bento_ui::Key::RAlt => {
+                                win.ui.input.keyboard.modifiers.alt = true
+                            }
+                            bento_ui::Key::LSuper | bento_ui::Key::RSuper => {
+                                win.ui.input.keyboard.modifiers.super_key = true
+                            }
+                            _ => {}
+                        }
+                        win.ui.input.keyboard.on_press(key, ch);
+                    }
+                    winit::event::ElementState::Released => {
+                        match key {
+                            bento_ui::Key::LShift | bento_ui::Key::RShift => {
+                                win.ui.input.keyboard.modifiers.shift = false
+                            }
+                            bento_ui::Key::LCtrl | bento_ui::Key::RCtrl => {
+                                win.ui.input.keyboard.modifiers.ctrl = false
+                            }
+                            bento_ui::Key::LAlt | bento_ui::Key::RAlt => {
+                                win.ui.input.keyboard.modifiers.alt = false
+                            }
+                            bento_ui::Key::LSuper | bento_ui::Key::RSuper => {
+                                win.ui.input.keyboard.modifiers.super_key = false
+                            }
+                            _ => {}
+                        }
+                        win.ui.input.keyboard.on_release(key);
+                    }
+                }
+            }
 
             WindowEvent::MouseInput { state, button, .. } => {
+                let btn = match button {
+                    winit::event::MouseButton::Left => &mut win.ui.input.mouse.left,
+                    winit::event::MouseButton::Right => &mut win.ui.input.mouse.right,
+                    winit::event::MouseButton::Middle => &mut win.ui.input.mouse.middle,
+                    _ => return,
+                };
+                match state {
+                    winit::event::ElementState::Pressed => {
+                        btn.pressed = true;
+                        btn.released = false;
+                        btn.just_pressed = true;
+                        btn.just_released = false;
+                    }
+                    winit::event::ElementState::Released => {
+                        btn.pressed = false;
+                        btn.released = true;
+                        btn.just_pressed = false;
+                        btn.just_released = true;
+                    }
+                }
             }
-            WindowEvent::MouseWheel { delta, .. } => {}
+            WindowEvent::MouseWheel { delta, .. } => match delta {
+                winit::event::MouseScrollDelta::LineDelta(x, y) => {
+                    win.ui.input.mouse.scroll_x = x;
+                    win.ui.input.mouse.scroll_y = y;
+                }
+                winit::event::MouseScrollDelta::PixelDelta(pos) => {
+                    win.ui.input.mouse.scroll_x = pos.x as f32;
+                    win.ui.input.mouse.scroll_y = pos.y as f32;
+                }
+            },
             WindowEvent::CursorMoved { position, .. } => {
+                let scale = win.surface.scale;
+                let x = position.x as f32 / scale;
+                let y = position.y as f32 / scale;
+                win.ui.input.mouse.dx = x - win.ui.input.mouse.x;
+                win.ui.input.mouse.dy = y - win.ui.input.mouse.y;
+                win.ui.input.mouse.x = x;
+                win.ui.input.mouse.y = y;
             }
-            WindowEvent::CursorEntered { .. } => {}
-            WindowEvent::CursorLeft { .. } => {}
+            WindowEvent::CursorEntered { .. } => {
+                win.ui.input.mouse.inside_window = true;
+                win.ui.input.mouse.just_entered = true;
+            }
+            WindowEvent::CursorLeft { .. } => {
+                win.ui.input.mouse.inside_window = false;
+                win.ui.input.mouse.just_left = true;
+            }
 
             WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {
                 win.resize(ctx);
