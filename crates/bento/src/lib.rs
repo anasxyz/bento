@@ -8,20 +8,8 @@ pub use bento_winit::{App, Window, WindowConfig};
 use wasm_bindgen::prelude::*;
 
 struct State {
-    label: WidgetHandle<Text>,
     count: i32,
-}
-
-impl State {
-    fn increment(&mut self, ui: &mut Ui) {
-        self.count += 1;
-        ui.set(self.label, |t: &mut Text| t.set_content(&format!("{}", self.count)));
-    }
-
-    fn decrement(&mut self, ui: &mut Ui) {
-        self.count -= 1;
-        ui.set(self.label, |t: &mut Text| t.set_content(&format!("{}", self.count)));
-    }
+    label: WidgetHandle<Text>,
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -32,28 +20,73 @@ pub fn wasm_main() {
     let mut app = App::new();
     let mut ui = Ui::new();
 
-    let mut group = Group::new();
-    group.layout = Layout::Row { gap: 16.0 };
-    group.x = 100.0;
-    group.y = 100.0;
-    let group = ui.add(group);
+    let root = ui.root();
+    ui.set(root, |g: &mut Group| {
+        g.layout = Layout::Column {
+            gap: 0.0,
+            padding: [0.0; 4],
+            main_axis: MainAxis::Start,
+            cross_axis: CrossAxis::Stretch,
+            wrap: false,
+        };
+        g.width = Size::Fill;
+        g.height = Size::Fill;
+    });
 
-    let btn_inc = ui.add(Button::new("+"));
-    let label = ui.add(Text::new("0"));
-    let btn_dec = ui.add(Button::new("-"));
+    // top bar
+    let top_bar = ui.add(root, Group::new());
+    ui.set(top_bar, |g: &mut Group| {
+        g.layout = Layout::Row {
+            gap: 8.0,
+            padding: [8.0; 4],
+            main_axis: MainAxis::SpaceBetween,
+            cross_axis: CrossAxis::Center,
+            wrap: false,
+        };
+        g.width = Size::Fill;
+    });
 
-    ui.attach(group, btn_inc);
-    ui.attach(group, label);
-    ui.attach(group, btn_dec);
+    let btn_a = ui.add(top_bar, Button::new("File"));
+    let btn_b = ui.add(top_bar, Button::new("Edit"));
+    let btn_c = ui.add(top_bar, Button::new("View"));
+    let btn_settings = ui.add(top_bar, Button::new("Settings"));
 
-    ui.set_state(State { label, count: 0 });
+    // content area
+    let content = ui.add(root, Group::new());
+    ui.set(content, |g: &mut Group| {
+        g.layout = Layout::Column {
+            gap: 16.0,
+            padding: [24.0; 4],
+            main_axis: MainAxis::Start,
+            cross_axis: CrossAxis::Center,
+            wrap: false,
+        };
+        g.width = Size::Fill;
+        g.height = Size::Fill;
+    });
+
+    let label = ui.add(content, Text::new("Hello"));
+    let btn_inc = ui.add(content, Button::new("Increment"));
+    let btn_dec = ui.add(content, Button::new("Decrement"));
+
+    ui.set_state(State { count: 0, label });
 
     ui.listen(btn_inc, move |_: &Click, ui: &mut Ui| {
-        ui.with_state(|s: &mut State, ui: &mut Ui| s.increment(ui));
+        ui.with_state(|s: &mut State, ui: &mut Ui| {
+            s.count += 1;
+            ui.set(s.label, |t: &mut Text| {
+                t.set_content(&format!("Count: {}", s.count))
+            });
+        });
     });
 
     ui.listen(btn_dec, move |_: &Click, ui: &mut Ui| {
-        ui.with_state(|s: &mut State, ui: &mut Ui| s.decrement(ui));
+        ui.with_state(|s: &mut State, ui: &mut Ui| {
+            s.count -= 1;
+            ui.set(s.label, |t: &mut Text| {
+                t.set_content(&format!("Count: {}", s.count))
+            });
+        });
     });
 
     app.open_window(WindowConfig::default(), ui);

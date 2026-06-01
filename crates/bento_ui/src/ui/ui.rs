@@ -10,7 +10,7 @@ use crate::events::types::{
 };
 use crate::input::InputState;
 use crate::input::mouse::MouseButton;
-use crate::layout::{Layout, Size};
+use crate::layout::{CrossAxis, Layout, MainAxis, Size};
 use crate::types::CursorIcon;
 use crate::ui::asyncs::AsyncEventQueue;
 use crate::widget::{AnyWidget, Canvas, Widget, WidgetHandle};
@@ -35,6 +35,8 @@ pub struct Ui {
     pub layout_dirty: HashSet<usize>,
     pub viewport_w: f32,
     pub viewport_h: f32,
+
+    pub root_id: usize,
 
     listeners: Vec<Listener>,
     next_listener_id: u64,
@@ -66,6 +68,8 @@ impl Ui {
             viewport_w: 800.0,
             viewport_h: 600.0,
 
+            root_id: 0,
+
             listeners: Vec::new(),
             next_listener_id: 0,
 
@@ -82,7 +86,22 @@ impl Ui {
             state_map: HashMap::new(),
         };
 
+        let root_index = ui.nodes.len();
+        ui.nodes.push(Some(Node {
+            widget: Box::new(Group::new()),
+            children: Vec::new(),
+            parent: None,
+            build_fn: |ui, id| Group::build(ui, WidgetHandle::<()>::from_id(id)),
+            update_fn: |ui, id| Group::update(ui, WidgetHandle::<()>::from_id(id)),
+        }));
+        ui.roots.push(root_index);
+        ui.root_id = root_index;
+
         ui
+    }
+
+    pub fn root(&self) -> WidgetHandle<Group> {
+        WidgetHandle::from_id(self.root_id)
     }
 
     pub fn set_state<T: 'static>(&mut self, state: T) {
@@ -138,7 +157,11 @@ impl Ui {
         }
     }
 
-    pub fn add<W: Widget + 'static>(&mut self, mut widget: W) -> WidgetHandle<W> {
+    pub fn add<P: Widget + 'static, W: Widget + 'static>(
+        &mut self,
+        parent: WidgetHandle<P>,
+        mut widget: W,
+    ) -> WidgetHandle<W> {
         let index = self.nodes.len();
         widget.init();
         self.nodes.push(Some(Node {
@@ -150,11 +173,12 @@ impl Ui {
         }));
         self.dirty.insert(index);
         self.layout_dirty.insert(index);
-        self.roots.push(index);
         self.request_redraw();
         let build_fn = self.nodes[index].as_ref().unwrap().build_fn;
         build_fn(self, index);
-        WidgetHandle::from_id(index)
+        let handle = WidgetHandle::<W>::from_id(index);
+        self.attach(parent, handle);
+        handle
     }
 
     pub fn remove<W: Widget + 'static>(&mut self, handle: WidgetHandle<W>) {
@@ -310,7 +334,6 @@ impl Ui {
             s => s.resolve(available_h),
         };
 
-        // set group's own computed size if not auto
         if let Some(Some(node)) = self.nodes.get_mut(id) {
             if let Some(g) = node.widget.as_any_mut().downcast_mut::<Group>() {
                 if !matches!(g.width, Size::Auto) {
@@ -322,8 +345,6 @@ impl Ui {
             }
         }
 
-        // resolve and set size for non-auto, non-fill children
-        // skip children that have any auto dimension — layout arms handle those
         for child_id in &children {
             if let Some(Some(node)) = self.nodes.get(*child_id) {
                 let ws = node.widget.width_sizing().clone();
@@ -380,229 +401,544 @@ impl Ui {
                     self.layout_node(child_id, inner_w, inner_h);
                 }
             }
-            Some(Layout::Row { gap }) => {
-                // pass 0: recurse auto-width children first to get their real sizes
+
+            Some(Layout::Row {
+                gap,
+                padding,
+                main_axis,
+                cross_axis,
+                wrap,
+            }) => {
+                // padding: [top, right, bottom, left]
+                let pad_left = padding[3];
+                let pad_right = padding[1];
+                let pad_top = padding[0];
+                let pad_bottom = padding[2];
+                let avail_w = inner_w - pad_left - pad_right;
+                let avail_h = inner_h - pad_top - pad_bottom;
+
+                // pass 0: recurse auto-width children first
                 for child_id in &children {
                     if let Some(Some(node)) = self.nodes.get(*child_id) {
                         if matches!(node.widget.width_sizing(), Size::Auto) {
-                            self.layout_node(*child_id, inner_w, inner_h);
+                            self.layout_node(*child_id, avail_w, avail_h);
                         }
                     }
                 }
 
-                let is_auto_w = matches!(width_sizing, Size::Auto);
-                let mut fixed_total = 0.0f32;
-                let mut fill_count = 0;
-                let child_count = children.len();
-                for child_id in &children {
-                    if let Some(Some(node)) = self.nodes.get(*child_id) {
-                        match node.widget.width_sizing() {
-                            Size::Fill => fill_count += 1,
-                            _ => fixed_total += node.widget.size().0,
-                        }
-                    }
-                }
-                let total_gap = gap * (child_count.saturating_sub(1)) as f32;
-                let content_w = if is_auto_w {
-                    fixed_total + total_gap
-                } else {
-                    inner_w
-                };
-                let remaining = (content_w - fixed_total - total_gap).max(0.0);
-                let fill_w = if fill_count > 0 {
-                    remaining / fill_count as f32
-                } else {
-                    0.0
-                };
+                if wrap {
+                    // wrapping row — break into lines
+                    let mut lines: Vec<Vec<usize>> = Vec::new();
+                    let mut current_line: Vec<usize> = Vec::new();
+                    let mut line_w = 0.0f32;
 
-                for child_id in &children {
-                    if let Some(Some(node)) = self.nodes.get(*child_id) {
-                        let set_w = matches!(node.widget.width_sizing(), Size::Fill);
-                        let set_h = matches!(node.widget.height_sizing(), Size::Fill);
-                        if set_w || set_h {
-                            let cur = node.widget.size();
-                            let new_w = if set_w { fill_w } else { cur.0 };
-                            let new_h = if set_h { inner_h } else { cur.1 };
-                            if let Some(Some(node)) = self.nodes.get_mut(*child_id) {
-                                node.widget.set_size(new_w, new_h);
+                    for child_id in &children {
+                        if let Some(Some(node)) = self.nodes.get(*child_id) {
+                            let cw = node.widget.size().0;
+                            let needed = if current_line.is_empty() {
+                                cw
+                            } else {
+                                cw + gap
+                            };
+                            if !current_line.is_empty() && line_w + needed > avail_w {
+                                lines.push(std::mem::take(&mut current_line));
+                                line_w = cw;
+                                current_line.push(*child_id);
+                            } else {
+                                line_w += needed;
+                                current_line.push(*child_id);
                             }
                         }
                     }
-                }
+                    if !current_line.is_empty() {
+                        lines.push(current_line);
+                    }
 
-                let mut cursor = 0.0;
-                for child_id in &children {
-                    let (w, _) = match self.nodes[*child_id].as_ref() {
-                        Some(n) => n.widget.size(),
-                        None => continue,
+                    let mut y_cursor = pad_top;
+                    let mut total_h = 0.0f32;
+                    for line in &lines {
+                        let line_h = line
+                            .iter()
+                            .filter_map(|id| {
+                                self.nodes.get(*id)?.as_ref().map(|n| n.widget.size().1)
+                            })
+                            .fold(0.0f32, f32::max);
+
+                        let line_content_w: f32 = line
+                            .iter()
+                            .filter_map(|id| {
+                                self.nodes.get(*id)?.as_ref().map(|n| n.widget.size().0)
+                            })
+                            .sum::<f32>()
+                            + gap * (line.len().saturating_sub(1)) as f32;
+
+                        let x_start = match main_axis {
+                            MainAxis::Start => pad_left,
+                            MainAxis::Center => pad_left + (avail_w - line_content_w) / 2.0,
+                            MainAxis::End => pad_left + avail_w - line_content_w,
+                            MainAxis::SpaceBetween => pad_left,
+                            MainAxis::SpaceAround => pad_left,
+                        };
+
+                        let between_gap = match main_axis {
+                            MainAxis::SpaceBetween if line.len() > 1 => {
+                                (avail_w - line_content_w
+                                    + gap * (line.len().saturating_sub(1)) as f32)
+                                    / (line.len().saturating_sub(1)) as f32
+                            }
+                            MainAxis::SpaceAround => {
+                                (avail_w
+                                    - (line_content_w
+                                        - gap * (line.len().saturating_sub(1)) as f32))
+                                    / line.len() as f32
+                            }
+                            _ => gap,
+                        };
+
+                        let x_start = match main_axis {
+                            MainAxis::SpaceAround => pad_left + between_gap / 2.0,
+                            _ => x_start,
+                        };
+
+                        let mut x_cursor = x_start;
+                        for child_id in line {
+                            let (cw, ch) = self.nodes[*child_id]
+                                .as_ref()
+                                .map(|n| n.widget.size())
+                                .unwrap_or((0.0, 0.0));
+                            let cy = match cross_axis {
+                                CrossAxis::Start => y_cursor,
+                                CrossAxis::Center => y_cursor + (line_h - ch) / 2.0,
+                                CrossAxis::End => y_cursor + line_h - ch,
+                                CrossAxis::Stretch => {
+                                    if let Some(Some(node)) = self.nodes.get_mut(*child_id) {
+                                        node.widget.set_size(cw, line_h);
+                                    }
+                                    y_cursor
+                                }
+                            };
+                            if let Some(Some(n)) = self.nodes.get_mut(*child_id) {
+                                n.widget.set_position(x_cursor, cy);
+                            }
+                            self.layout_node(*child_id, cw, line_h);
+                            x_cursor += cw + between_gap;
+                        }
+                        y_cursor += line_h + gap;
+                        total_h += line_h + gap;
+                    }
+
+                    if let Some(Some(node)) = self.nodes.get_mut(id) {
+                        if let Some(g) = node.widget.as_any_mut().downcast_mut::<Group>() {
+                            if matches!(g.height, Size::Auto) {
+                                g.h = total_h + pad_top + pad_bottom;
+                            }
+                        }
+                    }
+                } else {
+                    // non-wrapping row
+                    let is_auto_w = matches!(width_sizing, Size::Auto);
+                    let mut fixed_total = 0.0f32;
+                    let mut fill_count = 0;
+                    let child_count = children.len();
+
+                    for child_id in &children {
+                        if let Some(Some(node)) = self.nodes.get(*child_id) {
+                            match node.widget.width_sizing() {
+                                Size::Fill => fill_count += 1,
+                                _ => fixed_total += node.widget.size().0,
+                            }
+                        }
+                    }
+
+                    let total_gap = gap * (child_count.saturating_sub(1)) as f32;
+                    let content_w = if is_auto_w {
+                        fixed_total + total_gap
+                    } else {
+                        avail_w
                     };
-                    if let Some(n) = self.nodes[*child_id].as_mut() {
-                        n.widget.set_position(cursor, 0.0);
-                        self.request_redraw();
-                    }
-                    cursor += w + gap;
-                    let child_w = self.nodes[*child_id]
-                        .as_ref()
-                        .map(|n| n.widget.size().0)
-                        .unwrap_or(content_w);
-                    let child_h = self.nodes[*child_id]
-                        .as_ref()
-                        .map(|n| n.widget.size().1)
-                        .unwrap_or(inner_h);
-                    self.layout_node(*child_id, child_w, child_h);
-                }
+                    let remaining = (content_w - fixed_total - total_gap).max(0.0);
+                    let fill_w = if fill_count > 0 {
+                        remaining / fill_count as f32
+                    } else {
+                        0.0
+                    };
 
-                let mut total_w = 0.0f32;
-                let mut total_h = 0.0f32;
-                for child_id in &children {
-                    if let Some(n) = self.nodes[*child_id].as_ref() {
-                        let (cw, ch) = n.widget.size();
-                        total_w += cw + gap;
-                        total_h = total_h.max(ch);
+                    for child_id in &children {
+                        if let Some(Some(node)) = self.nodes.get(*child_id) {
+                            let set_w = matches!(node.widget.width_sizing(), Size::Fill);
+                            let set_h = matches!(node.widget.height_sizing(), Size::Fill);
+                            if set_w || set_h {
+                                let cur = node.widget.size();
+                                let new_w = if set_w { fill_w } else { cur.0 };
+                                let new_h = if set_h { avail_h } else { cur.1 };
+                                if let Some(Some(node)) = self.nodes.get_mut(*child_id) {
+                                    node.widget.set_size(new_w, new_h);
+                                }
+                            }
+                        }
                     }
-                }
-                if let Some(n) = self.nodes[id].as_mut() {
-                    if let Some(g) = n.widget.as_any_mut().downcast_mut::<Group>() {
-                        let final_w = if matches!(g.width, Size::Auto) {
-                            total_w
-                        } else {
-                            g.w
+
+                    // collect child sizes
+                    let child_sizes: Vec<(f32, f32)> = children
+                        .iter()
+                        .map(|id| {
+                            self.nodes[*id]
+                                .as_ref()
+                                .map(|n| n.widget.size())
+                                .unwrap_or((0.0, 0.0))
+                        })
+                        .collect();
+
+                    let total_content_w: f32 = child_sizes.iter().map(|(w, _)| w).sum::<f32>()
+                        + gap * (child_count.saturating_sub(1)) as f32;
+
+                    let (x_start, between_gap) = match main_axis {
+                        MainAxis::Start => (pad_left, gap),
+                        MainAxis::Center => (pad_left + (avail_w - total_content_w) / 2.0, gap),
+                        MainAxis::End => (pad_left + avail_w - total_content_w, gap),
+                        MainAxis::SpaceBetween => {
+                            let g = if child_count > 1 {
+                                (avail_w - child_sizes.iter().map(|(w, _)| w).sum::<f32>())
+                                    / (child_count.saturating_sub(1)) as f32
+                            } else {
+                                0.0
+                            };
+                            (pad_left, g)
+                        }
+                        MainAxis::SpaceAround => {
+                            let total_cw: f32 = child_sizes.iter().map(|(w, _)| w).sum();
+                            let space = (avail_w - total_cw) / child_count as f32;
+                            (pad_left + space / 2.0, space)
+                        }
+                    };
+
+                    let mut cursor = x_start;
+                    for (i, child_id) in children.iter().enumerate() {
+                        let (cw, ch) = child_sizes[i];
+                        let cy = match cross_axis {
+                            CrossAxis::Start => pad_top,
+                            CrossAxis::Center => pad_top + (avail_h - ch) / 2.0,
+                            CrossAxis::End => pad_top + avail_h - ch,
+                            CrossAxis::Stretch => {
+                                if let Some(Some(node)) = self.nodes.get_mut(*child_id) {
+                                    node.widget.set_size(cw, avail_h);
+                                }
+                                pad_top
+                            }
                         };
-                        let final_h = if matches!(g.height, Size::Auto) {
-                            total_h
-                        } else {
-                            g.h
-                        };
-                        let size_changed = g.w != final_w || g.h != final_h;
-                        g.w = final_w;
-                        g.h = final_h;
-                        if size_changed {
-                            if let Some(parent_id) = self.nodes[id].as_ref().and_then(|n| n.parent)
-                            {
-                                self.layout_dirty.insert(parent_id);
+                        if let Some(Some(n)) = self.nodes.get_mut(*child_id) {
+                            n.widget.set_position(cursor, cy);
+                            self.request_redraw();
+                        }
+                        cursor += cw + between_gap;
+                        self.layout_node(*child_id, cw, avail_h);
+                    }
+
+                    let mut total_w = 0.0f32;
+                    let mut total_h = 0.0f32;
+                    for child_id in &children {
+                        if let Some(n) = self.nodes[*child_id].as_ref() {
+                            let (cw, ch) = n.widget.size();
+                            total_w += cw + gap;
+                            total_h = total_h.max(ch);
+                        }
+                    }
+                    if let Some(n) = self.nodes[id].as_mut() {
+                        if let Some(g) = n.widget.as_any_mut().downcast_mut::<Group>() {
+                            let final_w = if matches!(g.width, Size::Auto) {
+                                total_w + pad_left + pad_right
+                            } else {
+                                g.w
+                            };
+                            let final_h = if matches!(g.height, Size::Auto) {
+                                total_h + pad_top + pad_bottom
+                            } else {
+                                g.h
+                            };
+                            let size_changed = g.w != final_w || g.h != final_h;
+                            g.w = final_w;
+                            g.h = final_h;
+                            if size_changed {
+                                if let Some(parent_id) =
+                                    self.nodes[id].as_ref().and_then(|n| n.parent)
+                                {
+                                    self.layout_dirty.insert(parent_id);
+                                }
                             }
                         }
                     }
                 }
             }
-            Some(Layout::Column { gap }) => {
+
+            Some(Layout::Column {
+                gap,
+                padding,
+                main_axis,
+                cross_axis,
+                wrap,
+            }) => {
+                let pad_left = padding[3];
+                let pad_right = padding[1];
+                let pad_top = padding[0];
+                let pad_bottom = padding[2];
+                let avail_w = inner_w - pad_left - pad_right;
+                let avail_h = inner_h - pad_top - pad_bottom;
+
                 let is_auto_h = matches!(height_sizing, Size::Auto);
 
-                // pass 0: recurse auto-height children first to get their real sizes
                 if is_auto_h {
                     for child_id in &children {
                         if let Some(Some(node)) = self.nodes.get(*child_id) {
                             if matches!(node.widget.height_sizing(), Size::Auto) {
-                                self.layout_node(*child_id, inner_w, inner_h);
+                                self.layout_node(*child_id, avail_w, avail_h);
                             }
                         }
                     }
                 }
 
-                let mut fixed_total = 0.0f32;
-                let mut fill_count = 0;
-                let child_count = children.len();
-                for child_id in &children {
-                    if let Some(Some(node)) = self.nodes.get(*child_id) {
-                        match node.widget.height_sizing() {
-                            Size::Fill => fill_count += 1,
-                            _ => fixed_total += node.widget.size().1,
+                if wrap {
+                    // wrapping column — break into columns
+                    let mut cols: Vec<Vec<usize>> = Vec::new();
+                    let mut current_col: Vec<usize> = Vec::new();
+                    let mut col_h = 0.0f32;
+
+                    for child_id in &children {
+                        if let Some(Some(node)) = self.nodes.get(*child_id) {
+                            let ch = node.widget.size().1;
+                            let needed = if current_col.is_empty() { ch } else { ch + gap };
+                            if !current_col.is_empty() && col_h + needed > avail_h {
+                                cols.push(std::mem::take(&mut current_col));
+                                col_h = ch;
+                                current_col.push(*child_id);
+                            } else {
+                                col_h += needed;
+                                current_col.push(*child_id);
+                            }
                         }
                     }
-                }
-                let total_gap = gap * (child_count.saturating_sub(1)) as f32;
-                let content_h = if is_auto_h {
-                    fixed_total + total_gap
-                } else {
-                    inner_h
-                };
-                let remaining = (content_h - fixed_total - total_gap).max(0.0);
-                let fill_h = if fill_count > 0 {
-                    remaining / fill_count as f32
-                } else {
-                    0.0
-                };
+                    if !current_col.is_empty() {
+                        cols.push(current_col);
+                    }
 
-                for child_id in &children {
-                    if let Some(Some(node)) = self.nodes.get(*child_id) {
-                        let set_w = matches!(node.widget.width_sizing(), Size::Fill);
-                        let set_h = matches!(node.widget.height_sizing(), Size::Fill);
-                        if set_w || set_h {
-                            let cur = node.widget.size();
-                            let fill_w = if matches!(width_sizing, Size::Auto) {
-                                // auto-width col: fill to widest non-fill child
-                                let mut max_w = 0.0f32;
-                                for cid in &children {
-                                    if let Some(Some(cn)) = self.nodes.get(*cid) {
-                                        if !matches!(cn.widget.width_sizing(), Size::Fill) {
-                                            max_w = max_w.max(cn.widget.size().0);
+                    let mut x_cursor = pad_left;
+                    let mut total_w = 0.0f32;
+                    for col in &cols {
+                        let col_w = col
+                            .iter()
+                            .filter_map(|id| {
+                                self.nodes.get(*id)?.as_ref().map(|n| n.widget.size().0)
+                            })
+                            .fold(0.0f32, f32::max);
+
+                        let col_content_h: f32 = col
+                            .iter()
+                            .filter_map(|id| {
+                                self.nodes.get(*id)?.as_ref().map(|n| n.widget.size().1)
+                            })
+                            .sum::<f32>()
+                            + gap * (col.len().saturating_sub(1)) as f32;
+
+                        let y_start = match main_axis {
+                            MainAxis::Start => pad_top,
+                            MainAxis::Center => pad_top + (avail_h - col_content_h) / 2.0,
+                            MainAxis::End => pad_top + avail_h - col_content_h,
+                            MainAxis::SpaceBetween => pad_top,
+                            MainAxis::SpaceAround => pad_top,
+                        };
+
+                        let between_gap = match main_axis {
+                            MainAxis::SpaceBetween if col.len() > 1 => {
+                                (avail_h - col_content_h
+                                    + gap * (col.len().saturating_sub(1)) as f32)
+                                    / (col.len().saturating_sub(1)) as f32
+                            }
+                            MainAxis::SpaceAround => {
+                                (avail_h
+                                    - (col_content_h - gap * (col.len().saturating_sub(1)) as f32))
+                                    / col.len() as f32
+                            }
+                            _ => gap,
+                        };
+
+                        let y_start = match main_axis {
+                            MainAxis::SpaceAround => pad_top + between_gap / 2.0,
+                            _ => y_start,
+                        };
+
+                        let mut y_cursor = y_start;
+                        for child_id in col {
+                            let (cw, ch) = self.nodes[*child_id]
+                                .as_ref()
+                                .map(|n| n.widget.size())
+                                .unwrap_or((0.0, 0.0));
+                            let cx = match cross_axis {
+                                CrossAxis::Start => x_cursor,
+                                CrossAxis::Center => x_cursor + (col_w - cw) / 2.0,
+                                CrossAxis::End => x_cursor + col_w - cw,
+                                CrossAxis::Stretch => {
+                                    if let Some(Some(node)) = self.nodes.get_mut(*child_id) {
+                                        node.widget.set_size(col_w, ch);
+                                    }
+                                    x_cursor
+                                }
+                            };
+                            if let Some(Some(n)) = self.nodes.get_mut(*child_id) {
+                                n.widget.set_position(cx, y_cursor);
+                            }
+                            self.layout_node(*child_id, col_w, ch);
+                            y_cursor += ch + between_gap;
+                        }
+                        x_cursor += col_w + gap;
+                        total_w += col_w + gap;
+                    }
+
+                    if let Some(Some(node)) = self.nodes.get_mut(id) {
+                        if let Some(g) = node.widget.as_any_mut().downcast_mut::<Group>() {
+                            if matches!(g.width, Size::Auto) {
+                                g.w = total_w + pad_left + pad_right;
+                            }
+                        }
+                    }
+                } else {
+                    let mut fixed_total = 0.0f32;
+                    let mut fill_count = 0;
+                    let child_count = children.len();
+
+                    for child_id in &children {
+                        if let Some(Some(node)) = self.nodes.get(*child_id) {
+                            match node.widget.height_sizing() {
+                                Size::Fill => fill_count += 1,
+                                _ => fixed_total += node.widget.size().1,
+                            }
+                        }
+                    }
+
+                    let total_gap = gap * (child_count.saturating_sub(1)) as f32;
+                    let content_h = if is_auto_h {
+                        fixed_total + total_gap
+                    } else {
+                        avail_h
+                    };
+                    let remaining = (content_h - fixed_total - total_gap).max(0.0);
+                    let fill_h = if fill_count > 0 {
+                        remaining / fill_count as f32
+                    } else {
+                        0.0
+                    };
+
+                    for child_id in &children {
+                        if let Some(Some(node)) = self.nodes.get(*child_id) {
+                            let set_w = matches!(node.widget.width_sizing(), Size::Fill);
+                            let set_h = matches!(node.widget.height_sizing(), Size::Fill);
+                            if set_w || set_h {
+                                let cur = node.widget.size();
+                                let fill_w = if matches!(width_sizing, Size::Auto) {
+                                    let mut max_w = 0.0f32;
+                                    for cid in &children {
+                                        if let Some(Some(cn)) = self.nodes.get(*cid) {
+                                            if !matches!(cn.widget.width_sizing(), Size::Fill) {
+                                                max_w = max_w.max(cn.widget.size().0);
+                                            }
                                         }
                                     }
+                                    max_w
+                                } else {
+                                    avail_w
+                                };
+                                let new_w = if set_w { fill_w } else { cur.0 };
+                                let new_h = if set_h && !is_auto_h { fill_h } else { cur.1 };
+                                if let Some(Some(node)) = self.nodes.get_mut(*child_id) {
+                                    node.widget.set_size(new_w, new_h);
                                 }
-                                max_w
-                            } else {
-                                // fixed/fill col: fill to inner_w
-                                inner_w
-                            };
-                            let new_w = if set_w { fill_w } else { cur.0 };
-                            let new_h = if set_h && !is_auto_h { fill_h } else { cur.1 };
-                            if let Some(Some(node)) = self.nodes.get_mut(*child_id) {
-                                node.widget.set_size(new_w, new_h);
                             }
                         }
                     }
-                }
 
-                let mut cursor = 0.0;
-                for child_id in &children {
-                    let (_, h) = match self.nodes[*child_id].as_ref() {
-                        Some(n) => n.widget.size(),
-                        None => continue,
+                    let child_sizes: Vec<(f32, f32)> = children
+                        .iter()
+                        .map(|id| {
+                            self.nodes[*id]
+                                .as_ref()
+                                .map(|n| n.widget.size())
+                                .unwrap_or((0.0, 0.0))
+                        })
+                        .collect();
+
+                    let total_content_h: f32 = child_sizes.iter().map(|(_, h)| h).sum::<f32>()
+                        + gap * (child_count.saturating_sub(1)) as f32;
+
+                    let (y_start, between_gap) = match main_axis {
+                        MainAxis::Start => (pad_top, gap),
+                        MainAxis::Center => (pad_top + (avail_h - total_content_h) / 2.0, gap),
+                        MainAxis::End => (pad_top + avail_h - total_content_h, gap),
+                        MainAxis::SpaceBetween => {
+                            let g = if child_count > 1 {
+                                (avail_h - child_sizes.iter().map(|(_, h)| h).sum::<f32>())
+                                    / (child_count.saturating_sub(1)) as f32
+                            } else {
+                                0.0
+                            };
+                            (pad_top, g)
+                        }
+                        MainAxis::SpaceAround => {
+                            let total_ch: f32 = child_sizes.iter().map(|(_, h)| h).sum();
+                            let space = (avail_h - total_ch) / child_count as f32;
+                            (pad_top + space / 2.0, space)
+                        }
                     };
-                    if let Some(n) = self.nodes[*child_id].as_mut() {
-                        n.widget.set_position(0.0, cursor);
-                        self.request_redraw();
-                    }
-                    cursor += h + gap;
-                    let child_w = self.nodes[*child_id]
-                        .as_ref()
-                        .map(|n| n.widget.size().0)
-                        .unwrap_or(inner_w);
-                    let child_h = self.nodes[*child_id]
-                        .as_ref()
-                        .map(|n| n.widget.size().1)
-                        .unwrap_or(content_h);
-                    self.layout_node(*child_id, child_w, child_h);
-                }
 
-                let mut total_w = 0.0f32;
-                let mut total_h = 0.0f32;
-                for child_id in &children {
-                    if let Some(n) = self.nodes[*child_id].as_ref() {
-                        let (cw, ch) = n.widget.size();
-                        total_w = total_w.max(cw);
-                        total_h += ch + gap;
+                    let mut cursor = y_start;
+                    for (i, child_id) in children.iter().enumerate() {
+                        let (cw, ch) = child_sizes[i];
+                        let cx = match cross_axis {
+                            CrossAxis::Start => pad_left,
+                            CrossAxis::Center => pad_left + (avail_w - cw) / 2.0,
+                            CrossAxis::End => pad_left + avail_w - cw,
+                            CrossAxis::Stretch => {
+                                if let Some(Some(node)) = self.nodes.get_mut(*child_id) {
+                                    node.widget.set_size(avail_w, ch);
+                                }
+                                pad_left
+                            }
+                        };
+                        if let Some(Some(n)) = self.nodes.get_mut(*child_id) {
+                            n.widget.set_position(cx, cursor);
+                            self.request_redraw();
+                        }
+                        cursor += ch + between_gap;
+                        self.layout_node(*child_id, avail_w, ch);
                     }
-                }
-                if let Some(n) = self.nodes[id].as_mut() {
-                    if let Some(g) = n.widget.as_any_mut().downcast_mut::<Group>() {
-                        let final_w = if matches!(g.width, Size::Auto) {
-                            total_w
-                        } else {
-                            g.w
-                        };
-                        let final_h = if matches!(g.height, Size::Auto) {
-                            total_h
-                        } else {
-                            g.h
-                        };
-                        let size_changed = g.w != final_w || g.h != final_h;
-                        g.w = final_w;
-                        g.h = final_h;
-                        if size_changed {
-                            if let Some(parent_id) = self.nodes[id].as_ref().and_then(|n| n.parent)
-                            {
-                                self.layout_dirty.insert(parent_id);
+
+                    let mut total_w = 0.0f32;
+                    let mut total_h = 0.0f32;
+                    for child_id in &children {
+                        if let Some(n) = self.nodes[*child_id].as_ref() {
+                            let (cw, ch) = n.widget.size();
+                            total_w = total_w.max(cw);
+                            total_h += ch + gap;
+                        }
+                    }
+                    if let Some(n) = self.nodes[id].as_mut() {
+                        if let Some(g) = n.widget.as_any_mut().downcast_mut::<Group>() {
+                            let final_w = if matches!(g.width, Size::Auto) {
+                                total_w + pad_left + pad_right
+                            } else {
+                                g.w
+                            };
+                            let final_h = if matches!(g.height, Size::Auto) {
+                                total_h + pad_top + pad_bottom
+                            } else {
+                                g.h
+                            };
+                            let size_changed = g.w != final_w || g.h != final_h;
+                            g.w = final_w;
+                            g.h = final_h;
+                            if size_changed {
+                                if let Some(parent_id) =
+                                    self.nodes[id].as_ref().and_then(|n| n.parent)
+                                {
+                                    self.layout_dirty.insert(parent_id);
+                                }
                             }
                         }
                     }
@@ -722,6 +1058,20 @@ impl Ui {
             return true;
         };
         ox + w > cx && ox < cx + cw && oy + h > cy && oy < cy + ch
+    }
+
+    pub fn set_viewport(&mut self, w: f32, h: f32) {
+        self.viewport_w = w;
+        self.viewport_h = h;
+
+        // set root group's size as viewport dimensions
+        if let Some(Some(node)) = self.nodes.get_mut(self.root_id) {
+            if let Some(g) = node.widget.as_any_mut().downcast_mut::<Group>() {
+                g.w = w;
+                g.h = h;
+            }
+        }
+        self.layout_dirty.insert(self.root_id);
     }
 
     fn render_node(&mut self, id: usize, draw_list: &mut DrawList, acc: Accumulated) {

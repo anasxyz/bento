@@ -1,43 +1,25 @@
 use bento::*;
 
-struct State {
-    count: i32,
-    label: WidgetHandle<Text>,
-}
-
 fn main() {
     let mut app = App::new();
     let mut ui = Ui::new();
 
-    let mut group = Group::new();
-    group.layout = Layout::Row { gap: 16.0 };
-    group.x = 100.0;
-    group.y = 100.0;
-    let group = ui.add(group);
-
-    let label = ui.add(Text::new("0"));
-    let btn_inc = ui.add(Button::new("+"));
-    let btn_dec = ui.add(Button::new("-"));
-
-    ui.attach(group, btn_dec);
-    ui.attach(group, label);
-    ui.attach(group, btn_inc);
-
-    ui.set_state(State { count: 0, label });
-
-    ui.listen(btn_inc, move |_: &Click, ui: &mut Ui| {
-        ui.with_state(|s: &mut State, ui: &mut Ui| {
-            s.count += 1;
-            ui.set(s.label, |t: &mut Text| t.set_content(format!("{}", s.count).as_str()));
-        });
+    let root = ui.root();
+    ui.set(root, |g: &mut Group| {
+        g.layout = Layout::Row {
+            gap: 8.0,
+            padding: [16.0, 16.0, 16.0, 16.0],
+            main_axis: MainAxis::Start,
+            cross_axis: CrossAxis::Start,
+            wrap: true,
+        };
+        g.width = Size::Fill;
+        g.height = Size::Fill;
     });
 
-    ui.listen(btn_dec, move |_: &Click, ui: &mut Ui| {
-        ui.with_state(|s: &mut State, ui: &mut Ui| {
-            s.count -= 1;
-            ui.set(s.label, |t: &mut Text| t.set_content(format!("{}", s.count).as_str()));
-        });
-    });
+    for i in 0..12 {
+        ui.add(root, Button::new(&format!("Button {}", i)));
+    }
 
     app.open_window(WindowConfig::default(), ui);
     app.run();

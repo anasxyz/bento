@@ -121,8 +121,7 @@ impl ApplicationHandler<BentoEvent> for App {
 
             #[cfg(not(target_arch = "wasm32"))]
             let mut win = Window::new(self.ctx.as_ref().unwrap(), event_loop, config, ui);
-            win.ui.viewport_w = win.surface.width;
-            win.ui.viewport_h = win.surface.height;
+            win.ui.set_viewport(win.surface.width, win.surface.height);
             #[cfg(not(target_arch = "wasm32"))]
             win.request_redraw();
             self.windows.insert(win.id(), win);
@@ -283,8 +282,7 @@ impl ApplicationHandler<BentoEvent> for App {
                 win.resize(ctx);
                 let w = win.surface.width;
                 let h = win.surface.height;
-                win.ui.viewport_w = w;
-                win.ui.viewport_h = h;
+                win.ui.set_viewport(w, h);
                 for &id in &win.ui.roots {
                     win.ui.layout_dirty.insert(id);
                 }
