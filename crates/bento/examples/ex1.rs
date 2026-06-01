@@ -1,39 +1,52 @@
 use bento::*;
-use std::time::Duration;
+
+struct Counter {
+    count: i32,
+    label: WidgetHandle<Text>,
+}
 
 fn main() {
     let mut app = App::new();
     let mut ui = Ui::new();
 
-    let root = ui.root();
-    ui.set(root, |g: &mut Group| {
+    // Create a row container and customise its layout
+    let row = ui.add(ui.root(), Group::new());
+    ui.set(row, |g: &mut Group| {
         g.layout = Layout::Row {
             gap: 8.0,
-            padding: [16.0, 16.0, 16.0, 16.0],
-            main_axis: MainAxis::Start,
-            cross_axis: CrossAxis::Start,
-            wrap: true,
+            padding: [0.0; 4],
+            main_axis: MainAxis::Center,
+            cross_axis: CrossAxis::Center,
+            wrap: false,
         };
-        g.width = Size::Fill;
-        g.height = Size::Fill;
     });
 
-    let mut middle_btn = None;
+    // Create widgets and add them to the row
+    let btn_dec = ui.add(row, Button::new("-"));
+    let label = ui.add(row, Text::new("0"));
+    let btn_inc = ui.add(row, Button::new("+"));
 
-    for i in 0..9 {
-        let btn = ui.add(root, Button::new(&format!("Button {}", i)));
-        if i == 4 {
-            middle_btn = Some(btn);
-        }
-    }
+    // Set the apps state
+    ui.set_state(Counter { count: 0, label });
 
-    let middle_btn = middle_btn.unwrap();
+    // Listen for clicks on the increment button
+    ui.listen(btn_inc, move |_: &Click, ui: &mut Ui| {
+        ui.with_state(|s: &mut Counter, ui: &mut Ui| {
+            s.count += 1;
+            ui.set(s.label, |t: &mut Text| {
+                t.set_content(&format!("{}", s.count))
+            });
+        });
+    });
 
-    ui.asyncs.spawn(async move {
-        tokio::time::sleep(Duration::from_secs(2)).await;
-        move |ui: &mut Ui| {
-            ui.remove(middle_btn);
-        }
+    // Listen for clicks on the decrement button
+    ui.listen(btn_dec, move |_: &Click, ui: &mut Ui| {
+        ui.with_state(|s: &mut Counter, ui: &mut Ui| {
+            s.count -= 1;
+            ui.set(s.label, |t: &mut Text| {
+                t.set_content(&format!("{}", s.count))
+            });
+        });
     });
 
     app.open_window(WindowConfig::default(), ui);

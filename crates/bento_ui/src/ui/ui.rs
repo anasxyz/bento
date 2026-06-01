@@ -97,6 +97,18 @@ impl Ui {
         ui.roots.push(root_index);
         ui.root_id = root_index;
 
+        ui.set(ui.root(), |g: &mut Group| {
+            g.layout = Layout::Column {
+                gap: 0.0,
+                padding: [0.0; 4],
+                main_axis: MainAxis::Start,
+                cross_axis: CrossAxis::Start,
+                wrap: false,
+            };
+            g.width = Size::Fill;
+            g.height = Size::Fill;
+        });
+
         ui
     }
 
