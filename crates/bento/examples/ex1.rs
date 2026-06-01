@@ -17,7 +17,12 @@ fn main() {
         g.height = Size::Fill;
     });
 
-    ui.add(root, Button::new(&format!("Button")));
+    let button = ui.add(root, Button::new(&format!("Button")));
+    ui.set(button, |b: &mut Button| {
+        b.set_border_radius([8.0, 8.0, 8.0, 8.0]);
+        b.set_border_color([0.0, 0.0, 0.0, 1.0]);
+        b.set_border_width([3.0, 3.0, 0.0, 0.0]);
+    });
 
     app.open_window(WindowConfig::default(), ui);
     app.run();

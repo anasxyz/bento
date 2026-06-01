@@ -102,7 +102,9 @@ impl Ui {
                     }
                 }
                 for child_id in children {
-                    self.layout_node(child_id, inner_w, inner_h);
+                    if self.layout_dirty.contains(&child_id) {
+                        self.layout_node(child_id, inner_w, inner_h);
+                    }
                 }
             }
 
@@ -113,7 +115,6 @@ impl Ui {
                 cross_axis,
                 wrap,
             }) => {
-                // padding: [top, right, bottom, left]
                 let pad_left = padding[3];
                 let pad_right = padding[1];
                 let pad_top = padding[0];
@@ -121,7 +122,7 @@ impl Ui {
                 let avail_w = inner_w - pad_left - pad_right;
                 let avail_h = inner_h - pad_top - pad_bottom;
 
-                // pass 0: recurse auto-width children first
+                // pass 0: always recurse auto-width children to measure them
                 for child_id in &children {
                     if let Some(Some(node)) = self.nodes.get(*child_id) {
                         if matches!(node.widget.width_sizing(), Size::Auto) {
@@ -131,7 +132,6 @@ impl Ui {
                 }
 
                 if wrap {
-                    // wrapping row — break into lines
                     let mut lines: Vec<Vec<usize>> = Vec::new();
                     let mut current_line: Vec<usize> = Vec::new();
                     let mut line_w = 0.0f32;
@@ -160,7 +160,6 @@ impl Ui {
 
                     let all_lines_h: f32 = {
                         let mut h = 0.0f32;
-                        // calculate total height of all lines
                         for line in &lines {
                             let line_h = line
                                 .iter()
@@ -246,7 +245,9 @@ impl Ui {
                             if let Some(Some(n)) = self.nodes.get_mut(*child_id) {
                                 n.widget.set_position(x_cursor, cy);
                             }
-                            self.layout_node(*child_id, cw, line_h);
+                            if self.layout_dirty.contains(child_id) {
+                                self.layout_node(*child_id, cw, line_h);
+                            }
                             x_cursor += cw + between_gap;
                         }
                         y_cursor += line_h + gap;
@@ -261,7 +262,6 @@ impl Ui {
                         }
                     }
                 } else {
-                    // non-wrapping row
                     let is_auto_w = matches!(width_sizing, Size::Auto);
                     let mut fixed_total = 0.0f32;
                     let mut fill_count = 0;
@@ -304,7 +304,6 @@ impl Ui {
                         }
                     }
 
-                    // collect child sizes
                     let child_sizes: Vec<(f32, f32)> = children
                         .iter()
                         .map(|id| {
@@ -342,11 +341,6 @@ impl Ui {
                     for (i, child_id) in children.iter().enumerate() {
                         let (cw, ch) = child_sizes[i];
                         let cross_avail_h = inner_h - pad_top - pad_bottom;
-                        println!(
-                            "cross_avail_h: {}, inner_h: {}, pad: {}/{}",
-                            cross_avail_h, inner_h, pad_top, pad_bottom
-                        );
-
                         let cy = match cross_axis {
                             CrossAxis::Start => pad_top,
                             CrossAxis::Center => pad_top + (cross_avail_h - ch) / 2.0,
@@ -362,7 +356,9 @@ impl Ui {
                             n.widget.set_position(cursor, cy);
                         }
                         cursor += cw + between_gap;
-                        self.layout_node(*child_id, cw, avail_h);
+                        if self.layout_dirty.contains(child_id) {
+                            self.layout_node(*child_id, cw, avail_h);
+                        }
                     }
 
                     let mut total_w = 0.0f32;
@@ -417,6 +413,7 @@ impl Ui {
 
                 let is_auto_h = matches!(height_sizing, Size::Auto);
 
+                // pass 0: always recurse auto-height children to measure them
                 if is_auto_h {
                     for child_id in &children {
                         if let Some(Some(node)) = self.nodes.get(*child_id) {
@@ -428,7 +425,6 @@ impl Ui {
                 }
 
                 if wrap {
-                    // wrapping column — break into columns
                     let mut cols: Vec<Vec<usize>> = Vec::new();
                     let mut current_col: Vec<usize> = Vec::new();
                     let mut col_h = 0.0f32;
@@ -537,7 +533,9 @@ impl Ui {
                             if let Some(Some(n)) = self.nodes.get_mut(*child_id) {
                                 n.widget.set_position(cx, y_cursor);
                             }
-                            self.layout_node(*child_id, col_w, ch);
+                            if self.layout_dirty.contains(child_id) {
+                                self.layout_node(*child_id, col_w, ch);
+                            }
                             y_cursor += ch + between_gap;
                         }
                         x_cursor += col_w + gap;
@@ -643,7 +641,6 @@ impl Ui {
                     for (i, child_id) in children.iter().enumerate() {
                         let (cw, ch) = child_sizes[i];
                         let cross_avail_w = inner_w - pad_left - pad_right;
-
                         let cx = match cross_axis {
                             CrossAxis::Start => pad_left,
                             CrossAxis::Center => pad_left + (cross_avail_w - cw) / 2.0,
@@ -659,7 +656,9 @@ impl Ui {
                             n.widget.set_position(cx, cursor);
                         }
                         cursor += ch + between_gap;
-                        self.layout_node(*child_id, avail_w, ch);
+                        if self.layout_dirty.contains(child_id) {
+                            self.layout_node(*child_id, avail_w, ch);
+                        }
                     }
 
                     let mut total_w = 0.0f32;

@@ -60,6 +60,12 @@ pub struct TextMeasurer {
     reuse_buffers: HashMap<u64, Buffer>,
 }
 
+impl Default for TextMeasurer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TextMeasurer {
     pub fn new() -> Self {
         #[cfg(not(target_arch = "wasm32"))]

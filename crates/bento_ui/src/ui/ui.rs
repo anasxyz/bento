@@ -251,9 +251,7 @@ impl Ui {
 
     pub fn update(&mut self) {
         // update / measure pass
-        let t = web_time::Instant::now();
         let dirty: Vec<usize> = self.dirty.drain().collect();
-        // println!("[update] dirty count: {}", dirty.len());
         for id in dirty {
             let Some(Some(node)) = self.nodes.get(id) else {
                 continue;
@@ -271,22 +269,15 @@ impl Ui {
                 }
             }
         }
-        // println!("[update] measure time: {:?} +", t.elapsed());
 
-        // layout pass
-        let t = web_time::Instant::now();
+        // layout pass — process highest ids first (leaves before parents)
+        // don't drain upfront so layout_dirty.contains() works inside layout_node
         while !self.layout_dirty.is_empty() {
-            let layout_ids: Vec<usize> = self.layout_dirty.drain().collect();
-            let mut layout_ids: Vec<usize> = layout_ids.into_iter().collect();
-            layout_ids.sort_by(|a, b| b.cmp(a));
-            for id in layout_ids {
-                self.layout_node(id, self.viewport_w, self.viewport_h);
-            }
+            let id = *self.layout_dirty.iter().max().unwrap();
+            self.layout_dirty.remove(&id);
+            self.layout_node(id, self.viewport_w, self.viewport_h);
         }
 
-        // DEBUG
-        // to update hovered node when hovering over a widget and it changes/moves
-        // could remove as it doesn't matter to me that much
         if self.debug {
             self.hit_test();
         }
