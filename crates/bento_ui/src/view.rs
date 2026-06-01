@@ -1,5 +1,5 @@
 use crate::reactive::owner::Owner;
-use bento_wgpu::{DrawList, RectDraw, TextAlign, TextDraw, TextMeasurer};
+use bento_wgpu::{DrawList, TextMeasurer};
 
 pub trait View {
     fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32);
@@ -7,8 +7,8 @@ pub trait View {
 }
 
 pub struct OwnedView {
-    _owner: Owner,
-    inner: Box<dyn View>,
+    pub _owner: Owner,
+    pub inner: Box<dyn View>,
 }
 
 impl OwnedView {

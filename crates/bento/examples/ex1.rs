@@ -2,14 +2,18 @@ use bento::*;
 
 #[component]
 fn App() -> impl View {
-    let count = state(0i32);
-    let doubled = derived(move || count.get() * 2);
-
-    count.set(3);
+    let a = state(0i32);
+    let b = state(0i32);
 
     group()
-        .child(button(move || format!("count: {}", count.get())))
-        .child(text(move || format!("doubled: {}", doubled.get())))
+        .child(text(move || {
+            println!("text a closure ran");
+            format!("a: {}", a.get())
+        }))
+        .child(text(move || {
+            println!("text b closure ran");
+            format!("b: {}", b.get())
+        }))
 }
 
 fn main() {

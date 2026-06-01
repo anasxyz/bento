@@ -1,14 +1,22 @@
-use crate::View;
+use crate::{Ui, View};
+use crate::reactive::{Effect, Signal, effect, state};
 use bento_wgpu::{DrawList, RectDraw, TextMeasurer};
 
 pub struct Group {
-    color: Option<Box<dyn Fn() -> [f32; 4]>>,
+    color: Option<Signal<[f32; 4]>>,
     children: Vec<Box<dyn View>>,
+    _effects: Vec<Effect>,
 }
 
 impl Group {
     pub fn color(mut self, f: impl Fn() -> [f32; 4] + 'static) -> Self {
-        self.color = Some(Box::new(f));
+        let color = state(f());
+        let color_signal = color;
+        self._effects.push(effect(move || {
+            color_signal.set(f());
+            Ui::request_redraw();
+        }));
+        self.color = Some(color);
         self
     }
 
@@ -38,7 +46,7 @@ impl View for Group {
                 y,
                 w,
                 h,
-                color: color(),
+                color: color.get(),
                 radii: [0.0; 4],
                 border_color: [0.0; 4],
                 border_widths: [0.0; 4],
@@ -63,5 +71,6 @@ pub fn group() -> Group {
     Group {
         color: None,
         children: Vec::new(),
+        _effects: Vec::new(),
     }
 }

@@ -1,28 +1,31 @@
-use crate::View;
+use crate::{Ui, View};
+use crate::reactive::{Effect, Signal, effect, state};
 use bento_wgpu::{DrawList, TextAlign, TextDraw, TextMeasureRequest, TextMeasurer};
 
 pub struct Text {
-    content: Box<dyn Fn() -> String>,
+    content: Signal<String>,
+    color: Signal<[f32; 4]>,
     font_size: f32,
-    color: Box<dyn Fn() -> [f32; 4]>,
+    _effects: Vec<Effect>,
 }
 
 impl Text {
-    pub fn font_size(mut self, size: f32) -> Self {
-        self.font_size = size;
+    pub fn color(mut self, f: impl Fn() -> [f32; 4] + 'static) -> Self {
+        let color = self.color;
+        self._effects.push(effect(move || color.set(f())));
         self
     }
 
-    pub fn color(mut self, f: impl Fn() -> [f32; 4] + 'static) -> Self {
-        self.color = Box::new(f);
+    pub fn font_size(mut self, size: f32) -> Self {
+        self.font_size = size;
         self
     }
 }
 
 impl View for Text {
     fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32) {
-        let content = (self.content)();
-        let result = measurer.measure(TextMeasureRequest {
+        let content = self.content.get();
+        let r = measurer.measure(TextMeasureRequest {
             text: &content,
             font_family: "",
             size: self.font_size,
@@ -36,20 +39,19 @@ impl View for Text {
             italic_ranges: &[],
             font_family_ranges: &[],
         });
-        (result.width, result.height)
+        (r.width, r.height)
     }
 
     fn render(&self, x: f32, y: f32, measurer: &mut TextMeasurer, draw_list: &mut DrawList) {
         let (w, h) = self.measure(measurer);
-        let content = (self.content)();
         draw_list.push_text(TextDraw {
             x,
             y,
             w,
             h,
-            text: content,
+            text: self.content.get(),
             size: self.font_size,
-            color: (self.color)(),
+            color: self.color.get(),
             weight: 400,
             italic: false,
             font_family: String::new(),
@@ -76,9 +78,17 @@ impl View for Text {
 }
 
 pub fn text(f: impl Fn() -> String + 'static) -> Text {
+    let content = state(f());
+
+    let eff = effect(move || {
+        content.set(f());
+        Ui::request_redraw();
+    });
+
     Text {
-        content: Box::new(f),
+        content,
+        color: state([1.0, 1.0, 1.0, 1.0]),
         font_size: 14.0,
-        color: Box::new(|| [1.0, 1.0, 1.0, 1.0]),
+        _effects: vec![eff],
     }
 }

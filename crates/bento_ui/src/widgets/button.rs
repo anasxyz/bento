@@ -1,16 +1,22 @@
-use crate::View;
+use crate::{Ui, View};
+use crate::reactive::{Effect, Signal, effect, state};
 use bento_wgpu::{DrawList, RectDraw, TextAlign, TextDraw, TextMeasureRequest, TextMeasurer};
 
 pub struct Button {
-    label: Box<dyn Fn() -> String>,
-    color: Box<dyn Fn() -> [f32; 4]>,
+    label: Signal<String>,
+    color: Signal<[f32; 4]>,
     font_size: f32,
     padding: f32,
+    _effects: Vec<Effect>,
 }
 
 impl Button {
     pub fn color(mut self, f: impl Fn() -> [f32; 4] + 'static) -> Self {
-        self.color = Box::new(f);
+        let color = self.color;
+        self._effects.push(effect(move || {
+            color.set(f());
+            Ui::request_redraw();
+        }));
         self
     }
 
@@ -19,16 +25,16 @@ impl Button {
         self
     }
 
-    pub fn padding(mut self, padding: f32) -> Self {
-        self.padding = padding;
+    pub fn padding(mut self, p: f32) -> Self {
+        self.padding = p;
         self
     }
 }
 
 impl View for Button {
     fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32) {
-        let label = (self.label)();
-        let result = measurer.measure(TextMeasureRequest {
+        let label = self.label.get();
+        let r = measurer.measure(TextMeasureRequest {
             text: &label,
             font_family: "",
             size: self.font_size,
@@ -42,36 +48,18 @@ impl View for Button {
             italic_ranges: &[],
             font_family_ranges: &[],
         });
-        (
-            result.width + self.padding * 2.0,
-            result.height + self.padding * 2.0,
-        )
+        (r.width + self.padding * 2.0, r.height + self.padding * 2.0)
     }
 
     fn render(&self, x: f32, y: f32, measurer: &mut TextMeasurer, draw_list: &mut DrawList) {
-        let label = (self.label)();
-        let result = measurer.measure(TextMeasureRequest {
-            text: &label,
-            font_family: "",
-            size: self.font_size,
-            weight: 400,
-            italic: false,
-            letter_spacing: 0.0,
-            line_height: None,
-            tab_width: 4,
-            max_width: None,
-            weight_ranges: &[],
-            italic_ranges: &[],
-            font_family_ranges: &[],
-        });
-        let w = result.width + self.padding * 2.0;
-        let h = result.height + self.padding * 2.0;
+        let label = self.label.get();
+        let (w, h) = self.measure(measurer);
         draw_list.push_rect(RectDraw {
             x,
             y,
             w,
             h,
-            color: (self.color)(),
+            color: self.color.get(),
             radii: [4.0; 4],
             border_color: [0.0; 4],
             border_widths: [0.0; 4],
@@ -85,8 +73,8 @@ impl View for Button {
         draw_list.push_text(TextDraw {
             x: x + self.padding,
             y: y + self.padding,
-            w: result.width,
-            h: result.height,
+            w: w - self.padding * 2.0,
+            h: h - self.padding * 2.0,
             text: label,
             size: self.font_size,
             color: [1.0, 1.0, 1.0, 1.0],
@@ -115,11 +103,17 @@ impl View for Button {
     }
 }
 
-pub fn button(label: impl Fn() -> String + 'static) -> Button {
+pub fn button(f: impl Fn() -> String + 'static) -> Button {
+    let label = state(f());
+    let eff = effect(move || {
+        label.set(f());
+        Ui::request_redraw();
+    });
     Button {
-        label: Box::new(label),
-        color: Box::new(|| [0.2, 0.2, 0.2, 1.0]),
+        label,
+        color: state([0.2, 0.2, 0.2, 1.0]),
         font_size: 14.0,
         padding: 12.0,
+        _effects: vec![eff],
     }
 }

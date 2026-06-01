@@ -123,8 +123,8 @@ impl ApplicationHandler<BentoEvent> for App {
 
         match event {
             WindowEvent::RedrawRequested => {
-                let needs_redraw = win.needs_render || bento_ui::take_needs_redraw();
-                if needs_redraw {
+                if win.needs_redraw() || Ui::needs_redraw() {
+                    println!("win.needs_redraw: {}\nUi::needs_redraw: {}", win.needs_redraw(), Ui::needs_redraw());
                     let draw_list = win.ui.collect_draw_list();
                     win.renderer.render(
                         ctx,
@@ -133,7 +133,7 @@ impl ApplicationHandler<BentoEvent> for App {
                         win.config.clear_color,
                         &draw_list,
                     );
-                    win.needs_render = false;
+                    win.needs_redraw = false;
                 }
             }
 
@@ -148,13 +148,18 @@ impl ApplicationHandler<BentoEvent> for App {
                 ..
             } => {}
 
-            WindowEvent::MouseInput { state, button, .. } => {}
+            WindowEvent::MouseInput { state, button, .. } => {
+            }
             WindowEvent::MouseWheel { delta, .. } => {}
-            WindowEvent::CursorMoved { position, .. } => {}
+            WindowEvent::CursorMoved { position, .. } => {
+            }
             WindowEvent::CursorEntered { .. } => {}
             WindowEvent::CursorLeft { .. } => {}
 
-            WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {}
+            WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {
+                win.resize(ctx);
+                win.request_redraw();
+            }
             WindowEvent::CloseRequested => {
                 self.close_queue.push(id);
             }
