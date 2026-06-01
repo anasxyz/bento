@@ -1,5 +1,5 @@
 use crate::Ui;
-use crate::layout::Size;
+use crate::ui::layout::Size;
 use crate::widget::{Canvas, Widget, WidgetHandle};
 use bento_wgpu::{TextAlign, TextDraw, TextMeasureRequest, TextMeasurer};
 

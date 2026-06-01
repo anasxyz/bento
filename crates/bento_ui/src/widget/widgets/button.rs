@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use crate::layout::Size;
+use crate::ui::layout::Size;
 use crate::widget::WidgetHandle;
 use crate::{Click, HoverEnter, HoverLeave, Ui};
 use crate::{Widget, widget::Canvas};

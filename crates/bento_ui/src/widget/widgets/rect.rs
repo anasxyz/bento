@@ -1,4 +1,4 @@
-use crate::layout::Size;
+use crate::ui::layout::Size;
 use crate::widget::{Canvas, Widget};
 use bento_wgpu::RectDraw;
 

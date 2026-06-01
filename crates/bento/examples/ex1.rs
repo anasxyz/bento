@@ -6,20 +6,18 @@ fn main() {
 
     let root = ui.root();
     ui.set(root, |g: &mut Group| {
-        g.layout = Layout::Row {
+        g.layout = Layout::Column {
             gap: 8.0,
             padding: [16.0, 16.0, 16.0, 16.0],
-            main_axis: MainAxis::Start,
-            cross_axis: CrossAxis::Start,
+            main_axis: MainAxis::Center,
+            cross_axis: CrossAxis::End,
             wrap: true,
         };
         g.width = Size::Fill;
         g.height = Size::Fill;
     });
 
-    for i in 0..12 {
-        ui.add(root, Button::new(&format!("Button {}", i)));
-    }
+    ui.add(root, Button::new(&format!("Button")));
 
     app.open_window(WindowConfig::default(), ui);
     app.run();

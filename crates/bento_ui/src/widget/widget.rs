@@ -1,6 +1,6 @@
 use crate::Ui;
 use crate::acc::Accumulated;
-use crate::layout::Size;
+use crate::ui::layout::Size;
 use crate::widget::WidgetHandle;
 use bento_wgpu::TextMeasurer;
 use bento_wgpu::DrawList;

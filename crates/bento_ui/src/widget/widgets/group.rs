@@ -2,7 +2,7 @@ use bento_wgpu::RectDraw;
 
 use crate::Ui;
 use crate::events::types::{MouseDown, MouseMove, MouseScroll, MouseUp};
-use crate::layout::{Layout, Size};
+use crate::ui::layout::{Layout, Size};
 use crate::widget::{Canvas, Widget, WidgetHandle};
 
 pub struct Group {
