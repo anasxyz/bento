@@ -1,11 +1,13 @@
-pub(crate) mod runtime;
-mod signal;
 mod derived;
 mod effect;
+pub mod owner;
+pub(crate) mod runtime;
+mod signal;
+mod tests;
 
-pub use signal::Signal;
 pub use derived::Derived;
 pub use effect::Effect;
+pub use signal::Signal;
 
 pub fn state<T: Clone + 'static>(value: T) -> Signal<T> {
     Signal::new(value)

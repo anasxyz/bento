@@ -1,3 +1,4 @@
+use slab::Slab;
 use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::cmp::Reverse;
@@ -18,7 +19,7 @@ struct SubscriberEntry {
 }
 
 struct Runtime {
-    signals: Vec<SignalEntry>,
+    signals: Slab<SignalEntry>,
     subscribers: Vec<SubscriberEntry>,
     next_subscriber_id: usize,
     observer_stack: Vec<SubscriberId>,
@@ -27,7 +28,7 @@ struct Runtime {
 impl Runtime {
     fn new() -> Self {
         Self {
-            signals: Vec::new(),
+            signals: Slab::new(),
             subscribers: Vec::new(),
             next_subscriber_id: 0,
             observer_stack: Vec::new(),
@@ -35,12 +36,10 @@ impl Runtime {
     }
 
     fn create_signal(&mut self, value: Box<dyn Any>) -> usize {
-        let id = self.signals.len();
-        self.signals.push(SignalEntry {
+        self.signals.insert(SignalEntry {
             value,
             subscribers: Vec::new(),
-        });
-        id
+        })
     }
 
     fn get<T: Clone + 'static>(&mut self, id: usize) -> T {
@@ -100,7 +99,7 @@ impl Runtime {
 
     fn unregister_subscriber(&mut self, id: SubscriberId) {
         self.subscribers.retain(|e| e.id != id);
-        for signal in &mut self.signals {
+        for (_, signal) in &mut self.signals {
             signal.subscribers.retain(|&s| s != id);
         }
     }
@@ -115,7 +114,7 @@ impl Runtime {
 
     fn max_dependency_rank(&self, id: SubscriberId) -> usize {
         let mut max = 0;
-        for signal in &self.signals {
+        for (_, signal) in &self.signals {
             if signal.subscribers.contains(&id) {
                 for other in &self.subscribers {
                     if signal.subscribers.contains(&other.id) && other.id != id {
@@ -226,4 +225,22 @@ pub(crate) fn pop_observer() {
 
 pub(crate) fn max_dependency_rank(id: SubscriberId) -> usize {
     RUNTIME.with(|rt| rt.borrow().max_dependency_rank(id))
+}
+
+pub(crate) fn drop_signal(id: usize) {
+    RUNTIME.with(|rt| {
+        let mut rt = rt.borrow_mut();
+        if rt.signals.contains(id) {
+            rt.signals.remove(id);
+        }
+    });
+}
+
+pub(crate) fn clear_subscriptions(id: SubscriberId) {
+    RUNTIME.with(|rt| {
+        let mut rt = rt.borrow_mut();
+        for (_, signal) in &mut rt.signals {
+            signal.subscribers.retain(|&s| s != id);
+        }
+    });
 }

@@ -1,5 +1,6 @@
 use super::runtime;
 use std::marker::PhantomData;
+use crate::reactive::owner;
 
 pub struct Signal<T> {
     pub(crate) id: usize,
@@ -15,8 +16,10 @@ impl<T> Clone for Signal<T> {
 
 impl<T: Clone + 'static> Signal<T> {
     pub(crate) fn new(value: T) -> Self {
+        let id = runtime::create_signal_id(value);
+        owner::register_cleanup(move || runtime::drop_signal(id));
         Self {
-            id: runtime::create_signal_id(value),
+            id,
             _phantom: PhantomData,
         }
     }

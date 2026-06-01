@@ -1,4 +1,5 @@
 use super::runtime::{self, SubscriberId};
+use crate::reactive::owner;
 use std::rc::Rc;
 
 pub struct Effect {
@@ -17,11 +18,14 @@ impl Effect {
             id,
             usize::MAX,
             Rc::new(move || {
+                runtime::clear_subscriptions(id);
                 runtime::push_observer(id);
                 f();
                 runtime::pop_observer();
             }),
         );
+
+        owner::register_cleanup(move || runtime::unregister_subscriber(id));
 
         Self { id }
     }

@@ -1,5 +1,6 @@
 use super::runtime::{self, SubscriberId};
 use super::signal::Signal;
+use crate::reactive::owner;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
@@ -33,6 +34,7 @@ impl<T: Clone + 'static> Derived<T> {
         let rank = runtime::max_dependency_rank(id) + 1;
 
         let notify = Rc::new(move || {
+            runtime::clear_subscriptions(id);
             runtime::push_observer(id);
             let new_val = f();
             runtime::pop_observer();
@@ -40,6 +42,8 @@ impl<T: Clone + 'static> Derived<T> {
         });
 
         runtime::register_subscriber(id, rank, notify);
+
+        owner::register_cleanup(move || runtime::unregister_subscriber(id));
 
         Self {
             signal,

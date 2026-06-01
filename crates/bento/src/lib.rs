@@ -3,6 +3,7 @@
 
 pub use bento_ui::*;
 pub use bento_winit::{App, Window, WindowConfig};
+pub use bento_macros::component;
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;

@@ -1,18 +1,17 @@
 use bento::*;
 
-fn counter() -> impl View {
+#[component]
+fn App() -> impl View {
     let count = state(0i32);
+    let doubled = derived(move || count.get() * 2);
 
-    let _eff = effect(move || {
-        println!("count is: {}", count.get());
-    });
+    count.set(3);
 
-    count.set(42);
-    count.set(43);
-
-    rect().child(text(move || format!("Count: {}", count.get())))
+    rect()
+        .child(text(move || format!("count: {}", count.get())))
+        .child(text(move || format!("doubled: {}", doubled.get())))
 }
 
 fn main() {
-    App::run(counter());
+    App::run(App());
 }

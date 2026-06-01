@@ -14,7 +14,7 @@ pub use types::*;
 
 pub use reactive::{derived, effect, state};
 pub use ui::Ui;
-pub use view::{Rect, Text, View, rect, text};
+pub use view::{Rect, Text, View, OwnedView, rect, text};
 
 use std::cell::Cell;
 
