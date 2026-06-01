@@ -19,9 +19,9 @@ fn main() {
     let btn_inc = ui.add(Button::new("+"));
     let btn_dec = ui.add(Button::new("-"));
 
-    ui.append(group, btn_dec);
-    ui.append(group, label);
-    ui.append(group, btn_inc);
+    ui.attach(group, btn_dec);
+    ui.attach(group, label);
+    ui.attach(group, btn_inc);
 
     ui.set_state(State { count: 0, label });
 

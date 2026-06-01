@@ -200,18 +200,18 @@ impl Ui {
             .downcast_mut::<W>()
     }
 
-    pub fn append<W: Widget + 'static, C: Widget + 'static>(
+    pub fn attach<W: Widget + 'static, C: Widget + 'static>(
         &mut self,
         handle: WidgetHandle<W>,
         child: WidgetHandle<C>,
     ) {
         if handle.id == child.id {
-            println!("[ERROR] Cannot append widget to itself");
+            println!("[ERROR] Cannot attach widget to itself");
             return;
         }
         if let Some(Some(parent_node)) = self.nodes.get(handle.id) {
             if parent_node.children.contains(&child.id) {
-                println!("[ERROR] Cannot append, widget is already child of parent");
+                println!("[ERROR] Cannot attach, widget is already child of parent");
                 return;
             }
         }
