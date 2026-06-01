@@ -7,9 +7,7 @@ fn App() -> impl View {
 
     count.set(3);
 
-    rect()
-        .child(text(move || format!("count: {}", count.get())))
-        .child(text(move || format!("doubled: {}", doubled.get())))
+    button(move || format!("count: {}", count.get()))
 }
 
 fn main() {
