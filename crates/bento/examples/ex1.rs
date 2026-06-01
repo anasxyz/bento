@@ -32,7 +32,7 @@ fn main() {
     ui.asyncs.spawn(async move {
         tokio::time::sleep(Duration::from_secs(2)).await;
         move |ui: &mut Ui| {
-            ui.set(middle_btn, |b: &mut Button| b.set_text("Changeddddddddddddddddddddddddddddd!"));
+            ui.remove(middle_btn);
         }
     });
 

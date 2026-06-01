@@ -187,18 +187,34 @@ impl Ui {
     }
 
     fn remove_id(&mut self, id: usize) {
+        let parent = self
+            .nodes
+            .get(id)
+            .and_then(|n| n.as_ref())
+            .and_then(|n| n.parent);
+
         let children = self
             .nodes
             .get(id)
             .and_then(|s| s.as_ref())
             .map(|s| s.children.clone())
             .unwrap_or_default();
+
         for child_id in children {
             self.remove_id(child_id);
         }
+
         self.roots.retain(|&r| r != id);
+
         if let Some(node) = self.nodes.get_mut(id) {
             *node = None;
+        }
+
+        if let Some(parent_id) = parent {
+            if let Some(Some(parent_node)) = self.nodes.get_mut(parent_id) {
+                parent_node.children.retain(|&c| c != id);
+            }
+            self.layout_dirty.insert(parent_id);
         }
     }
 
