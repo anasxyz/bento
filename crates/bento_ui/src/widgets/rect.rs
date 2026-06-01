@@ -1,9 +1,8 @@
-use bento_wgpu::{DrawList, RectDraw};
 use crate::View;
+use bento_wgpu::{DrawList, RectDraw, TextMeasurer};
 
 pub struct Rect {
     color: Box<dyn Fn() -> [f32; 4]>,
-    children: Vec<Box<dyn View>>,
 }
 
 impl Rect {
@@ -11,20 +10,22 @@ impl Rect {
         self.color = Box::new(f);
         self
     }
-
-    pub fn child(mut self, child: impl View + 'static) -> Self {
-        self.children.push(Box::new(child));
-        self
-    }
 }
 
 impl View for Rect {
-    fn render(&self, x: f32, y: f32, draw_list: &mut DrawList) {
+    fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32) {
+        let mut w: f32 = 0.0;
+        let mut h: f32 = 0.0;
+        (w, h)
+    }
+
+    fn render(&self, x: f32, y: f32, measurer: &mut TextMeasurer, draw_list: &mut DrawList) {
+        let (w, h) = self.measure(measurer);
         draw_list.push_rect(RectDraw {
             x,
             y,
-            w: 100.0,
-            h: 100.0,
+            w,
+            h,
             color: (self.color)(),
             radii: [0.0; 4],
             border_color: [0.0; 4],
@@ -36,16 +37,11 @@ impl View for Rect {
             clip: None,
             z: 0,
         });
-        for child in &self.children {
-            child.render(x, y, draw_list);
-        }
     }
 }
 
 pub fn rect() -> Rect {
     Rect {
         color: Box::new(|| [0.0; 4]),
-        children: Vec::new(),
     }
 }
-

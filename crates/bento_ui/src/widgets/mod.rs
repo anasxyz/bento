@@ -1,8 +1,10 @@
+mod button;
+mod group;
 mod rect;
 mod text;
-mod button;
 
-pub use rect::{rect, Rect};
-pub use text::{text, Text};
-pub use button::{button, Button};
+pub use button::{Button, button};
+pub use group::{Group, group};
+pub use rect::{Rect, rect};
+pub use text::{Text, text};
 

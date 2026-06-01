@@ -17,7 +17,8 @@ impl Ui {
 
     pub fn collect_draw_list(&mut self) -> DrawList {
         let mut draw_list = DrawList::new();
-        self.view.render(0.0, 0.0, &mut draw_list);
+        self.view
+            .render(0.0, 0.0, &mut self.measurer, &mut draw_list);
         draw_list
     }
 }

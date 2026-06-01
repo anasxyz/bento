@@ -1,8 +1,9 @@
 use crate::reactive::owner::Owner;
-use bento_wgpu::{DrawList, RectDraw, TextAlign, TextDraw};
+use bento_wgpu::{DrawList, RectDraw, TextAlign, TextDraw, TextMeasurer};
 
 pub trait View {
-    fn render(&self, x: f32, y: f32, draw_list: &mut DrawList);
+    fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32);
+    fn render(&self, x: f32, y: f32, measurer: &mut TextMeasurer, draw_list: &mut DrawList);
 }
 
 pub struct OwnedView {
@@ -20,7 +21,11 @@ impl OwnedView {
 }
 
 impl View for OwnedView {
-    fn render(&self, x: f32, y: f32, draw_list: &mut DrawList) {
-        self.inner.render(x, y, draw_list);
+    fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32) {
+        self.inner.measure(measurer)
+    }
+
+    fn render(&self, x: f32, y: f32, measurer: &mut TextMeasurer, draw_list: &mut DrawList) {
+        self.inner.render(x, y, measurer, draw_list);
     }
 }
