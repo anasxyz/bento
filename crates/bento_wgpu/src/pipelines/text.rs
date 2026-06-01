@@ -376,7 +376,7 @@ impl TextCache {
 }
 
 fn shape(spec: &TextSpec, font_system: &mut cosmic_text::FontSystem, scale: f32) -> Buffer {
-    let t = std::time::Instant::now();
+    let t = web_time::Instant::now();
     let line_height = spec.line_height.unwrap_or(spec.size * 1.4);
     let mut buffer = Buffer::new(font_system, Metrics::new(spec.size, line_height));
     buffer.set_tab_width(font_system, spec.tab_width);
@@ -489,7 +489,7 @@ fn rasterise(
     queue: &wgpu::Queue,
     scale: f32,
 ) {
-    let t = std::time::Instant::now();
+    let t = web_time::Instant::now();
     let raster_scale = scale * spec.scale_x.max(spec.scale_y);
     let subpixel_offset = (0.0, 0.0);
     for run in buffer.layout_runs() {
@@ -761,7 +761,7 @@ impl TextPipeline {
 
         let screen_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("text screen uniform"),
-            size: 8,
+            size: 16,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -853,7 +853,7 @@ impl TextPipeline {
                 resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                     buffer: &origin_buffer,
                     offset: 0,
-                    size: wgpu::BufferSize::new(8),
+                    size: wgpu::BufferSize::new(16),
                 }),
             }],
         });
@@ -1010,23 +1010,6 @@ impl TextPipeline {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
     ) {
-        let any_changed = specs.iter().any(|spec| {
-            let mut hasher = DefaultHasher::new();
-            spec.text.hash(&mut hasher);
-            spec.size.to_bits().hash(&mut hasher);
-            spec.weight.hash(&mut hasher);
-            spec.font_family.hash(&mut hasher);
-            let key = hasher.finish();
-            match self.cache.get(&key) {
-                None => true,
-                Some(cache) => cache.needs_reshape(spec) || cache.needs_redraw(spec),
-            }
-        });
-
-        if !any_changed && !self.ranges.is_empty() {
-            return;
-        }
-
         // grow origin buffer if needed
         if specs.len() > self.origin_capacity {
             self.origin_capacity = specs.len().next_power_of_two();
@@ -1045,7 +1028,7 @@ impl TextPipeline {
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                         buffer: &self.origin_buffer,
                         offset: 0,
-                        size: wgpu::BufferSize::new(8),
+                        size: wgpu::BufferSize::new(16),
                     }),
                 }],
             });
@@ -1058,7 +1041,7 @@ impl TextPipeline {
         self.line_rects.clear();
         self.line_ranges.clear();
 
-        let t_loop = std::time::Instant::now();
+        let t_loop = web_time::Instant::now();
         for (i, spec) in specs.iter().enumerate() {
             use std::collections::hash_map::DefaultHasher;
             use std::hash::{Hash, Hasher};
@@ -1076,14 +1059,15 @@ impl TextPipeline {
 
             // println!("[text {}] reshape={} redraw={}", i, reshape, redraw);
 
-            let t_origin = std::time::Instant::now();
+            let t_origin = web_time::Instant::now();
             // write origin regardless of whether glyphs need rebuilding
             if origin_update {
                 let origin_x = (spec.x * self.scale).floor();
                 let origin_y = (spec.y * self.scale).floor();
                 let offset = i as u64 * self.origin_stride;
                 // write only 8 bytes at the right slot
-                let origin_floats = [origin_x, origin_y];
+                // amend: write 16 bytes bc webgl requires buffers to be 16 byte aligned
+                let origin_floats = [origin_x, origin_y, 0.0f32, 0.0f32];
                 queue.write_buffer(
                     &self.origin_buffer,
                     offset,
@@ -1126,7 +1110,7 @@ impl TextPipeline {
                 }
                 if let Some(buffer) = &cache.buffer {
                     if reshape || cache.needs_glyph_rebuild(spec) {
-                        let t = std::time::Instant::now();
+                        let t = web_time::Instant::now();
                         cache.glyphs = build_glyphs(buffer, &self.atlas, spec, self.scale);
                         // println!(
                         //     "[text {}] build_glyphs: {:?}, {} glyphs",
@@ -1136,7 +1120,7 @@ impl TextPipeline {
                         // );
                     }
                     if reshape || cache.needs_decoration_rebuild(spec) {
-                        let t = std::time::Instant::now();
+                        let t = web_time::Instant::now();
                         let (bg, lines) = build_decorations(buffer, spec, self.scale);
                         // println!("[text {}] build_decorations: {:?}", i, t.elapsed());
                         cache.bg_rects = bg;
@@ -1174,7 +1158,7 @@ impl TextPipeline {
             });
         }
 
-        let t = std::time::Instant::now();
+        let t = web_time::Instant::now();
         queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&instances));
         // println!("[text] write_buffer: {:?}", t.elapsed());
     }

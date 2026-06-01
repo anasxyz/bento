@@ -99,7 +99,7 @@ impl Renderer {
                 label: Some("frame"),
             });
 
-        let t_cpu = std::time::Instant::now();
+        let t_cpu = web_time::Instant::now();
 
         // phase 1: build CPU vecs from draw list
         let mut rect_instances: Vec<RectInstance> = Vec::new();
@@ -287,7 +287,7 @@ impl Renderer {
         ctx.queue.submit(Some(encoder.finish()));
         // println!("[render] cpu time: {:?}", t_cpu.elapsed());
 
-        let t_present = std::time::Instant::now();
+        let t_present = web_time::Instant::now();
         frame.present();
         // println!("[render] present time: {:?}", t_present.elapsed());
     }

@@ -11,7 +11,7 @@ pub struct Window {
     pub surface: Surface<'static>,
     pub ui: Ui,
     window: Arc<winit::window::Window>,
-    pub last_frame: Option<std::time::Instant>,
+    pub last_frame: Option<web_time::Instant>,
     pub needs_render: bool,
 }
 
@@ -31,6 +31,20 @@ impl Window {
                 )
                 .unwrap(),
         );
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            use winit::platform::web::WindowExtWebSys;
+            web_sys::window()
+                .unwrap()
+                .document()
+                .unwrap()
+                .body()
+                .unwrap()
+                .append_child(&window.canvas().unwrap())
+                .unwrap();
+        }
+
         let size = window.inner_size();
         let scale = window.scale_factor() as f32;
         let w = size.width as f32 / scale;
@@ -38,6 +52,24 @@ impl Window {
         let surface = Surface::new(ctx, Arc::clone(&window), w, h, scale);
         let renderer = Renderer::new(ctx, &surface);
 
+        Self {
+            config,
+            renderer,
+            surface,
+            ui,
+            window,
+            last_frame: None,
+            needs_render: false,
+        }
+    }
+
+    pub fn from_parts(
+        config: WindowConfig,
+        renderer: Renderer,
+        surface: Surface<'static>,
+        ui: Ui,
+        window: Arc<winit::window::Window>,
+    ) -> Self {
         Self {
             config,
             renderer,

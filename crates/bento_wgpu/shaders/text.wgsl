@@ -1,5 +1,7 @@
 struct Screen {
   size: vec2f,
+  // padding for webgl bc it requires buffer bindings to be 16 byte aligned
+  _pad: vec2f,
 }
 @group(0) @binding(0) var<uniform> screen: Screen;
 @group(0) @binding(1) var atlas_tex: texture_2d<f32>;
@@ -7,6 +9,8 @@ struct Screen {
 
 struct Origin {
   pos: vec2f,
+  // padding for same reason above
+  _pad: vec2f,
 }
 @group(1) @binding(0) var<uniform> origin: Origin;
 

@@ -2,7 +2,6 @@
 members = [
   "crates/bento",
   "crates/bento_macros",
-  "crates/bento_shared",
   "crates/bento_winit",
   "crates/bento_wgpu",
   "crates/bento_ui",
@@ -20,11 +19,10 @@ categories = ["gui", "graphics", "rendering"]
 bento = { path = "crates/bento" }
 bento_macros = { path = "crates/bento_macros" }
 bento_ui = { path = "crates/bento_ui" }
-bento_shared = { path = "crates/bento_shared" }
 bento_wgpu = { path = "crates/bento_wgpu" }
 bento_winit = { path = "crates/bento_winit" }
 
-wgpu = "25"
+wgpu = { version = "25", features = ["webgl"] }
 bytemuck = { version = "1.14", features = ["derive"] }
 etagere = "0.2"
 swash = "0.2"
@@ -33,11 +31,15 @@ image = "0.25"
 resvg = "0.44"
 winit = "0.30"
 pollster = "0.3"
-tokio = { version = "1", features = ["full"] }
 slab = "0.4"
 syn = { version = "2", features = ["full"] }
 quote = "1"
 proc-macro2 = "1"
+js-sys = "0.3"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = "0.3"
+web-time = "1"
 
 [workspace.lints.rust]
 unsafe_code = "deny"

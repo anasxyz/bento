@@ -15,6 +15,11 @@ impl RenderContext {
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::HighPerformance,
                 compatible_surface: None,
+                #[cfg(target_arch = "wasm32")]
+                // fallback on WASM
+                force_fallback_adapter: true,
+                #[cfg(not(target_arch = "wasm32"))]
+                // native
                 force_fallback_adapter: false,
             })
             .await
@@ -47,7 +52,16 @@ impl RenderContext {
             .expect("bento_wgpu: no adapter compatible with the given surface");
 
         let (device, queue) = adapter
-            .request_device(&wgpu::DeviceDescriptor::default())
+            .request_device(&wgpu::DeviceDescriptor {
+                #[cfg(target_arch = "wasm32")]
+                // adapter.limits() to query adapter limits
+                // or wgpu::Limits::default()
+                required_limits: wgpu::Limits::downlevel_webgl2_defaults()
+                    .using_resolution(adapter.limits()),
+                #[cfg(not(target_arch = "wasm32"))]
+                required_limits: wgpu::Limits::default(),
+                ..wgpu::DeviceDescriptor::default()
+            })
             .await
             .expect("bento_wgpu: failed to create GPU device");
 

@@ -48,6 +48,8 @@ pub struct Ui {
     pub focused: Option<usize>,
 
     pub cursor: CursorIcon,
+
+    pub state_map: HashMap<TypeId, Box<dyn Any>>,
 }
 
 impl Ui {
@@ -76,9 +78,38 @@ impl Ui {
             focused: None,
 
             cursor: CursorIcon::Default,
+
+            state_map: HashMap::new(),
         };
 
         ui
+    }
+
+    pub fn set_state<T: 'static>(&mut self, state: T) {
+        self.state_map.insert(TypeId::of::<T>(), Box::new(state));
+    }
+
+    pub fn state<T: 'static>(&self) -> &T {
+        self.state_map
+            .get(&TypeId::of::<T>())
+            .unwrap()
+            .downcast_ref::<T>()
+            .unwrap()
+    }
+
+    pub fn state_mut<T: 'static>(&mut self) -> &mut T {
+        self.state_map
+            .get_mut(&TypeId::of::<T>())
+            .unwrap()
+            .downcast_mut::<T>()
+            .unwrap()
+    }
+
+    pub fn with_state<T: 'static>(&mut self, f: impl FnOnce(&mut T, &mut Ui)) {
+        let mut state = self.state_map.remove(&TypeId::of::<T>()).unwrap();
+        let s = state.downcast_mut::<T>().unwrap();
+        f(s, self);
+        self.state_map.insert(TypeId::of::<T>(), state);
     }
 
     pub fn request_redraw(&mut self) {
@@ -169,18 +200,18 @@ impl Ui {
             .downcast_mut::<W>()
     }
 
-    pub fn append<W: Widget + 'static, C: Widget + 'static>(
+    pub fn attach<W: Widget + 'static, C: Widget + 'static>(
         &mut self,
         handle: WidgetHandle<W>,
         child: WidgetHandle<C>,
     ) {
         if handle.id == child.id {
-            println!("[ERROR] Cannot append widget to itself");
+            println!("[ERROR] Cannot attach widget to itself");
             return;
         }
         if let Some(Some(parent_node)) = self.nodes.get(handle.id) {
             if parent_node.children.contains(&child.id) {
-                println!("[ERROR] Cannot append, widget is already child of parent");
+                println!("[ERROR] Cannot attach, widget is already child of parent");
                 return;
             }
         }
@@ -196,7 +227,7 @@ impl Ui {
 
     pub fn update(&mut self) {
         // update / measure pass
-        let t = std::time::Instant::now();
+        let t = web_time::Instant::now();
         let dirty: Vec<usize> = self.dirty.drain().collect();
         // println!("[update] dirty count: {}", dirty.len());
         for id in dirty {
@@ -219,7 +250,7 @@ impl Ui {
         // println!("[update] measure time: {:?} +", t.elapsed());
 
         // layout pass
-        let t = std::time::Instant::now();
+        let t = web_time::Instant::now();
         while !self.layout_dirty.is_empty() {
             let layout_ids: Vec<usize> = self.layout_dirty.drain().collect();
             let mut layout_ids: Vec<usize> = layout_ids.into_iter().collect();
@@ -928,7 +959,7 @@ impl Ui {
 
         if let Some(node_id) = hover_target {
             if self.input.mouse.left.just_pressed {
-                let now = std::time::Instant::now();
+                let now = web_time::Instant::now();
                 let dt = now
                     .duration_since(self.input.mouse.left.last_click_time)
                     .as_millis();
@@ -964,7 +995,7 @@ impl Ui {
                 }
             }
             if self.input.mouse.right.just_pressed {
-                let now = std::time::Instant::now();
+                let now = web_time::Instant::now();
                 let dt = now
                     .duration_since(self.input.mouse.right.last_click_time)
                     .as_millis();
@@ -993,7 +1024,7 @@ impl Ui {
                 }));
             }
             if self.input.mouse.middle.just_pressed {
-                let now = std::time::Instant::now();
+                let now = web_time::Instant::now();
                 let dt = now
                     .duration_since(self.input.mouse.middle.last_click_time)
                     .as_millis();

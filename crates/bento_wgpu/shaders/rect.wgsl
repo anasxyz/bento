@@ -1,5 +1,7 @@
 struct Screen {
   size: vec2f,
+  // padding for webgl bc it requires buffer bindings to be 16 byte aligned
+  _pad: vec2f,
 }
 @group(0) @binding(0) var<uniform> screen: Screen;
 

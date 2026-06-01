@@ -1,3 +1,4 @@
 /target
 *.txt
-/fonts
+crates/bento_wgpu/fonts/
+crates/bento/dist/

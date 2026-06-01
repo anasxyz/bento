@@ -14,8 +14,8 @@ pub use input::keyboard::Key;
 pub use events::types::*;
 pub use widget::{
     Widget,
-    primitive::*,
-    composite::*,
+    WidgetHandle,
+    widgets::*,
 };
 pub use layout::*;
 pub use types::*;

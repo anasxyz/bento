@@ -10,15 +10,25 @@ use crate::{config::WindowConfig, window::Window};
 use bento_ui::{CursorIcon, Ui};
 use bento_wgpu::RenderContext;
 
-use bento_shared::BentoEvent;
 use std::sync::Arc;
+
+#[cfg(target_arch = "wasm32")]
+use {
+    bento_wgpu::{Renderer, Surface},
+    winit::dpi::LogicalSize,
+};
 
 pub struct App {
     ctx: Option<RenderContext>,
     pending: Vec<(WindowConfig, Ui)>,
     windows: HashMap<WindowId, Window>,
     close_queue: Vec<WindowId>,
+    #[cfg(not(target_arch = "wasm32"))]
     runtime: tokio::runtime::Runtime,
+}
+
+pub enum BentoEvent {
+    Callback(u64),
 }
 
 impl App {
@@ -28,6 +38,7 @@ impl App {
             pending: Vec::new(),
             windows: HashMap::new(),
             close_queue: Vec::new(),
+            #[cfg(not(target_arch = "wasm32"))]
             runtime: tokio::runtime::Runtime::new().unwrap(),
         }
     }
@@ -45,10 +56,19 @@ impl App {
             ui.asyncs.set_sender(Arc::new(move |id| {
                 proxy.send_event(BentoEvent::Callback(id)).ok();
             }));
-            let handle = self.runtime.handle().clone();
-            ui.asyncs.set_spawner(Arc::new(move |fut| {
-                handle.spawn(fut);
-            }));
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                let handle = self.runtime.handle().clone();
+                ui.asyncs.set_spawner(Arc::new(move |fut| {
+                    handle.spawn(fut);
+                }));
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                ui.asyncs.set_spawner(Arc::new(move |fut| {
+                    wasm_bindgen_futures::spawn_local(fut);
+                }));
+            }
         }
         event_loop.run_app(&mut self).unwrap();
     }
@@ -56,14 +76,54 @@ impl App {
 
 impl ApplicationHandler<BentoEvent> for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        #[cfg(not(target_arch = "wasm32"))]
         if self.ctx.is_none() {
             self.ctx = Some(pollster::block_on(RenderContext::new()));
         }
+
         for (config, ui) in std::mem::take(&mut self.pending) {
-            let ctx = self.ctx.as_ref().unwrap();
-            let mut win = Window::new(ctx, event_loop, config, ui);
+            #[cfg(target_arch = "wasm32")]
+            let mut win = {
+                use winit::platform::web::WindowExtWebSys;
+                let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
+                let window = Arc::new(
+                    event_loop
+                        .create_window(
+                            winit::window::Window::default_attributes()
+                                .with_title(&config.title)
+                                .with_inner_size(LogicalSize::new(config.width, config.height)),
+                        )
+                        .unwrap(),
+                );
+                web_sys::window()
+                    .unwrap()
+                    .document()
+                    .unwrap()
+                    .body()
+                    .unwrap()
+                    .append_child(&window.canvas().unwrap())
+                    .unwrap();
+                let size = window.inner_size();
+                let scale = window.scale_factor() as f32;
+                let w = size.width as f32 / scale;
+                let h = size.height as f32 / scale;
+                let surface_handle = instance.create_surface(Arc::clone(&window)).unwrap();
+                let ctx =
+                    pollster::block_on(RenderContext::new_for_surface(instance, &surface_handle));
+                if self.ctx.is_none() {
+                    self.ctx = Some(ctx);
+                }
+                let ctx = self.ctx.as_ref().unwrap();
+                let surface = Surface::from_existing(ctx, surface_handle, w, h, scale);
+                let renderer = Renderer::new(ctx, &surface);
+                Window::from_parts(config, renderer, surface, ui, window)
+            };
+
+            #[cfg(not(target_arch = "wasm32"))]
+            let mut win = Window::new(self.ctx.as_ref().unwrap(), event_loop, config, ui);
             win.ui.viewport_w = win.surface.width;
             win.ui.viewport_h = win.surface.height;
+            #[cfg(not(target_arch = "wasm32"))]
             win.request_redraw();
             self.windows.insert(win.id(), win);
         }
@@ -77,30 +137,21 @@ impl ApplicationHandler<BentoEvent> for App {
 
         match event {
             WindowEvent::RedrawRequested => {
-                // println!("----------------------------");
-                let t_total = std::time::Instant::now();
-
-                let t = std::time::Instant::now();
                 win.ui.process_input();
-                // println!("= process input time: {:?}", t.elapsed());
 
                 if win.ui.needs_redraw
                     || !win.ui.dirty.is_empty()
                     || !win.ui.layout_dirty.is_empty()
                 {
-                    let t = std::time::Instant::now();
                     win.ui.measurer.trim_shape_cache();
                     win.ui.update();
                     win.set_cursor(to_winit_cursor(win.ui.cursor));
-                    // println!("= update time: {:?}", t.elapsed());
                 }
 
                 if win.needs_render || win.ui.needs_redraw {
-                    let t = std::time::Instant::now();
                     let draw_list = win.ui.collect_draw_list();
-                    // println!("= collect_draw_list time: {:?}", t.elapsed());
 
-                    let t = std::time::Instant::now();
+                    let t = web_time::Instant::now();
                     win.renderer.render(
                         ctx,
                         &mut win.ui.measurer,
@@ -108,7 +159,6 @@ impl ApplicationHandler<BentoEvent> for App {
                         win.config.clear_color,
                         &draw_list,
                     );
-                    // println!("= render time: {:?}", t.elapsed());
 
                     win.needs_render = false;
                     win.ui.needs_redraw = false;
@@ -116,8 +166,6 @@ impl ApplicationHandler<BentoEvent> for App {
 
                 win.ui.input.mouse.clear();
                 win.ui.input.keyboard.clear();
-                // println!("total frame time: {:?}", t_total.elapsed());
-                // println!("----------------------------");
             }
 
             WindowEvent::KeyboardInput {
