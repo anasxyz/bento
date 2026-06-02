@@ -20,8 +20,16 @@ type WakerFn = Arc<dyn Fn() + Send + Sync + 'static>;
 #[cfg(target_arch = "wasm32")]
 type WakerFn = Arc<dyn Fn() + 'static>;
 
+#[cfg(not(target_arch = "wasm32"))]
 static PENDING: Mutex<Vec<PendingCallback>> = Mutex::new(Vec::new());
+#[cfg(not(target_arch = "wasm32"))]
 static WAKER: OnceLock<WakerFn> = OnceLock::new();
+
+#[cfg(target_arch = "wasm32")]
+thread_local! {
+    static PENDING: RefCell<Vec<PendingCallback>> = RefCell::new(Vec::new());
+    static WAKER: RefCell<Option<WakerFn>> = RefCell::new(None);
+}
 
 thread_local! {
     static SPAWNER: RefCell<Option<Box<dyn Fn(BoxFuture)>>> = RefCell::new(None);
@@ -40,12 +48,22 @@ pub fn set_spawner(f: impl Fn(BoxFuture) + 'static) {
     });
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+pub fn drain_callbacks() -> Vec<PendingCallback> {
+    PENDING.lock().unwrap().drain(..).collect()
+}
+#[cfg(target_arch = "wasm32")]
+pub fn drain_callbacks() -> Vec<PendingCallback> {
+    PENDING.with(|p| p.borrow_mut().drain(..).collect())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 pub fn set_waker(f: WakerFn) {
     WAKER.set(f).ok();
 }
-
-pub fn drain_callbacks() -> Vec<PendingCallback> {
-    PENDING.lock().unwrap().drain(..).collect()
+#[cfg(target_arch = "wasm32")]
+pub fn set_waker(f: WakerFn) {
+    WAKER.with(|w| *w.borrow_mut() = Some(f));
 }
 
 fn do_spawn(future: BoxFuture) {
@@ -81,10 +99,12 @@ where
 {
     do_spawn(Box::pin(async move {
         let callback = future.await;
-        PENDING.lock().unwrap().push(Box::new(callback));
-        if let Some(waker) = WAKER.get() {
-            waker();
-        }
+        PENDING.with(|p| p.borrow_mut().push(Box::new(callback)));
+        WAKER.with(|w| {
+            if let Some(waker) = w.borrow().as_ref() {
+                waker();
+            }
+        });
     }));
 }
 

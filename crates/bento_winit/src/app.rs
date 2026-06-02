@@ -69,11 +69,20 @@ impl App {
         }));
 
         // async spawner
-        // runs futures on tokio thread pool
-        let runtime = tokio::runtime::Runtime::new().unwrap();
-        bento_ui::set_spawner(move |fut| {
-            runtime.spawn(fut);
-        });
+        // runs futures on tokio thread pool on native, or wasm_bindgen_futures on the web
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let runtime = tokio::runtime::Runtime::new().unwrap();
+            bento_ui::set_spawner(move |fut| {
+                runtime.spawn(fut);
+            });
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            bento_ui::set_spawner(move |fut| {
+                wasm_bindgen_futures::spawn_local(fut);
+            });
+        }
 
         let mut app = App::new();
         app.pending.push((WindowConfig::default(), ui));
