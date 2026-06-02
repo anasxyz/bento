@@ -1,8 +1,8 @@
-mod runtime;
-mod signal;
+pub(crate) mod signal;
+pub(crate) mod runtime;
 
-pub use signal::Signal;
+use signal::Signal;
 
-pub fn state<T: Clone + 'static>(value: T) -> Signal<T> {
-    Signal::new(value)
+pub fn state<T: 'static>(value: T) -> Signal<T> {
+    runtime::create_signal(value)
 }

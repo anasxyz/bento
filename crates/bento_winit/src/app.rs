@@ -28,7 +28,8 @@ pub struct App {
 }
 
 pub enum BentoEvent {
-    Callback(u64),
+    Redraw,
+    AsyncCallback,
 }
 
 impl App {
@@ -48,29 +49,44 @@ impl App {
         self
     }
 
-    pub fn run(mut self) {
+    pub fn run(view: impl bento_ui::View + 'static) {
         let event_loop = EventLoop::<BentoEvent>::with_user_event().build().unwrap();
+
+        // redraw callback
+        // wakes event loop when a signal changes
         let proxy = event_loop.create_proxy();
-        for (_, ui) in &mut self.pending {
-            let proxy = proxy.clone();
-            ui.asyncs.set_sender(Arc::new(move |id| {
-                proxy.send_event(BentoEvent::Callback(id)).ok();
-            }));
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                let handle = self.runtime.handle().clone();
-                ui.asyncs.set_spawner(Arc::new(move |fut| {
-                    handle.spawn(fut);
-                }));
-            }
-            #[cfg(target_arch = "wasm32")]
-            {
-                ui.asyncs.set_spawner(Arc::new(move |fut| {
-                    wasm_bindgen_futures::spawn_local(fut);
-                }));
-            }
+        // pass a redraw callback into Ui so bento_ui stays independent of bento_winit
+        // when a signal changes, Ui calls this closure which wakes up the event loop
+        let ui = bento_ui::Ui::new(view, move || {
+            proxy.send_event(BentoEvent::Redraw).ok();
+        });
+
+        // async waker
+        // wakes event loop when a spawned future completes
+        let proxy = event_loop.create_proxy();
+        bento_ui::set_waker(Arc::new(move || {
+            proxy.send_event(BentoEvent::AsyncCallback).ok();
+        }));
+
+        // async spawner
+        // runs futures on tokio thread pool on native, or wasm_bindgen_futures on the web
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let runtime = tokio::runtime::Runtime::new().unwrap();
+            bento_ui::set_spawner(move |fut| {
+                runtime.spawn(fut);
+            });
         }
-        event_loop.run_app(&mut self).unwrap();
+        #[cfg(target_arch = "wasm32")]
+        {
+            bento_ui::set_spawner(move |fut| {
+                wasm_bindgen_futures::spawn_local(fut);
+            });
+        }
+
+        let mut app = App::new();
+        app.pending.push((WindowConfig::default(), ui));
+        event_loop.run_app(&mut app).unwrap();
     }
 }
 
@@ -121,7 +137,6 @@ impl ApplicationHandler<BentoEvent> for App {
 
             #[cfg(not(target_arch = "wasm32"))]
             let mut win = Window::new(self.ctx.as_ref().unwrap(), event_loop, config, ui);
-            win.ui.set_viewport(win.surface.width, win.surface.height);
             #[cfg(not(target_arch = "wasm32"))]
             win.request_redraw();
             self.windows.insert(win.id(), win);
@@ -138,19 +153,8 @@ impl ApplicationHandler<BentoEvent> for App {
             WindowEvent::RedrawRequested => {
                 win.ui.process_input();
 
-                if win.ui.needs_redraw
-                    || !win.ui.dirty.is_empty()
-                    || !win.ui.layout_dirty.is_empty()
-                {
-                    win.ui.measurer.trim_shape_cache();
-                    win.ui.update();
-                    win.set_cursor(to_winit_cursor(win.ui.cursor));
-                }
-
-                if win.needs_render || win.ui.needs_redraw {
-                    let draw_list = win.ui.collect_draw_list();
-
-                    let t = web_time::Instant::now();
+                if win.needs_render() {
+                    let draw_list = win.ui.draw();
                     win.renderer.render(
                         ctx,
                         &mut win.ui.measurer,
@@ -158,13 +162,11 @@ impl ApplicationHandler<BentoEvent> for App {
                         win.config.clear_color,
                         &draw_list,
                     );
-
                     win.needs_render = false;
-                    win.ui.needs_redraw = false;
                 }
 
-                win.ui.input.mouse.clear();
                 win.ui.input.keyboard.clear();
+                win.ui.input.mouse.clear();
             }
 
             WindowEvent::KeyboardInput {
@@ -267,25 +269,24 @@ impl ApplicationHandler<BentoEvent> for App {
                 win.ui.input.mouse.dy = y - win.ui.input.mouse.y;
                 win.ui.input.mouse.x = x;
                 win.ui.input.mouse.y = y;
+
                 win.request_redraw();
             }
             WindowEvent::CursorEntered { .. } => {
                 win.ui.input.mouse.inside_window = true;
                 win.ui.input.mouse.just_entered = true;
+
+                win.request_redraw();
             }
             WindowEvent::CursorLeft { .. } => {
                 win.ui.input.mouse.inside_window = false;
                 win.ui.input.mouse.just_left = true;
+
+                win.request_redraw();
             }
 
             WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {
                 win.resize(ctx);
-                let w = win.surface.width;
-                let h = win.surface.height;
-                win.ui.set_viewport(w, h);
-                for &id in &win.ui.roots {
-                    win.ui.layout_dirty.insert(id);
-                }
                 win.needs_render = true;
                 win.request_redraw();
             }
@@ -305,9 +306,18 @@ impl ApplicationHandler<BentoEvent> for App {
 
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: BentoEvent) {
         match event {
-            BentoEvent::Callback(id) => {
+            BentoEvent::Redraw => {
                 for win in self.windows.values_mut() {
-                    win.ui.fire_callback(id);
+                    win.needs_render = true;
+                    win.request_redraw();
+                }
+            }
+            BentoEvent::AsyncCallback => {
+                for cb in bento_ui::drain_callbacks() {
+                    cb();
+                }
+                for win in self.windows.values_mut() {
+                    win.needs_render = true;
                     win.request_redraw();
                 }
             }

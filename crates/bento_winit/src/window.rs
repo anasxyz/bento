@@ -59,7 +59,7 @@ impl Window {
             ui,
             window,
             last_frame: None,
-            needs_render: false,
+            needs_render: true,
         }
     }
 
@@ -77,14 +77,19 @@ impl Window {
             ui,
             window,
             last_frame: None,
-            needs_render: false,
+            needs_render: true
         }
     }
 
     pub fn id(&self) -> WindowId {
         self.window.id()
     }
-    pub fn request_redraw(&self) {
+
+    pub fn needs_render(&self) -> bool {
+        self.needs_render 
+    }
+
+    pub fn request_redraw(&mut self) {
         self.window.request_redraw();
     }
 
@@ -99,6 +104,5 @@ impl Window {
         let h = size.height as f32 / scale;
         self.surface.resize(ctx, w, h, scale);
         self.renderer.resize(ctx, &self.surface);
-        self.window.request_redraw();
     }
 }
