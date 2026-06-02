@@ -2,20 +2,14 @@ use crate::{Ui, View};
 use bento_wgpu::{DrawList, TextAlign, TextDraw, TextMeasureRequest, TextMeasurer};
 
 pub struct Text {
-    text: String,
-}
-
-impl Text {
-    pub fn text(mut self, text: impl Fn() -> String + 'static) -> Self {
-        self.text = text();
-        self
-    }
+    content: Box<dyn Fn() -> String>,
 }
 
 impl View for Text {
     fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32) {
+        let text = (self.content)();
         let r = measurer.measure(TextMeasureRequest {
-            text: &self.text,
+            text: &text,
             font_family: "",
             size: 14.0,
             weight: 400,
@@ -32,13 +26,14 @@ impl View for Text {
     }
 
     fn render(&self, x: f32, y: f32, measurer: &mut TextMeasurer, draw_list: &mut DrawList) {
+        let text = (self.content)();
         let (w, h) = self.measure(measurer);
         draw_list.push_text(TextDraw {
             x,
             y,
             w,
             h,
-            text: self.text.clone(),
+            text: text,
             size: 14.0,
             color: [1.0, 1.0, 1.0, 1.0],
             weight: 400,
@@ -68,6 +63,6 @@ impl View for Text {
 
 pub fn text(f: impl Fn() -> String + 'static) -> Text {
     Text {
-        text: f(),
+        content: Box::new(f),
     }
 }

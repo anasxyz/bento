@@ -62,7 +62,10 @@ pub(crate) fn get_signal<T: Clone + 'static>(signal: Signal<T>) -> T {
 
         // if someone is watching, subscribe them to this signal
         if let Some(&observer) = rt.observer_stack.last() {
-            rt.signals[s_id].subscribers.push(observer);
+            // same observer can only appear once per signal
+            if !rt.signals[s_id].subscribers.contains(&observer) {
+                rt.signals[s_id].subscribers.push(observer);
+            }
         }
 
         rt.signals[s_id].value.downcast_ref::<T>().unwrap().clone()
