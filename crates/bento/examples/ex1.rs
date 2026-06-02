@@ -1,10 +1,12 @@
 use bento::*;
 
-#[component]
 fn App() -> impl View {
-    let a = state("Hello World");
+    let a = state(3);
+    println!("a: {}", a.get());
+    a.set(67);
+    println!("a: {}", a.get());
 
-    text(move || a.get().to_string())
+    text(|| "hello".to_string())
 }
 
 fn main() {
