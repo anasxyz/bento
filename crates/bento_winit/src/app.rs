@@ -28,7 +28,8 @@ pub struct App {
 }
 
 pub enum BentoEvent {
-    Callback(u64),
+    Redraw,
+    AsyncCallback,
 }
 
 impl App {
@@ -50,12 +51,28 @@ impl App {
 
     pub fn run(view: impl bento_ui::View + 'static) {
         let event_loop = EventLoop::<BentoEvent>::with_user_event().build().unwrap();
-        let proxy = event_loop.create_proxy();
 
+        // redraw callback
+        // wakes event loop when a signal changes
+        let proxy = event_loop.create_proxy();
         // pass a redraw callback into Ui so bento_ui stays independent of bento_winit
         // when a signal changes, Ui calls this closure which wakes up the event loop
         let ui = bento_ui::Ui::new(view, move || {
-            proxy.send_event(BentoEvent::Callback(0)).ok();
+            proxy.send_event(BentoEvent::Redraw).ok();
+        });
+
+        // async waker
+        // wakes event loop when a spawned future completes
+        let proxy = event_loop.create_proxy();
+        bento_ui::set_waker(Arc::new(move || {
+            proxy.send_event(BentoEvent::AsyncCallback).ok();
+        }));
+
+        // async spawner
+        // runs futures on tokio thread pool
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        bento_ui::set_spawner(move |fut| {
+            runtime.spawn(fut);
         });
 
         let mut app = App::new();
@@ -280,7 +297,16 @@ impl ApplicationHandler<BentoEvent> for App {
 
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: BentoEvent) {
         match event {
-            BentoEvent::Callback(id) => {
+            BentoEvent::Redraw => {
+                for win in self.windows.values_mut() {
+                    win.needs_render = true;
+                    win.request_redraw();
+                }
+            }
+            BentoEvent::AsyncCallback => {
+                for cb in bento_ui::drain_callbacks() {
+                    cb();
+                }
                 for win in self.windows.values_mut() {
                     win.needs_render = true;
                     win.request_redraw();
