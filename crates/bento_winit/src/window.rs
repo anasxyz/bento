@@ -12,7 +12,7 @@ pub struct Window {
     pub ui: Ui,
     window: Arc<winit::window::Window>,
     pub last_frame: Option<web_time::Instant>,
-    pub needs_redraw: bool,
+    pub needs_render: bool,
 }
 
 impl Window {
@@ -59,7 +59,7 @@ impl Window {
             ui,
             window,
             last_frame: None,
-            needs_redraw: true,
+            needs_render: true,
         }
     }
 
@@ -77,18 +77,19 @@ impl Window {
             ui,
             window,
             last_frame: None,
-            needs_redraw: true
+            needs_render: true
         }
     }
 
     pub fn id(&self) -> WindowId {
         self.window.id()
     }
-    pub fn needs_redraw(&self) -> bool {
-        self.needs_redraw 
+
+    pub fn needs_render(&self) -> bool {
+        self.needs_render 
     }
+
     pub fn request_redraw(&mut self) {
-        self.needs_redraw = true;
         self.window.request_redraw();
     }
 

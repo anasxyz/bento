@@ -123,7 +123,9 @@ impl ApplicationHandler<BentoEvent> for App {
 
         match event {
             WindowEvent::RedrawRequested => {
-                if win.needs_redraw() || Ui::needs_redraw() {
+                win.ui.process_input();
+
+                if win.needs_render() || Ui::needs_redraw() {
                     let draw_list = win.ui.draw();
                     win.renderer.render(
                         ctx,
@@ -132,7 +134,7 @@ impl ApplicationHandler<BentoEvent> for App {
                         win.config.clear_color,
                         &draw_list,
                     );
-                    win.needs_redraw = false;
+                    win.needs_render = false;
                 }
 
                 win.ui.input.keyboard.clear();
@@ -189,6 +191,8 @@ impl ApplicationHandler<BentoEvent> for App {
                         win.ui.input.keyboard.on_release(key);
                     }
                 }
+
+                win.request_redraw();
             }
 
             WindowEvent::MouseInput { state, button, .. } => {
@@ -212,17 +216,23 @@ impl ApplicationHandler<BentoEvent> for App {
                         btn.just_released = true;
                     }
                 }
+
+                win.request_redraw();
             }
-            WindowEvent::MouseWheel { delta, .. } => match delta {
-                winit::event::MouseScrollDelta::LineDelta(x, y) => {
-                    win.ui.input.mouse.scroll_x = x;
-                    win.ui.input.mouse.scroll_y = y;
+            WindowEvent::MouseWheel { delta, .. } => {
+                match delta {
+                    winit::event::MouseScrollDelta::LineDelta(x, y) => {
+                        win.ui.input.mouse.scroll_x = x;
+                        win.ui.input.mouse.scroll_y = y;
+                    }
+                    winit::event::MouseScrollDelta::PixelDelta(pos) => {
+                        win.ui.input.mouse.scroll_x = pos.x as f32;
+                        win.ui.input.mouse.scroll_y = pos.y as f32;
+                    }
                 }
-                winit::event::MouseScrollDelta::PixelDelta(pos) => {
-                    win.ui.input.mouse.scroll_x = pos.x as f32;
-                    win.ui.input.mouse.scroll_y = pos.y as f32;
-                }
-            },
+
+                win.request_redraw();
+            }
             WindowEvent::CursorMoved { position, .. } => {
                 let scale = win.surface.scale;
                 let x = position.x as f32 / scale;
@@ -231,18 +241,25 @@ impl ApplicationHandler<BentoEvent> for App {
                 win.ui.input.mouse.dy = y - win.ui.input.mouse.y;
                 win.ui.input.mouse.x = x;
                 win.ui.input.mouse.y = y;
+
+                win.request_redraw();
             }
             WindowEvent::CursorEntered { .. } => {
                 win.ui.input.mouse.inside_window = true;
                 win.ui.input.mouse.just_entered = true;
+
+                win.request_redraw();
             }
             WindowEvent::CursorLeft { .. } => {
                 win.ui.input.mouse.inside_window = false;
                 win.ui.input.mouse.just_left = true;
+
+                win.request_redraw();
             }
 
             WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {
                 win.resize(ctx);
+                win.needs_render = true;
                 win.request_redraw();
             }
             WindowEvent::CloseRequested => {

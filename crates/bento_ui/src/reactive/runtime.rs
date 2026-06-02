@@ -91,6 +91,8 @@ pub(crate) fn set_signal<T: 'static>(signal: Signal<T>, value: T) {
             .collect()
     });
 
+    println!("[signal] set, notifiying {} subscribers", fns.len());
+
     for f in fns {
         f();
     }

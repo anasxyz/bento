@@ -1,9 +1,10 @@
 use bento::*;
 
 fn app() -> impl View {
-    group()
-        .child(text(|| "hello".to_string()))
-        .child(text(|| "world".to_string()))
+    let count = state(0);
+
+    text(move || format!("count: {}", count.get()))
+        .on(move |e: &Click| count.set(count.get() + 1))
 }
 
 fn main() {

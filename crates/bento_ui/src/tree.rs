@@ -3,7 +3,7 @@ use slab::Slab;
 use std::cell::RefCell;
 
 use crate::{
-    node::{Node, NodeType},
+    node::{EventHandler, Node, NodeType},
     view::ViewId,
 };
 
@@ -28,7 +28,7 @@ pub(crate) fn add_node(node: Node) -> ViewId {
     })
 }
 
-pub fn render(id: ViewId, draw_list: &mut DrawList) {
+pub(crate) fn render(id: ViewId, draw_list: &mut DrawList) {
     let children = TREE.with(|t| {
         let t = t.borrow();
         let node = &t.nodes[id.0];
@@ -41,7 +41,7 @@ pub fn render(id: ViewId, draw_list: &mut DrawList) {
     }
 }
 
-pub fn layout(id: ViewId, x: f32, y: f32, measurer: &mut TextMeasurer) {
+pub(crate) fn layout(id: ViewId, x: f32, y: f32, measurer: &mut TextMeasurer) {
     let children = TREE.with(|t| t.borrow().nodes[id.0].children.clone());
 
     let mut child_y = y;
@@ -72,7 +72,55 @@ pub fn layout(id: ViewId, x: f32, y: f32, measurer: &mut TextMeasurer) {
     });
 }
 
-pub fn print_tree(id: ViewId, depth: usize) {
+pub(crate) fn add_handler<E: 'static>(id: ViewId, f: impl Fn(&E) + 'static) {
+    TREE.with(|t| {
+        t.borrow_mut().nodes[id.0].handlers.push(EventHandler {
+            type_id: std::any::TypeId::of::<E>(),
+            handler: Box::new(move |any| {
+                if let Some(event) = any.downcast_ref::<E>() {
+                    f(event);
+                }
+            }),
+        });
+    });
+}
+
+pub(crate) fn dispatch<E: 'static>(id: ViewId, event: &E) {
+    let type_id = std::any::TypeId::of::<E>();
+    TREE.with(|t| {
+        let t = t.borrow();
+        let node = &t.nodes[id.0];
+        for handler in &node.handlers {
+            if handler.type_id == type_id {
+                (handler.handler)(event);
+            }
+        }
+    });
+}
+
+pub(crate) fn hit_test(id: ViewId, x: f32, y: f32) -> Option<ViewId> {
+    let (node_x, node_y, node_w, node_h, children) = TREE.with(|t| {
+        let t = t.borrow();
+        let node = &t.nodes[id.0];
+        (node.x, node.y, node.w, node.h, node.children.clone())
+    });
+
+    // check children first (front to back)
+    for child_id in children.iter().rev() {
+        if let Some(hit) = hit_test(*child_id, x, y) {
+            return Some(hit);
+        }
+    }
+
+    // then check self
+    if x >= node_x && x <= node_x + node_w && y >= node_y && y <= node_y + node_h {
+        return Some(id);
+    }
+
+    None
+}
+
+pub(crate) fn print_tree(id: ViewId, depth: usize) {
     TREE.with(|t| {
         let t = t.borrow();
         let node = &t.nodes[id.0];
