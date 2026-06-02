@@ -48,17 +48,19 @@ impl App {
         self
     }
 
-    pub fn launch(mut self) {
+    pub fn run(view: impl bento_ui::View + 'static) {
         let event_loop = EventLoop::<BentoEvent>::with_user_event().build().unwrap();
         let proxy = event_loop.create_proxy();
-        event_loop.run_app(&mut self).unwrap();
-    }
 
-    pub fn run(view: impl bento_ui::View + 'static) {
-        let ui = bento_ui::Ui::new(view);
+        // pass a redraw callback into Ui so bento_ui stays independent of bento_winit
+        // when a signal changes, Ui calls this closure which wakes up the event loop
+        let ui = bento_ui::Ui::new(view, move || {
+            proxy.send_event(BentoEvent::Callback(0)).ok();
+        });
+
         let mut app = App::new();
-        app.open_window(WindowConfig::default(), ui);
-        app.launch();
+        app.pending.push((WindowConfig::default(), ui));
+        event_loop.run_app(&mut app).unwrap();
     }
 }
 
@@ -125,7 +127,7 @@ impl ApplicationHandler<BentoEvent> for App {
             WindowEvent::RedrawRequested => {
                 win.ui.process_input();
 
-                if win.needs_render() || Ui::needs_redraw() {
+                if win.needs_render() {
                     let draw_list = win.ui.draw();
                     win.renderer.render(
                         ctx,
@@ -280,6 +282,7 @@ impl ApplicationHandler<BentoEvent> for App {
         match event {
             BentoEvent::Callback(id) => {
                 for win in self.windows.values_mut() {
+                    win.needs_render = true;
                     win.request_redraw();
                 }
             }

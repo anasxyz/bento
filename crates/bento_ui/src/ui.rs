@@ -21,9 +21,9 @@ pub struct Ui {
 }
 
 impl Ui {
-    pub fn new(view: impl View + 'static) -> Self {
+    pub fn new(view: impl View + 'static, request_redraw: impl Fn() + 'static) -> Self {
         let root = Box::new(view).build();
-        let render_subscriber = runtime::create_subscriber(Rc::new(|| Ui::request_redraw()));
+        let render_subscriber = runtime::create_subscriber(Rc::new(move || request_redraw()));
 
         Self {
             root,
@@ -106,23 +106,5 @@ impl Ui {
                 );
             }
         }
-    }
-}
-
-/// Redraw stuff
-thread_local! {
-    static NEEDS_REDRAW: Cell<bool> = Cell::new(false);
-}
-impl Ui {
-    pub fn request_redraw() {
-        println!("[ui] redraw requested");
-        NEEDS_REDRAW.with(|f| f.set(true));
-    }
-    pub fn needs_redraw() -> bool {
-        NEEDS_REDRAW.with(|f| {
-            let v = f.get();
-            f.set(false);
-            v
-        })
     }
 }
