@@ -1,5 +1,4 @@
 use crate::{Ui, View};
-use crate::reactive::{Effect, Signal, effect, state};
 use bento_wgpu::{DrawList, TextAlign, TextDraw, TextMeasureRequest, TextMeasurer};
 
 pub struct Text {
