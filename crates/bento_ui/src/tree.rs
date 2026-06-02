@@ -32,13 +32,25 @@ pub fn render(id: ViewId, draw_list: &mut DrawList) {
     let children = TREE.with(|t| {
         let t = t.borrow();
         let node = &t.nodes[id.0];
-        match &node.ntype {
-            NodeType::Text(text) => text.render(draw_list),
-        }
+        node.view.render(draw_list);
         node.children.clone()
     });
 
     for child_id in children {
         render(child_id, draw_list);
     }
+}
+
+pub fn print_tree(id: ViewId, depth: usize) {
+    TREE.with(|t| {
+        let t = t.borrow();
+        let node = &t.nodes[id.0];
+        let indent = "  ".repeat(depth);
+        println!("{}{} (id: {})", indent, node.view.name(), id.0);
+        let children = node.children.clone();
+        drop(t);
+        for child_id in children {
+            print_tree(child_id, depth + 1);
+        }
+    });
 }

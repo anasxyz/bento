@@ -16,8 +16,11 @@ pub struct Ui {
 
 impl Ui {
     pub fn new(view: impl View + 'static) -> Self {
+        let root = view.build();
+        tree::print_tree(root, 0);
+
         Self {
-            root: view.build(),
+            root,
             measurer: TextMeasurer::new(),
             input: InputState::new(),
         }

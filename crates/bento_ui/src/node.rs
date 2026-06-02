@@ -1,4 +1,4 @@
-use crate::{widgets::Text, view::ViewId};
+use crate::{widgets::Text, view::{View, ViewId}};
 
 pub(crate) struct TextNode {
     pub(crate) text: Box<dyn Fn() -> String>,
@@ -9,6 +9,6 @@ pub(crate) enum NodeType {
 }
 
 pub(crate) struct Node {
-    pub(crate) ntype: NodeType,
+    pub(crate) view: Box<dyn View>,
     pub(crate) children: Vec<ViewId>,
 }

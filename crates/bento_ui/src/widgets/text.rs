@@ -11,8 +11,19 @@ pub struct Text {
     content: Box<dyn Fn() -> String>,
 }
 
-impl Text {
-    pub fn render(&self, draw_list: &mut DrawList) {
+impl View for Text {
+    fn name(&self) -> &'static str {
+        "Text"
+    }
+
+    fn build(self) -> ViewId {
+        tree::add_node(Node {
+            view: Box::new(self),
+            children: Vec::new(),
+        })
+    }
+
+    fn render(&self, draw_list: &mut DrawList) {
         let text = (self.content)();
         draw_list.push_text(TextDraw {
             x: 0.0,
@@ -44,15 +55,6 @@ impl Text {
             italic_ranges: vec![],
             font_family_ranges: vec![],
         });
-    }
-}
-
-impl View for Text {
-    fn build(self) -> ViewId {
-        tree::add_node(Node {
-            ntype: NodeType::Text(self),
-            children: Vec::new(),
-        })
     }
 }
 
