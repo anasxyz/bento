@@ -60,6 +60,8 @@ pub(crate) fn get_signal<T: Clone + 'static>(signal: Signal<T>) -> T {
     })
 }
 
+/// Sets new value to a given signal
+/// Both values must be of the same type
 pub(crate) fn set_signal<T: 'static>(signal: Signal<T>, value: T) {
     RUNTIME.with(|rt| {
         let mut rt = rt.borrow_mut();
@@ -74,9 +76,14 @@ mod tests {
 
     #[test]
     fn test_create_signal() {
-        let sig = create_signal(67);
-        let sig_id = sig.id.0;
+        // signals slab contains 0 signals
+        RUNTIME.with(|rt| {
+            assert_eq!(rt.borrow().signals.len(), 0);
+        });
 
+        let sig = create_signal(67);
+
+        // signals slab now contains 1
         RUNTIME.with(|rt| {
             assert_eq!(rt.borrow().signals.len(), 1);
         });
@@ -94,12 +101,10 @@ mod tests {
     fn test_set_signal() {
         let sig = create_signal(69);
         let sig_val = get_signal(sig);
-
         assert_eq!(sig_val, 69);
 
         set_signal(sig, 67);
         let new_sig_val = get_signal(sig);
-
         assert_eq!(new_sig_val, 67);
     }
 }
