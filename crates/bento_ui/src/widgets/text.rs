@@ -3,32 +3,22 @@ use crate::reactive::{Effect, Signal, effect, state};
 use bento_wgpu::{DrawList, TextAlign, TextDraw, TextMeasureRequest, TextMeasurer};
 
 pub struct Text {
-    content: Signal<String>,
-    color: Signal<[f32; 4]>,
-    font_size: f32,
-    _effects: Vec<Effect>,
+    text: String,
 }
 
 impl Text {
-    pub fn color(mut self, f: impl Fn() -> [f32; 4] + 'static) -> Self {
-        let color = self.color;
-        self._effects.push(effect(move || color.set(f())));
-        self
-    }
-
-    pub fn font_size(mut self, size: f32) -> Self {
-        self.font_size = size;
+    pub fn text(mut self, text: impl Fn() -> String + 'static) -> Self {
+        self.text = text();
         self
     }
 }
 
 impl View for Text {
     fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32) {
-        let content = self.content.get();
         let r = measurer.measure(TextMeasureRequest {
-            text: &content,
+            text: &self.text,
             font_family: "",
-            size: self.font_size,
+            size: 14.0,
             weight: 400,
             italic: false,
             letter_spacing: 0.0,
@@ -49,9 +39,9 @@ impl View for Text {
             y,
             w,
             h,
-            text: self.content.get(),
-            size: self.font_size,
-            color: self.color.get(),
+            text: self.text.clone(),
+            size: 14.0,
+            color: [1.0, 1.0, 1.0, 1.0],
             weight: 400,
             italic: false,
             font_family: String::new(),
@@ -78,17 +68,7 @@ impl View for Text {
 }
 
 pub fn text(f: impl Fn() -> String + 'static) -> Text {
-    let content = state(f());
-
-    let eff = effect(move || {
-        content.set(f());
-        Ui::request_redraw();
-    });
-
     Text {
-        content,
-        color: state([1.0, 1.0, 1.0, 1.0]),
-        font_size: 14.0,
-        _effects: vec![eff],
+        text: f(),
     }
 }
