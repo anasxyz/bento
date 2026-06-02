@@ -1,12 +1,18 @@
-use crate::{Ui, View};
 use bento_wgpu::{DrawList, TextAlign, TextDraw, TextMeasureRequest, TextMeasurer};
+
+use crate::{
+    node::{Node, NodeType, TextNode},
+    tree,
+    ui::Ui,
+    view::{View, ViewId},
+};
 
 pub struct Text {
     content: Box<dyn Fn() -> String>,
 }
 
-impl View for Text {
-    fn render(&self, draw_list: &mut DrawList) {
+impl Text {
+    pub fn render(&self, draw_list: &mut DrawList) {
         let text = (self.content)();
         draw_list.push_text(TextDraw {
             x: 0.0,
@@ -38,6 +44,15 @@ impl View for Text {
             italic_ranges: vec![],
             font_family_ranges: vec![],
         });
+    }
+}
+
+impl View for Text {
+    fn build(self) -> ViewId {
+        tree::add_node(Node {
+            ntype: NodeType::Text(self),
+            children: Vec::new(),
+        })
     }
 }
 

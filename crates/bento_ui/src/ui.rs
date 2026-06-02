@@ -2,10 +2,14 @@ use std::cell::Cell;
 
 use bento_wgpu::{DrawList, TextMeasurer};
 
-use crate::{View, input::InputState};
+use crate::{
+    input::InputState,
+    tree,
+    view::{View, ViewId},
+};
 
 pub struct Ui {
-    pub view: Box<dyn View>,
+    pub root: ViewId,
     pub measurer: TextMeasurer,
     pub input: InputState,
 }
@@ -13,7 +17,7 @@ pub struct Ui {
 impl Ui {
     pub fn new(view: impl View + 'static) -> Self {
         Self {
-            view: Box::new(view),
+            root: view.build(),
             measurer: TextMeasurer::new(),
             input: InputState::new(),
         }
@@ -21,7 +25,7 @@ impl Ui {
 
     pub fn collect_draw_list(&mut self) -> DrawList {
         let mut draw_list = DrawList::new();
-        self.view.render(&mut draw_list);
+        tree::render(self.root, &mut draw_list);
         draw_list
     }
 }
