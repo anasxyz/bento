@@ -6,33 +6,13 @@ pub struct Text {
 }
 
 impl View for Text {
-    fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32) {
+    fn render(&self, draw_list: &mut DrawList) {
         let text = (self.content)();
-        let r = measurer.measure(TextMeasureRequest {
-            text: &text,
-            font_family: "",
-            size: 14.0,
-            weight: 400,
-            italic: false,
-            letter_spacing: 0.0,
-            line_height: None,
-            tab_width: 4,
-            max_width: None,
-            weight_ranges: &[],
-            italic_ranges: &[],
-            font_family_ranges: &[],
-        });
-        (r.width, r.height)
-    }
-
-    fn render(&self, x: f32, y: f32, measurer: &mut TextMeasurer, draw_list: &mut DrawList) {
-        let text = (self.content)();
-        let (w, h) = self.measure(measurer);
         draw_list.push_text(TextDraw {
-            x,
-            y,
-            w,
-            h,
+            x: 0.0,
+            y: 0.0,
+            w: 0.0,
+            h: 0.0,
             text: text,
             size: 14.0,
             color: [1.0, 1.0, 1.0, 1.0],
