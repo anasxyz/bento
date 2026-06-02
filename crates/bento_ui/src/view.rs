@@ -4,8 +4,8 @@ use bento_wgpu::{DrawList, TextMeasurer};
 pub struct ViewId(pub usize);
 
 pub trait View {
-    fn name(&self) -> &'static str;
-    fn build(self) -> ViewId;
-    fn render(&self, x: f32, y: f32, w: f32, h: f32, draw_list: &mut DrawList);
-    fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32);
+    fn name(&self) -> &'static str { "unnamed" }
+    fn build(self: Box<Self>) -> ViewId;
+    fn render(&self, x: f32, y: f32, w: f32, h: f32, draw_list: &mut DrawList) {}
+    fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32) { (0.0, 0.0) }
 }

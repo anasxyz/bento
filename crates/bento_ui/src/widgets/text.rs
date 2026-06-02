@@ -16,9 +16,9 @@ impl View for Text {
         "Text"
     }
 
-    fn build(self) -> ViewId {
+    fn build(self: Box<Self>) -> ViewId {
         tree::add_node(Node {
-            view: Box::new(self),
+            view: self,
             children: Vec::new(),
             x: 0.0,
             y: 0.0,

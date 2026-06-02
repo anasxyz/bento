@@ -1,10 +1,9 @@
 use bento::*;
 
 fn app() -> impl View {
-    let a = state(0);
-    a.set(67);
-
-    text(move || format!("a: {}", a.get()))
+    group()
+        .child(text(|| "hello".to_string()))
+        .child(text(|| "world".to_string()))
 }
 
 fn main() {

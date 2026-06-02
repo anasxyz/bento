@@ -16,7 +16,7 @@ pub struct Ui {
 
 impl Ui {
     pub fn new(view: impl View + 'static) -> Self {
-        let root = view.build();
+        let root = Box::new(view).build();
 
         Self {
             root,
@@ -27,7 +27,10 @@ impl Ui {
 
     pub fn draw(&mut self) -> DrawList {
         let mut draw_list = DrawList::new();
+
+        let t = web_time::Instant::now();
         tree::layout(self.root, 0.0, 0.0, &mut self.measurer);
+        println!("layout: {:?}", t.elapsed());
         tree::print_tree(self.root, 0);
         tree::render(self.root, &mut draw_list);
         draw_list

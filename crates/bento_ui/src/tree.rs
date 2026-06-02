@@ -42,25 +42,33 @@ pub fn render(id: ViewId, draw_list: &mut DrawList) {
 }
 
 pub fn layout(id: ViewId, x: f32, y: f32, measurer: &mut TextMeasurer) {
+    let children = TREE.with(|t| t.borrow().nodes[id.0].children.clone());
+
+    let mut child_y = y;
+    for child_id in &children {
+        layout(*child_id, x, child_y, measurer);
+        TREE.with(|t| {
+            child_y += t.borrow().nodes[child_id.0].h;
+        });
+    }
+
     TREE.with(|t| {
         let mut t = t.borrow_mut();
+
+        let (w, h) = if children.is_empty() {
+            t.nodes[id.0].view.measure(measurer)
+        } else {
+            children.iter().fold((0.0f32, 0.0f32), |acc, child_id| {
+                let child = &t.nodes[child_id.0];
+                (acc.0.max(child.w), acc.1 + child.h)
+            })
+        };
+
         let node = &mut t.nodes[id.0];
-        let (w, h) = node.view.measure(measurer);
         node.x = x;
         node.y = y;
         node.w = w;
         node.h = h;
-        let children = node.children.clone();
-        drop(t);
-
-        let mut child_y = y;
-        for child_id in children {
-            layout(child_id, x, child_y, measurer);
-            // advance y for next child
-            TREE.with(|t| {
-                child_y += t.borrow().nodes[child_id.0].h;
-            });
-        }
     });
 }
 
@@ -69,7 +77,16 @@ pub fn print_tree(id: ViewId, depth: usize) {
         let t = t.borrow();
         let node = &t.nodes[id.0];
         let indent = "  ".repeat(depth);
-        println!("{}{} (id: {}) x: {} y: {} w: {} h: {}", indent, node.view.name(), id.0, node.x, node.y, node.w, node.h);
+        println!(
+            "{}{} (id: {}) x: {} y: {} w: {} h: {}",
+            indent,
+            node.view.name(),
+            id.0,
+            node.x,
+            node.y,
+            node.w,
+            node.h
+        );
         let children = node.children.clone();
         drop(t);
         for child_id in children {
