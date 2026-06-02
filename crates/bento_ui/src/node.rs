@@ -11,4 +11,8 @@ pub(crate) enum NodeType {
 pub(crate) struct Node {
     pub(crate) view: Box<dyn View>,
     pub(crate) children: Vec<ViewId>,
+    pub(crate) x: f32,
+    pub(crate) y: f32,
+    pub(crate) w: f32,
+    pub(crate) h: f32,
 }

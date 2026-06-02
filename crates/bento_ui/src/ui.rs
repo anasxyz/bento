@@ -17,7 +17,6 @@ pub struct Ui {
 impl Ui {
     pub fn new(view: impl View + 'static) -> Self {
         let root = view.build();
-        tree::print_tree(root, 0);
 
         Self {
             root,
@@ -26,8 +25,10 @@ impl Ui {
         }
     }
 
-    pub fn collect_draw_list(&mut self) -> DrawList {
+    pub fn draw(&mut self) -> DrawList {
         let mut draw_list = DrawList::new();
+        tree::layout(self.root, 0.0, 0.0, &mut self.measurer);
+        tree::print_tree(self.root, 0);
         tree::render(self.root, &mut draw_list);
         draw_list
     }

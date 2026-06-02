@@ -124,12 +124,7 @@ impl ApplicationHandler<BentoEvent> for App {
         match event {
             WindowEvent::RedrawRequested => {
                 if win.needs_redraw() || Ui::needs_redraw() {
-                    println!(
-                        "win.needs_redraw: {}\nUi::needs_redraw: {}",
-                        win.needs_redraw(),
-                        Ui::needs_redraw()
-                    );
-                    let draw_list = win.ui.collect_draw_list();
+                    let draw_list = win.ui.draw();
                     win.renderer.render(
                         ctx,
                         &mut win.ui.measurer,
