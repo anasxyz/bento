@@ -192,6 +192,8 @@ impl View for Group {
             layout_dirty: true,
             width: Size::Auto,
             height: Size::Auto,
+            last_available_w: -1.0,
+            last_available_h: -1.0,
         });
 
         for child_id in &child_ids {

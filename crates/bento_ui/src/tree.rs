@@ -172,10 +172,24 @@ pub fn layout(
     available_h: f32,
     measurer: &mut TextMeasurer,
 ) {
-    let layout_dirty = TREE.with(|t| t.borrow().nodes[id.0].layout_dirty);
-    if !layout_dirty {
+    let (layout_dirty, last_w, last_h) = TREE.with(|t| {
+        let t = t.borrow();
+        let node = &t.nodes[id.0];
+        (
+            node.layout_dirty,
+            node.last_available_w,
+            node.last_available_h,
+        )
+    });
+    if !layout_dirty && last_w == available_w && last_h == available_h {
         return;
     }
+    TREE.with(|t| {
+        let mut t = t.borrow_mut();
+        let node = &mut t.nodes[id.0];
+        node.last_available_w = available_w;
+        node.last_available_h = available_h;
+    });
     layout_node(id, x, y, available_w, available_h, measurer);
 }
 

@@ -41,4 +41,7 @@ pub(crate) struct Node {
 
     pub(crate) width: Size,
     pub(crate) height: Size,
+
+    pub(crate) last_available_w: f32,
+    pub(crate) last_available_h: f32,
 }
