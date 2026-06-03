@@ -337,8 +337,23 @@ fn layout_column(
 
     // pass 0: measure all auto-height children
     for (i, child_id) in children.iter().enumerate() {
-        let h_sizing = TREE.with(|t| t.borrow().nodes[child_id.0].height);
-        if h_sizing.is_auto() {
+        let (h_sizing, dirty, last_w, last_h) = TREE.with(|t| {
+            let t = t.borrow();
+            let node = &t.nodes[child_id.0];
+            (
+                node.height,
+                node.layout_dirty,
+                node.last_available_w,
+                node.last_available_h,
+            )
+        });
+        if h_sizing.is_auto() && (dirty || last_w != inner_w || last_h != inner_h) {
+            TREE.with(|t| {
+                let mut t = t.borrow_mut();
+                let node = &mut t.nodes[child_id.0];
+                node.last_available_w = inner_w;
+                node.last_available_h = inner_h;
+            });
             layout_node(
                 *child_id,
                 x + padding,
@@ -526,9 +541,26 @@ fn layout_row(
 
     // pass 0: measure all auto children
     for (i, child_id) in children.iter().enumerate() {
-        let w_sizing = TREE.with(|t| t.borrow().nodes[child_id.0].width);
-        let h_sizing = TREE.with(|t| t.borrow().nodes[child_id.0].height);
-        if w_sizing.is_auto() || h_sizing.is_auto() {
+        let (w_sizing, h_sizing, dirty, last_w, last_h) = TREE.with(|t| {
+            let t = t.borrow();
+            let node = &t.nodes[child_id.0];
+            (
+                node.width,
+                node.height,
+                node.layout_dirty,
+                node.last_available_w,
+                node.last_available_h,
+            )
+        });
+        if (w_sizing.is_auto() || h_sizing.is_auto())
+            && (dirty || last_w != inner_w || last_h != inner_h)
+        {
+            TREE.with(|t| {
+                let mut t = t.borrow_mut();
+                let node = &mut t.nodes[child_id.0];
+                node.last_available_w = inner_w;
+                node.last_available_h = inner_h;
+            });
             layout_node(
                 *child_id,
                 x + padding,

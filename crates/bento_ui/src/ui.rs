@@ -55,7 +55,7 @@ impl Ui {
             self.viewport_h,
             &mut self.measurer,
         );
-        // println!("[ui] layout took {:?}", t.elapsed());
+        println!("[ui] layout took {:?}", t.elapsed());
         let t = web_time::Instant::now();
         tree::render(self.root, &mut draw_list);
         // println!("[ui] render took {:?}", t.elapsed());
