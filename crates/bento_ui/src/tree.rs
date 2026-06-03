@@ -315,8 +315,14 @@ fn layout_column(
     cross_axis: CrossAxis,
     measurer: &mut TextMeasurer,
 ) {
+    // cache measure results once for all children
+    let measures: Vec<(f32, f32)> = children
+        .iter()
+        .map(|child_id| TREE.with(|t| t.borrow().nodes[child_id.0].view.measure(measurer)))
+        .collect();
+
     // pass 0: measure all auto-height children
-    for child_id in children {
+    for (i, child_id) in children.iter().enumerate() {
         let h_sizing = TREE.with(|t| t.borrow().nodes[child_id.0].height);
         if h_sizing.is_auto() {
             layout_node(
@@ -334,7 +340,7 @@ fn layout_column(
     let mut fixed_h: f32 = 0.0;
     let mut fill_count: u32 = 0;
 
-    for child_id in children {
+    for (i, child_id) in children.iter().enumerate() {
         let h_sizing = TREE.with(|t| t.borrow().nodes[child_id.0].height);
         if h_sizing.is_fill() {
             fill_count += 1;
@@ -342,8 +348,7 @@ fn layout_column(
             let ch = if h_sizing.is_auto() {
                 TREE.with(|t| t.borrow().nodes[child_id.0].h)
             } else {
-                let (_, ch) = TREE.with(|t| t.borrow().nodes[child_id.0].view.measure(measurer));
-                h_sizing.resolve(inner_h, ch)
+                h_sizing.resolve(inner_h, measures[i].1)
             };
             fixed_h += ch;
         }
@@ -359,15 +364,14 @@ fn layout_column(
 
     let total_h: f32 = {
         let mut h = 0.0;
-        for child_id in children {
+        for (i, child_id) in children.iter().enumerate() {
             let h_sizing = TREE.with(|t| t.borrow().nodes[child_id.0].height);
             h += if h_sizing.is_fill() {
                 fill_h
             } else if h_sizing.is_auto() {
                 TREE.with(|t| t.borrow().nodes[child_id.0].h)
             } else {
-                let (_, ch) = TREE.with(|t| t.borrow().nodes[child_id.0].view.measure(measurer));
-                h_sizing.resolve(inner_h, ch)
+                h_sizing.resolve(inner_h, measures[i].1)
             };
         }
         h + gaps_total
@@ -395,15 +399,12 @@ fn layout_column(
             (node.width, node.height)
         });
 
-        let (cw_natural, _) = TREE.with(|t| t.borrow().nodes[child_id.0].view.measure(measurer));
-
         let child_h = if ch_sizing.is_fill() {
             fill_h
         } else if ch_sizing.is_auto() {
             TREE.with(|t| t.borrow().nodes[child_id.0].h)
         } else {
-            let (_, ch) = TREE.with(|t| t.borrow().nodes[child_id.0].view.measure(measurer));
-            ch_sizing.resolve(inner_h, ch)
+            ch_sizing.resolve(inner_h, measures[i].1)
         };
 
         let child_w = match cross_axis {
@@ -412,7 +413,7 @@ fn layout_column(
                 if cw_sizing.is_auto() {
                     TREE.with(|t| t.borrow().nodes[child_id.0].w)
                 } else {
-                    cw_sizing.resolve(inner_w, cw_natural)
+                    cw_sizing.resolve(inner_w, measures[i].0)
                 }
             }
         };
@@ -492,8 +493,14 @@ fn layout_row(
     cross_axis: CrossAxis,
     measurer: &mut TextMeasurer,
 ) {
+    // cache measure results once for all children
+    let measures: Vec<(f32, f32)> = children
+        .iter()
+        .map(|child_id| TREE.with(|t| t.borrow().nodes[child_id.0].view.measure(measurer)))
+        .collect();
+
     // pass 0: measure all auto children
-    for child_id in children {
+    for (i, child_id) in children.iter().enumerate() {
         let w_sizing = TREE.with(|t| t.borrow().nodes[child_id.0].width);
         let h_sizing = TREE.with(|t| t.borrow().nodes[child_id.0].height);
         if w_sizing.is_auto() || h_sizing.is_auto() {
@@ -512,7 +519,7 @@ fn layout_row(
     let mut fixed_w: f32 = 0.0;
     let mut fill_count: u32 = 0;
 
-    for child_id in children {
+    for (i, child_id) in children.iter().enumerate() {
         let w_sizing = TREE.with(|t| t.borrow().nodes[child_id.0].width);
         if w_sizing.is_fill() {
             fill_count += 1;
@@ -520,8 +527,7 @@ fn layout_row(
             let cw = if w_sizing.is_auto() {
                 TREE.with(|t| t.borrow().nodes[child_id.0].w)
             } else {
-                let (cw, _) = TREE.with(|t| t.borrow().nodes[child_id.0].view.measure(measurer));
-                w_sizing.resolve(inner_w, cw)
+                w_sizing.resolve(inner_w, measures[i].0)
             };
             fixed_w += cw;
         }
@@ -537,15 +543,14 @@ fn layout_row(
 
     let total_w: f32 = {
         let mut w = 0.0;
-        for child_id in children {
+        for (i, child_id) in children.iter().enumerate() {
             let w_sizing = TREE.with(|t| t.borrow().nodes[child_id.0].width);
             w += if w_sizing.is_fill() {
                 fill_w
             } else if w_sizing.is_auto() {
                 TREE.with(|t| t.borrow().nodes[child_id.0].w)
             } else {
-                let (cw, _) = TREE.with(|t| t.borrow().nodes[child_id.0].view.measure(measurer));
-                w_sizing.resolve(inner_w, cw)
+                w_sizing.resolve(inner_w, measures[i].0)
             };
         }
         w + gaps_total
@@ -573,15 +578,12 @@ fn layout_row(
             (node.width, node.height)
         });
 
-        let (_, ch_natural) = TREE.with(|t| t.borrow().nodes[child_id.0].view.measure(measurer));
-
         let child_w = if cw_sizing.is_fill() {
             fill_w
         } else if cw_sizing.is_auto() {
             TREE.with(|t| t.borrow().nodes[child_id.0].w)
         } else {
-            let (cw, _) = TREE.with(|t| t.borrow().nodes[child_id.0].view.measure(measurer));
-            cw_sizing.resolve(inner_w, cw)
+            cw_sizing.resolve(inner_w, measures[i].0)
         };
 
         let child_h = match cross_axis {
@@ -590,7 +592,7 @@ fn layout_row(
                 if ch_sizing.is_auto() {
                     TREE.with(|t| t.borrow().nodes[child_id.0].h)
                 } else {
-                    ch_sizing.resolve(inner_h, ch_natural)
+                    ch_sizing.resolve(inner_h, measures[i].1)
                 }
             }
         };
