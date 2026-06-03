@@ -196,7 +196,7 @@ impl TextMeasurer {
 
         let result = extract_result(&buffer, req.text);
         self.cache.cache.insert(key, (result.clone(), buffer));
-        // println!("measure took {:?}", t.elapsed());
+        println!("measure took {:?}", t.elapsed());
         result
     }
 

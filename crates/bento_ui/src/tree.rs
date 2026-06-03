@@ -329,25 +329,45 @@ fn layout_column(
     cross_axis: CrossAxis,
     measurer: &mut TextMeasurer,
 ) {
-    // cache measure results once for all children
-    let measures: Vec<(f32, f32)> = children
-        .iter()
-        .map(|child_id| TREE.with(|t| t.borrow().nodes[child_id.0].view.measure(measurer)))
-        .collect();
+    struct ChildInfo {
+        w_sizing: Size,
+        h_sizing: Size,
+        measure: (f32, f32),
+        dirty: bool,
+        last_available_w: f32,
+        last_available_h: f32,
+        w: f32,
+        h: f32,
+    }
+
+    let mut child_infos: Vec<ChildInfo> = TREE.with(|t| {
+        let t = t.borrow();
+        children
+            .iter()
+            .map(|child_id| {
+                let node = &t.nodes[child_id.0];
+                ChildInfo {
+                    w_sizing: node.width,
+                    h_sizing: node.height,
+                    dirty: node.layout_dirty,
+                    last_available_w: node.last_available_w,
+                    last_available_h: node.last_available_h,
+                    w: node.w,
+                    h: node.h,
+                    measure: node.view.measure(measurer),
+                }
+            })
+            .collect()
+    });
 
     // pass 0: measure all auto-height children
+    let t = web_time::Instant::now();
     for (i, child_id) in children.iter().enumerate() {
-        let (h_sizing, dirty, last_w, last_h) = TREE.with(|t| {
-            let t = t.borrow();
-            let node = &t.nodes[child_id.0];
-            (
-                node.height,
-                node.layout_dirty,
-                node.last_available_w,
-                node.last_available_h,
-            )
-        });
-        if h_sizing.is_auto() && (dirty || last_w != inner_w || last_h != inner_h) {
+        let info = &child_infos[i];
+        if info.h_sizing.is_auto()
+            && (info.dirty || info.last_available_w != inner_w || info.last_available_h != inner_h)
+        {
+            let t = web_time::Instant::now();
             TREE.with(|t| {
                 let mut t = t.borrow_mut();
                 let node = &mut t.nodes[child_id.0];
@@ -362,22 +382,25 @@ fn layout_column(
                 inner_h,
                 measurer,
             );
+            // update cached h after layout
+            child_infos[i].h = TREE.with(|t| t.borrow().nodes[child_id.0].h);
+            child_infos[i].w = TREE.with(|t| t.borrow().nodes[child_id.0].w);
         }
     }
+    println!("layout_column pass 0: {:?}", t.elapsed());
 
     // pass 1: compute fill height
     let mut fixed_h: f32 = 0.0;
     let mut fill_count: u32 = 0;
 
-    for (i, child_id) in children.iter().enumerate() {
-        let h_sizing = TREE.with(|t| t.borrow().nodes[child_id.0].height);
-        if h_sizing.is_fill() {
+    for info in &child_infos {
+        if info.h_sizing.is_fill() {
             fill_count += 1;
         } else {
-            let ch = if h_sizing.is_auto() {
-                TREE.with(|t| t.borrow().nodes[child_id.0].h)
+            let ch = if info.h_sizing.is_auto() {
+                info.h
             } else {
-                h_sizing.resolve(inner_h, measures[i].1)
+                info.h_sizing.resolve(inner_h, info.measure.1)
             };
             fixed_h += ch;
         }
@@ -391,20 +414,19 @@ fn layout_column(
         0.0
     };
 
-    let total_h: f32 = {
-        let mut h = 0.0;
-        for (i, child_id) in children.iter().enumerate() {
-            let h_sizing = TREE.with(|t| t.borrow().nodes[child_id.0].height);
-            h += if h_sizing.is_fill() {
+    let total_h: f32 = child_infos
+        .iter()
+        .map(|info| {
+            if info.h_sizing.is_fill() {
                 fill_h
-            } else if h_sizing.is_auto() {
-                TREE.with(|t| t.borrow().nodes[child_id.0].h)
+            } else if info.h_sizing.is_auto() {
+                info.h
             } else {
-                h_sizing.resolve(inner_h, measures[i].1)
-            };
-        }
-        h + gaps_total
-    };
+                info.h_sizing.resolve(inner_h, info.measure.1)
+            }
+        })
+        .sum::<f32>()
+        + gaps_total;
 
     let mut cursor_y = y + padding;
     cursor_y += match main_axis {
@@ -422,27 +444,23 @@ fn layout_column(
 
     // pass 2: position all children
     for (i, child_id) in children.iter().enumerate() {
-        let (cw_sizing, ch_sizing) = TREE.with(|t| {
-            let t = t.borrow();
-            let node = &t.nodes[child_id.0];
-            (node.width, node.height)
-        });
+        let info = &child_infos[i];
 
-        let child_h = if ch_sizing.is_fill() {
+        let child_h = if info.h_sizing.is_fill() {
             fill_h
-        } else if ch_sizing.is_auto() {
-            TREE.with(|t| t.borrow().nodes[child_id.0].h)
+        } else if info.h_sizing.is_auto() {
+            info.h
         } else {
-            ch_sizing.resolve(inner_h, measures[i].1)
+            info.h_sizing.resolve(inner_h, info.measure.1)
         };
 
         let child_w = match cross_axis {
             CrossAxis::Stretch if !width_sizing.is_auto() => inner_w,
             _ => {
-                if cw_sizing.is_auto() {
-                    TREE.with(|t| t.borrow().nodes[child_id.0].w)
+                if info.w_sizing.is_auto() {
+                    info.w
                 } else {
-                    cw_sizing.resolve(inner_w, measures[i].0)
+                    info.w_sizing.resolve(inner_w, info.measure.0)
                 }
             }
         };
@@ -453,18 +471,15 @@ fn layout_column(
             CrossAxis::End => x + padding + inner_w - child_w,
         };
 
-        let (existing_x, existing_y, existing_w, existing_h) = TREE.with(|t| {
-            let t = t.borrow();
-            let node = &t.nodes[child_id.0];
-            (node.x, node.y, node.w, node.h)
-        });
-        let dirty = TREE.with(|t| t.borrow().nodes[child_id.0].layout_dirty);
-        if dirty
-            || existing_x != child_x
-            || existing_y != cursor_y
-            || existing_w != child_w
-            || existing_h != child_h
-        {
+        let position_unchanged = info.w == child_w
+            && info.h == child_h
+            && TREE.with(|t| {
+                let t = t.borrow();
+                let node = &t.nodes[child_id.0];
+                node.x == child_x && node.y == cursor_y
+            });
+
+        if info.dirty || !position_unchanged {
             TREE.with(|t| {
                 let mut t = t.borrow_mut();
                 let node = &mut t.nodes[child_id.0];
@@ -475,8 +490,8 @@ fn layout_column(
             TREE.with(|t| {
                 let mut t = t.borrow_mut();
                 let node = &mut t.nodes[child_id.0];
-                node.width = cw_sizing;
-                node.height = ch_sizing;
+                node.width = info.w_sizing;
+                node.height = info.h_sizing;
             });
         }
 
@@ -533,27 +548,43 @@ fn layout_row(
     cross_axis: CrossAxis,
     measurer: &mut TextMeasurer,
 ) {
-    // cache measure results once for all children
-    let measures: Vec<(f32, f32)> = children
-        .iter()
-        .map(|child_id| TREE.with(|t| t.borrow().nodes[child_id.0].view.measure(measurer)))
-        .collect();
+    struct ChildInfo {
+        w_sizing: Size,
+        h_sizing: Size,
+        measure: (f32, f32),
+        dirty: bool,
+        last_available_w: f32,
+        last_available_h: f32,
+        w: f32,
+        h: f32,
+    }
 
+    let mut child_infos: Vec<ChildInfo> = TREE.with(|t| {
+        let t = t.borrow();
+        children
+            .iter()
+            .map(|child_id| {
+                let node = &t.nodes[child_id.0];
+                ChildInfo {
+                    w_sizing: node.width,
+                    h_sizing: node.height,
+                    dirty: node.layout_dirty,
+                    last_available_w: node.last_available_w,
+                    last_available_h: node.last_available_h,
+                    w: node.w,
+                    h: node.h,
+                    measure: node.view.measure(measurer),
+                }
+            })
+            .collect()
+    });
+
+    let t = web_time::Instant::now();
     // pass 0: measure all auto children
     for (i, child_id) in children.iter().enumerate() {
-        let (w_sizing, h_sizing, dirty, last_w, last_h) = TREE.with(|t| {
-            let t = t.borrow();
-            let node = &t.nodes[child_id.0];
-            (
-                node.width,
-                node.height,
-                node.layout_dirty,
-                node.last_available_w,
-                node.last_available_h,
-            )
-        });
-        if (w_sizing.is_auto() || h_sizing.is_auto())
-            && (dirty || last_w != inner_w || last_h != inner_h)
+        let info = &child_infos[i];
+        if (info.w_sizing.is_auto() || info.h_sizing.is_auto())
+            && (info.dirty || info.last_available_w != inner_w || info.last_available_h != inner_h)
         {
             TREE.with(|t| {
                 let mut t = t.borrow_mut();
@@ -569,22 +600,25 @@ fn layout_row(
                 inner_h,
                 measurer,
             );
+            // update cached w/h after layout
+            child_infos[i].w = TREE.with(|t| t.borrow().nodes[child_id.0].w);
+            child_infos[i].h = TREE.with(|t| t.borrow().nodes[child_id.0].h);
         }
     }
+    println!("layout_row pass 0: {:?}", t.elapsed());
 
     // pass 1: compute fill width
     let mut fixed_w: f32 = 0.0;
     let mut fill_count: u32 = 0;
 
-    for (i, child_id) in children.iter().enumerate() {
-        let w_sizing = TREE.with(|t| t.borrow().nodes[child_id.0].width);
-        if w_sizing.is_fill() {
+    for info in &child_infos {
+        if info.w_sizing.is_fill() {
             fill_count += 1;
         } else {
-            let cw = if w_sizing.is_auto() {
-                TREE.with(|t| t.borrow().nodes[child_id.0].w)
+            let cw = if info.w_sizing.is_auto() {
+                info.w
             } else {
-                w_sizing.resolve(inner_w, measures[i].0)
+                info.w_sizing.resolve(inner_w, info.measure.0)
             };
             fixed_w += cw;
         }
@@ -598,20 +632,19 @@ fn layout_row(
         0.0
     };
 
-    let total_w: f32 = {
-        let mut w = 0.0;
-        for (i, child_id) in children.iter().enumerate() {
-            let w_sizing = TREE.with(|t| t.borrow().nodes[child_id.0].width);
-            w += if w_sizing.is_fill() {
+    let total_w: f32 = child_infos
+        .iter()
+        .map(|info| {
+            if info.w_sizing.is_fill() {
                 fill_w
-            } else if w_sizing.is_auto() {
-                TREE.with(|t| t.borrow().nodes[child_id.0].w)
+            } else if info.w_sizing.is_auto() {
+                info.w
             } else {
-                w_sizing.resolve(inner_w, measures[i].0)
-            };
-        }
-        w + gaps_total
-    };
+                info.w_sizing.resolve(inner_w, info.measure.0)
+            }
+        })
+        .sum::<f32>()
+        + gaps_total;
 
     let mut cursor_x = x + padding;
     cursor_x += match main_axis {
@@ -629,27 +662,23 @@ fn layout_row(
 
     // pass 2: position all children
     for (i, child_id) in children.iter().enumerate() {
-        let (cw_sizing, ch_sizing) = TREE.with(|t| {
-            let t = t.borrow();
-            let node = &t.nodes[child_id.0];
-            (node.width, node.height)
-        });
+        let info = &child_infos[i];
 
-        let child_w = if cw_sizing.is_fill() {
+        let child_w = if info.w_sizing.is_fill() {
             fill_w
-        } else if cw_sizing.is_auto() {
-            TREE.with(|t| t.borrow().nodes[child_id.0].w)
+        } else if info.w_sizing.is_auto() {
+            info.w
         } else {
-            cw_sizing.resolve(inner_w, measures[i].0)
+            info.w_sizing.resolve(inner_w, info.measure.0)
         };
 
         let child_h = match cross_axis {
             CrossAxis::Stretch if !height_sizing.is_auto() => inner_h,
             _ => {
-                if ch_sizing.is_auto() {
-                    TREE.with(|t| t.borrow().nodes[child_id.0].h)
+                if info.h_sizing.is_auto() {
+                    info.h
                 } else {
-                    ch_sizing.resolve(inner_h, measures[i].1)
+                    info.h_sizing.resolve(inner_h, info.measure.1)
                 }
             }
         };
@@ -660,18 +689,15 @@ fn layout_row(
             CrossAxis::End => y + padding + inner_h - child_h,
         };
 
-        let (existing_x, existing_y, existing_w, existing_h) = TREE.with(|t| {
-            let t = t.borrow();
-            let node = &t.nodes[child_id.0];
-            (node.x, node.y, node.w, node.h)
-        });
-        let dirty = TREE.with(|t| t.borrow().nodes[child_id.0].layout_dirty);
-        if dirty
-            || existing_x != cursor_x
-            || existing_y != child_y
-            || existing_w != child_w
-            || existing_h != child_h
-        {
+        let position_unchanged = info.w == child_w
+            && info.h == child_h
+            && TREE.with(|t| {
+                let t = t.borrow();
+                let node = &t.nodes[child_id.0];
+                node.x == cursor_x && node.y == child_y
+            });
+
+        if info.dirty || !position_unchanged {
             TREE.with(|t| {
                 let mut t = t.borrow_mut();
                 let node = &mut t.nodes[child_id.0];
@@ -682,8 +708,8 @@ fn layout_row(
             TREE.with(|t| {
                 let mut t = t.borrow_mut();
                 let node = &mut t.nodes[child_id.0];
-                node.width = cw_sizing;
-                node.height = ch_sizing;
+                node.width = info.w_sizing;
+                node.height = info.h_sizing;
             });
         }
 
