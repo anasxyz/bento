@@ -1,5 +1,6 @@
 use crate::{ColorRange, DecorationRange, FontFamilyRange, ItalicRange, TextAlign, WeightRange};
 
+#[derive(Clone)]
 pub struct RectDraw {
     pub x: f32,
     pub y: f32,
@@ -17,6 +18,7 @@ pub struct RectDraw {
     pub z: i32,
 }
 
+#[derive(Clone)]
 pub struct TextDraw {
     pub x: f32,
     pub y: f32,
@@ -48,6 +50,7 @@ pub struct TextDraw {
     pub font_family_ranges: Vec<FontFamilyRange>,
 }
 
+#[derive(Clone)]
 pub struct ImageDraw {
     pub x: f32,
     pub y: f32,
@@ -65,6 +68,7 @@ pub struct ImageDraw {
     pub z: i32,
 }
 
+#[derive(Clone)]
 pub enum DrawCommand {
     Rect(RectDraw),
     Text(TextDraw),
@@ -94,6 +98,10 @@ impl DrawList {
 
     pub fn clear(&mut self) {
         self.commands.clear();
+    }
+
+    pub fn push_command(&mut self, command: DrawCommand) {
+        self.commands.push(command);
     }
 
     pub fn push_rect(&mut self, rect: RectDraw) {

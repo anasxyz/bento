@@ -1,7 +1,9 @@
 use std::rc::Rc;
 
+use bento_wgpu::DrawCommand;
+
 use crate::{
-    reactive::owner::Owner, view::{View, ViewId}, widgets::Text
+    reactive::{owner::Owner, runtime::SubscriberId}, view::{View, ViewId}, widgets::Text
 };
 
 pub(crate) struct TextNode {
@@ -26,4 +28,8 @@ pub(crate) struct Node {
     pub(crate) h: f32,
     pub(crate) handlers: Vec<EventHandler>,
     pub(crate) owner: Option<Owner>,
+
+    pub(crate) paint_dirty: bool,
+    pub(crate) cache: Vec<DrawCommand>,
+    pub(crate) paint_subscriber: Option<SubscriberId>,
 }

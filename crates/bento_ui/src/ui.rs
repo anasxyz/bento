@@ -1,4 +1,4 @@
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use bento_wgpu::{DrawList, TextMeasurer};
@@ -17,33 +17,27 @@ pub struct Ui {
     pub root: ViewId,
     pub measurer: TextMeasurer,
     pub input: InputState,
-    render_subscriber: runtime::SubscriberId,
 }
 
 impl Ui {
     pub fn new(view: impl View + 'static, request_redraw: impl Fn() + 'static) -> Self {
+        let request_redraw = Rc::new(request_redraw);
+        set_redraw_fn(request_redraw.clone());
+
         let root = Box::new(view).build();
-        let render_subscriber = runtime::create_subscriber(Rc::new(move || request_redraw()));
 
         Self {
             root,
             measurer: TextMeasurer::new(),
             input: InputState::new(),
-            render_subscriber,
         }
     }
 
     pub fn draw(&mut self) -> DrawList {
         let mut draw_list = DrawList::new();
 
-        runtime::push_observer(self.render_subscriber);
-        let t = web_time::Instant::now();
         tree::layout(self.root, 0.0, 0.0, &mut self.measurer);
-        println!("[ui] layout took {:?}", t.elapsed());
-        let t = web_time::Instant::now();
         tree::render(self.root, &mut draw_list);
-        println!("[ui] render took {:?}", t.elapsed());
-        runtime::pop_observer();
 
         draw_list
     }
@@ -107,4 +101,20 @@ impl Ui {
             }
         }
     }
+}
+
+thread_local! {
+    static REDRAW_FN: RefCell<Option<Rc<dyn Fn()>>> = RefCell::new(None);
+}
+
+pub(crate) fn set_redraw_fn(f: Rc<dyn Fn()>) {
+    REDRAW_FN.with(|r| *r.borrow_mut() = Some(f));
+}
+
+pub(crate) fn request_redraw() {
+    REDRAW_FN.with(|r| {
+        if let Some(f) = r.borrow().as_ref() {
+            f();
+        }
+    });
 }

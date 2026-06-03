@@ -1,3 +1,5 @@
+use bento_wgpu::DrawCommand;
+
 use crate::{
     node::Node,
     tree,
@@ -20,6 +22,10 @@ impl View for Group {
         "Group"
     }
 
+    fn render(&self, _x: f32, _y: f32, _w: f32, _h: f32) -> Vec<DrawCommand> {
+        Vec::new()
+    }
+
     fn build(self: Box<Self>) -> ViewId {
         let child_ids: Vec<ViewId> = self.children.into_iter().map(|c| c.build()).collect();
         tree::add_node(Node {
@@ -33,6 +39,9 @@ impl View for Group {
             h: 0.0,
             handlers: Vec::new(),
             owner: None,
+            paint_dirty: true,
+            cache: Vec::new(),
+            paint_subscriber: None,
         })
     }
 }

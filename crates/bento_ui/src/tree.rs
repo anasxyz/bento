@@ -4,7 +4,8 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::{
     node::{EventHandler, Node, NodeType},
-    reactive::owner::Owner,
+    reactive::{owner::Owner, runtime},
+    ui,
     view::ViewId,
 };
 
@@ -22,11 +23,32 @@ thread_local! {
     static TREE: RefCell<Tree> = RefCell::new(Tree::new());
 }
 
-pub(crate) fn add_node(node: Node) -> ViewId {
+pub fn add_node(node: Node) -> ViewId {
+    let id = TREE.with(|t| ViewId(t.borrow_mut().nodes.insert(node)));
+
+    // set up per-node paint subscriber
+    let sub_id = runtime::create_subscriber(Rc::new(move || {
+        TREE.with(|t| {
+            if let Some(node) = t.borrow_mut().nodes.get_mut(id.0) {
+                node.paint_dirty = true;
+            }
+        });
+        ui::request_redraw();
+    }));
+
     TREE.with(|t| {
-        let id = t.borrow_mut().nodes.insert(node);
-        ViewId(id)
-    })
+        if let Some(node) = t.borrow_mut().nodes.get_mut(id.0) {
+            node.paint_subscriber = Some(sub_id);
+        }
+    });
+
+    // subscribe signals by running render once inside observer
+    runtime::push_observer(sub_id);
+    TREE.with(|t| t.borrow().nodes[id.0].view.render(0.0, 0.0, 0.0, 0.0));
+    runtime::pop_observer();
+
+    // leave paint_dirty = true so first real render pass computes correct positions
+    id
 }
 
 pub fn remove_node(id: ViewId) {
@@ -34,11 +56,11 @@ pub fn remove_node(id: ViewId) {
         let mut t = t.borrow_mut();
         let node = &mut t.nodes[id.0];
         let children = node.children.clone();
-        let owner = node.owner.take(); 
+        let owner = node.owner.take();
         (children, owner)
-    }); 
+    });
 
-    drop(owner); 
+    drop(owner);
 
     for child_id in children {
         remove_node(child_id);
@@ -65,13 +87,50 @@ pub fn store_owner(id: ViewId, owner: Owner) {
     });
 }
 
-pub(crate) fn render(id: ViewId, draw_list: &mut DrawList) {
-    let children = TREE.with(|t| {
+pub fn render(id: ViewId, draw_list: &mut DrawList) {
+    let (paint_dirty, x, y, w, h, children) = TREE.with(|t| {
         let t = t.borrow();
         let node = &t.nodes[id.0];
-        node.view.render(node.x, node.y, node.w, node.h, draw_list);
-        node.children.clone()
+        (
+            node.paint_dirty,
+            node.x,
+            node.y,
+            node.w,
+            node.h,
+            node.children.clone(),
+        )
     });
+
+    if paint_dirty {
+        eprintln!("[render] node {} is dirty, re-rendering", id.0);
+        let sub_id = TREE.with(|t| t.borrow().nodes[id.0].paint_subscriber);
+
+        let commands = if let Some(sub_id) = sub_id {
+            runtime::push_observer(sub_id);
+            let cmds = TREE.with(|t| t.borrow().nodes[id.0].view.render(x, y, w, h));
+            runtime::pop_observer();
+            cmds
+        } else {
+            TREE.with(|t| t.borrow().nodes[id.0].view.render(x, y, w, h))
+        };
+
+        for cmd in &commands {
+            draw_list.push_command(cmd.clone());
+        }
+
+        TREE.with(|t| {
+            let mut t = t.borrow_mut();
+            let node = &mut t.nodes[id.0];
+            node.cache = commands;
+            node.paint_dirty = false;
+        });
+    } else {
+        eprintln!("[render] node {} is clean, replaying cache", id.0);
+        let cache = TREE.with(|t| t.borrow().nodes[id.0].cache.clone());
+        for cmd in cache {
+            draw_list.push_command(cmd);
+        }
+    }
 
     for child_id in children {
         render(child_id, draw_list);
@@ -132,7 +191,7 @@ pub(crate) fn dispatch<E: 'static>(id: ViewId, event: &E) {
             .filter(|h| h.type_id == type_id)
             .map(|h| h.handler.clone())
             .collect()
-    }); 
+    });
 
     for handler in handlers {
         handler(event as &dyn std::any::Any);

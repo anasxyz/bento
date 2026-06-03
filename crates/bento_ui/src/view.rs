@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use bento_wgpu::{DrawList, TextMeasurer};
+use bento_wgpu::{DrawCommand, DrawList, TextMeasurer};
 
 use crate::reactive::owner::Owner;
 use crate::tree;
@@ -13,7 +13,7 @@ pub trait View {
         "unnamed"
     }
     fn build(self: Box<Self>) -> ViewId;
-    fn render(&self, x: f32, y: f32, w: f32, h: f32, draw_list: &mut DrawList) {}
+    fn render(&self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand>;
     fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32) {
         (0.0, 0.0)
     }
@@ -46,8 +46,8 @@ impl<V: View, E: 'static> View for WithHandler<V, E> {
         id
     }
 
-    fn render(&self, x: f32, y: f32, w: f32, h: f32, draw_list: &mut DrawList) {
-        self.inner.render(x, y, w, h, draw_list);
+    fn render(&self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand> {
+        self.inner.render(x, y, w, h)
     }
 
     fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32) {
@@ -78,8 +78,8 @@ impl View for OwnedView {
         tree::store_owner(id, self._owner);
         id
     }
-    fn render(&self, x: f32, y: f32, w: f32, h: f32, draw_list: &mut DrawList) {
-        self.inner.render(x, y, w, h, draw_list);
+    fn render(&self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand> {
+        self.inner.render(x, y, w, h)
     }
     fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32) {
         self.inner.measure(measurer)

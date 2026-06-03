@@ -5,7 +5,7 @@ use crate::{
     tree,
     view::{View, ViewId},
 };
-use bento_wgpu::{DrawList, TextMeasurer};
+use bento_wgpu::{DrawCommand, DrawList, TextMeasurer};
 use std::{cell::RefCell, collections::HashMap, hash::Hash, rc::Rc};
 
 struct EachNode<T: Clone + 'static> {
@@ -16,9 +16,11 @@ impl<T: Clone + 'static> View for EachNode<T> {
     fn build(self: Box<Self>) -> ViewId {
         unreachable!()
     }
-    fn render(&self, _x: f32, _y: f32, _w: f32, _h: f32, _draw_list: &mut DrawList) {
+    fn render(&self, _x: f32, _y: f32, _w: f32, _h: f32) -> Vec<DrawCommand> {
         // subscribe render observer to items
-        let _ = self.items.get(); 
+        let _ = self.items.get();
+
+        Vec::new()
     }
     fn measure(&self, _measurer: &mut TextMeasurer) -> (f32, f32) {
         (0.0, 0.0)
@@ -52,6 +54,9 @@ where
             h: 0.0,
             handlers: Vec::new(),
             owner: None,
+            paint_dirty: true,
+            cache: Vec::new(),
+            paint_subscriber: None,
         });
 
         let nodes: Rc<RefCell<HashMap<K, ViewId>>> = Rc::new(RefCell::new(HashMap::new()));
@@ -100,7 +105,8 @@ where
         parent_id
     }
 
-    fn render(&self, _x: f32, _y: f32, _w: f32, _h: f32, _draw_list: &mut DrawList) {
+    fn render(&self, _x: f32, _y: f32, _w: f32, _h: f32) -> Vec<DrawCommand> {
+        Vec::new()
     }
 
     fn measure(&self, _measurer: &mut TextMeasurer) -> (f32, f32) {

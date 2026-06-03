@@ -1,4 +1,4 @@
-use bento_wgpu::{DrawList, TextAlign, TextDraw, TextMeasureRequest, TextMeasurer};
+use bento_wgpu::{DrawCommand, DrawList, TextAlign, TextDraw, TextMeasureRequest, TextMeasurer};
 
 use crate::{
     node::{Node, NodeType, TextNode},
@@ -26,6 +26,9 @@ impl View for Text {
             h: 0.0,
             handlers: Vec::new(),
             owner: None,
+            paint_dirty: true,
+            cache: Vec::new(),
+            paint_subscriber: None,
         })
     }
 
@@ -48,9 +51,9 @@ impl View for Text {
         (r.width, r.height)
     }
 
-    fn render(&self, x: f32, y: f32, w: f32, h: f32, draw_list: &mut DrawList) {
+    fn render(&self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand> {
         let text = (self.content)();
-        draw_list.push_text(TextDraw {
+        vec![DrawCommand::Text(TextDraw {
             x,
             y,
             w,
@@ -79,7 +82,7 @@ impl View for Text {
             weight_ranges: vec![],
             italic_ranges: vec![],
             font_family_ranges: vec![],
-        });
+        })]
     }
 }
 
