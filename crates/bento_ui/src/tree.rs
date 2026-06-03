@@ -1,9 +1,11 @@
 use bento_wgpu::{DrawList, TextMeasurer};
 use slab::Slab;
-use std::cell::RefCell;
+use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    node::{EventHandler, Node, NodeType}, reactive::owner::Owner, view::ViewId
+    node::{EventHandler, Node, NodeType},
+    reactive::owner::Owner,
+    view::ViewId,
 };
 
 struct Tree {
@@ -25,6 +27,36 @@ pub(crate) fn add_node(node: Node) -> ViewId {
         let id = t.borrow_mut().nodes.insert(node);
         ViewId(id)
     })
+}
+
+pub fn remove_node(id: ViewId) {
+    let (children, owner) = TREE.with(|t| {
+        let mut t = t.borrow_mut();
+        let node = &mut t.nodes[id.0];
+        let children = node.children.clone();
+        let owner = node.owner.take(); 
+        (children, owner)
+    }); 
+
+    drop(owner); 
+
+    for child_id in children {
+        remove_node(child_id);
+    }
+
+    TREE.with(|t| t.borrow_mut().nodes.remove(id.0));
+}
+
+pub fn append_child(parent: ViewId, child: ViewId) {
+    TREE.with(|t| {
+        t.borrow_mut().nodes[parent.0].children.push(child);
+    });
+}
+
+pub fn reorder_children(parent: ViewId, order: Vec<ViewId>) {
+    TREE.with(|t| {
+        t.borrow_mut().nodes[parent.0].children = order;
+    });
 }
 
 pub fn store_owner(id: ViewId, owner: Owner) {
@@ -81,7 +113,7 @@ pub(crate) fn add_handler<E: 'static>(id: ViewId, f: impl Fn(&E) + 'static) {
     TREE.with(|t| {
         t.borrow_mut().nodes[id.0].handlers.push(EventHandler {
             type_id: std::any::TypeId::of::<E>(),
-            handler: Box::new(move |any| {
+            handler: Rc::new(move |any| {
                 if let Some(event) = any.downcast_ref::<E>() {
                     f(event);
                 }
@@ -92,15 +124,19 @@ pub(crate) fn add_handler<E: 'static>(id: ViewId, f: impl Fn(&E) + 'static) {
 
 pub(crate) fn dispatch<E: 'static>(id: ViewId, event: &E) {
     let type_id = std::any::TypeId::of::<E>();
-    TREE.with(|t| {
+    let handlers: Vec<Rc<dyn Fn(&dyn std::any::Any)>> = TREE.with(|t| {
         let t = t.borrow();
         let node = &t.nodes[id.0];
-        for handler in &node.handlers {
-            if handler.type_id == type_id {
-                (handler.handler)(event);
-            }
-        }
-    });
+        node.handlers
+            .iter()
+            .filter(|h| h.type_id == type_id)
+            .map(|h| h.handler.clone())
+            .collect()
+    }); 
+
+    for handler in handlers {
+        handler(event as &dyn std::any::Any);
+    }
 }
 
 pub(crate) fn hit_test(id: ViewId, x: f32, y: f32) -> Option<ViewId> {

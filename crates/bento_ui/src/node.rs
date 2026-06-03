@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::{
     reactive::owner::Owner, view::{View, ViewId}, widgets::Text
 };
@@ -12,7 +14,7 @@ pub(crate) enum NodeType {
 
 pub(crate) struct EventHandler {
     pub(crate) type_id: std::any::TypeId,
-    pub(crate) handler: Box<dyn Fn(&dyn std::any::Any)>,
+    pub(crate) handler: Rc<dyn Fn(&dyn std::any::Any)>,
 }
 
 pub(crate) struct Node {

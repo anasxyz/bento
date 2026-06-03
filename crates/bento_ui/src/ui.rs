@@ -37,8 +37,12 @@ impl Ui {
         let mut draw_list = DrawList::new();
 
         runtime::push_observer(self.render_subscriber);
+        let t = web_time::Instant::now();
         tree::layout(self.root, 0.0, 0.0, &mut self.measurer);
+        println!("[ui] layout took {:?}", t.elapsed());
+        let t = web_time::Instant::now();
         tree::render(self.root, &mut draw_list);
+        println!("[ui] render took {:?}", t.elapsed());
         runtime::pop_observer();
 
         draw_list

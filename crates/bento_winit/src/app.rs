@@ -154,7 +154,10 @@ impl ApplicationHandler<BentoEvent> for App {
                 win.ui.process_input();
 
                 if win.needs_render() {
+                    let t = web_time::Instant::now();
                     let draw_list = win.ui.draw();
+                    println!("[ui] draw took {:?}", t.elapsed());
+                    let t = web_time::Instant::now();
                     win.renderer.render(
                         ctx,
                         &mut win.ui.measurer,
@@ -162,6 +165,7 @@ impl ApplicationHandler<BentoEvent> for App {
                         win.config.clear_color,
                         &draw_list,
                     );
+                    println!("[winit] render took {:?}", t.elapsed());
                     win.needs_render = false;
                 }
 

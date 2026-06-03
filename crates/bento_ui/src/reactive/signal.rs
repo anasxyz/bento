@@ -25,6 +25,11 @@ impl<T: Clone + 'static> Signal<T> {
     pub fn set(&self, value: T) {
         runtime::set_signal(*self, value);
     }
+
+    pub fn update(&self, f: impl FnOnce(T) -> T) {
+        let current = self.get();
+        self.set(f(current));
+    }
 }
 
 pub fn state<T: 'static>(value: T) -> Signal<T> {
