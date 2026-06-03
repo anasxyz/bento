@@ -13,6 +13,7 @@ use crate::reactive::signal::{Signal, SignalId};
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, PartialOrd, Ord)]
 pub struct SubscriberId(pub usize);
 
+#[derive(Debug)]
 struct SignalEntry {
     value: Box<dyn Any>,
     subscribers: Vec<SubscriberId>,
@@ -161,9 +162,9 @@ pub(crate) fn remove_subscriber(id: SubscriberId) {
         } else {
             None
         }
-    }); 
+    });
 
-    drop(removed); 
+    drop(removed);
 }
 
 pub(crate) fn subscriber_count(signal_id: usize) -> usize {

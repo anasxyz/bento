@@ -202,10 +202,7 @@ impl View for Group {
         }
 
         if let Some(setup) = each {
-            let owner = Owner::new();
             setup(id, child_ids);
-            let owner = owner.collect();
-            tree::store_owner(id, owner);
         }
 
         id

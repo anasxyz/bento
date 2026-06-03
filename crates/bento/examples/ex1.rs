@@ -16,6 +16,8 @@ fn app() -> impl View {
         Item { id: 3, text: "item 3".into() },
     ]);
 
+    inspect!(items);
+
     group()
         .direction(Direction::Column)
         .gap(8.0)

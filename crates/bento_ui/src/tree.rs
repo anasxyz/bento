@@ -54,6 +54,7 @@ pub fn add_node(node: Node) -> ViewId {
 }
 
 pub fn remove_node(id: ViewId) {
+    eprintln!("[remove_node] removing node {}", id.0);
     let (children, owner, parent) = TREE.with(|t| {
         let mut t = t.borrow_mut();
         let node = &mut t.nodes[id.0];
@@ -75,6 +76,8 @@ pub fn remove_node(id: ViewId) {
     if let Some(parent_id) = parent {
         mark_layout_dirty(parent_id);
     }
+
+    ui::request_redraw();
 }
 
 pub fn append_child(parent: ViewId, child: ViewId) {
@@ -84,6 +87,8 @@ pub fn append_child(parent: ViewId, child: ViewId) {
         t.nodes[child.0].parent = Some(parent);
     });
     mark_layout_dirty(child);
+
+    ui::request_redraw();
 }
 
 pub fn reorder_children(parent: ViewId, order: Vec<ViewId>) {
@@ -105,6 +110,7 @@ pub fn force_layout_dirty(id: ViewId) {
 }
 
 pub fn mark_layout_dirty(id: ViewId) {
+    eprintln!("[mark_layout_dirty] node {}", id.0);
     let mut current = Some(id);
     while let Some(node_id) = current {
         let already_dirty = TREE.with(|t| t.borrow().nodes[node_id.0].layout_dirty);
@@ -507,12 +513,6 @@ fn layout_row(
                 inner_h,
                 measurer,
             );
-            eprintln!(
-                "[pass0 row] child {} w:{} h:{}",
-                child_id.0,
-                TREE.with(|t| t.borrow().nodes[child_id.0].w),
-                TREE.with(|t| t.borrow().nodes[child_id.0].h)
-            );
         }
     }
 
@@ -685,11 +685,6 @@ pub fn set_height(id: ViewId, size: Size) {
 }
 
 pub(crate) fn dispatch<E: 'static>(id: ViewId, event: &E) {
-    eprintln!(
-        "[dispatch] dispatching to node {} handler count: {}",
-        id.0,
-        TREE.with(|t| t.borrow().nodes[id.0].handlers.len())
-    );
     let type_id = std::any::TypeId::of::<E>();
     let handlers: Vec<Rc<dyn Fn(&dyn std::any::Any)>> = TREE.with(|t| {
         let t = t.borrow();
@@ -722,15 +717,6 @@ pub(crate) fn hit_test(id: ViewId, x: f32, y: f32) -> Option<ViewId> {
 
     // then check self
     if x >= node_x && x <= node_x + node_w && y >= node_y && y <= node_y + node_h {
-        eprintln!(
-            "[hit_test] hit node {} ({}) x:{} y:{} w:{} h:{}",
-            id.0,
-            TREE.with(|t| t.borrow().nodes[id.0].view.name().to_string()),
-            node_x,
-            node_y,
-            node_w,
-            node_h
-        );
         return Some(id);
     }
 

@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use bento_wgpu::{DrawCommand, DrawList, TextMeasurer};
 
 use crate::layout::{Container, Size};
-use crate::reactive::owner::Owner;
+use crate::reactive::owner::{self, Owner};
 use crate::tree;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, PartialOrd, Ord)]
@@ -127,8 +127,12 @@ impl View for OwnedView {
         self.inner.name()
     }
     fn build(self: Box<Self>) -> ViewId {
-        let id = self.inner.build();
-        tree::store_owner(id, self._owner);
+        let owner = Owner::new();
+        // move _owner into the scope so it's kept alive inside the build owner
+        owner::store(self._owner);
+        let id = Box::new(self.inner).build();
+        let owner = owner.collect();
+        tree::store_owner(id, owner);
         id
     }
     fn render(&self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand> {
