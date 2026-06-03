@@ -41,8 +41,6 @@ impl Ui {
         tree::render(self.root, &mut draw_list);
         runtime::pop_observer();
 
-        println!("[draw] layout + render");
-
         draw_list
     }
 
@@ -72,8 +70,6 @@ impl Ui {
                         button: mouse::MouseButton::Left,
                     },
                 );
-
-                println!("[input] click hit node {:?}", id);
             }
         }
     }

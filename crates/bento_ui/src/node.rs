@@ -1,6 +1,5 @@
 use crate::{
-    view::{View, ViewId},
-    widgets::Text,
+    reactive::owner::Owner, view::{View, ViewId}, widgets::Text
 };
 
 pub(crate) struct TextNode {
@@ -24,4 +23,5 @@ pub(crate) struct Node {
     pub(crate) w: f32,
     pub(crate) h: f32,
     pub(crate) handlers: Vec<EventHandler>,
+    pub(crate) owner: Option<Owner>,
 }

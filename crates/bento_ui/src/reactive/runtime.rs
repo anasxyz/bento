@@ -1,6 +1,5 @@
 use std::{any::Any, cell::RefCell, marker::PhantomData, rc::Rc};
 
-use cosmic_text::skrifa::raw::tables::kern;
 use slab::Slab;
 
 use crate::reactive::signal::{Signal, SignalId};
@@ -91,8 +90,6 @@ pub(crate) fn set_signal<T: 'static>(signal: Signal<T>, value: T) {
             .collect()
     });
 
-    println!("[signal] set, notifiying {} subscribers", fns.len());
-
     for f in fns {
         f();
     }
@@ -111,6 +108,36 @@ pub(crate) fn push_observer(id: SubscriberId) {
 
 pub(crate) fn pop_observer() {
     RUNTIME.with(|rt| rt.borrow_mut().observer_stack.pop());
+}
+
+/// Removes the subscriber id from every signal's subscriber list
+/// so on the next rerun only the signals actually read get resubscribed
+pub(crate) fn clear_subscriptions(id: SubscriberId) {
+    RUNTIME.with(|rt| {
+        let mut rt = rt.borrow_mut();
+        for (_, signal) in rt.signals.iter_mut() {
+            signal.subscribers.retain(|&s| s != id);
+        }
+    });
+}
+
+/// Updates a subscriber in the runtime to a new function given its id
+pub(crate) fn update_subscriber(id: SubscriberId, f: Rc<dyn Fn()>) {
+    RUNTIME.with(|rt| {
+        if let Some(entry) = rt.borrow_mut().subscribers.get_mut(id.0) {
+            *entry = f;
+        }
+    });
+}
+
+/// Removes a subscriber from the runtime given its id
+pub(crate) fn remove_subscriber(id: SubscriberId) {
+    RUNTIME.with(|rt| {
+        let mut rt = rt.borrow_mut();
+        if rt.subscribers.contains(id.0) {
+            rt.subscribers.remove(id.0);
+        }
+    });
 }
 
 #[cfg(test)]
@@ -172,5 +199,26 @@ mod tests {
             let rt = rt.borrow();
             assert!(rt.signals[sig.id.0].subscribers.contains(&sub_id));
         });
+    }
+
+    #[test]
+    fn test_notify_fn_called_on_set() {
+        use std::cell::Cell;
+        let sig = create_signal(0i32);
+        let called = Rc::new(Cell::new(0));
+        let called_clone = called.clone();
+
+        let sub_id = create_subscriber(Rc::new(move || {
+            called_clone.set(called_clone.get() + 1);
+        }));
+
+        push_observer(sub_id);
+        get_signal(sig);
+        pop_observer();
+
+        set_signal(sig, 1);
+        assert_eq!(called.get(), 1);
+        set_signal(sig, 2);
+        assert_eq!(called.get(), 2);
     }
 }

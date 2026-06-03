@@ -32,6 +32,7 @@ impl View for Group {
             w: 0.0,
             h: 0.0,
             handlers: Vec::new(),
+            owner: None,
         })
     }
 }

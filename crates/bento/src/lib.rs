@@ -3,6 +3,7 @@
 
 pub use bento_ui::*;
 pub use bento_winit::{App, Window, WindowConfig};
+pub use bento_macros::component;
 
 fn app() -> impl View {
     let count = state(0);

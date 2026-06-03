@@ -3,8 +3,7 @@ use slab::Slab;
 use std::cell::RefCell;
 
 use crate::{
-    node::{EventHandler, Node, NodeType},
-    view::ViewId,
+    node::{EventHandler, Node, NodeType}, reactive::owner::Owner, view::ViewId
 };
 
 struct Tree {
@@ -26,6 +25,12 @@ pub(crate) fn add_node(node: Node) -> ViewId {
         let id = t.borrow_mut().nodes.insert(node);
         ViewId(id)
     })
+}
+
+pub fn store_owner(id: ViewId, owner: Owner) {
+    TREE.with(|t| {
+        t.borrow_mut().nodes[id.0].owner = Some(owner);
+    });
 }
 
 pub(crate) fn render(id: ViewId, draw_list: &mut DrawList) {
