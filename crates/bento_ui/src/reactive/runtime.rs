@@ -7,7 +7,10 @@ use std::{
 
 use slab::Slab;
 
-use crate::reactive::signal::{Signal, SignalId};
+use crate::reactive::{
+    owner,
+    signal::{Signal, SignalId},
+};
 
 /// Basically just an index into the subscribers slab on the runtime
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, PartialOrd, Ord)]
@@ -44,20 +47,32 @@ thread_local! {
 /// Creates and stores a Signal with the given value in the reactive runtime
 /// Returns the Signal handler
 pub(crate) fn create_signal<T: 'static>(value: T) -> Signal<T> {
-    let new_sig = SignalEntry {
+    let new_sig_entry = SignalEntry {
         value: Box::new(value),
         subscribers: Vec::new(),
     };
 
     let new_sig_id = RUNTIME.with(|rt| {
         let mut rt = rt.borrow_mut();
-        rt.signals.insert(new_sig)
+        rt.signals.insert(new_sig_entry)
     });
 
-    Signal {
+    let new_sig = Signal {
         id: SignalId(new_sig_id),
         _phantom: PhantomData,
-    }
+    };
+
+    owner::register_cleanup(move || {
+        destroy_signal(SignalId(new_sig_id));
+    });
+
+    new_sig
+}
+
+pub(crate) fn destroy_signal(id: SignalId) {
+    RUNTIME.with(|rt| {
+        rt.borrow_mut().signals.remove(id.0);
+    });
 }
 
 /// Retrives a given signal from the reactive runtime
