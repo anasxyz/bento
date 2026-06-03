@@ -1,27 +1,28 @@
 #![allow(dead_code)]
 #![allow(unused)]
 
-pub use bento_ui::*;
+// reactive primitives
+pub use bento_ui::{derived, effect, inspect, state};
+// views
+pub use bento_ui::{View, group, text};
+// async
+pub use bento_ui::{spawn, timer};
+// events
+pub use bento_ui::events::*;
+
+// winit/app
 pub use bento_winit::{App, Window, WindowConfig};
-pub use bento_macros::component;
 
+// macros
+pub use bento_macros::{component, main};
+
+#[component]
 fn app() -> impl View {
-    let count = state(0);
-
-    let inc = move || count.set(count.get() + 1);
-
-    timer(2.0, move || count.set(count.get() + 1));
-
-    text(move || format!("count: {}", count.get())).on(move |e: &Click| inc())
+    let boom = state(0);
+    text(move || format!("boom: {}", boom.get())).on(move |e: &Click| boom.set(boom.get() + 1))
 }
 
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::prelude::*;
-
-#[cfg(target_arch = "wasm32")]
-#[wasm_bindgen(start)]
-pub fn wasm_main() {
-    console_error_panic_hook::set_once();
-
+#[main]
+fn main() {
     App::run(app());
 }

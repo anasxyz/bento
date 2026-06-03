@@ -1,18 +1,16 @@
 #![allow(dead_code)]
-#![allow(unused_variables)]
-#![allow(unused_imports)]
-#![allow(unused_mut)]
+#![allow(unused)]
 
 mod context;
-mod surface;
-mod renderer;
-mod pipelines;
 mod draw;
 mod measure;
+mod pipelines;
+mod renderer;
+mod surface;
 
 pub use context::RenderContext;
-pub use surface::Surface;
-pub use renderer::Renderer;
-pub use draw::{DrawCommand, DrawList, RectDraw, TextDraw, ImageDraw};
+pub use draw::{DrawCommand, DrawList, ImageDraw, RectDraw, TextDraw};
 pub use measure::*;
 use pipelines::rect::RectInstance;
+pub use renderer::Renderer;
+pub use surface::Surface;
