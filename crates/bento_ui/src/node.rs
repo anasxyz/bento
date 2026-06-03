@@ -3,6 +3,7 @@ use std::rc::Rc;
 use bento_wgpu::DrawCommand;
 
 use crate::{
+    layout::{CrossAxis, Direction, MainAxis, Size},
     reactive::{owner::Owner, runtime::SubscriberId},
     view::{View, ViewId},
     widgets::Text,
@@ -37,4 +38,12 @@ pub(crate) struct Node {
     pub(crate) paint_subscriber: Option<SubscriberId>,
 
     pub(crate) layout_dirty: bool,
+
+    pub(crate) width: Size,
+    pub(crate) height: Size,
+    pub(crate) direction: Direction,
+    pub(crate) gap: f32,
+    pub(crate) padding: f32,
+    pub(crate) main_axis: MainAxis,
+    pub(crate) cross_axis: CrossAxis,
 }

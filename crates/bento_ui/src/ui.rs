@@ -17,6 +17,8 @@ pub struct Ui {
     pub root: ViewId,
     pub measurer: TextMeasurer,
     pub input: InputState,
+    pub viewport_w: f32,
+    pub viewport_h: f32,
 }
 
 impl Ui {
@@ -30,15 +32,28 @@ impl Ui {
             root,
             measurer: TextMeasurer::new(),
             input: InputState::new(),
+            viewport_w: 800.0,
+            viewport_h: 600.0,
         }
+    }
+
+    pub fn set_viewport(&mut self, w: f32, h: f32) {
+        self.viewport_w = w;
+        self.viewport_h = h;
+        tree::mark_layout_dirty(self.root);
     }
 
     pub fn draw(&mut self) -> DrawList {
         let mut draw_list = DrawList::new();
-
-        tree::layout(self.root, 0.0, 0.0, &mut self.measurer);
+        tree::layout(
+            self.root,
+            0.0,
+            0.0,
+            self.viewport_w,
+            self.viewport_h,
+            &mut self.measurer,
+        );
         tree::render(self.root, &mut draw_list);
-
         draw_list
     }
 

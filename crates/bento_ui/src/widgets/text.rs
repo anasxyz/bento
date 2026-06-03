@@ -1,10 +1,7 @@
 use bento_wgpu::{DrawCommand, DrawList, TextAlign, TextDraw, TextMeasureRequest, TextMeasurer};
 
 use crate::{
-    node::{Node, NodeType, TextNode},
-    tree,
-    ui::Ui,
-    view::{View, ViewId},
+    layout::{CrossAxis, Direction, MainAxis, Size}, node::{Node, NodeType, TextNode}, tree, ui::Ui, view::{View, ViewId}
 };
 
 pub struct Text {
@@ -31,6 +28,13 @@ impl View for Text {
             cache: Vec::new(),
             paint_subscriber: None,
             layout_dirty: true,
+            width: Size::Auto,
+            height: Size::Auto,
+            direction: Direction::Column,
+            gap: 0.0,
+            padding: 0.0,
+            main_axis: MainAxis::Start,
+            cross_axis: CrossAxis::Start,
         })
     }
 

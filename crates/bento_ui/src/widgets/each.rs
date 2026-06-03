@@ -1,9 +1,5 @@
 use crate::{
-    Group,
-    node::Node,
-    reactive::{effect, owner::Owner, signal::Signal},
-    tree,
-    view::{View, ViewId},
+    Group, layout::{CrossAxis, Direction, MainAxis, Size}, node::Node, reactive::{effect, owner::Owner, signal::Signal}, tree, view::{View, ViewId}
 };
 use bento_wgpu::{DrawCommand, DrawList, TextMeasurer};
 use std::{cell::RefCell, collections::HashMap, hash::Hash, rc::Rc};
@@ -59,6 +55,13 @@ where
             cache: Vec::new(),
             paint_subscriber: None,
             layout_dirty: true,
+            width: Size::Auto,
+            height: Size::Auto,
+            direction: Direction::Column,
+            gap: 0.0,
+            padding: 0.0,
+            main_axis: MainAxis::Start,
+            cross_axis: CrossAxis::Start,
         });
 
         let nodes: Rc<RefCell<HashMap<K, ViewId>>> = Rc::new(RefCell::new(HashMap::new()));

@@ -11,6 +11,7 @@ pub(crate) mod types;
 pub(crate) mod ui;
 pub mod view;
 pub(crate) mod widgets;
+pub mod layout;
 
 pub use input::keyboard::Key;
 pub use spawn::{drain_callbacks, set_spawner, set_waker, spawn, timer};

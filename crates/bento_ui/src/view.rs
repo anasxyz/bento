@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 
 use bento_wgpu::{DrawCommand, DrawList, TextMeasurer};
 
+use crate::layout::Size;
 use crate::reactive::owner::Owner;
 use crate::tree;
 
@@ -26,6 +27,55 @@ pub trait View {
             handler: Box::new(f),
             _phantom: PhantomData,
         }
+    }
+
+    fn width(self, size: Size) -> WithSize<Self>
+    where
+        Self: Sized,
+    {
+        WithSize {
+            inner: self,
+            width: Some(size),
+            height: None,
+        }
+    }
+
+    fn height(self, size: Size) -> WithSize<Self>
+    where
+        Self: Sized,
+    {
+        WithSize {
+            inner: self,
+            width: None,
+            height: Some(size),
+        }
+    }
+}
+
+pub struct WithSize<V: View> {
+    inner: V,
+    width: Option<Size>,
+    height: Option<Size>,
+}
+
+impl<V: View> View for WithSize<V> {
+    fn build(self: Box<Self>) -> ViewId {
+        let id = Box::new(self.inner).build();
+        if let Some(w) = self.width {
+            tree::set_width(id, w);
+        }
+        if let Some(h) = self.height {
+            tree::set_height(id, h);
+        }
+        id
+    }
+
+    fn render(&self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand> {
+        self.inner.render(x, y, w, h)
+    }
+
+    fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32) {
+        self.inner.measure(measurer)
     }
 }
 
