@@ -438,21 +438,32 @@ fn layout_column(
             CrossAxis::End => x + padding + inner_w - child_w,
         };
 
-        TREE.with(|t| {
-            let mut t = t.borrow_mut();
-            let node = &mut t.nodes[child_id.0];
-            node.width = Size::Fixed(child_w);
-            node.height = Size::Fixed(child_h);
+        let (existing_x, existing_y, existing_w, existing_h) = TREE.with(|t| {
+            let t = t.borrow();
+            let node = &t.nodes[child_id.0];
+            (node.x, node.y, node.w, node.h)
         });
-
-        layout_node(*child_id, child_x, cursor_y, child_w, child_h, measurer);
-
-        TREE.with(|t| {
-            let mut t = t.borrow_mut();
-            let node = &mut t.nodes[child_id.0];
-            node.width = cw_sizing;
-            node.height = ch_sizing;
-        });
+        let dirty = TREE.with(|t| t.borrow().nodes[child_id.0].layout_dirty);
+        if dirty
+            || existing_x != child_x
+            || existing_y != cursor_y
+            || existing_w != child_w
+            || existing_h != child_h
+        {
+            TREE.with(|t| {
+                let mut t = t.borrow_mut();
+                let node = &mut t.nodes[child_id.0];
+                node.width = Size::Fixed(child_w);
+                node.height = Size::Fixed(child_h);
+            });
+            layout_node(*child_id, child_x, cursor_y, child_w, child_h, measurer);
+            TREE.with(|t| {
+                let mut t = t.borrow_mut();
+                let node = &mut t.nodes[child_id.0];
+                node.width = cw_sizing;
+                node.height = ch_sizing;
+            });
+        }
 
         cursor_y += child_h;
         if i < children.len() - 1 {
@@ -617,21 +628,32 @@ fn layout_row(
             CrossAxis::End => y + padding + inner_h - child_h,
         };
 
-        TREE.with(|t| {
-            let mut t = t.borrow_mut();
-            let node = &mut t.nodes[child_id.0];
-            node.width = Size::Fixed(child_w);
-            node.height = Size::Fixed(child_h);
+        let (existing_x, existing_y, existing_w, existing_h) = TREE.with(|t| {
+            let t = t.borrow();
+            let node = &t.nodes[child_id.0];
+            (node.x, node.y, node.w, node.h)
         });
-
-        layout_node(*child_id, cursor_x, child_y, child_w, child_h, measurer);
-
-        TREE.with(|t| {
-            let mut t = t.borrow_mut();
-            let node = &mut t.nodes[child_id.0];
-            node.width = cw_sizing;
-            node.height = ch_sizing;
-        });
+        let dirty = TREE.with(|t| t.borrow().nodes[child_id.0].layout_dirty);
+        if dirty
+            || existing_x != cursor_x
+            || existing_y != child_y
+            || existing_w != child_w
+            || existing_h != child_h
+        {
+            TREE.with(|t| {
+                let mut t = t.borrow_mut();
+                let node = &mut t.nodes[child_id.0];
+                node.width = Size::Fixed(child_w);
+                node.height = Size::Fixed(child_h);
+            });
+            layout_node(*child_id, cursor_x, child_y, child_w, child_h, measurer);
+            TREE.with(|t| {
+                let mut t = t.borrow_mut();
+                let node = &mut t.nodes[child_id.0];
+                node.width = cw_sizing;
+                node.height = ch_sizing;
+            });
+        }
 
         cursor_x += child_w;
         if i < children.len() - 1 {
