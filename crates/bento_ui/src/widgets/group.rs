@@ -1,7 +1,7 @@
 use bento_wgpu::{DrawCommand, RectDraw};
 
 use crate::{
-    layout::{CrossAxis, Direction, MainAxis, Size},
+    layout::{Container, CrossAxis, Direction, MainAxis, Size},
     node::Node,
     tree,
     view::{View, ViewId},
@@ -44,9 +44,31 @@ impl Group {
     }
 }
 
+impl Container for Group {
+    fn direction(&self) -> Direction {
+        self.direction
+    }
+    fn gap(&self) -> f32 {
+        self.gap
+    }
+    fn padding(&self) -> f32 {
+        self.padding
+    }
+    fn main_axis(&self) -> MainAxis {
+        self.main_axis
+    }
+    fn cross_axis(&self) -> CrossAxis {
+        self.cross_axis
+    }
+}
+
 impl View for Group {
     fn name(&self) -> &'static str {
         "Group"
+    }
+
+    fn as_container(&self) -> Option<&dyn Container> {
+        Some(self)
     }
 
     fn render(&self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand> {
@@ -99,11 +121,6 @@ impl View for Group {
             layout_dirty: true,
             width: Size::Fill,
             height: Size::Fill,
-            direction,
-            gap,
-            padding,
-            main_axis,
-            cross_axis,
         });
 
         for child_id in child_ids {

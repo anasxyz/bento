@@ -7,6 +7,7 @@ fn app() -> impl View {
     group()
         .direction(Direction::Column)
         .gap(10.0)
+        .width(Size::Fill)
         .padding(16.0)
         // test MainAxis::Center
         .child(
@@ -53,8 +54,6 @@ fn app() -> impl View {
                 )
                 .child(text(|| "sibling".to_string()).width(Size::Fixed(100.0))),
         )
-        .width(Size::Auto)
-        .height(Size::Auto)
 }
 
 #[main]

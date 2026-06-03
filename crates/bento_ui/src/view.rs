@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use bento_wgpu::{DrawCommand, DrawList, TextMeasurer};
 
-use crate::layout::Size;
+use crate::layout::{Container, Size};
 use crate::reactive::owner::Owner;
 use crate::tree;
 
@@ -17,6 +17,9 @@ pub trait View {
     fn render(&self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand>;
     fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32) {
         (0.0, 0.0)
+    }
+    fn as_container(&self) -> Option<&dyn Container> {
+        None
     }
     fn on<E: 'static>(self, f: impl Fn(&E) + 'static) -> WithHandler<Self, E>
     where

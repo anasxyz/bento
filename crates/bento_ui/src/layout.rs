@@ -1,3 +1,11 @@
+pub trait Container {
+    fn direction(&self) -> Direction;
+    fn gap(&self) -> f32;
+    fn padding(&self) -> f32;
+    fn main_axis(&self) -> MainAxis;
+    fn cross_axis(&self) -> CrossAxis;
+}
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Size {
     Auto,           // size to content

@@ -78,7 +78,6 @@ pub fn remove_node(id: ViewId) {
 }
 
 pub fn append_child(parent: ViewId, child: ViewId) {
-    eprintln!("[append_child] parent:{} child:{}", parent.0, child.0);
     TREE.with(|t| {
         let mut t = t.borrow_mut();
         t.nodes[parent.0].children.push(child);
@@ -161,11 +160,6 @@ pub fn render(id: ViewId, draw_list: &mut DrawList) {
     for child_id in children {
         render(child_id, draw_list);
     }
-
-    eprintln!(
-        "[render] node {} dirty:{} x:{} y:{} w:{} h:{}",
-        id.0, paint_dirty, x, y, w, h
-    );
 }
 
 pub fn layout(
@@ -181,22 +175,46 @@ pub fn layout(
         return;
     }
 
+    let (width_sizing, height_sizing) = TREE.with(|t| {
+        let t = t.borrow();
+        let node = &t.nodes[id.0];
+        (node.width, node.height)
+    });
+
     let children = TREE.with(|t| t.borrow().nodes[id.0].children.clone());
 
-    let (direction, gap, padding, main_axis, cross_axis, width_sizing, height_sizing) =
-        TREE.with(|t| {
-            let t = t.borrow();
-            let node = &t.nodes[id.0];
+    let container = TREE.with(|t| {
+        let t = t.borrow();
+        let node = &t.nodes[id.0];
+        node.view.as_container().map(|c| {
             (
-                node.direction,
-                node.gap,
-                node.padding,
-                node.main_axis,
-                node.cross_axis,
-                node.width,
-                node.height,
+                c.direction(),
+                c.gap(),
+                c.padding(),
+                c.main_axis(),
+                c.cross_axis(),
             )
-        });
+        })
+    });
+
+    let (direction, gap, padding, main_axis, cross_axis) = match container {
+        Some(c) => c,
+        None => {
+            let content_size = TREE.with(|t| t.borrow().nodes[id.0].view.measure(measurer));
+            let my_w = width_sizing.resolve(available_w, content_size.0);
+            let my_h = height_sizing.resolve(available_h, content_size.1);
+            TREE.with(|t| {
+                let mut t = t.borrow_mut();
+                let node = &mut t.nodes[id.0];
+                node.x = x;
+                node.y = y;
+                node.w = my_w;
+                node.h = my_h;
+                node.layout_dirty = false;
+            });
+            return;
+        }
+    };
 
     let content_size = if children.is_empty() {
         TREE.with(|t| t.borrow().nodes[id.0].view.measure(measurer))
@@ -475,11 +493,6 @@ fn layout_row(
                 inner_w,
                 inner_h,
                 measurer,
-            );
-            eprintln!(
-                "[pass0] auto child {} w:{}",
-                child_id.0,
-                TREE.with(|t| t.borrow().nodes[child_id.0].w)
             );
         }
     }

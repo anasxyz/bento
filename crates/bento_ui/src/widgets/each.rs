@@ -57,11 +57,6 @@ where
             layout_dirty: true,
             width: Size::Auto,
             height: Size::Auto,
-            direction: Direction::Column,
-            gap: 0.0,
-            padding: 0.0,
-            main_axis: MainAxis::Start,
-            cross_axis: CrossAxis::Start,
         });
 
         let nodes: Rc<RefCell<HashMap<K, ViewId>>> = Rc::new(RefCell::new(HashMap::new()));

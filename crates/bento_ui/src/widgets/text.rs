@@ -30,11 +30,6 @@ impl View for Text {
             layout_dirty: true,
             width: Size::Auto,
             height: Size::Auto,
-            direction: Direction::Column,
-            gap: 0.0,
-            padding: 0.0,
-            main_axis: MainAxis::Start,
-            cross_axis: CrossAxis::Start,
         })
     }
 
