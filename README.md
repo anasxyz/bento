@@ -9,6 +9,7 @@
 * Cross-platform: Linux / macOS / Windows / Web
 * Extensible widget system
 * Async support
+* Custom [wgpu](https://github.com/gfx-rs/wgpu)-based renderer
 * Custom layout engine
   
 | Svelte 5 | Bento |
