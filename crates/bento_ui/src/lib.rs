@@ -17,7 +17,7 @@ pub use input::keyboard::Key;
 pub use spawn::{drain_callbacks, set_spawner, set_waker, spawn, timer};
 pub use types::*;
 
-pub use reactive::{state, effect, owner::Owner};
+pub use reactive::{state, derived, effect, owner::Owner};
 pub use ui::Ui;
 pub use view::View;
 pub use widgets::*;

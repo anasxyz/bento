@@ -1,5 +1,5 @@
-use std::marker::PhantomData;
 use crate::reactive::runtime;
+use std::marker::PhantomData;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, PartialOrd, Ord)]
 pub struct SignalId(pub(crate) usize);
@@ -7,6 +7,13 @@ pub struct SignalId(pub(crate) usize);
 pub struct Signal<T> {
     pub(crate) id: SignalId,
     pub(crate) _phantom: PhantomData<T>,
+}
+
+// no clone impl for runtime::create_signal
+impl<T: 'static> Signal<T> {
+    pub fn new(value: T) -> Self {
+        runtime::create_signal(value)
+    }
 }
 
 // clone impl for runtime::get_signal
@@ -21,7 +28,7 @@ impl<T: Clone + 'static> Signal<T> {
 }
 
 pub fn state<T: 'static>(value: T) -> Signal<T> {
-    runtime::create_signal(value)
+    Signal::new(value)
 }
 
 impl<T> Copy for Signal<T> {}

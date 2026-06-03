@@ -1,4 +1,9 @@
-use std::{any::Any, cell::RefCell, marker::PhantomData, rc::Rc};
+use std::{
+    any::Any,
+    cell::{Cell, RefCell},
+    marker::PhantomData,
+    rc::Rc,
+};
 
 use slab::Slab;
 
@@ -31,6 +36,8 @@ impl Runtime {
 
 thread_local! {
     static RUNTIME: RefCell<Runtime> = RefCell::new(Runtime::new());
+    static FLUSH_QUEUE: RefCell<Vec<Rc<dyn Fn()>>> = RefCell::new(Vec::new());
+    static IS_FLUSHING: Cell<bool> = Cell::new(false);
 }
 
 /// Creates and stores a Signal with the given value in the reactive runtime
@@ -90,9 +97,24 @@ pub(crate) fn set_signal<T: 'static>(signal: Signal<T>, value: T) {
             .collect()
     });
 
-    for f in fns {
-        f();
+    FLUSH_QUEUE.with(|q| q.borrow_mut().extend(fns));
+
+    if IS_FLUSHING.with(|f| f.get()) {
+        // already flushing, just queue
+        return;
     }
+
+    IS_FLUSHING.with(|f| f.set(true));
+    loop {
+        let batch: Vec<Rc<dyn Fn()>> = FLUSH_QUEUE.with(|q| q.borrow_mut().drain(..).collect());
+        if batch.is_empty() {
+            break;
+        }
+        for f in batch {
+            f();
+        }
+    }
+    IS_FLUSHING.with(|f| f.set(false));
 }
 
 pub(crate) fn create_subscriber(f: Rc<dyn Fn()>) -> SubscriberId {
@@ -132,12 +154,20 @@ pub(crate) fn update_subscriber(id: SubscriberId, f: Rc<dyn Fn()>) {
 
 /// Removes a subscriber from the runtime given its id
 pub(crate) fn remove_subscriber(id: SubscriberId) {
-    RUNTIME.with(|rt| {
+    let removed = RUNTIME.with(|rt| {
         let mut rt = rt.borrow_mut();
         if rt.subscribers.contains(id.0) {
-            rt.subscribers.remove(id.0);
+            Some(rt.subscribers.remove(id.0))
+        } else {
+            None
         }
-    });
+    }); 
+
+    drop(removed); 
+}
+
+pub(crate) fn subscriber_count(signal_id: usize) -> usize {
+    RUNTIME.with(|rt| rt.borrow().signals[signal_id].subscribers.len())
 }
 
 #[cfg(test)]
