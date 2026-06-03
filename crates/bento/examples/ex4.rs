@@ -6,19 +6,19 @@ use bento::*;
 #[component]
 fn app() -> impl View {
     let items = state(vec![
-        ("item 1".to_string(), state(false)),
-        ("item 2".to_string(), state(false)),
-        ("item 3".to_string(), state(false)),
+        "item 1".to_string(),
+        "item 2".to_string(),
+        "item 3".to_string(),
     ]);
-
     group()
         .direction(Direction::Column)
         .gap(8.0)
         .padding(16.0)
         .each(
             items,
-            |(label, _)| label.clone(),
-            move |(label, done)| {
+            |label| label.clone(),
+            move |label| {
+                let done = state(false);
                 let label2 = label.clone();
                 let label3 = label.clone();
                 group()
@@ -36,7 +36,7 @@ fn app() -> impl View {
                     }))
                     .child(text(|| "remove".to_string()).on(move |_: &Click| {
                         items.update(|mut v| {
-                            v.retain(|(l, _)| l != &label3);
+                            v.retain(|l| l != &label3);
                             v
                         });
                     }))
@@ -45,7 +45,7 @@ fn app() -> impl View {
         .child(text(|| "add item".to_string()).on(move |_: &Click| {
             items.update(|mut v| {
                 let n = v.len() + 1;
-                v.push((format!("item {}", n), state(false)));
+                v.push(format!("item {}", n));
                 v
             });
         }))

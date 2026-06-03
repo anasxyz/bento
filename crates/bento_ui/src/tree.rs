@@ -54,7 +54,6 @@ pub fn add_node(node: Node) -> ViewId {
 }
 
 pub fn remove_node(id: ViewId) {
-    eprintln!("[remove_node] removing node {}", id.0);
     let parent = TREE.with(|t| t.borrow().nodes[id.0].parent);
     remove_node_inner(id);
     if let Some(parent_id) = parent {

@@ -3,7 +3,7 @@ use std::cell::RefCell;
 
 pub struct Owner {
     cleanups: Vec<Box<dyn FnOnce()>>,
-    owned: Vec<Box<dyn Any>>,
+    pub owned: Vec<Box<dyn Any>>,
 }
 
 impl Owner {

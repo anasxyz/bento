@@ -13,12 +13,6 @@ use crate::{
     view::{View, ViewId},
 };
 
-pub struct EachConfig<T: Clone + 'static, K: Eq + Hash + Clone + 'static> {
-    items: Signal<Vec<T>>,
-    key_fn: Box<dyn Fn(&T) -> K>,
-    view_fn: Rc<dyn Fn(T) -> Box<dyn View>>,
-}
-
 pub struct Group {
     children: Vec<Box<dyn View>>,
     pub direction: Direction,
@@ -96,7 +90,10 @@ impl Group {
                     let key = key_fn(item);
                     if !current.contains_key(&key) {
                         let item: T = item.clone();
+                        let owner = Owner::new();
                         let id = (view_fn)(item).build();
+                        let owner = owner.collect();
+                        tree::store_owner(id, owner);
                         tree::append_child(parent_id, id);
                         current.insert(key, id);
                     }

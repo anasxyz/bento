@@ -4,7 +4,7 @@
 // reactive primitives
 pub use bento_ui::{derived, effect, inspect, state};
 // views
-pub use bento_ui::{View, group, text, each};
+pub use bento_ui::{View, group, text};
 // async
 pub use bento_ui::{spawn, timer};
 // events

@@ -140,7 +140,6 @@ pub(crate) fn set_redraw_fn(f: Rc<dyn Fn()>) {
 }
 
 pub(crate) fn request_redraw() {
-    eprintln!("[request_redraw] called");
     REDRAW_FN.with(|r| {
         if let Some(f) = r.borrow().as_ref() {
             f();
