@@ -19,6 +19,7 @@ impl View for Text {
     fn build(self: Box<Self>) -> ViewId {
         tree::add_node(Node {
             view: self,
+            parent: None,
             children: Vec::new(),
             x: 0.0,
             y: 0.0,
@@ -29,6 +30,7 @@ impl View for Text {
             paint_dirty: true,
             cache: Vec::new(),
             paint_subscriber: None,
+            layout_dirty: true,
         })
     }
 

@@ -47,6 +47,7 @@ where
 
         let parent_id = tree::add_node(Node {
             view: Box::new(EachNode { items }), // items copied into node
+            parent: None,
             children: Vec::new(),
             x: 0.0,
             y: 0.0,
@@ -57,6 +58,7 @@ where
             paint_dirty: true,
             cache: Vec::new(),
             paint_subscriber: None,
+            layout_dirty: true,
         });
 
         let nodes: Rc<RefCell<HashMap<K, ViewId>>> = Rc::new(RefCell::new(HashMap::new()));

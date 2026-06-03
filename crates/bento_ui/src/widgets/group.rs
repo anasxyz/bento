@@ -28,11 +28,13 @@ impl View for Group {
 
     fn build(self: Box<Self>) -> ViewId {
         let child_ids: Vec<ViewId> = self.children.into_iter().map(|c| c.build()).collect();
-        tree::add_node(Node {
+
+        let id = tree::add_node(Node {
             view: Box::new(Group {
                 children: Vec::new(),
             }),
-            children: child_ids,
+            parent: None,
+            children: Vec::new(), 
             x: 0.0,
             y: 0.0,
             w: 0.0,
@@ -42,7 +44,14 @@ impl View for Group {
             paint_dirty: true,
             cache: Vec::new(),
             paint_subscriber: None,
-        })
+            layout_dirty: true,
+        });
+
+        for child_id in child_ids {
+            tree::append_child(id, child_id);
+        }
+
+        id
     }
 }
 

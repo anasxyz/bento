@@ -33,6 +33,7 @@ pub fn add_node(node: Node) -> ViewId {
                 node.paint_dirty = true;
             }
         });
+        mark_layout_dirty(id);
         ui::request_redraw();
     }));
 
@@ -52,12 +53,13 @@ pub fn add_node(node: Node) -> ViewId {
 }
 
 pub fn remove_node(id: ViewId) {
-    let (children, owner) = TREE.with(|t| {
+    let (children, owner, parent) = TREE.with(|t| {
         let mut t = t.borrow_mut();
         let node = &mut t.nodes[id.0];
         let children = node.children.clone();
         let owner = node.owner.take();
-        (children, owner)
+        let parent = node.parent;
+        (children, owner, parent)
     });
 
     drop(owner);
@@ -67,18 +69,43 @@ pub fn remove_node(id: ViewId) {
     }
 
     TREE.with(|t| t.borrow_mut().nodes.remove(id.0));
+
+    // mark parent layout dirty
+    if let Some(parent_id) = parent {
+        mark_layout_dirty(parent_id);
+    }
 }
 
 pub fn append_child(parent: ViewId, child: ViewId) {
+    eprintln!("[append_child] parent:{} child:{}", parent.0, child.0);
     TREE.with(|t| {
-        t.borrow_mut().nodes[parent.0].children.push(child);
+        let mut t = t.borrow_mut();
+        t.nodes[parent.0].children.push(child);
+        t.nodes[child.0].parent = Some(parent);
     });
+    mark_layout_dirty(child);
 }
 
 pub fn reorder_children(parent: ViewId, order: Vec<ViewId>) {
     TREE.with(|t| {
         t.borrow_mut().nodes[parent.0].children = order;
     });
+}
+
+pub fn mark_layout_dirty(id: ViewId) {
+    let mut current = Some(id);
+    while let Some(node_id) = current {
+        let already_dirty = TREE.with(|t| t.borrow().nodes[node_id.0].layout_dirty);
+        if already_dirty {
+            break;
+        }
+        TREE.with(|t| {
+            let mut t = t.borrow_mut();
+            t.nodes[node_id.0].layout_dirty = true;
+            t.nodes[node_id.0].paint_dirty = true; // mark paint dirty too
+        });
+        current = TREE.with(|t| t.borrow().nodes[node_id.0].parent);
+    }
 }
 
 pub fn store_owner(id: ViewId, owner: Owner) {
@@ -102,7 +129,6 @@ pub fn render(id: ViewId, draw_list: &mut DrawList) {
     });
 
     if paint_dirty {
-        eprintln!("[render] node {} is dirty, re-rendering", id.0);
         let sub_id = TREE.with(|t| t.borrow().nodes[id.0].paint_subscriber);
 
         let commands = if let Some(sub_id) = sub_id {
@@ -125,7 +151,6 @@ pub fn render(id: ViewId, draw_list: &mut DrawList) {
             node.paint_dirty = false;
         });
     } else {
-        eprintln!("[render] node {} is clean, replaying cache", id.0);
         let cache = TREE.with(|t| t.borrow().nodes[id.0].cache.clone());
         for cmd in cache {
             draw_list.push_command(cmd);
@@ -135,22 +160,43 @@ pub fn render(id: ViewId, draw_list: &mut DrawList) {
     for child_id in children {
         render(child_id, draw_list);
     }
+
+    eprintln!(
+        "[render] node {} dirty:{} x:{} y:{} w:{} h:{}",
+        id.0, paint_dirty, x, y, w, h
+    );
 }
 
-pub(crate) fn layout(id: ViewId, x: f32, y: f32, measurer: &mut TextMeasurer) {
+pub fn layout(id: ViewId, x: f32, y: f32, measurer: &mut TextMeasurer) {
+    let layout_dirty = TREE.with(|t| t.borrow().nodes[id.0].layout_dirty);
+    if !layout_dirty {
+        return;
+    }
+
     let children = TREE.with(|t| t.borrow().nodes[id.0].children.clone());
 
     let mut child_y = y;
     for child_id in &children {
+        let old_x = TREE.with(|t| t.borrow().nodes[child_id.0].x);
+        let old_y = TREE.with(|t| t.borrow().nodes[child_id.0].y);
+
+        TREE.with(|t| t.borrow_mut().nodes[child_id.0].layout_dirty = true);
         layout(*child_id, x, child_y, measurer);
-        TREE.with(|t| {
-            child_y += t.borrow().nodes[child_id.0].h;
+
+        let (new_x, new_y) = TREE.with(|t| {
+            let t = t.borrow();
+            (t.nodes[child_id.0].x, t.nodes[child_id.0].y)
         });
+
+        if new_x != old_x || new_y != old_y {
+            TREE.with(|t| t.borrow_mut().nodes[child_id.0].paint_dirty = true);
+        }
+
+        child_y += TREE.with(|t| t.borrow().nodes[child_id.0].h);
     }
 
     TREE.with(|t| {
         let mut t = t.borrow_mut();
-
         let (w, h) = if children.is_empty() {
             t.nodes[id.0].view.measure(measurer)
         } else {
@@ -159,12 +205,14 @@ pub(crate) fn layout(id: ViewId, x: f32, y: f32, measurer: &mut TextMeasurer) {
                 (acc.0.max(child.w), acc.1 + child.h)
             })
         };
-
         let node = &mut t.nodes[id.0];
         node.x = x;
         node.y = y;
         node.w = w;
         node.h = h;
+        node.layout_dirty = false;
+
+        eprintln!("[layout] node {} x:{} y:{} w:{} h:{}", id.0, x, y, w, h);
     });
 }
 
