@@ -1,11 +1,23 @@
+use std::collections::HashMap;
+use std::rc::Rc;
+use std::{cell::RefCell, hash::Hash};
+
 use bento_wgpu::{DrawCommand, RectDraw};
 
+use crate::{Owner, effect};
 use crate::{
     layout::{Container, CrossAxis, Direction, MainAxis, Size},
     node::Node,
+    reactive::signal::Signal,
     tree,
     view::{View, ViewId},
 };
+
+pub struct EachConfig<T: Clone + 'static, K: Eq + Hash + Clone + 'static> {
+    items: Signal<Vec<T>>,
+    key_fn: Box<dyn Fn(&T) -> K>,
+    view_fn: Rc<dyn Fn(T) -> Box<dyn View>>,
+}
 
 pub struct Group {
     children: Vec<Box<dyn View>>,
@@ -14,6 +26,8 @@ pub struct Group {
     pub padding: f32,
     pub main_axis: MainAxis,
     pub cross_axis: CrossAxis,
+    // deferred each setup
+    each: Option<Box<dyn FnOnce(ViewId, Vec<ViewId>)>>,
 }
 
 impl Group {
@@ -40,6 +54,64 @@ impl Group {
     }
     pub fn cross_axis(mut self, c: CrossAxis) -> Self {
         self.cross_axis = c;
+        self
+    }
+
+    pub fn each<T, K, V, VF>(
+        mut self,
+        items: Signal<Vec<T>>,
+        key_fn: impl Fn(&T) -> K + 'static,
+        view_fn: VF,
+    ) -> Self
+    where
+        T: Clone + 'static,
+        K: Eq + Hash + Clone + 'static,
+        VF: Fn(T) -> V + 'static,
+        V: View + 'static,
+    {
+        let key_fn = Box::new(key_fn);
+        let view_fn = Rc::new(move |item| Box::new(view_fn(item)) as Box<dyn View>);
+
+        self.each = Some(Box::new(move |parent_id, static_children: Vec<ViewId>| {
+            let nodes: Rc<RefCell<HashMap<K, ViewId>>> = Rc::new(RefCell::new(HashMap::new()));
+            let nodes_clone = nodes.clone();
+
+            effect(move || {
+                let new_items = items.get();
+                let mut current = nodes_clone.borrow_mut();
+
+                let new_keys: Vec<K> = new_items.iter().map(|item| key_fn(item)).collect();
+                let removed: Vec<K> = current
+                    .keys()
+                    .filter(|k| !new_keys.contains(k))
+                    .cloned()
+                    .collect();
+                for key in removed {
+                    if let Some(id) = current.remove(&key) {
+                        tree::remove_node(id);
+                    }
+                }
+
+                for item in &new_items {
+                    let key = key_fn(item);
+                    if !current.contains_key(&key) {
+                        let item: T = item.clone();
+                        let id = (view_fn)(item).build();
+                        tree::append_child(parent_id, id);
+                        current.insert(key, id);
+                    }
+                }
+
+                // each items first, then static children
+                let mut order: Vec<ViewId> = new_items
+                    .iter()
+                    .map(|item| current[&key_fn(item)])
+                    .collect();
+                order.extend_from_slice(&static_children);
+                tree::reorder_children(parent_id, order);
+            });
+        }));
+
         self
     }
 }
@@ -96,6 +168,7 @@ impl View for Group {
         let padding = self.padding;
         let main_axis = self.main_axis;
         let cross_axis = self.cross_axis;
+        let each = self.each;
         let child_ids: Vec<ViewId> = self.children.into_iter().map(|c| c.build()).collect();
 
         let id = tree::add_node(Node {
@@ -106,6 +179,7 @@ impl View for Group {
                 padding,
                 main_axis,
                 cross_axis,
+                each: None,
             }),
             parent: None,
             children: Vec::new(),
@@ -119,12 +193,19 @@ impl View for Group {
             cache: Vec::new(),
             paint_subscriber: None,
             layout_dirty: true,
-            width: Size::Fill,
-            height: Size::Fill,
+            width: Size::Auto,
+            height: Size::Auto,
         });
 
-        for child_id in child_ids {
-            tree::append_child(id, child_id);
+        for child_id in &child_ids {
+            tree::append_child(id, *child_id);
+        }
+
+        if let Some(setup) = each {
+            let owner = Owner::new();
+            setup(id, child_ids);
+            let owner = owner.collect();
+            tree::store_owner(id, owner);
         }
 
         id
@@ -139,5 +220,6 @@ pub fn group() -> Group {
         padding: 0.0,
         main_axis: MainAxis::Start,
         cross_axis: CrossAxis::Start,
+        each: None,
     }
 }

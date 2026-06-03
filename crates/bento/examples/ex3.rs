@@ -7,7 +7,6 @@ fn app() -> impl View {
     group()
         .direction(Direction::Column)
         .gap(10.0)
-        .width(Size::Fill)
         .padding(16.0)
         // test MainAxis::Center
         .child(

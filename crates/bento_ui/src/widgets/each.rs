@@ -1,5 +1,5 @@
 use crate::{
-    Group, layout::{CrossAxis, Direction, MainAxis, Size}, node::Node, reactive::{effect, owner::Owner, signal::Signal}, tree, view::{View, ViewId}
+    Group, layout::{Container, CrossAxis, Direction, MainAxis, Size}, node::Node, reactive::{effect, owner::Owner, signal::Signal}, tree, view::{View, ViewId}
 };
 use bento_wgpu::{DrawCommand, DrawList, TextMeasurer};
 use std::{cell::RefCell, collections::HashMap, hash::Hash, rc::Rc};
@@ -21,6 +21,16 @@ impl<T: Clone + 'static> View for EachNode<T> {
     fn measure(&self, _measurer: &mut TextMeasurer) -> (f32, f32) {
         (0.0, 0.0)
     }
+
+    fn as_container(&self) -> Option<&dyn Container> { Some(self) }
+}
+
+impl<T: Clone + 'static> Container for EachNode<T> {
+    fn direction(&self) -> Direction { Direction::Column }
+    fn gap(&self) -> f32 { 0.0 }
+    fn padding(&self) -> f32 { 0.0 }
+    fn main_axis(&self) -> MainAxis { MainAxis::Start }
+    fn cross_axis(&self) -> CrossAxis { CrossAxis::Start }
 }
 
 pub struct Each<T: Clone + 'static, K: Eq + Hash + Clone + 'static> {

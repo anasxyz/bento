@@ -92,6 +92,18 @@ pub fn reorder_children(parent: ViewId, order: Vec<ViewId>) {
     });
 }
 
+pub fn force_layout_dirty(id: ViewId) {
+    TREE.with(|t| {
+        let mut t = t.borrow_mut();
+        t.nodes[id.0].layout_dirty = true;
+        t.nodes[id.0].paint_dirty = true;
+    });
+    let children = TREE.with(|t| t.borrow().nodes[id.0].children.clone());
+    for child_id in children {
+        force_layout_dirty(child_id);
+    }
+}
+
 pub fn mark_layout_dirty(id: ViewId) {
     let mut current = Some(id);
     while let Some(node_id) = current {
@@ -398,7 +410,7 @@ fn layout_column(
             CrossAxis::Stretch => inner_w,
             _ => {
                 if cw_sizing.is_auto() {
-                    cw_natural // use measured width, not available width
+                    TREE.with(|t| t.borrow().nodes[child_id.0].w)
                 } else {
                     cw_sizing.resolve(inner_w, cw_natural)
                 }
@@ -484,7 +496,8 @@ fn layout_row(
     // pass 0: recurse auto-width children first to measure them
     for child_id in children {
         let w_sizing = TREE.with(|t| t.borrow().nodes[child_id.0].width);
-        if w_sizing.is_auto() {
+        let h_sizing = TREE.with(|t| t.borrow().nodes[child_id.0].height);
+        if w_sizing.is_auto() || h_sizing.is_auto() {
             TREE.with(|t| t.borrow_mut().nodes[child_id.0].layout_dirty = true);
             layout(
                 *child_id,
@@ -493,6 +506,12 @@ fn layout_row(
                 inner_w,
                 inner_h,
                 measurer,
+            );
+            eprintln!(
+                "[pass0 row] child {} w:{} h:{}",
+                child_id.0,
+                TREE.with(|t| t.borrow().nodes[child_id.0].w),
+                TREE.with(|t| t.borrow().nodes[child_id.0].h)
             );
         }
     }
@@ -666,6 +685,11 @@ pub fn set_height(id: ViewId, size: Size) {
 }
 
 pub(crate) fn dispatch<E: 'static>(id: ViewId, event: &E) {
+    eprintln!(
+        "[dispatch] dispatching to node {} handler count: {}",
+        id.0,
+        TREE.with(|t| t.borrow().nodes[id.0].handlers.len())
+    );
     let type_id = std::any::TypeId::of::<E>();
     let handlers: Vec<Rc<dyn Fn(&dyn std::any::Any)>> = TREE.with(|t| {
         let t = t.borrow();
@@ -698,6 +722,15 @@ pub(crate) fn hit_test(id: ViewId, x: f32, y: f32) -> Option<ViewId> {
 
     // then check self
     if x >= node_x && x <= node_x + node_w && y >= node_y && y <= node_y + node_h {
+        eprintln!(
+            "[hit_test] hit node {} ({}) x:{} y:{} w:{} h:{}",
+            id.0,
+            TREE.with(|t| t.borrow().nodes[id.0].view.name().to_string()),
+            node_x,
+            node_y,
+            node_w,
+            node_h
+        );
         return Some(id);
     }
 

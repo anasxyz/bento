@@ -3,6 +3,7 @@ use std::rc::Rc;
 
 use bento_wgpu::{DrawList, TextMeasurer};
 
+use crate::Key;
 use crate::reactive::runtime;
 
 use crate::{
@@ -40,11 +41,12 @@ impl Ui {
     pub fn set_viewport(&mut self, w: f32, h: f32) {
         self.viewport_w = w;
         self.viewport_h = h;
-        tree::mark_layout_dirty(self.root);
+        tree::force_layout_dirty(self.root);
     }
 
     pub fn draw(&mut self) -> DrawList {
         let mut draw_list = DrawList::new();
+        let t = web_time::Instant::now();
         tree::layout(
             self.root,
             0.0,
@@ -53,7 +55,10 @@ impl Ui {
             self.viewport_h,
             &mut self.measurer,
         );
+        // println!("[ui] layout took {:?}", t.elapsed());
+        let t = web_time::Instant::now();
         tree::render(self.root, &mut draw_list);
+        // println!("[ui] render took {:?}", t.elapsed());
         draw_list
     }
 
@@ -63,7 +68,15 @@ impl Ui {
     }
 
     pub fn keyboard_stuff(&mut self) {
-        // keyboard events later
+        if self
+            .input
+            .keyboard
+            .just_pressed()
+            .iter()
+            .any(|(k, _)| *k == Key::D)
+        {
+            tree::print_tree(self.root, 0);
+        }
     }
 
     pub fn mouse_stuff(&mut self) {
