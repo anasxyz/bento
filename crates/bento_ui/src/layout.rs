@@ -27,7 +27,7 @@ impl Size {
     }
 
     pub fn is_fill(&self) -> bool {
-        matches!(self, Size::Fill | Size::FillMinus(_))
+        matches!(self, Size::Fill)
     }
 
     pub fn is_auto(&self) -> bool {

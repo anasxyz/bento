@@ -41,7 +41,7 @@ impl Ui {
     pub fn set_viewport(&mut self, w: f32, h: f32) {
         self.viewport_w = w;
         self.viewport_h = h;
-        tree::force_layout_dirty(self.root);
+        tree::mark_layout_dirty(self.root);
     }
 
     pub fn draw(&mut self) -> DrawList {

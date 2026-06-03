@@ -138,6 +138,9 @@ impl View for OwnedView {
     fn render(&self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand> {
         self.inner.render(x, y, w, h)
     }
+    fn as_container(&self) -> Option<&dyn Container> {
+        self.inner.as_container()
+    }
     fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32) {
         self.inner.measure(measurer)
     }

@@ -55,29 +55,30 @@ pub fn add_node(node: Node) -> ViewId {
 
 pub fn remove_node(id: ViewId) {
     eprintln!("[remove_node] removing node {}", id.0);
-    let (children, owner, parent) = TREE.with(|t| {
+    let parent = TREE.with(|t| t.borrow().nodes[id.0].parent);
+    remove_node_inner(id);
+    if let Some(parent_id) = parent {
+        mark_layout_dirty(parent_id);
+    }
+    ui::request_redraw();
+}
+
+fn remove_node_inner(id: ViewId) {
+    let (children, owner) = TREE.with(|t| {
         let mut t = t.borrow_mut();
         let node = &mut t.nodes[id.0];
         let children = node.children.clone();
         let owner = node.owner.take();
-        let parent = node.parent;
-        (children, owner, parent)
+        (children, owner)
     });
 
     drop(owner);
 
     for child_id in children {
-        remove_node(child_id);
+        remove_node_inner(child_id);
     }
 
     TREE.with(|t| t.borrow_mut().nodes.remove(id.0));
-
-    // mark parent layout dirty
-    if let Some(parent_id) = parent {
-        mark_layout_dirty(parent_id);
-    }
-
-    ui::request_redraw();
 }
 
 pub fn append_child(parent: ViewId, child: ViewId) {
@@ -86,8 +87,7 @@ pub fn append_child(parent: ViewId, child: ViewId) {
         t.nodes[parent.0].children.push(child);
         t.nodes[child.0].parent = Some(parent);
     });
-    mark_layout_dirty(child);
-
+    mark_layout_dirty(parent);
     ui::request_redraw();
 }
 
@@ -97,20 +97,7 @@ pub fn reorder_children(parent: ViewId, order: Vec<ViewId>) {
     });
 }
 
-pub fn force_layout_dirty(id: ViewId) {
-    TREE.with(|t| {
-        let mut t = t.borrow_mut();
-        t.nodes[id.0].layout_dirty = true;
-        t.nodes[id.0].paint_dirty = true;
-    });
-    let children = TREE.with(|t| t.borrow().nodes[id.0].children.clone());
-    for child_id in children {
-        force_layout_dirty(child_id);
-    }
-}
-
 pub fn mark_layout_dirty(id: ViewId) {
-    eprintln!("[mark_layout_dirty] node {}", id.0);
     let mut current = Some(id);
     while let Some(node_id) = current {
         let already_dirty = TREE.with(|t| t.borrow().nodes[node_id.0].layout_dirty);
@@ -118,9 +105,7 @@ pub fn mark_layout_dirty(id: ViewId) {
             break;
         }
         TREE.with(|t| {
-            let mut t = t.borrow_mut();
-            t.nodes[node_id.0].layout_dirty = true;
-            t.nodes[node_id.0].paint_dirty = true; // mark paint dirty too
+            t.borrow_mut().nodes[node_id.0].layout_dirty = true;
         });
         current = TREE.with(|t| t.borrow().nodes[node_id.0].parent);
     }
@@ -192,7 +177,17 @@ pub fn layout(
     if !layout_dirty {
         return;
     }
+    layout_node(id, x, y, available_w, available_h, measurer);
+}
 
+fn layout_node(
+    id: ViewId,
+    x: f32,
+    y: f32,
+    available_w: f32,
+    available_h: f32,
+    measurer: &mut TextMeasurer,
+) {
     let (width_sizing, height_sizing) = TREE.with(|t| {
         let t = t.borrow();
         let node = &t.nodes[id.0];
@@ -229,6 +224,7 @@ pub fn layout(
                 node.w = my_w;
                 node.h = my_h;
                 node.layout_dirty = false;
+                node.paint_dirty = true;
             });
             return;
         }
@@ -298,6 +294,7 @@ pub fn layout(
             node.w = my_w;
             node.h = my_h;
             node.layout_dirty = false;
+            node.paint_dirty = true;
         });
     }
 }
@@ -319,12 +316,11 @@ fn layout_column(
     cross_axis: CrossAxis,
     measurer: &mut TextMeasurer,
 ) {
-    // pass 0: recurse auto-height children first to measure them
+    // pass 0: measure all auto-height children
     for child_id in children {
         let h_sizing = TREE.with(|t| t.borrow().nodes[child_id.0].height);
         if h_sizing.is_auto() {
-            TREE.with(|t| t.borrow_mut().nodes[child_id.0].layout_dirty = true);
-            layout(
+            layout_node(
                 *child_id,
                 x + padding,
                 y + padding,
@@ -335,7 +331,7 @@ fn layout_column(
         }
     }
 
-    // pass 1: count fixed and fill children
+    // pass 1: compute fill height
     let mut fixed_h: f32 = 0.0;
     let mut fill_count: u32 = 0;
 
@@ -345,7 +341,6 @@ fn layout_column(
             fill_count += 1;
         } else {
             let ch = if h_sizing.is_auto() {
-                // already laid out in pass 0, use actual height
                 TREE.with(|t| t.borrow().nodes[child_id.0].h)
             } else {
                 let (_, ch) = TREE.with(|t| t.borrow().nodes[child_id.0].view.measure(measurer));
@@ -363,7 +358,6 @@ fn layout_column(
         0.0
     };
 
-    // compute total for main axis justification
     let total_h: f32 = {
         let mut h = 0.0;
         for child_id in children {
@@ -394,6 +388,7 @@ fn layout_column(
         gap
     };
 
+    // pass 2: position all children
     for (i, child_id) in children.iter().enumerate() {
         let (cw_sizing, ch_sizing) = TREE.with(|t| {
             let t = t.borrow();
@@ -413,7 +408,7 @@ fn layout_column(
         };
 
         let child_w = match cross_axis {
-            CrossAxis::Stretch => inner_w,
+            CrossAxis::Stretch if !width_sizing.is_auto() => inner_w,
             _ => {
                 if cw_sizing.is_auto() {
                     TREE.with(|t| t.borrow().nodes[child_id.0].w)
@@ -434,12 +429,10 @@ fn layout_column(
             let node = &mut t.nodes[child_id.0];
             node.width = Size::Fixed(child_w);
             node.height = Size::Fixed(child_h);
-            node.layout_dirty = true;
         });
 
-        layout(*child_id, child_x, cursor_y, child_w, child_h, measurer);
+        layout_node(*child_id, child_x, cursor_y, child_w, child_h, measurer);
 
-        // restore original sizing
         TREE.with(|t| {
             let mut t = t.borrow_mut();
             let node = &mut t.nodes[child_id.0];
@@ -479,6 +472,7 @@ fn layout_column(
             my_h
         };
         node.layout_dirty = false;
+        node.paint_dirty = true;
     });
 }
 
@@ -499,13 +493,12 @@ fn layout_row(
     cross_axis: CrossAxis,
     measurer: &mut TextMeasurer,
 ) {
-    // pass 0: recurse auto-width children first to measure them
+    // pass 0: measure all auto children
     for child_id in children {
         let w_sizing = TREE.with(|t| t.borrow().nodes[child_id.0].width);
         let h_sizing = TREE.with(|t| t.borrow().nodes[child_id.0].height);
         if w_sizing.is_auto() || h_sizing.is_auto() {
-            TREE.with(|t| t.borrow_mut().nodes[child_id.0].layout_dirty = true);
-            layout(
+            layout_node(
                 *child_id,
                 x + padding,
                 y + padding,
@@ -516,7 +509,7 @@ fn layout_row(
         }
     }
 
-    // pass 1: count fixed and fill children
+    // pass 1: compute fill width
     let mut fixed_w: f32 = 0.0;
     let mut fill_count: u32 = 0;
 
@@ -526,7 +519,6 @@ fn layout_row(
             fill_count += 1;
         } else {
             let cw = if w_sizing.is_auto() {
-                // already laid out in pass 0, use actual width
                 TREE.with(|t| t.borrow().nodes[child_id.0].w)
             } else {
                 let (cw, _) = TREE.with(|t| t.borrow().nodes[child_id.0].view.measure(measurer));
@@ -544,7 +536,6 @@ fn layout_row(
         0.0
     };
 
-    // compute total for main axis justification
     let total_w: f32 = {
         let mut w = 0.0;
         for child_id in children {
@@ -575,6 +566,7 @@ fn layout_row(
         gap
     };
 
+    // pass 2: position all children
     for (i, child_id) in children.iter().enumerate() {
         let (cw_sizing, ch_sizing) = TREE.with(|t| {
             let t = t.borrow();
@@ -594,7 +586,7 @@ fn layout_row(
         };
 
         let child_h = match cross_axis {
-            CrossAxis::Stretch => inner_h,
+            CrossAxis::Stretch if !height_sizing.is_auto() => inner_h,
             _ => {
                 if ch_sizing.is_auto() {
                     TREE.with(|t| t.borrow().nodes[child_id.0].h)
@@ -615,12 +607,10 @@ fn layout_row(
             let node = &mut t.nodes[child_id.0];
             node.width = Size::Fixed(child_w);
             node.height = Size::Fixed(child_h);
-            node.layout_dirty = true;
         });
 
-        layout(*child_id, cursor_x, child_y, child_w, child_h, measurer);
+        layout_node(*child_id, cursor_x, child_y, child_w, child_h, measurer);
 
-        // restore original sizing
         TREE.with(|t| {
             let mut t = t.borrow_mut();
             let node = &mut t.nodes[child_id.0];
@@ -660,6 +650,7 @@ fn layout_row(
             my_h
         };
         node.layout_dirty = false;
+        node.paint_dirty = true;
     });
 }
 

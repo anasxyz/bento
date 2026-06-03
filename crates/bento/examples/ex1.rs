@@ -37,7 +37,7 @@ fn app() -> impl View {
         .child(
             text(|| "add item".to_string()).on(move |e: &Click| {
                 items.update(|mut v| {
-                    let id = v.len() as u32 + 1;
+                    let id = v.iter().map(|i| i.id).max().unwrap_or(0) + 1;
                     v.push(Item { id, text: format!("item {}", id) });
                     v
                 });
