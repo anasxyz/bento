@@ -2,7 +2,7 @@
 #![allow(unused)]
 
 // reactive primitives
-pub use bento_ui::{derived, effect, inspect, state};
+pub use bento_ui::{Signal, derived, effect, inspect, state};
 // views
 pub use bento_ui::{View, group, text, rect};
 // async
@@ -11,12 +11,10 @@ pub use bento_ui::{spawn, timer};
 pub use bento_ui::events::*;
 // layout
 pub use bento_ui::layout::{CrossAxis, Direction, MainAxis, Size};
-
 // winit/app
 pub use bento_winit::App;
-
 // macros
-pub use bento_macros::{component, main};
+pub use bento_macros::{component, snippet, main};
 
 #[component]
 fn app() -> impl View {

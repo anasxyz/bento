@@ -32,7 +32,7 @@ resvg = "0.44"
 winit = "0.30"
 pollster = "0.3"
 slab = "0.4"
-syn = { version = "2", features = ["full"] }
+syn = { version = "2", features = ["full", "visit"] }
 quote = "1"
 proc-macro2 = "1"
 js-sys = "0.3"
