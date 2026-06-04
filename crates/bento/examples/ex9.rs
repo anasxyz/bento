@@ -86,7 +86,7 @@ fn sliders_demo() -> impl View {
         .child(slider(b, 0.0, 1.0))
 }
 
-#[component]
+#[component("MySlider")]
 pub fn slider(value: Signal<f32>, min: f32, max: f32) -> impl View {
     let dragging = state(false);
     let track_ref = node_ref();
@@ -133,9 +133,9 @@ pub fn slider(value: Signal<f32>, min: f32, max: f32) -> impl View {
         .child(thumb)
 }
 
-#[component]
+#[component("App")]
 fn app() -> impl View {
-    draggable_demo()
+    sliders_demo()
 }
 
 #[main]

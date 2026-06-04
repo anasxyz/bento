@@ -5,8 +5,8 @@ use taffy::NodeId as TaffyNodeId;
 
 use crate::layout::LayoutProps;
 use crate::reactive::{owner::Owner, runtime::SubscriberId};
-use crate::{Signal, state};
 use crate::view::{View, ViewId};
+use crate::{Signal, state};
 
 pub(crate) struct EventHandler {
     pub(crate) type_id: std::any::TypeId,
@@ -35,6 +35,7 @@ pub fn node_ref() -> NodeRef {
 }
 
 pub(crate) struct Node {
+    pub(crate) name: Option<&'static str>,
     pub(crate) view: Box<dyn View>,
     pub(crate) taffy_id: TaffyNodeId,
     pub(crate) parent: Option<ViewId>,

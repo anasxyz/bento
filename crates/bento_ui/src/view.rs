@@ -95,12 +95,22 @@ impl<V: View> ViewConfig<V> {
 
     pub fn p(mut self, v: Val) -> Self {
         let lp = v.to_length_percentage();
-        self.layout.padding = Rect { left: lp, right: lp, top: lp, bottom: lp };
+        self.layout.padding = Rect {
+            left: lp,
+            right: lp,
+            top: lp,
+            bottom: lp,
+        };
         self
     }
     pub fn m(mut self, v: Val) -> Self {
         let lpa = v.to_length_percentage_auto();
-        self.layout.margin = Rect { left: lpa, right: lpa, top: lpa, bottom: lpa };
+        self.layout.margin = Rect {
+            left: lpa,
+            right: lpa,
+            top: lpa,
+            bottom: lpa,
+        };
         self
     }
 
@@ -203,9 +213,13 @@ impl<V: View> View for ViewConfig<V> {
         {
             effect(move || {
                 let left = inset_left.as_ref().map(|f| f().to_length_percentage_auto());
-                let right = inset_right.as_ref().map(|f| f().to_length_percentage_auto());
+                let right = inset_right
+                    .as_ref()
+                    .map(|f| f().to_length_percentage_auto());
                 let top = inset_top.as_ref().map(|f| f().to_length_percentage_auto());
-                let bottom = inset_bottom.as_ref().map(|f| f().to_length_percentage_auto());
+                let bottom = inset_bottom
+                    .as_ref()
+                    .map(|f| f().to_length_percentage_auto());
                 tree::update_inset(id, left, right, top, bottom);
             });
         }
@@ -232,6 +246,13 @@ pub trait View {
         (0.0, 0.0)
     }
 
+    fn named(self, name: &'static str) -> Named<Self>
+    where
+        Self: Sized,
+    {
+        Named { inner: self, name }
+    }
+
     fn on<E: 'static>(self, f: impl Fn(&E) + 'static) -> ViewConfig<Self>
     where
         Self: Sized,
@@ -246,10 +267,16 @@ pub trait View {
         ViewConfig::new(self).node_ref(r)
     }
 
-    fn w(self, v: Val) -> ViewConfig<Self> where Self: Sized {
+    fn w(self, v: Val) -> ViewConfig<Self>
+    where
+        Self: Sized,
+    {
         ViewConfig::new(self).w(v)
     }
-    fn h(self, v: Val) -> ViewConfig<Self> where Self: Sized {
+    fn h(self, v: Val) -> ViewConfig<Self>
+    where
+        Self: Sized,
+    {
         ViewConfig::new(self).h(v)
     }
 
@@ -316,22 +343,40 @@ pub trait View {
         ViewConfig::new(self).justify_self(v)
     }
 
-    fn p(self, v: Val) -> ViewConfig<Self> where Self: Sized {
+    fn p(self, v: Val) -> ViewConfig<Self>
+    where
+        Self: Sized,
+    {
         ViewConfig::new(self).p(v)
-    } 
-    fn m(self, v: Val) -> ViewConfig<Self> where Self: Sized {
+    }
+    fn m(self, v: Val) -> ViewConfig<Self>
+    where
+        Self: Sized,
+    {
         ViewConfig::new(self).m(v)
-    } 
-    fn m_left(self, v: Val) -> ViewConfig<Self> where Self: Sized {
+    }
+    fn m_left(self, v: Val) -> ViewConfig<Self>
+    where
+        Self: Sized,
+    {
         ViewConfig::new(self).m_left(v)
-    } 
-    fn m_right(self, v: Val) -> ViewConfig<Self> where Self: Sized {
+    }
+    fn m_right(self, v: Val) -> ViewConfig<Self>
+    where
+        Self: Sized,
+    {
         ViewConfig::new(self).m_right(v)
-    } 
-    fn m_top(self, v: Val) -> ViewConfig<Self> where Self: Sized {
+    }
+    fn m_top(self, v: Val) -> ViewConfig<Self>
+    where
+        Self: Sized,
+    {
         ViewConfig::new(self).m_top(v)
-    }   
-    fn m_bottom(self, v: Val) -> ViewConfig<Self> where Self: Sized {
+    }
+    fn m_bottom(self, v: Val) -> ViewConfig<Self>
+    where
+        Self: Sized,
+    {
         ViewConfig::new(self).m_bottom(v)
     }
 
@@ -370,16 +415,28 @@ pub trait View {
         ViewConfig::new(self).position(v)
     }
 
-    fn inset_left(self, v: impl Fn() -> Val + 'static) -> ViewConfig<Self> where Self: Sized {
+    fn inset_left(self, v: impl Fn() -> Val + 'static) -> ViewConfig<Self>
+    where
+        Self: Sized,
+    {
         ViewConfig::new(self).inset_left(v)
     }
-    fn inset_right(self, v: impl Fn() -> Val + 'static) -> ViewConfig<Self> where Self: Sized {
+    fn inset_right(self, v: impl Fn() -> Val + 'static) -> ViewConfig<Self>
+    where
+        Self: Sized,
+    {
         ViewConfig::new(self).inset_right(v)
     }
-    fn inset_top(self, v: impl Fn() -> Val + 'static) -> ViewConfig<Self> where Self: Sized {
+    fn inset_top(self, v: impl Fn() -> Val + 'static) -> ViewConfig<Self>
+    where
+        Self: Sized,
+    {
         ViewConfig::new(self).inset_top(v)
     }
-    fn inset_bottom(self, v: impl Fn() -> Val + 'static) -> ViewConfig<Self> where Self: Sized {
+    fn inset_bottom(self, v: impl Fn() -> Val + 'static) -> ViewConfig<Self>
+    where
+        Self: Sized,
+    {
         ViewConfig::new(self).inset_bottom(v)
     }
 }
@@ -408,6 +465,29 @@ impl View for OwnedView {
         let id = Box::new(self.inner).build();
         let owner = owner.collect();
         tree::store_owner(id, owner);
+        id
+    }
+    fn render(&self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand> {
+        self.inner.render(x, y, w, h)
+    }
+    fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32) {
+        self.inner.measure(measurer)
+    }
+}
+
+pub struct Named<V: View> {
+    inner: V,
+    name: &'static str,
+}
+
+impl<V: View> View for Named<V> {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+    fn build(self: Box<Self>) -> ViewId {
+        let name = self.name;
+        let id = Box::new(self.inner).build();
+        tree::set_name(id, name);
         id
     }
     fn render(&self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand> {

@@ -15,6 +15,7 @@ impl View for Text {
 
     fn build(self: Box<Self>) -> ViewId {
         tree::add_node(Node {
+            name: Some("Text (Primitive)"),
             view: self,
             taffy_id: node::placeholder_taffy_id(),
             parent: None,

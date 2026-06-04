@@ -35,6 +35,7 @@ impl View for Rect {
 
     fn build(self: Box<Self>) -> ViewId {
         tree::add_node(Node {
+            name: Some("Rect (Primitive)"),
             view: self,
             taffy_id: node::placeholder_taffy_id(),
             parent: None,

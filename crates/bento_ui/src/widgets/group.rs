@@ -169,6 +169,7 @@ impl View for Group {
         let child_ids: Vec<ViewId> = self.children.into_iter().map(|c| c.build()).collect();
 
         let id = tree::add_node(Node {
+            name: Some("Group (Primitive)"),
             view: Box::new(Group {
                 children: Vec::new(),
                 layout: layout.clone(),

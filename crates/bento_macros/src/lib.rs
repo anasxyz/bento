@@ -1,6 +1,11 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{Expr, ExprCall, ExprPath, ItemFn, parse_macro_input, visit::Visit};
+use syn::{
+    Expr, ExprCall, ExprPath, ItemFn, LitStr,
+    parse::{Parse, ParseStream},
+    parse_macro_input,
+    visit::Visit,
+};
 
 struct ReactiveCallFinder {
     found: Option<proc_macro2::Span>,
@@ -23,27 +28,62 @@ impl<'ast> Visit<'ast> for ReactiveCallFinder {
     }
 }
 
+struct ComponentArgs {
+    name: Option<LitStr>,
+}
+
+impl Parse for ComponentArgs {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        if input.is_empty() {
+            Ok(ComponentArgs { name: None })
+        } else {
+            Ok(ComponentArgs {
+                name: Some(input.parse()?),
+            })
+        }
+    }
+}
+
 /// Marks a function as a bento component
+///
 /// Used for view ownership and resource cleanup
+///
+/// Also used for optionally naming components, if no name is provided
+/// the function name will be used
+///
+/// # Example
+/// ```ignore
+/// #[component("MyComponent")]
+/// fn my_component() -> impl View {
+///     // ...
+/// }
+/// ```
 #[proc_macro_attribute]
-pub fn component(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn component(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(attr as ComponentArgs);
     let input = parse_macro_input!(item as ItemFn);
     let name = &input.sig.ident;
     let vis = &input.vis;
     let inputs = &input.sig.inputs;
     let output = &input.sig.output;
     let body = &input.block;
+
+    let component_name = match args.name {
+        Some(lit) => quote! { #lit },
+        None => quote! { stringify!(#name) },
+    };
+
     TokenStream::from(quote! {
         #vis fn #name(#inputs) #output {
             let __owner = bento_ui::Owner::new();
             let __view = (move || #body)();
             let __owner = __owner.collect();
-            bento_ui::view::OwnedView::new(__owner, __view)
+            bento_ui::view::OwnedView::new(__owner, __view).named(#component_name)
         }
     })
 }
 
-/// Marks a function as a snippet 
+/// Marks a function as a snippet
 /// Snippets cannot contain state(), effect(), or derived()
 /// If reactive state is needed, use #[component] instead
 #[proc_macro_attribute]

@@ -364,15 +364,22 @@ pub(crate) fn hit_test(id: ViewId, x: f32, y: f32) -> Option<ViewId> {
     None
 }
 
+pub fn set_name(id: ViewId, name: &'static str) {
+    TREE.with(|t| {
+        t.borrow_mut().nodes[id.0].name = Some(name);
+    });
+}
+
 pub(crate) fn print_tree(id: ViewId, depth: usize) {
     TREE.with(|t| {
         let t = t.borrow();
         let node = &t.nodes[id.0];
+        let display_name = node.name.unwrap_or_else(|| node.view.name());
         let indent = "  ".repeat(depth);
         println!(
             "{}{} (id: {}) x: {} y: {} w: {} h: {}",
             indent,
-            node.view.name(),
+            display_name,
             id.0,
             node.x,
             node.y,
