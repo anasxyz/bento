@@ -20,6 +20,7 @@ pub struct Ui {
     pub input: InputState,
     pub viewport_w: f32,
     pub viewport_h: f32,
+    pub pointer_capture: Option<ViewId>,
 }
 
 impl Ui {
@@ -35,6 +36,7 @@ impl Ui {
             input: InputState::new(),
             viewport_w: 800.0,
             viewport_h: 600.0,
+            pointer_capture: None,
         }
     }
 
@@ -90,19 +92,36 @@ impl Ui {
             if let Some(id) = tree::hit_test(self.root, self.input.mouse.x, self.input.mouse.y) {
                 tree::dispatch(
                     id,
-                    &events::Click {
+                    &events::MouseDown {
+                        x: self.input.mouse.x,
+                        y: self.input.mouse.y,
+                        button: mouse::MouseButton::Left,
+                    },
+                );
+                self.pointer_capture = Some(id);
+            }
+        }
+        if self.input.mouse.left.just_released {
+            if let Some(id) = self.pointer_capture {
+                tree::dispatch(
+                    id,
+                    &events::MouseUp {
                         x: self.input.mouse.x,
                         y: self.input.mouse.y,
                         button: mouse::MouseButton::Left,
                     },
                 );
             }
+            self.pointer_capture = None;
         }
     }
 
     pub fn mouse_move_events(&mut self) {
         if self.input.mouse.dx != 0.0 || self.input.mouse.dy != 0.0 {
-            if let Some(id) = tree::hit_test(self.root, self.input.mouse.x, self.input.mouse.y) {
+            let target = self
+                .pointer_capture
+                .or_else(|| tree::hit_test(self.root, self.input.mouse.x, self.input.mouse.y));
+            if let Some(id) = target {
                 tree::dispatch(
                     id,
                     &events::MouseMove {
