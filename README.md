@@ -4,13 +4,13 @@
 > Early development. API is unstable.
 
 ## Features
-* Fast and extremely simple to use
-* Reactive model inspired by [Svelte 5](https://github.com/sveltejs/svelte)
+* Fast and simple to use
+* Reactive model inspired by [`Svelte 5`](https://github.com/sveltejs/svelte) / [`SolidJS`](https://github.com/solidjs/solid)
 * Cross-platform: Linux / macOS / Windows / Web
-* Extensible widget system
+* Extensible component system
 * Async support
-* Custom [wgpu](https://github.com/gfx-rs/wgpu)-based renderer
-* Custom layout engine
+* Custom [`wgpu`](https://github.com/gfx-rs/wgpu) renderer
+* [`Taffy`](https://github.com/dioxusLabs/taffy) Layout engine
   
 | Svelte 5 | Bento |
 |----------|-------|
@@ -36,21 +36,30 @@
 ## Example
 
 ```rust
+use bento::*;
+
 #[component]
 fn app() -> impl View {
     let count = state(0);
-    let doubled = derived(move || count.get() * 2);
 
-    effect(move || {
-        println!("count changed: {}", count.get());
-    });
-
-    text(move || format!("count: {}, doubled: {}", count.get(), doubled.get()))
-        .on(move |e: &Click| count.set(count.get() + 1))
+    group()
+        .direction(col())
+        .w(fill())
+        .h(fill())
+        .p(16.0)
+        .gap(8.0)
+        .child(text(move || format!("count: {}", count.get())))
+        .child(
+            rect(|| [0.0, 0.7, 0.0, 1.0])
+                .w(px(100.0))
+                .h(px(40.0))
+                .on(move |_: &Click| count.update(|n| n + 1)),
+        )
 }
 
 #[main]
 fn main() {
     App::run(app());
 }
+
 ```
