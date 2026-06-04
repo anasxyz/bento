@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use bento_wgpu::{DrawCommand, TextMeasurer};
 use taffy::prelude::*;
 
@@ -14,10 +12,10 @@ pub struct ViewId(pub usize);
 pub struct ViewConfig<V: View> {
     inner: V,
     layout: LayoutProps,
-    inset_left: Option<Box<dyn Fn() -> f32>>,
-    inset_right: Option<Box<dyn Fn() -> f32>>,
-    inset_top: Option<Box<dyn Fn() -> f32>>,
-    inset_bottom: Option<Box<dyn Fn() -> f32>>,
+    inset_left: Option<Box<dyn Fn() -> LengthPercentageAuto>>,
+    inset_right: Option<Box<dyn Fn() -> LengthPercentageAuto>>,
+    inset_top: Option<Box<dyn Fn() -> LengthPercentageAuto>>,
+    inset_bottom: Option<Box<dyn Fn() -> LengthPercentageAuto>>,
     handlers: Vec<Box<dyn FnOnce(ViewId)>>,
     node_ref: Option<NodeRef>,
 }
@@ -116,6 +114,26 @@ impl<V: View> ViewConfig<V> {
         self
     }
 
+    pub fn m_left(mut self, v: f32) -> Self {
+        self.layout.margin.left = LengthPercentageAuto::length(v);
+        self
+    }
+
+    pub fn m_right(mut self, v: f32) -> Self {
+        self.layout.margin.right = LengthPercentageAuto::length(v);
+        self
+    }
+
+    pub fn m_top(mut self, v: f32) -> Self {
+        self.layout.margin.top = LengthPercentageAuto::length(v);
+        self
+    }
+
+    pub fn m_bottom(mut self, v: f32) -> Self {
+        self.layout.margin.bottom = LengthPercentageAuto::length(v);
+        self
+    }
+
     pub fn border(mut self, v: Rect<LengthPercentage>) -> Self {
         self.layout.border = v;
         self
@@ -141,22 +159,22 @@ impl<V: View> ViewConfig<V> {
         self
     }
 
-    pub fn inset_left(mut self, v: impl Fn() -> f32 + 'static) -> Self {
+    pub fn inset_left(mut self, v: impl Fn() -> LengthPercentageAuto + 'static) -> Self {
         self.inset_left = Some(Box::new(v));
         self
     }
 
-    pub fn inset_right(mut self, v: impl Fn() -> f32 + 'static) -> Self {
+    pub fn inset_right(mut self, v: impl Fn() -> LengthPercentageAuto + 'static) -> Self {
         self.inset_right = Some(Box::new(v));
         self
     }
 
-    pub fn inset_top(mut self, v: impl Fn() -> f32 + 'static) -> Self {
+    pub fn inset_top(mut self, v: impl Fn() -> LengthPercentageAuto + 'static) -> Self {
         self.inset_top = Some(Box::new(v));
         self
     }
 
-    pub fn inset_bottom(mut self, v: impl Fn() -> f32 + 'static) -> Self {
+    pub fn inset_bottom(mut self, v: impl Fn() -> LengthPercentageAuto + 'static) -> Self {
         self.inset_bottom = Some(Box::new(v));
         self
     }
@@ -200,18 +218,10 @@ impl<V: View> View for ViewConfig<V> {
             || inset_bottom.is_some()
         {
             effect(move || {
-                let left = inset_left
-                    .as_ref()
-                    .map(|f| LengthPercentageAuto::length(f()));
-                let right = inset_right
-                    .as_ref()
-                    .map(|f| LengthPercentageAuto::length(f()));
-                let top = inset_top
-                    .as_ref()
-                    .map(|f| LengthPercentageAuto::length(f()));
-                let bottom = inset_bottom
-                    .as_ref()
-                    .map(|f| LengthPercentageAuto::length(f()));
+                let left = inset_left.as_ref().map(|f| f());
+                let right = inset_right.as_ref().map(|f| f());
+                let top = inset_top.as_ref().map(|f| f());
+                let bottom = inset_bottom.as_ref().map(|f| f());
                 tree::update_inset(id, left, right, top, bottom);
             });
         }
@@ -343,6 +353,34 @@ pub trait View {
         ViewConfig::new(self).m(v)
     }
 
+    fn m_left(self, v: f32) -> ViewConfig<Self>
+    where
+        Self: Sized,
+    {
+        ViewConfig::new(self).m_left(v)
+    }
+
+    fn m_right(self, v: f32) -> ViewConfig<Self>
+    where
+        Self: Sized,
+    {
+        ViewConfig::new(self).m_right(v)
+    }
+
+    fn m_top(self, v: f32) -> ViewConfig<Self>
+    where
+        Self: Sized,
+    {
+        ViewConfig::new(self).m_top(v)
+    }
+
+    fn m_bottom(self, v: f32) -> ViewConfig<Self>
+    where
+        Self: Sized,
+    {
+        ViewConfig::new(self).m_bottom(v)
+    }
+
     fn border(self, v: Rect<LengthPercentage>) -> ViewConfig<Self>
     where
         Self: Sized,
@@ -377,25 +415,29 @@ pub trait View {
     {
         ViewConfig::new(self).position(v)
     }
-    fn inset_left(self, v: impl Fn() -> f32 + 'static) -> ViewConfig<Self>
+
+    fn inset_left(self, v: impl Fn() -> LengthPercentageAuto + 'static) -> ViewConfig<Self>
     where
         Self: Sized,
     {
         ViewConfig::new(self).inset_left(v)
     }
-    fn inset_right(self, v: impl Fn() -> f32 + 'static) -> ViewConfig<Self>
+
+    fn inset_right(self, v: impl Fn() -> LengthPercentageAuto + 'static) -> ViewConfig<Self>
     where
         Self: Sized,
     {
         ViewConfig::new(self).inset_right(v)
     }
-    fn inset_top(self, v: impl Fn() -> f32 + 'static) -> ViewConfig<Self>
+
+    fn inset_top(self, v: impl Fn() -> LengthPercentageAuto + 'static) -> ViewConfig<Self>
     where
         Self: Sized,
     {
         ViewConfig::new(self).inset_top(v)
     }
-    fn inset_bottom(self, v: impl Fn() -> f32 + 'static) -> ViewConfig<Self>
+
+    fn inset_bottom(self, v: impl Fn() -> LengthPercentageAuto + 'static) -> ViewConfig<Self>
     where
         Self: Sized,
     {

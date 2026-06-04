@@ -125,3 +125,9 @@ pub fn fill() -> Dimension { Dimension::from_percent(1.0) }
 pub fn auto() -> Dimension { Dimension::AUTO }
 pub fn row() -> FlexDirection { FlexDirection::Row }
 pub fn col() -> FlexDirection { FlexDirection::Column }
+pub fn pct_inset(v: f32) -> LengthPercentageAuto {
+    LengthPercentageAuto::percent(v)
+}
+pub fn px_inset(v: f32) -> LengthPercentageAuto {
+    LengthPercentageAuto::length(v)
+}
