@@ -5,7 +5,7 @@ use std::{cell::RefCell, hash::Hash};
 use bento_wgpu::{DrawCommand, RectDraw};
 use taffy::prelude::*;
 
-use crate::layout::LayoutProps;
+use crate::layout::{LayoutProps, Val};
 use crate::node::{self, Node};
 use crate::reactive::signal::Signal;
 use crate::tree;
@@ -30,41 +30,30 @@ impl Group {
         self
     }
 
-    pub fn gap(mut self, gap: f32) -> Self {
-        self.layout.gap = Size {
-            width: LengthPercentage::length(gap),
-            height: LengthPercentage::length(gap),
-        };
+    pub fn gap(mut self, v: Val) -> Self {
+        let lp = v.to_length_percentage();
+        self.layout.gap = Size { width: lp, height: lp };
         self
     }
 
-    pub fn p(mut self, value: f32) -> Self {
-        self.layout.padding = Rect {
-            left: LengthPercentage::length(value),
-            right: LengthPercentage::length(value),
-            top: LengthPercentage::length(value),
-            bottom: LengthPercentage::length(value),
-        };
+    pub fn p(mut self, v: Val) -> Self {
+        let lp = v.to_length_percentage();
+        self.layout.padding = Rect { left: lp, right: lp, top: lp, bottom: lp };
+        self
+    }   
+    pub fn m(mut self, v: Val) -> Self {
+        let lpa = v.to_length_percentage_auto();
+        self.layout.margin = Rect { left: lpa, right: lpa, top: lpa, bottom: lpa };
         self
     }
 
-    pub fn m(mut self, value: f32) -> Self {
-        self.layout.margin = Rect {
-            left: LengthPercentageAuto::length(value),
-            right: LengthPercentageAuto::length(value),
-            top: LengthPercentageAuto::length(value),
-            bottom: LengthPercentageAuto::length(value),
-        };
+    pub fn w(mut self, v: Val) -> Self {
+        self.layout.width = v.to_dimension();
         self
     }
 
-    pub fn w(mut self, width: Dimension) -> Self {
-        self.layout.width = width;
-        self
-    }
-
-    pub fn h(mut self, height: Dimension) -> Self {
-        self.layout.height = height;
+    pub fn h(mut self, v: Val) -> Self {
+        self.layout.height = v.to_dimension();
         self
     }
 

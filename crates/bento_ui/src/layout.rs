@@ -119,15 +119,31 @@ impl LayoutProps {
     }
 }
 
-pub fn px(value: f32) -> Dimension { Dimension::from_length(value) }
-pub fn pct(value: f32) -> Dimension { Dimension::from_percent(value / 100.0) }
-pub fn fill() -> Dimension { Dimension::from_percent(1.0) }
-pub fn auto() -> Dimension { Dimension::AUTO }
+
+#[derive(Clone, Copy, Debug)]
+// (value, is_percent)
+pub struct Val(f32, bool); 
+
 pub fn row() -> FlexDirection { FlexDirection::Row }
 pub fn col() -> FlexDirection { FlexDirection::Column }
-pub fn pct_inset(v: f32) -> LengthPercentageAuto {
-    LengthPercentageAuto::percent(v)
-}
-pub fn px_inset(v: f32) -> LengthPercentageAuto {
-    LengthPercentageAuto::length(v)
+
+pub fn px(v: f32) -> Val { Val(v, false) }
+pub fn pct(v: f32) -> Val { Val(v, true) }
+pub fn fill() -> Val { Val(1.0, true) }
+// special case
+pub fn auto() -> Val { Val(0.0, false) } 
+
+impl Val {
+    pub fn to_dimension(self) -> Dimension {
+        if self.1 { Dimension::from_percent(self.0) }
+        else { Dimension::from_length(self.0) }
+    }
+    pub fn to_length_percentage(self) -> LengthPercentage {
+        if self.1 { LengthPercentage::percent(self.0) }
+        else { LengthPercentage::length(self.0) }
+    }
+    pub fn to_length_percentage_auto(self) -> LengthPercentageAuto {
+        if self.1 { LengthPercentageAuto::percent(self.0) }
+        else { LengthPercentageAuto::length(self.0) }
+    }
 }

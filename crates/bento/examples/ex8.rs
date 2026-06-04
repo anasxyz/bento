@@ -24,9 +24,9 @@ pub fn slider(value: Signal<f32>, min: f32, max: f32) -> impl View {
         .w(px(16.0))
         .h(px(16.0))
         .position(Position::Absolute)
-        .inset_top(|| px_inset(8.0))
-        .inset_left(move || pct_inset(thumb_pos.get()))
-        .m_left(-8.0)
+        .inset_top(|| px(8.0))
+        .inset_left(move || pct(thumb_pos.get()))
+        .m_left(px(-8.0))
         .on(move |_: &MouseDown| dragging.set(true))
         .on(move |_: &MouseUp| dragging.set(false))
         .on(move |e: &MouseMove| {
@@ -56,8 +56,8 @@ fn app() -> impl View {
         .direction(col())
         .w(fill())
         .h(fill())
-        .p(24.0)
-        .gap(8.0)
+        .p(px(24.0))
+        .gap(px(8.0))
         .child(text(move || format!("value: {:.2}", value.get())))
         .child(slider(value, 0.0, 1.0))
 }
