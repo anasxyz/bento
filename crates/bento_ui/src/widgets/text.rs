@@ -33,6 +33,7 @@ impl View for Text {
     }
 
     fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32) {
+        println!("[measure] text");
         let text = (self.content)();
         let r = measurer.measure(TextMeasureRequest {
             text: &text,
