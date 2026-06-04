@@ -2,7 +2,7 @@ use bento_wgpu::{DrawCommand, DrawList, TextAlign, TextDraw, TextMeasureRequest,
 
 use crate::{
     layout::{CrossAxis, Direction, MainAxis, Size},
-    node::{Node, NodeType, TextNode},
+    node::Node,
     tree,
     ui::Ui,
     view::{View, ViewId},

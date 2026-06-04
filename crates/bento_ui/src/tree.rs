@@ -4,7 +4,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::{
     layout::{CrossAxis, Direction, MainAxis, Size},
-    node::{EventHandler, Node, NodeType},
+    node::{EventHandler, Node},
     reactive::{owner::Owner, runtime},
     ui,
     view::ViewId,

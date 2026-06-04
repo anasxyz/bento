@@ -9,14 +9,6 @@ use crate::{
     widgets::Text,
 };
 
-pub(crate) struct TextNode {
-    pub(crate) text: Box<dyn Fn() -> String>,
-}
-
-pub(crate) enum NodeType {
-    Text(Text),
-}
-
 pub(crate) struct EventHandler {
     pub(crate) type_id: std::any::TypeId,
     pub(crate) handler: Rc<dyn Fn(&dyn std::any::Any)>,
