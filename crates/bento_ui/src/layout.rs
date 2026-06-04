@@ -118,3 +118,10 @@ impl LayoutProps {
         }
     }
 }
+
+pub fn px(value: f32) -> Dimension { Dimension::from_length(value / 100.0) }
+pub fn pct(value: f32) -> Dimension { Dimension::from_percent(value / 100.0) }
+pub fn fill() -> Dimension { Dimension::from_percent(1.0) }
+pub fn auto() -> Dimension { Dimension::AUTO }
+pub fn row() -> FlexDirection { FlexDirection::Row }
+pub fn col() -> FlexDirection { FlexDirection::Column }

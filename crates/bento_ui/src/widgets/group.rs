@@ -38,22 +38,32 @@ impl Group {
         self
     }
 
-    pub fn padding(mut self, p: f32) -> Self {
+    pub fn p(mut self, value: f32) -> Self {
         self.layout.padding = Rect {
-            left: LengthPercentage::length(p),
-            right: LengthPercentage::length(p),
-            top: LengthPercentage::length(p),
-            bottom: LengthPercentage::length(p),
+            left: LengthPercentage::length(value),
+            right: LengthPercentage::length(value),
+            top: LengthPercentage::length(value),
+            bottom: LengthPercentage::length(value),
         };
         self
     }
 
-    pub fn width(mut self, width: Dimension) -> Self {
+    pub fn m(mut self, value: f32) -> Self {
+        self.layout.margin = Rect {
+            left: LengthPercentageAuto::length(value),
+            right: LengthPercentageAuto::length(value),
+            top: LengthPercentageAuto::length(value),
+            bottom: LengthPercentageAuto::length(value),
+        };
+        self
+    }
+
+    pub fn w(mut self, width: Dimension) -> Self {
         self.layout.width = width;
         self
     }
 
-    pub fn height(mut self, height: Dimension) -> Self {
+    pub fn h(mut self, height: Dimension) -> Self {
         self.layout.height = height;
         self
     }

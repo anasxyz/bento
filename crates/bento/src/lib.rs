@@ -10,7 +10,7 @@ pub use bento_ui::{spawn, timer};
 // events
 pub use bento_ui::events::*;
 // layout
-
+pub use bento_ui::layout::{px, pct, fill, auto, row, col};
 // winit/app
 pub use bento_winit::App;
 // macros

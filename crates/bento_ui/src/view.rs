@@ -84,13 +84,23 @@ impl<V: View> ViewConfig<V> {
         self
     }
 
-    pub fn margin(mut self, v: Rect<LengthPercentageAuto>) -> Self {
-        self.layout.margin = v;
+    pub fn padding(mut self, v: f32) -> Self {
+        self.layout.padding = Rect {
+            left: LengthPercentage::length(v),
+            right: LengthPercentage::length(v),
+            top: LengthPercentage::length(v),
+            bottom: LengthPercentage::length(v),
+        };
         self
     }
 
-    pub fn padding(mut self, v: Rect<LengthPercentage>) -> Self {
-        self.layout.padding = v;
+    pub fn margin(mut self, v: f32) -> Self {
+        self.layout.margin = Rect {
+            left: LengthPercentageAuto::length(v),
+            right: LengthPercentageAuto::length(v),
+            top: LengthPercentageAuto::length(v),
+            bottom: LengthPercentageAuto::length(v),
+        };
         self
     }
 
@@ -193,14 +203,14 @@ pub trait View {
         ViewConfig::new(self).on(f)
     }
 
-    fn width(self, width: Dimension) -> ViewConfig<Self>
+    fn w(self, width: Dimension) -> ViewConfig<Self>
     where
         Self: Sized,
     {
         ViewConfig::new(self).width(width)
     }
 
-    fn height(self, height: Dimension) -> ViewConfig<Self>
+    fn h(self, height: Dimension) -> ViewConfig<Self>
     where
         Self: Sized,
     {
@@ -270,18 +280,18 @@ pub trait View {
         ViewConfig::new(self).justify_self(v)
     }
 
-    fn margin(self, v: Rect<LengthPercentageAuto>) -> ViewConfig<Self>
-    where
-        Self: Sized,
-    {
-        ViewConfig::new(self).margin(v)
-    }
-
-    fn padding(self, v: Rect<LengthPercentage>) -> ViewConfig<Self>
+    fn p(self, v: f32) -> ViewConfig<Self>
     where
         Self: Sized,
     {
         ViewConfig::new(self).padding(v)
+    }
+
+    fn m(self, v: f32) -> ViewConfig<Self>
+    where
+        Self: Sized,
+    {
+        ViewConfig::new(self).margin(v)
     }
 
     fn border(self, v: Rect<LengthPercentage>) -> ViewConfig<Self>
