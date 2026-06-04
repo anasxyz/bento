@@ -21,6 +21,8 @@ pub struct Group {
     pub padding: f32,
     pub main_axis: MainAxis,
     pub cross_axis: CrossAxis,
+    pub width: Size,
+    pub height: Size,
     // deferred each setup
     each: Option<Box<dyn FnOnce(ViewId, Vec<ViewId>)>>,
     when: Vec<(Signal<bool>, Rc<dyn Fn() -> Box<dyn View>>)>,
@@ -50,6 +52,14 @@ impl Group {
     }
     pub fn cross_axis(mut self, c: CrossAxis) -> Self {
         self.cross_axis = c;
+        self
+    }
+    pub fn width(mut self, size: Size) -> Self {
+        self.width = size;
+        self
+    }
+    pub fn height(mut self, size: Size) -> Self {
+        self.height = size;
         self
     }
 
@@ -188,6 +198,8 @@ impl View for Group {
                 padding,
                 main_axis,
                 cross_axis,
+                width: self.width,
+                height: self.height,
                 each: None,
                 when: Vec::new(),
             }),
@@ -203,8 +215,8 @@ impl View for Group {
             cache: Vec::new(),
             paint_subscriber: None,
             layout_dirty: true,
-            width: Size::Auto,
-            height: Size::Auto,
+            width: self.width,
+            height: self.height,
             position: Position::Relative,
             last_available_w: -1.0,
             last_available_h: -1.0,
@@ -256,6 +268,8 @@ pub fn group() -> Group {
         padding: 0.0,
         main_axis: MainAxis::Start,
         cross_axis: CrossAxis::Start,
+        width: Size::Auto,
+        height: Size::Auto,
         each: None,
         when: Vec::new(),
     }

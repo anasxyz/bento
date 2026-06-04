@@ -111,6 +111,14 @@ impl Ui {
                         button: mouse::MouseButton::Left,
                     },
                 );
+                tree::dispatch(
+                    id,
+                    &events::Click {
+                        x: self.input.mouse.x,
+                        y: self.input.mouse.y,
+                        button: mouse::MouseButton::Left,
+                    },
+                );
             }
             self.pointer_capture = None;
         }

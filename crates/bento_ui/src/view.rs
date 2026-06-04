@@ -4,10 +4,109 @@ use bento_wgpu::{DrawCommand, DrawList, TextMeasurer};
 
 use crate::layout::{Container, Position, Size};
 use crate::reactive::owner::{self, Owner};
-use crate::tree;
+use crate::{effect, tree};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, PartialOrd, Ord)]
 pub struct ViewId(pub usize);
+
+pub struct ViewConfig<V: View> {
+    inner: V,
+    width: Option<Size>,
+    height: Option<Size>,
+    x: Option<Box<dyn Fn() -> f32>>,
+    y: Option<Box<dyn Fn() -> f32>>,
+    handlers: Vec<Box<dyn FnOnce(ViewId)>>,
+}
+
+impl<V: View> ViewConfig<V> {
+    fn new(inner: V) -> Self {
+        Self {
+            inner,
+            width: None,
+            height: None,
+            x: None,
+            y: None,
+            handlers: Vec::new(),
+        }
+    }
+
+    pub fn width(mut self, size: Size) -> Self {
+        self.width = Some(size);
+        self
+    }
+
+    pub fn height(mut self, size: Size) -> Self {
+        self.height = Some(size);
+        self
+    }
+
+    pub fn x(mut self, x: impl Fn() -> f32 + 'static) -> Self {
+        self.x = Some(Box::new(x));
+        self
+    }
+
+    pub fn y(mut self, y: impl Fn() -> f32 + 'static) -> Self {
+        self.y = Some(Box::new(y));
+        self
+    }
+
+    pub fn on<E: 'static>(mut self, f: impl Fn(&E) + 'static) -> Self {
+        self.handlers.push(Box::new(move |id| {
+            tree::add_handler(id, f);
+        }));
+        self
+    }
+}
+
+impl<V: View> View for ViewConfig<V> {
+    fn name(&self) -> &'static str {
+        self.inner.name()
+    }
+
+    fn build(self: Box<Self>) -> ViewId {
+        let width = self.width;
+        let height = self.height;
+        let x = self.x;
+        let y = self.y;
+        let handlers = self.handlers;
+
+        let id = Box::new(self.inner).build();
+
+        if let Some(w) = width {
+            tree::set_width(id, w);
+        }
+        if let Some(h) = height {
+            tree::set_height(id, h);
+        }
+        for handler in handlers {
+            handler(id);
+        }
+        if x.is_some() || y.is_some() {
+            let ix = x.as_ref().map(|f| f()).unwrap_or(0.0);
+            let iy = y.as_ref().map(|f| f()).unwrap_or(0.0);
+            tree::set_position(id, Position::Absolute { x: ix, y: iy });
+            effect(move || {
+                let nx = x.as_ref().map(|f| f()).unwrap_or(ix);
+                let ny = y.as_ref().map(|f| f()).unwrap_or(iy);
+                tree::set_position(id, Position::Absolute { x: nx, y: ny });
+            });
+        }
+
+        id
+    }
+
+    fn render(&self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand> {
+        self.inner.render(x, y, w, h)
+    }
+
+    fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32) {
+        self.inner.measure(measurer)
+    }
+
+    fn as_container(&self) -> Option<&dyn Container> {
+        self.inner.as_container()
+    }
+}
 
 pub trait View {
     fn name(&self) -> &'static str {
@@ -21,112 +120,40 @@ pub trait View {
     fn as_container(&self) -> Option<&dyn Container> {
         None
     }
-    fn on<E: 'static>(self, f: impl Fn(&E) + 'static) -> WithHandler<Self, E>
+
+    fn on<E: 'static>(self, f: impl Fn(&E) + 'static) -> ViewConfig<Self>
     where
         Self: Sized,
     {
-        WithHandler {
-            inner: self,
-            handler: Box::new(f),
-            _phantom: PhantomData,
-        }
+        ViewConfig::new(self).on(f)
     }
 
-    fn width(self, size: Size) -> WithSize<Self>
+    fn width(self, size: Size) -> ViewConfig<Self>
     where
         Self: Sized,
     {
-        WithSize {
-            inner: self,
-            width: Some(size),
-            height: None,
-        }
+        ViewConfig::new(self).width(size)
     }
 
-    fn height(self, size: Size) -> WithSize<Self>
+    fn height(self, size: Size) -> ViewConfig<Self>
     where
         Self: Sized,
     {
-        WithSize {
-            inner: self,
-            width: None,
-            height: Some(size),
-        }
+        ViewConfig::new(self).height(size)
     }
 
-    fn x(self, x: f32) -> WithPosition<Self>
+    fn x(self, x: impl Fn() -> f32 + 'static) -> ViewConfig<Self>
     where
         Self: Sized,
     {
-        WithPosition {
-            inner: self,
-            x: Some(x),
-            y: None,
-        }
+        ViewConfig::new(self).x(x)
     }
 
-    fn y(self, y: f32) -> WithPosition<Self>
+    fn y(self, y: impl Fn() -> f32 + 'static) -> ViewConfig<Self>
     where
         Self: Sized,
     {
-        WithPosition {
-            inner: self,
-            x: None,
-            y: Some(y),
-        }
-    }
-}
-
-pub struct WithSize<V: View> {
-    inner: V,
-    width: Option<Size>,
-    height: Option<Size>,
-}
-
-impl<V: View> View for WithSize<V> {
-    fn build(self: Box<Self>) -> ViewId {
-        let id = Box::new(self.inner).build();
-        if let Some(w) = self.width {
-            tree::set_width(id, w);
-        }
-        if let Some(h) = self.height {
-            tree::set_height(id, h);
-        }
-        id
-    }
-
-    fn render(&self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand> {
-        self.inner.render(x, y, w, h)
-    }
-
-    fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32) {
-        self.inner.measure(measurer)
-    }
-}
-
-pub struct WithHandler<V: View, E: 'static> {
-    inner: V,
-    handler: Box<dyn Fn(&E)>,
-    _phantom: PhantomData<E>,
-}
-
-impl<V: View, E: 'static> View for WithHandler<V, E> {
-    fn name(&self) -> &'static str {
-        "WithHandler"
-    }
-
-    fn build(self: Box<Self>) -> ViewId {
-        let id = Box::new(self.inner).build();
-        tree::add_handler(id, self.handler);
-        id
-    }
-
-    fn render(&self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand> {
-        self.inner.render(x, y, w, h)
-    }
-
-    fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32) {
-        self.inner.measure(measurer)
+        ViewConfig::new(self).y(y)
     }
 }
 
@@ -150,7 +177,6 @@ impl View for OwnedView {
     }
     fn build(self: Box<Self>) -> ViewId {
         let owner = Owner::new();
-        // move _owner into the scope so it's kept alive inside the build owner
         owner::store(self._owner);
         let id = Box::new(self.inner).build();
         let owner = owner.collect();
@@ -165,50 +191,5 @@ impl View for OwnedView {
     }
     fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32) {
         self.inner.measure(measurer)
-    }
-}
-
-pub struct WithPosition<V: View> {
-    inner: V,
-    x: Option<f32>,
-    y: Option<f32>,
-}
-
-impl<V: View> WithPosition<V> {
-    pub fn x(mut self, x: f32) -> Self {
-        self.x = Some(x);
-        self
-    }
-    pub fn y(mut self, y: f32) -> Self {
-        self.y = Some(y);
-        self
-    }
-}
-
-impl<V: View> View for WithPosition<V> {
-    fn build(self: Box<Self>) -> ViewId {
-        let x = self.x;
-        let y = self.y;
-        let id = Box::new(self.inner).build();
-        tree::set_position(
-            id,
-            Position::Absolute {
-                x: x.unwrap_or(0.0),
-                y: y.unwrap_or(0.0),
-            },
-        );
-        id
-    }
-
-    fn render(&self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand> {
-        self.inner.render(x, y, w, h)
-    }
-
-    fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32) {
-        self.inner.measure(measurer)
-    }
-
-    fn as_container(&self) -> Option<&dyn Container> {
-        self.inner.as_container()
     }
 }
