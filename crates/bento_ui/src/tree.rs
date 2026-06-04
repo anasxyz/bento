@@ -179,19 +179,22 @@ pub fn render(id: ViewId, draw_list: &mut DrawList) {
     }
 }
 
+thread_local! {
+    static MEASURER: RefCell<Option<TextMeasurer>> = RefCell::new(None);
+}
+
 pub fn layout(root: ViewId, available_w: f32, available_h: f32, measurer: &mut TextMeasurer) {
     let root_taffy = TREE.with(|t| t.borrow().nodes[root.0].taffy_id);
 
-    // build a lookup map taffy_id -> ViewId outside the borrow
-    let taffy_to_view: Vec<(taffy::NodeId, ViewId)> = TREE.with(|t| {
+    // pre-collect everything we need — no TREE access inside closure
+    let lookup: std::collections::HashMap<taffy::NodeId, (f32, f32)> = TREE.with(|t| {
         let t = t.borrow();
         t.nodes
             .iter()
-            .map(|(i, n)| (n.taffy_id, ViewId(i)))
+            .map(|(i, n)| (n.taffy_id, n.view.measure(measurer)))
             .collect()
     });
 
-    // pull out the taffy tree to call compute on it without holding TREE borrow
     let mut taffy = TREE.with(|t| std::mem::replace(&mut t.borrow_mut().taffy, TaffyTree::new()));
 
     taffy
@@ -201,25 +204,16 @@ pub fn layout(root: ViewId, available_w: f32, available_h: f32, measurer: &mut T
                 width: AvailableSpace::Definite(available_w),
                 height: AvailableSpace::Definite(available_h),
             },
-            |known_dimensions, _available_space, node_id, _, _| {
-                let view_id = taffy_to_view
-                    .iter()
-                    .find(|(tid, _)| *tid == node_id)
-                    .map(|(_, vid)| *vid);
-                if let Some(id) = view_id {
-                    let (mw, mh) = TREE.with(|t| t.borrow().nodes[id.0].view.measure(measurer));
-                    taffy::Size {
-                        width: known_dimensions.width.unwrap_or(mw),
-                        height: known_dimensions.height.unwrap_or(mh),
-                    }
-                } else {
-                    taffy::Size::ZERO
+            |known_dimensions, _, node_id, _, _| {
+                let (mw, mh) = lookup.get(&node_id).copied().unwrap_or((0.0, 0.0));
+                taffy::Size {
+                    width: known_dimensions.width.unwrap_or(mw),
+                    height: known_dimensions.height.unwrap_or(mh),
                 }
             },
         )
         .unwrap();
 
-    // put taffy back
     TREE.with(|t| {
         t.borrow_mut().taffy = taffy;
     });

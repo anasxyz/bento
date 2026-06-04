@@ -94,6 +94,7 @@ impl TextMeasurer {
         let t = web_time::Instant::now();
         let key = MeasureKey::from_request(&req);
         if let Some((result, _)) = self.cache.cache.get(&key) {
+            // println!("measure call cached, took {:?}", t.elapsed());
             return result.clone();
         }
 
@@ -196,7 +197,7 @@ impl TextMeasurer {
 
         let result = extract_result(&buffer, req.text);
         self.cache.cache.insert(key, (result.clone(), buffer));
-        println!("measure took {:?}", t.elapsed());
+        // println!("measure call uncached, took {:?}", t.elapsed());
         result
     }
 
