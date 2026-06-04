@@ -31,7 +31,7 @@ pub(crate) struct Node {
     pub(crate) w: f32,
     pub(crate) h: f32,
     pub(crate) handlers: Vec<EventHandler>,
-    pub(crate) owner: Option<Owner>,
+    pub(crate) owners: Vec<Owner>,
 
     pub(crate) paint_dirty: bool,
     pub(crate) cache: Vec<DrawCommand>,

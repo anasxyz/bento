@@ -63,15 +63,15 @@ pub fn remove_node(id: ViewId) {
 }
 
 fn remove_node_inner(id: ViewId) {
-    let (children, owner) = TREE.with(|t| {
+    let (children, owners) = TREE.with(|t| {
         let mut t = t.borrow_mut();
         let node = &mut t.nodes[id.0];
         let children = node.children.clone();
-        let owner = node.owner.take();
-        (children, owner)
+        let owners = std::mem::take(&mut node.owners);
+        (children, owners)
     });
 
-    drop(owner);
+    drop(owners);
 
     for child_id in children {
         remove_node_inner(child_id);
@@ -112,7 +112,7 @@ pub fn mark_layout_dirty(id: ViewId) {
 
 pub fn store_owner(id: ViewId, owner: Owner) {
     TREE.with(|t| {
-        t.borrow_mut().nodes[id.0].owner = Some(owner);
+        t.borrow_mut().nodes[id.0].owners.push(owner);
     });
 }
 

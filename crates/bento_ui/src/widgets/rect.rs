@@ -47,7 +47,7 @@ impl View for Rect {
             w: 0.0,
             h: 0.0,
             handlers: Vec::new(),
-            owner: None,
+            owners: Vec::new(),
             paint_dirty: true,
             cache: Vec::new(),
             paint_subscriber: None,
