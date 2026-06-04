@@ -43,24 +43,15 @@ impl Ui {
     pub fn set_viewport(&mut self, w: f32, h: f32) {
         self.viewport_w = w;
         self.viewport_h = h;
-        tree::mark_layout_dirty(self.root);
+        request_redraw();
     }
 
     pub fn draw(&mut self) -> DrawList {
         let mut draw_list = DrawList::new();
         let t = web_time::Instant::now();
-        tree::layout(
-            self.root,
-            0.0,
-            0.0,
-            self.viewport_w,
-            self.viewport_h,
-            &mut self.measurer,
-        );
+        tree::layout(self.root, self.viewport_w, self.viewport_h);
         println!("[ui] layout took {:?}", t.elapsed());
-        let t = web_time::Instant::now();
         tree::render(self.root, &mut draw_list);
-        // println!("[ui] render took {:?}", t.elapsed());
         draw_list
     }
 

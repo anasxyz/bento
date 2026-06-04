@@ -10,10 +10,8 @@ pub use bento_ui::{spawn, timer};
 // events
 pub use bento_ui::events::*;
 // layout
-pub use bento_ui::layout::{CrossAxis, Direction, MainAxis, Size, Position};
+
 // winit/app
 pub use bento_winit::App;
 // macros
 pub use bento_macros::{component, snippet, main};
-
-pub use bento_ui::tree::{get_rect, set_position};

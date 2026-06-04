@@ -17,6 +17,7 @@ bento_wgpu = { workspace = true }
 cosmic-text = { workspace = true }
 web-time = { workspace = true }
 slab = { workspace = true }
+taffy = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { version = "1", features = ["time"] }

@@ -27,6 +27,7 @@ bytemuck = { version = "1.14", features = ["derive"] }
 etagere = "0.2"
 swash = "0.2"
 cosmic-text = { version = "0.18", features = ["shape-run-cache"] }
+taffy = "0.9"
 image = "0.25"
 resvg = "0.44"
 winit = "0.30"

@@ -1,13 +1,8 @@
-use bento_wgpu::TextMeasurer;
+use crate::layout::LayoutProps;
+use crate::node::{self, Node};
+use crate::tree;
+use crate::view::{View, ViewId};
 use bento_wgpu::{DrawCommand, RectDraw};
-
-use crate::layout::Position;
-use crate::{
-    layout::Size,
-    node::Node,
-    tree,
-    view::{View, ViewId},
-};
 
 pub struct Rect {
     pub color: Box<dyn Fn() -> [f32; 4]>,
@@ -41,23 +36,19 @@ impl View for Rect {
     fn build(self: Box<Self>) -> ViewId {
         tree::add_node(Node {
             view: self,
+            taffy_id: node::placeholder_taffy_id(),
             parent: None,
             children: Vec::new(),
             x: 0.0,
             y: 0.0,
             w: 0.0,
             h: 0.0,
+            layout: LayoutProps::default(),
             handlers: Vec::new(),
             owners: Vec::new(),
             paint_dirty: true,
             cache: Vec::new(),
             paint_subscriber: None,
-            layout_dirty: true,
-            width: Size::Auto,
-            height: Size::Auto,
-            position: Position::Relative,
-            last_available_w: -1.0,
-            last_available_h: -1.0,
         })
     }
 }

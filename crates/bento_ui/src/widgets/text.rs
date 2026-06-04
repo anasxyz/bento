@@ -1,12 +1,8 @@
-use bento_wgpu::{DrawCommand, DrawList, TextAlign, TextDraw, TextMeasureRequest, TextMeasurer};
-
-use crate::{
-    layout::{CrossAxis, Direction, MainAxis, Position, Size},
-    node::Node,
-    tree,
-    ui::Ui,
-    view::{View, ViewId},
-};
+use crate::layout::LayoutProps;
+use crate::node::{self, Node};
+use crate::tree;
+use crate::view::{View, ViewId};
+use bento_wgpu::{DrawCommand, TextAlign, TextDraw, TextMeasureRequest, TextMeasurer};
 
 pub struct Text {
     content: Box<dyn Fn() -> String>,
@@ -20,23 +16,19 @@ impl View for Text {
     fn build(self: Box<Self>) -> ViewId {
         tree::add_node(Node {
             view: self,
+            taffy_id: node::placeholder_taffy_id(),
             parent: None,
             children: Vec::new(),
             x: 0.0,
             y: 0.0,
             w: 0.0,
             h: 0.0,
+            layout: LayoutProps::default(),
             handlers: Vec::new(),
             owners: Vec::new(),
             paint_dirty: true,
             cache: Vec::new(),
             paint_subscriber: None,
-            layout_dirty: true,
-            width: Size::Auto,
-            height: Size::Auto,
-            position: Position::Relative,
-            last_available_w: -1.0,
-            last_available_h: -1.0,
         })
     }
 
@@ -66,7 +58,7 @@ impl View for Text {
             y,
             w,
             h,
-            text: text,
+            text,
             size: 14.0,
             color: [1.0, 1.0, 1.0, 1.0],
             weight: 400,
