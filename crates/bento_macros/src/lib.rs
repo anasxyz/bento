@@ -43,9 +43,9 @@ pub fn component(_attr: TokenStream, item: TokenStream) -> TokenStream {
     })
 }
 
-/// Marks a function as a bento snippet — a stateless view helper.
-/// Snippets cannot contain state(), effect(), or derived().
-/// If you need reactive state, use #[component] instead.
+/// Marks a function as a snippet 
+/// Snippets cannot contain state(), effect(), or derived()
+/// If reactive state is needed, use #[component] instead
 #[proc_macro_attribute]
 pub fn snippet(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemFn);

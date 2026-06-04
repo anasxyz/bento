@@ -22,6 +22,7 @@ pub struct Group {
     pub cross_axis: CrossAxis,
     // deferred each setup
     each: Option<Box<dyn FnOnce(ViewId, Vec<ViewId>)>>,
+    when: Vec<(Signal<bool>, Rc<dyn Fn() -> Box<dyn View>>)>,
 }
 
 impl Group {
@@ -48,6 +49,16 @@ impl Group {
     }
     pub fn cross_axis(mut self, c: CrossAxis) -> Self {
         self.cross_axis = c;
+        self
+    }
+
+    pub fn when<V: View + 'static>(
+        mut self,
+        condition: Signal<bool>,
+        view_fn: impl Fn() -> V + 'static,
+    ) -> Self {
+        self.when
+            .push((condition, Rc::new(move || Box::new(view_fn()))));
         self
     }
 
@@ -177,6 +188,7 @@ impl View for Group {
                 main_axis,
                 cross_axis,
                 each: None,
+                when: Vec::new(),
             }),
             parent: None,
             children: Vec::new(),
@@ -204,6 +216,32 @@ impl View for Group {
             setup(id, child_ids);
         }
 
+        // when stuff
+        for (condition, view_fn) in self.when {
+            let current: Rc<RefCell<Option<ViewId>>> = Rc::new(RefCell::new(None));
+            let current_clone = current.clone();
+
+            effect(move || {
+                let show = condition.get();
+                let mut current = current_clone.borrow_mut();
+
+                if show {
+                    if current.is_none() {
+                        let owner = Owner::new();
+                        let child_id = (view_fn)().build();
+                        let owner = owner.collect();
+                        tree::store_owner(child_id, owner);
+                        tree::append_child(id, child_id);
+                        *current = Some(child_id);
+                    }
+                } else {
+                    if let Some(child_id) = current.take() {
+                        tree::remove_node(child_id);
+                    }
+                }
+            });
+        }
+
         id
     }
 }
@@ -217,5 +255,6 @@ pub fn group() -> Group {
         main_axis: MainAxis::Start,
         cross_axis: CrossAxis::Start,
         each: None,
+        when: Vec::new(),
     }
 }

@@ -4,55 +4,32 @@ use bento::*;
 
 #[component]
 fn app() -> impl View {
+    let show = state(false);
+
     group()
         .direction(Direction::Column)
-        .gap(10.0)
+        .gap(8.0)
         .padding(16.0)
-        // test MainAxis::Center
         .child(
-            group()
-                .direction(Direction::Row)
-                .main_axis(MainAxis::Center)
-                .gap(8.0)
-                .child(text(|| "center 1".to_string()))
-                .child(text(|| "center 2".to_string())),
+            rect(|| [0.2, 0.8, 0.2, 1.0])
+                .width(Size::Fixed(80.0))
+                .height(Size::Fixed(20.0))
+                .on(move |_: &Click| {
+                    show.update(|v| !v);
+                }),
         )
-        // test MainAxis::End
+        .when(show, || {
+            rect(|| [0.8, 0.2, 0.2, 1.0])
+                .width(Size::Fixed(200.0))
+                .height(Size::Fixed(100.0))
+        })
         .child(
-            group()
-                .direction(Direction::Row)
-                .main_axis(MainAxis::End)
-                .gap(8.0)
-                .child(text(|| "end 1".to_string()))
-                .child(text(|| "end 2".to_string())),
+            rect(|| [0.2, 0.4, 0.8, 1.0])
+                .width(Size::Fixed(80.0))
+                .height(Size::Fixed(20.0)),
         )
-        // test CrossAxis::Stretch
-        .child(
-            group()
-                .direction(Direction::Row)
-                .cross_axis(CrossAxis::Stretch)
-                .gap(8.0)
-                .child(text(|| "stretch 1".to_string()))
-                .child(text(|| "stretch 2".to_string())),
-        )
-        // test Size::Percent
-        .child(text(|| "50 percent".to_string()).width(Size::Percent(50.0)))
-        // test Size::FillMinus
-        .child(text(|| "fill minus 100".to_string()).width(Size::FillMinus(100.0)))
-        // test nested Fill
-        .child(
-            group()
-                .direction(Direction::Row)
-                .gap(8.0)
-                .child(
-                    group()
-                        .direction(Direction::Column)
-                        .gap(4.0)
-                        .child(text(|| "nested fill 1".to_string()))
-                        .child(text(|| "nested fill 2".to_string())),
-                )
-                .child(text(|| "sibling".to_string()).width(Size::Fixed(100.0))),
-        )
+        .width(Size::Fill)
+        .height(Size::Fill)
 }
 
 #[main]

@@ -34,7 +34,6 @@ pub fn add_node(node: Node) -> ViewId {
                 node.paint_dirty = true;
             }
         });
-        mark_layout_dirty(id);
         ui::request_redraw();
     }));
 
@@ -57,6 +56,11 @@ pub fn remove_node(id: ViewId) {
     let parent = TREE.with(|t| t.borrow().nodes[id.0].parent);
     remove_node_inner(id);
     if let Some(parent_id) = parent {
+        TREE.with(|t| {
+            t.borrow_mut().nodes[parent_id.0]
+                .children
+                .retain(|c| c.0 != id.0);
+        });
         mark_layout_dirty(parent_id);
     }
     ui::request_redraw();
