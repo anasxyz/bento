@@ -10,19 +10,10 @@ pub use bento_ui::{spawn, timer};
 // events
 pub use bento_ui::events::*;
 // layout
-pub use bento_ui::layout::{CrossAxis, Direction, MainAxis, Size};
+pub use bento_ui::layout::{CrossAxis, Direction, MainAxis, Size, Position};
 // winit/app
 pub use bento_winit::App;
 // macros
 pub use bento_macros::{component, snippet, main};
 
-#[component]
-fn app() -> impl View {
-    let boom = state(0);
-    text(move || format!("boom: {}", boom.get())).on(move |e: &Click| boom.set(boom.get() + 1))
-}
-
-#[main]
-fn main() {
-    App::run(app());
-}
+pub use bento_ui::tree::{get_rect, set_position};

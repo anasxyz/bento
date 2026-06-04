@@ -370,7 +370,9 @@ fn layout_column(
     let t = web_time::Instant::now();
     for (i, child_id) in children.iter().enumerate() {
         let info = &child_infos[i];
-        if info.is_absolute { continue; }
+        if info.is_absolute {
+            continue;
+        }
         if info.h_sizing.is_auto()
             && (info.dirty || info.last_available_w != inner_w || info.last_available_h != inner_h)
         {
@@ -401,7 +403,9 @@ fn layout_column(
     let mut fill_count: u32 = 0;
 
     for info in &child_infos {
-        if info.is_absolute { continue; }
+        if info.is_absolute {
+            continue;
+        }
         if info.h_sizing.is_fill() {
             fill_count += 1;
         } else {
@@ -454,7 +458,9 @@ fn layout_column(
     // pass 2: position all children
     for (i, child_id) in children.iter().enumerate() {
         let info = &child_infos[i];
-        if info.is_absolute { continue; }
+        if info.is_absolute {
+            continue;
+        }
 
         let child_h = if info.h_sizing.is_fill() {
             fill_h
@@ -595,7 +601,9 @@ fn layout_row(
     // pass 0: measure all auto children
     for (i, child_id) in children.iter().enumerate() {
         let info = &child_infos[i];
-        if info.is_absolute { continue; }
+        if info.is_absolute {
+            continue;
+        }
         if (info.w_sizing.is_auto() || info.h_sizing.is_auto())
             && (info.dirty || info.last_available_w != inner_w || info.last_available_h != inner_h)
         {
@@ -625,7 +633,9 @@ fn layout_row(
     let mut fill_count: u32 = 0;
 
     for info in &child_infos {
-        if info.is_absolute { continue; }
+        if info.is_absolute {
+            continue;
+        }
         if info.w_sizing.is_fill() {
             fill_count += 1;
         } else {
@@ -678,7 +688,9 @@ fn layout_row(
     // pass 2: position all children
     for (i, child_id) in children.iter().enumerate() {
         let info = &child_infos[i];
-        if info.is_absolute { continue; }
+        if info.is_absolute {
+            continue;
+        }
 
         let child_w = if info.w_sizing.is_fill() {
             fill_w
@@ -806,18 +818,23 @@ pub fn set_position(id: ViewId, position: Position) {
 
 pub(crate) fn dispatch<E: 'static>(id: ViewId, event: &E) {
     let type_id = std::any::TypeId::of::<E>();
-    let handlers: Vec<Rc<dyn Fn(&dyn std::any::Any)>> = TREE.with(|t| {
-        let t = t.borrow();
-        let node = &t.nodes[id.0];
-        node.handlers
-            .iter()
-            .filter(|h| h.type_id == type_id)
-            .map(|h| h.handler.clone())
-            .collect()
-    });
+    let mut current = Some(id);
+    while let Some(node_id) = current {
+        let handlers: Vec<Rc<dyn Fn(&dyn std::any::Any)>> = TREE.with(|t| {
+            let t = t.borrow();
+            let node = &t.nodes[node_id.0];
+            node.handlers
+                .iter()
+                .filter(|h| h.type_id == type_id)
+                .map(|h| h.handler.clone())
+                .collect()
+        });
 
-    for handler in handlers {
-        handler(event as &dyn std::any::Any);
+        for handler in handlers {
+            handler(event as &dyn std::any::Any);
+        }
+
+        current = TREE.with(|t| t.borrow().nodes[node_id.0].parent);
     }
 }
 

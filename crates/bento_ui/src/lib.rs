@@ -6,7 +6,7 @@ pub(crate) mod input;
 pub(crate) mod node;
 pub mod reactive;
 pub(crate) mod spawn;
-pub(crate) mod tree;
+pub mod tree;
 pub(crate) mod types;
 pub(crate) mod ui;
 pub mod view;
