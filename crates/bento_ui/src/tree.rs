@@ -1,6 +1,6 @@
 use bento_wgpu::{DrawList, TextMeasurer};
 use slab::Slab;
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use taffy::{AvailableSpace, LengthPercentageAuto, Rect, TaffyTree};
 
 use crate::{
@@ -186,12 +186,20 @@ thread_local! {
 pub fn layout(root: ViewId, available_w: f32, available_h: f32, measurer: &mut TextMeasurer) {
     let root_taffy = TREE.with(|t| t.borrow().nodes[root.0].taffy_id);
 
-    // pre-collect everything we need — no TREE access inside closure
-    let lookup: std::collections::HashMap<taffy::NodeId, (f32, f32)> = TREE.with(|t| {
+    // precollect everything needed 
+    // no TREE access inside closure
+    let lookup: HashMap<taffy::NodeId, (f32, f32)> = TREE.with(|t| {
         let t = t.borrow();
         t.nodes
             .iter()
-            .map(|(i, n)| (n.taffy_id, n.view.measure(measurer)))
+            .map(|(_, n)| {
+                let size = if n.paint_dirty {
+                    n.view.measure(measurer)
+                } else {
+                    (n.w, n.h) // use cached size
+                };
+                (n.taffy_id, size)
+            })
             .collect()
     });
 
@@ -250,6 +258,10 @@ fn apply_layout(id: ViewId, parent_x: f32, parent_y: f32) {
 }
 
 pub fn set_layout(id: ViewId, layout: LayoutProps) {
+    println!(
+        "[set_layout] id={:?} w={:?} h={:?}",
+        id, layout.width, layout.height
+    );
     let taffy_id = TREE.with(|t| t.borrow().nodes[id.0].taffy_id);
     TREE.with(|t| {
         let mut t = t.borrow_mut();

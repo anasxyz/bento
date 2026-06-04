@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::{cell::RefCell, hash::Hash};
 
-use bento_wgpu::DrawCommand;
+use bento_wgpu::{DrawCommand, RectDraw};
 use taffy::prelude::*;
 
 use crate::layout::LayoutProps;
@@ -169,7 +169,7 @@ impl View for Group {
         "Group"
     }
 
-    fn render(&self, _x: f32, _y: f32, _w: f32, _h: f32) -> Vec<DrawCommand> {
+    fn render(&self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand> {
         vec![]
     }
 

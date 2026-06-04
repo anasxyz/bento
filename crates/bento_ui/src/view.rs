@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use bento_wgpu::{DrawCommand, DrawList, TextMeasurer};
+use bento_wgpu::{DrawCommand, TextMeasurer};
 use taffy::prelude::*;
 
 use crate::layout::LayoutProps;
@@ -29,12 +29,12 @@ impl<V: View> ViewConfig<V> {
         }
     }
 
-    pub fn width(mut self, width: Dimension) -> Self {
+    pub fn w(mut self, width: Dimension) -> Self {
         self.layout.width = width;
         self
     }
 
-    pub fn height(mut self, height: Dimension) -> Self {
+    pub fn h(mut self, height: Dimension) -> Self {
         self.layout.height = height;
         self
     }
@@ -84,7 +84,7 @@ impl<V: View> ViewConfig<V> {
         self
     }
 
-    pub fn padding(mut self, v: f32) -> Self {
+    pub fn p(mut self, v: f32) -> Self {
         self.layout.padding = Rect {
             left: LengthPercentage::length(v),
             right: LengthPercentage::length(v),
@@ -94,7 +94,7 @@ impl<V: View> ViewConfig<V> {
         self
     }
 
-    pub fn margin(mut self, v: f32) -> Self {
+    pub fn m(mut self, v: f32) -> Self {
         self.layout.margin = Rect {
             left: LengthPercentageAuto::length(v),
             right: LengthPercentageAuto::length(v),
@@ -207,14 +207,14 @@ pub trait View {
     where
         Self: Sized,
     {
-        ViewConfig::new(self).width(width)
+        ViewConfig::new(self).w(width)
     }
 
     fn h(self, height: Dimension) -> ViewConfig<Self>
     where
         Self: Sized,
     {
-        ViewConfig::new(self).height(height)
+        ViewConfig::new(self).h(height)
     }
 
     fn min_width(self, width: Dimension) -> ViewConfig<Self>
@@ -284,14 +284,14 @@ pub trait View {
     where
         Self: Sized,
     {
-        ViewConfig::new(self).padding(v)
+        ViewConfig::new(self).p(v)
     }
 
     fn m(self, v: f32) -> ViewConfig<Self>
     where
         Self: Sized,
     {
-        ViewConfig::new(self).margin(v)
+        ViewConfig::new(self).m(v)
     }
 
     fn border(self, v: Rect<LengthPercentage>) -> ViewConfig<Self>

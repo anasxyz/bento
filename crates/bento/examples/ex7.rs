@@ -1,14 +1,14 @@
 #![allow(dead_code)]
 #![allow(unused)]
+
 use bento::*;
-use taffy::prelude::*;
 
 #[component]
 fn app() -> impl View {
     group()
         .direction(row())
-        .w(pct(100.0))
-        .h(pct(100.0))
+        .w(auto())
+        .h(auto())
         .child(
             group()
                 .direction(col())
