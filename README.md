@@ -11,30 +11,8 @@
 * Async support
 * Custom [`wgpu`](https://github.com/gfx-rs/wgpu) renderer
 * [`Taffy`](https://github.com/dioxusLabs/taffy) layout engine
-  
-| Svelte 5 | Bento |
-|----------|-------|
-| `.svelte component` | `#[component]` |
-| `$state` | `state(value)` |
-| `$derived` | `derived()` |
-| `$effect` | `effect()` |
-| `$inspect` | `inspect!(signal)` |
-| `$bindable` | signals are `Copy`, just pass them directly |
-| `$props` | just function arguments in Rust |
-| `$host` | web component specific, not relevant |
-| `bind:value` | `.bind(signal)` |
-| `on:event` | `.on(\|e: &Event\| ...)` |
-| `{#await}` | `await_(async { ... })` |
-| `{#each}` | `each(signal, \|item\| ...)` |
-| `{#if} / {:else} / {:else if}` | `.show(\|\| ...)` |
-| `{#key}` | handled automatically by the retained tree |
-| `#snippet` | just a function returning `impl View` |
-| `transition:` | `.transition(Fade)` |
-| `in:` | `.in_transition(FlyIn::y(200))` |
-| `out:` | `.out_transition(Fade)` |
 
 ## Example
-
 ```rust
 #[component]
 fn sliders_demo() -> impl View {
