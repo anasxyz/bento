@@ -5,6 +5,7 @@ use taffy::NodeId as TaffyNodeId;
 
 use crate::layout::LayoutProps;
 use crate::reactive::{owner::Owner, runtime::SubscriberId};
+use crate::{Signal, state};
 use crate::view::{View, ViewId};
 
 pub(crate) struct EventHandler {
@@ -16,17 +17,21 @@ pub(crate) fn placeholder_taffy_id() -> TaffyNodeId {
     TaffyNodeId::new(u64::MAX)
 }
 
-#[derive(Clone)]
-pub struct NodeRef(pub(crate) Rc<Cell<Option<ViewId>>>);
+#[derive(Clone, Copy)]
+pub struct NodeRef(pub(crate) Signal<Option<ViewId>>);
 
 impl NodeRef {
     pub fn get(&self) -> Option<ViewId> {
         self.0.get()
     }
+
+    pub fn set(&self, id: ViewId) {
+        self.0.set(Some(id));
+    }
 }
 
 pub fn node_ref() -> NodeRef {
-    NodeRef(Rc::new(Cell::new(None)))
+    NodeRef(state(None))
 }
 
 pub(crate) struct Node {

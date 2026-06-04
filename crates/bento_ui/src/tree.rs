@@ -186,7 +186,7 @@ thread_local! {
 pub fn layout(root: ViewId, available_w: f32, available_h: f32, measurer: &mut TextMeasurer) {
     let root_taffy = TREE.with(|t| t.borrow().nodes[root.0].taffy_id);
 
-    // precollect everything needed 
+    // precollect everything needed
     // no TREE access inside closure
     let lookup: HashMap<taffy::NodeId, (f32, f32)> = TREE.with(|t| {
         let t = t.borrow();
@@ -272,20 +272,30 @@ pub fn set_layout(id: ViewId, layout: LayoutProps) {
     });
 }
 
-pub fn set_inset(id: ViewId, x: f32, y: f32) {
+pub fn update_inset(
+    id: ViewId,
+    left: Option<LengthPercentageAuto>,
+    right: Option<LengthPercentageAuto>,
+    top: Option<LengthPercentageAuto>,
+    bottom: Option<LengthPercentageAuto>,
+) {
     let taffy_id = TREE.with(|t| t.borrow().nodes[id.0].taffy_id);
     TREE.with(|t| {
         let mut t = t.borrow_mut();
         let node = &mut t.nodes[id.0];
-        node.x = x;
-        node.y = y;
         let mut style = node.layout.to_taffy_style();
-        style.inset = Rect {
-            left: LengthPercentageAuto::length(x),
-            top: LengthPercentageAuto::length(y),
-            right: LengthPercentageAuto::auto(),
-            bottom: LengthPercentageAuto::auto(),
-        };
+        if let Some(v) = left {
+            style.inset.left = v;
+        }
+        if let Some(v) = right {
+            style.inset.right = v;
+        }
+        if let Some(v) = top {
+            style.inset.top = v;
+        }
+        if let Some(v) = bottom {
+            style.inset.bottom = v;
+        }
         t.taffy.set_style(taffy_id, style).unwrap();
     });
     ui::request_redraw();

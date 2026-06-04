@@ -1,9 +1,3 @@
-#![allow(dead_code)]
-#![allow(unused)]
-
-use bento::*;
-use taffy::prelude::*;
-
 use bento::*;
 use taffy::prelude::*;
 
@@ -12,10 +6,9 @@ pub fn slider(value: Signal<f32>, min: f32, max: f32) -> impl View {
     let dragging = state(false);
     let track_ref = node_ref();
 
-    let track_ref_for_move = track_ref.clone();
-    let track_ref_for_click = track_ref.clone();
-    let track_ref_for_x = track_ref.clone();
-    let track_ref_for_y = track_ref.clone();
+    let track_ref_for_move = track_ref;
+    let track_ref_for_click = track_ref;
+    let track_ref_for_left = track_ref;
 
     let thumb_pos = derived(move || ((value.get() - min) / (max - min)).clamp(0.0, 1.0));
 
@@ -34,19 +27,14 @@ pub fn slider(value: Signal<f32>, min: f32, max: f32) -> impl View {
     let thumb = rect(|| [1.0, 1.0, 1.0, 1.0])
         .w(px(16.0))
         .h(px(16.0))
-        .x(move || {
-            if let Some(id) = track_ref_for_x.get() {
+        .position(Position::Absolute)
+        .inset_top(|| 8.0)
+        .inset_left(move || {
+            if let Some(id) = track_ref_for_left.get() {
                 let (tx, _, tw, _) = get_rect(id);
-                tx + thumb_pos.get() * tw - 8.0
-            } else {
-                0.0
-            }
-        })
-        .y(move || {
-            let _ = layout_tick().get();
-            if let Some(id) = track_ref_for_y.get() {
-                let (_, ty, _, th) = get_rect(id);
-                ty + th / 2.0 - 8.0
+                // tx is absolute, but inset_left is relative to parent
+                // so subtract parent's x
+                thumb_pos.get() * tw - 8.0
             } else {
                 0.0
             }

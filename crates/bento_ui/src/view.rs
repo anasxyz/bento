@@ -14,8 +14,10 @@ pub struct ViewId(pub usize);
 pub struct ViewConfig<V: View> {
     inner: V,
     layout: LayoutProps,
-    x: Option<Box<dyn Fn() -> f32>>,
-    y: Option<Box<dyn Fn() -> f32>>,
+    inset_left: Option<Box<dyn Fn() -> f32>>,
+    inset_right: Option<Box<dyn Fn() -> f32>>,
+    inset_top: Option<Box<dyn Fn() -> f32>>,
+    inset_bottom: Option<Box<dyn Fn() -> f32>>,
     handlers: Vec<Box<dyn FnOnce(ViewId)>>,
     node_ref: Option<NodeRef>,
 }
@@ -25,8 +27,10 @@ impl<V: View> ViewConfig<V> {
         Self {
             inner,
             layout: LayoutProps::default(),
-            x: None,
-            y: None,
+            inset_left: None,
+            inset_right: None,
+            inset_top: None,
+            inset_bottom: None,
             handlers: Vec::new(),
             node_ref: None,
         }
@@ -132,15 +136,28 @@ impl<V: View> ViewConfig<V> {
         self
     }
 
-    pub fn x(mut self, x: impl Fn() -> f32 + 'static) -> Self {
-        self.layout.position = Position::Absolute;
-        self.x = Some(Box::new(x));
+    pub fn position(mut self, v: Position) -> Self {
+        self.layout.position = v;
         self
     }
 
-    pub fn y(mut self, y: impl Fn() -> f32 + 'static) -> Self {
-        self.layout.position = Position::Absolute;
-        self.y = Some(Box::new(y));
+    pub fn inset_left(mut self, v: impl Fn() -> f32 + 'static) -> Self {
+        self.inset_left = Some(Box::new(v));
+        self
+    }
+
+    pub fn inset_right(mut self, v: impl Fn() -> f32 + 'static) -> Self {
+        self.inset_right = Some(Box::new(v));
+        self
+    }
+
+    pub fn inset_top(mut self, v: impl Fn() -> f32 + 'static) -> Self {
+        self.inset_top = Some(Box::new(v));
+        self
+    }
+
+    pub fn inset_bottom(mut self, v: impl Fn() -> f32 + 'static) -> Self {
+        self.inset_bottom = Some(Box::new(v));
         self
     }
 
@@ -159,14 +176,16 @@ impl<V: View> View for ViewConfig<V> {
 
     fn build(self: Box<Self>) -> ViewId {
         let layout = self.layout;
-        let x = self.x;
-        let y = self.y;
+        let inset_left = self.inset_left;
+        let inset_right = self.inset_right;
+        let inset_top = self.inset_top;
+        let inset_bottom = self.inset_bottom;
         let handlers = self.handlers;
 
         let id = Box::new(self.inner).build();
 
         if let Some(r) = self.node_ref {
-            r.0.set(Some(id));
+            r.set(id);
         }
 
         tree::set_layout(id, layout);
@@ -175,14 +194,25 @@ impl<V: View> View for ViewConfig<V> {
             handler(id);
         }
 
-        if x.is_some() || y.is_some() {
-            let ix = x.as_ref().map(|f| f()).unwrap_or(0.0);
-            let iy = y.as_ref().map(|f| f()).unwrap_or(0.0);
-            tree::set_inset(id, ix, iy);
+        if inset_left.is_some()
+            || inset_right.is_some()
+            || inset_top.is_some()
+            || inset_bottom.is_some()
+        {
             effect(move || {
-                let nx = x.as_ref().map(|f| f()).unwrap_or(ix);
-                let ny = y.as_ref().map(|f| f()).unwrap_or(iy);
-                tree::set_inset(id, nx, ny);
+                let left = inset_left
+                    .as_ref()
+                    .map(|f| LengthPercentageAuto::length(f()));
+                let right = inset_right
+                    .as_ref()
+                    .map(|f| LengthPercentageAuto::length(f()));
+                let top = inset_top
+                    .as_ref()
+                    .map(|f| LengthPercentageAuto::length(f()));
+                let bottom = inset_bottom
+                    .as_ref()
+                    .map(|f| LengthPercentageAuto::length(f()));
+                tree::update_inset(id, left, right, top, bottom);
             });
         }
 
@@ -341,18 +371,35 @@ pub trait View {
         ViewConfig::new(self).grid_column(v)
     }
 
-    fn x(self, x: impl Fn() -> f32 + 'static) -> ViewConfig<Self>
+    fn position(self, v: Position) -> ViewConfig<Self>
     where
         Self: Sized,
     {
-        ViewConfig::new(self).x(x)
+        ViewConfig::new(self).position(v)
     }
-
-    fn y(self, y: impl Fn() -> f32 + 'static) -> ViewConfig<Self>
+    fn inset_left(self, v: impl Fn() -> f32 + 'static) -> ViewConfig<Self>
     where
         Self: Sized,
     {
-        ViewConfig::new(self).y(y)
+        ViewConfig::new(self).inset_left(v)
+    }
+    fn inset_right(self, v: impl Fn() -> f32 + 'static) -> ViewConfig<Self>
+    where
+        Self: Sized,
+    {
+        ViewConfig::new(self).inset_right(v)
+    }
+    fn inset_top(self, v: impl Fn() -> f32 + 'static) -> ViewConfig<Self>
+    where
+        Self: Sized,
+    {
+        ViewConfig::new(self).inset_top(v)
+    }
+    fn inset_bottom(self, v: impl Fn() -> f32 + 'static) -> ViewConfig<Self>
+    where
+        Self: Sized,
+    {
+        ViewConfig::new(self).inset_bottom(v)
     }
 }
 
