@@ -10,7 +10,7 @@
 * Extensible component system
 * Async support
 * Custom [`wgpu`](https://github.com/gfx-rs/wgpu) renderer
-* [`Taffy`](https://github.com/dioxusLabs/taffy) Layout engine
+* [`Taffy`](https://github.com/dioxusLabs/taffy) layout engine
   
 | Svelte 5 | Bento |
 |----------|-------|
