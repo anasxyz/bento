@@ -1,6 +1,7 @@
 use bento_wgpu::TextMeasurer;
 use bento_wgpu::{DrawCommand, RectDraw};
 
+use crate::layout::Position;
 use crate::{
     layout::Size,
     node::Node,
@@ -54,6 +55,7 @@ impl View for Rect {
             layout_dirty: true,
             width: Size::Auto,
             height: Size::Auto,
+            position: Position::Relative,
             last_available_w: -1.0,
             last_available_h: -1.0,
         })

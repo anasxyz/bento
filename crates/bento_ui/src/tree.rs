@@ -3,7 +3,7 @@ use slab::Slab;
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    layout::{CrossAxis, Direction, MainAxis, Size},
+    layout::{CrossAxis, Direction, MainAxis, Position, Size},
     node::{EventHandler, Node},
     reactive::{owner::Owner, runtime},
     ui,
@@ -342,6 +342,7 @@ fn layout_column(
         last_available_h: f32,
         w: f32,
         h: f32,
+        is_absolute: bool,
     }
 
     let mut child_infos: Vec<ChildInfo> = TREE.with(|t| {
@@ -359,6 +360,7 @@ fn layout_column(
                     w: node.w,
                     h: node.h,
                     measure: node.view.measure(measurer),
+                    is_absolute: matches!(node.position, Position::Absolute { .. }),
                 }
             })
             .collect()
@@ -368,6 +370,7 @@ fn layout_column(
     let t = web_time::Instant::now();
     for (i, child_id) in children.iter().enumerate() {
         let info = &child_infos[i];
+        if info.is_absolute { continue; }
         if info.h_sizing.is_auto()
             && (info.dirty || info.last_available_w != inner_w || info.last_available_h != inner_h)
         {
@@ -398,6 +401,7 @@ fn layout_column(
     let mut fill_count: u32 = 0;
 
     for info in &child_infos {
+        if info.is_absolute { continue; }
         if info.h_sizing.is_fill() {
             fill_count += 1;
         } else {
@@ -410,7 +414,8 @@ fn layout_column(
         }
     }
 
-    let gaps_total = gap * (children.len().saturating_sub(1)) as f32;
+    let flow_count = child_infos.iter().filter(|i| !i.is_absolute).count();
+    let gaps_total = gap * (flow_count.saturating_sub(1)) as f32;
     let remaining = (inner_h - fixed_h - gaps_total).max(0.0);
     let fill_h = if fill_count > 0 {
         remaining / fill_count as f32
@@ -449,6 +454,7 @@ fn layout_column(
     // pass 2: position all children
     for (i, child_id) in children.iter().enumerate() {
         let info = &child_infos[i];
+        if info.is_absolute { continue; }
 
         let child_h = if info.h_sizing.is_fill() {
             fill_h
@@ -561,6 +567,7 @@ fn layout_row(
         last_available_h: f32,
         w: f32,
         h: f32,
+        is_absolute: bool,
     }
 
     let mut child_infos: Vec<ChildInfo> = TREE.with(|t| {
@@ -578,6 +585,7 @@ fn layout_row(
                     w: node.w,
                     h: node.h,
                     measure: node.view.measure(measurer),
+                    is_absolute: matches!(node.position, Position::Absolute { .. }),
                 }
             })
             .collect()
@@ -587,6 +595,7 @@ fn layout_row(
     // pass 0: measure all auto children
     for (i, child_id) in children.iter().enumerate() {
         let info = &child_infos[i];
+        if info.is_absolute { continue; }
         if (info.w_sizing.is_auto() || info.h_sizing.is_auto())
             && (info.dirty || info.last_available_w != inner_w || info.last_available_h != inner_h)
         {
@@ -616,6 +625,7 @@ fn layout_row(
     let mut fill_count: u32 = 0;
 
     for info in &child_infos {
+        if info.is_absolute { continue; }
         if info.w_sizing.is_fill() {
             fill_count += 1;
         } else {
@@ -628,7 +638,8 @@ fn layout_row(
         }
     }
 
-    let gaps_total = gap * (children.len().saturating_sub(1)) as f32;
+    let flow_count = child_infos.iter().filter(|i| !i.is_absolute).count();
+    let gaps_total = gap * (flow_count.saturating_sub(1)) as f32;
     let remaining = (inner_w - fixed_w - gaps_total).max(0.0);
     let fill_w = if fill_count > 0 {
         remaining / fill_count as f32
@@ -667,6 +678,7 @@ fn layout_row(
     // pass 2: position all children
     for (i, child_id) in children.iter().enumerate() {
         let info = &child_infos[i];
+        if info.is_absolute { continue; }
 
         let child_w = if info.w_sizing.is_fill() {
             fill_w
@@ -772,6 +784,24 @@ pub fn set_width(id: ViewId, size: Size) {
 
 pub fn set_height(id: ViewId, size: Size) {
     TREE.with(|t| t.borrow_mut().nodes[id.0].height = size);
+}
+
+pub fn get_rect(id: ViewId) -> (f32, f32, f32, f32) {
+    TREE.with(|t| {
+        let t = t.borrow();
+        let node = &t.nodes[id.0];
+        (node.x, node.y, node.w, node.h)
+    })
+}
+
+pub fn set_position(id: ViewId, position: Position) {
+    TREE.with(|t| {
+        let mut t = t.borrow_mut();
+        let node = &mut t.nodes[id.0];
+        node.position = position;
+        node.paint_dirty = true;
+    });
+    ui::request_redraw();
 }
 
 pub(crate) fn dispatch<E: 'static>(id: ViewId, event: &E) {

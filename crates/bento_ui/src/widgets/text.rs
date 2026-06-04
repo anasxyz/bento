@@ -1,7 +1,7 @@
 use bento_wgpu::{DrawCommand, DrawList, TextAlign, TextDraw, TextMeasureRequest, TextMeasurer};
 
 use crate::{
-    layout::{CrossAxis, Direction, MainAxis, Size},
+    layout::{CrossAxis, Direction, MainAxis, Position, Size},
     node::Node,
     tree,
     ui::Ui,
@@ -34,6 +34,7 @@ impl View for Text {
             layout_dirty: true,
             width: Size::Auto,
             height: Size::Auto,
+            position: Position::Relative,
             last_available_w: -1.0,
             last_available_h: -1.0,
         })

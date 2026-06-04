@@ -15,6 +15,11 @@ pub enum Size {
     FillMinus(f32), // fill minus fixed amount
 }
 
+pub enum Position {
+    Relative,
+    Absolute { x: f32, y: f32 },
+}
+
 impl Size {
     pub fn resolve(&self, available: f32, content: f32) -> f32 {
         match self {

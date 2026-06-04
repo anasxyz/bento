@@ -4,6 +4,7 @@ use std::{cell::RefCell, hash::Hash};
 
 use bento_wgpu::{DrawCommand, RectDraw};
 
+use crate::layout::Position;
 use crate::{Owner, effect};
 use crate::{
     layout::{Container, CrossAxis, Direction, MainAxis, Size},
@@ -204,6 +205,7 @@ impl View for Group {
             layout_dirty: true,
             width: Size::Auto,
             height: Size::Auto,
+            position: Position::Relative,
             last_available_w: -1.0,
             last_available_h: -1.0,
         });
