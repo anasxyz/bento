@@ -36,30 +36,32 @@
 ## Example
 
 ```rust
-use bento::*;
-
 #[component]
-fn app() -> impl View {
-    let count = state(0);
+fn sliders_demo() -> impl View {
+    let r = state(1.0f32);
+    let g = state(0.5f32);
+    let b = state(0.2f32);
 
     group()
         .direction(col())
         .w(fill())
         .h(fill())
-        .p(16.0)
-        .gap(8.0)
-        .child(text(move || format!("count: {}", count.get())))
+        .p(px(24.0))
+        .gap(px(16.0))
         .child(
-            rect(|| [0.0, 0.7, 0.0, 1.0])
-                .w(px(100.0))
-                .h(px(40.0))
-                .on(move |_: &Click| count.update(|n| n + 1)),
+            rect(move || [r.get(), g.get(), b.get(), 1.0])
+                .w(fill())
+                .h(px(80.0)),
         )
+        .child(slider(r, 0.0, 1.0))
+        .child(slider(g, 0.0, 1.0))
+        .child(slider(b, 0.0, 1.0))
 }
 
 #[main]
 fn main() {
-    App::run(app());
+    App::run(sliders_demo());
 }
-
 ```
+
+<img src="media/colour_demo.gif" width="800px" height="600px" />
