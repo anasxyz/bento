@@ -251,7 +251,7 @@ impl View for Group {
 pub fn group() -> Group {
     Group {
         children: Vec::new(),
-        direction: Direction::Column,
+        direction: Direction::Row,
         gap: 0.0,
         padding: 0.0,
         main_axis: MainAxis::Start,

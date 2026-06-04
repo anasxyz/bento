@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use bento_wgpu::{DrawCommand, DrawList, TextMeasurer};
 
-use crate::layout::{Container, Size};
+use crate::layout::{Container, Position, Size};
 use crate::reactive::owner::{self, Owner};
 use crate::tree;
 
@@ -51,6 +51,28 @@ pub trait View {
             inner: self,
             width: None,
             height: Some(size),
+        }
+    }
+
+    fn x(self, x: f32) -> WithPosition<Self>
+    where
+        Self: Sized,
+    {
+        WithPosition {
+            inner: self,
+            x: Some(x),
+            y: None,
+        }
+    }
+
+    fn y(self, y: f32) -> WithPosition<Self>
+    where
+        Self: Sized,
+    {
+        WithPosition {
+            inner: self,
+            x: None,
+            y: Some(y),
         }
     }
 }
@@ -143,5 +165,50 @@ impl View for OwnedView {
     }
     fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32) {
         self.inner.measure(measurer)
+    }
+}
+
+pub struct WithPosition<V: View> {
+    inner: V,
+    x: Option<f32>,
+    y: Option<f32>,
+}
+
+impl<V: View> WithPosition<V> {
+    pub fn x(mut self, x: f32) -> Self {
+        self.x = Some(x);
+        self
+    }
+    pub fn y(mut self, y: f32) -> Self {
+        self.y = Some(y);
+        self
+    }
+}
+
+impl<V: View> View for WithPosition<V> {
+    fn build(self: Box<Self>) -> ViewId {
+        let x = self.x;
+        let y = self.y;
+        let id = Box::new(self.inner).build();
+        tree::set_position(
+            id,
+            Position::Absolute {
+                x: x.unwrap_or(0.0),
+                y: y.unwrap_or(0.0),
+            },
+        );
+        id
+    }
+
+    fn render(&self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand> {
+        self.inner.render(x, y, w, h)
+    }
+
+    fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32) {
+        self.inner.measure(measurer)
+    }
+
+    fn as_container(&self) -> Option<&dyn Container> {
+        self.inner.as_container()
     }
 }

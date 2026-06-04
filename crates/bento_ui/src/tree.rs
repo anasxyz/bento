@@ -367,7 +367,6 @@ fn layout_column(
     });
 
     // pass 0: measure all auto-height children
-    let t = web_time::Instant::now();
     for (i, child_id) in children.iter().enumerate() {
         let info = &child_infos[i];
         if info.is_absolute {
@@ -376,7 +375,6 @@ fn layout_column(
         if info.h_sizing.is_auto()
             && (info.dirty || info.last_available_w != inner_w || info.last_available_h != inner_h)
         {
-            let t = web_time::Instant::now();
             TREE.with(|t| {
                 let mut t = t.borrow_mut();
                 let node = &mut t.nodes[child_id.0];
@@ -391,12 +389,10 @@ fn layout_column(
                 inner_h,
                 measurer,
             );
-            // update cached h after layout
             child_infos[i].h = TREE.with(|t| t.borrow().nodes[child_id.0].h);
             child_infos[i].w = TREE.with(|t| t.borrow().nodes[child_id.0].w);
         }
     }
-    println!("layout_column pass 0: {:?}", t.elapsed());
 
     // pass 1: compute fill height
     let mut fixed_h: f32 = 0.0;
@@ -429,6 +425,7 @@ fn layout_column(
 
     let total_h: f32 = child_infos
         .iter()
+        .filter(|info| !info.is_absolute)
         .map(|info| {
             if info.h_sizing.is_fill() {
                 fill_h
@@ -449,8 +446,8 @@ fn layout_column(
         MainAxis::SpaceBetween => 0.0,
     };
 
-    let space_between = if main_axis == MainAxis::SpaceBetween && children.len() > 1 {
-        (inner_h - total_h + gaps_total) / (children.len() - 1) as f32
+    let space_between = if main_axis == MainAxis::SpaceBetween && flow_count > 1 {
+        (inner_h - total_h + gaps_total) / (flow_count - 1) as f32
     } else {
         gap
     };
@@ -459,6 +456,37 @@ fn layout_column(
     for (i, child_id) in children.iter().enumerate() {
         let info = &child_infos[i];
         if info.is_absolute {
+            let child_w = if info.w_sizing.is_auto() {
+                info.w
+            } else {
+                info.w_sizing.resolve(inner_w, info.measure.0)
+            };
+            let child_h = if info.h_sizing.is_fill() {
+                fill_h
+            } else if info.h_sizing.is_auto() {
+                info.h
+            } else {
+                info.h_sizing.resolve(inner_h, info.measure.1)
+            };
+            let (ax, ay) = TREE.with(|t| {
+                let t = t.borrow();
+                (t.nodes[child_id.0].x, t.nodes[child_id.0].y)
+            });
+            TREE.with(|t| {
+                let mut t = t.borrow_mut();
+                let node = &mut t.nodes[child_id.0];
+                node.width = Size::Fixed(child_w);
+                node.height = Size::Fixed(child_h);
+            });
+            layout_node(*child_id, ax, ay, child_w, child_h, measurer);
+            TREE.with(|t| {
+                let mut t = t.borrow_mut();
+                let node = &mut t.nodes[child_id.0];
+                node.width = info.w_sizing;
+                node.height = info.h_sizing;
+                node.x = ax;
+                node.y = ay;
+            });
             continue;
         }
 
@@ -521,6 +549,7 @@ fn layout_column(
         let t = t.borrow();
         children
             .iter()
+            .filter(|cid| !matches!(t.nodes[cid.0].position, Position::Absolute { .. }))
             .map(|cid| t.nodes[cid.0].w)
             .fold(0.0f32, f32::max)
     }) + padding * 2.0;
@@ -597,7 +626,6 @@ fn layout_row(
             .collect()
     });
 
-    let t = web_time::Instant::now();
     // pass 0: measure all auto children
     for (i, child_id) in children.iter().enumerate() {
         let info = &child_infos[i];
@@ -621,12 +649,10 @@ fn layout_row(
                 inner_h,
                 measurer,
             );
-            // update cached w/h after layout
             child_infos[i].w = TREE.with(|t| t.borrow().nodes[child_id.0].w);
             child_infos[i].h = TREE.with(|t| t.borrow().nodes[child_id.0].h);
         }
     }
-    println!("layout_row pass 0: {:?}", t.elapsed());
 
     // pass 1: compute fill width
     let mut fixed_w: f32 = 0.0;
@@ -659,6 +685,7 @@ fn layout_row(
 
     let total_w: f32 = child_infos
         .iter()
+        .filter(|info| !info.is_absolute)
         .map(|info| {
             if info.w_sizing.is_fill() {
                 fill_w
@@ -679,8 +706,8 @@ fn layout_row(
         MainAxis::SpaceBetween => 0.0,
     };
 
-    let space_between = if main_axis == MainAxis::SpaceBetween && children.len() > 1 {
-        (inner_w - total_w + gaps_total) / (children.len() - 1) as f32
+    let space_between = if main_axis == MainAxis::SpaceBetween && flow_count > 1 {
+        (inner_w - total_w + gaps_total) / (flow_count - 1) as f32
     } else {
         gap
     };
@@ -689,6 +716,37 @@ fn layout_row(
     for (i, child_id) in children.iter().enumerate() {
         let info = &child_infos[i];
         if info.is_absolute {
+            let child_w = if info.w_sizing.is_fill() {
+                fill_w
+            } else if info.w_sizing.is_auto() {
+                info.w
+            } else {
+                info.w_sizing.resolve(inner_w, info.measure.0)
+            };
+            let child_h = if info.h_sizing.is_auto() {
+                info.h
+            } else {
+                info.h_sizing.resolve(inner_h, info.measure.1)
+            };
+            let (ax, ay) = TREE.with(|t| {
+                let t = t.borrow();
+                (t.nodes[child_id.0].x, t.nodes[child_id.0].y)
+            });
+            TREE.with(|t| {
+                let mut t = t.borrow_mut();
+                let node = &mut t.nodes[child_id.0];
+                node.width = Size::Fixed(child_w);
+                node.height = Size::Fixed(child_h);
+            });
+            layout_node(*child_id, ax, ay, child_w, child_h, measurer);
+            TREE.with(|t| {
+                let mut t = t.borrow_mut();
+                let node = &mut t.nodes[child_id.0];
+                node.width = info.w_sizing;
+                node.height = info.h_sizing;
+                node.x = ax;
+                node.y = ay;
+            });
             continue;
         }
 
@@ -751,6 +809,7 @@ fn layout_row(
         let t = t.borrow();
         children
             .iter()
+            .filter(|cid| !matches!(t.nodes[cid.0].position, Position::Absolute { .. }))
             .map(|cid| t.nodes[cid.0].h)
             .fold(0.0f32, f32::max)
     }) + padding * 2.0;
@@ -810,6 +869,10 @@ pub fn set_position(id: ViewId, position: Position) {
     TREE.with(|t| {
         let mut t = t.borrow_mut();
         let node = &mut t.nodes[id.0];
+        if let Position::Absolute { x, y } = position {
+            node.x = x;
+            node.y = y;
+        }
         node.position = position;
         node.paint_dirty = true;
     });
