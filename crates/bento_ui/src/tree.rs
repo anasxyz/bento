@@ -29,7 +29,7 @@ thread_local! {
     static TREE: RefCell<Tree> = RefCell::new(Tree::new());
 }
 
-pub fn add_node(node: Node) -> ViewId {
+pub(crate) fn add_node(node: Node) -> ViewId {
     let taffy_id = TREE.with(|t| {
         let mut t = t.borrow_mut();
         let style = node.layout.to_taffy_style();

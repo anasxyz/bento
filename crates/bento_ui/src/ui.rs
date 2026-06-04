@@ -30,6 +30,8 @@ impl Ui {
 
         let root = Box::new(view).build();
 
+        request_redraw();
+
         Self {
             root,
             measurer: TextMeasurer::new(),
@@ -47,21 +49,16 @@ impl Ui {
     }
 
     pub fn draw(&mut self) -> DrawList {
-        println!("---------------");
         let mut draw_list = DrawList::new();
 
-        let t = web_time::Instant::now();
         tree::layout(
             self.root,
             self.viewport_w,
             self.viewport_h,
             &mut self.measurer,
         );
-        println!("[ui] layout took {:?}", t.elapsed());
 
         tree::render(self.root, &mut draw_list);
-
-        println!("---------------");
 
         draw_list
     }

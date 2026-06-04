@@ -4,6 +4,7 @@ use bento_wgpu::{DrawCommand, TextMeasurer};
 use taffy::prelude::*;
 
 use crate::layout::LayoutProps;
+use crate::node::NodeRef;
 use crate::reactive::owner::{self, Owner};
 use crate::{effect, tree};
 
@@ -16,6 +17,7 @@ pub struct ViewConfig<V: View> {
     x: Option<Box<dyn Fn() -> f32>>,
     y: Option<Box<dyn Fn() -> f32>>,
     handlers: Vec<Box<dyn FnOnce(ViewId)>>,
+    node_ref: Option<NodeRef>,
 }
 
 impl<V: View> ViewConfig<V> {
@@ -26,7 +28,13 @@ impl<V: View> ViewConfig<V> {
             x: None,
             y: None,
             handlers: Vec::new(),
+            node_ref: None,
         }
+    }
+
+    pub fn node_ref(mut self, r: NodeRef) -> Self {
+        self.node_ref = Some(r);
+        self
     }
 
     pub fn w(mut self, width: Dimension) -> Self {
@@ -157,6 +165,10 @@ impl<V: View> View for ViewConfig<V> {
 
         let id = Box::new(self.inner).build();
 
+        if let Some(r) = self.node_ref {
+            r.0.set(Some(id));
+        }
+
         tree::set_layout(id, layout);
 
         for handler in handlers {
@@ -201,6 +213,13 @@ pub trait View {
         Self: Sized,
     {
         ViewConfig::new(self).on(f)
+    }
+
+    fn node_ref(self, r: NodeRef) -> ViewConfig<Self>
+    where
+        Self: Sized,
+    {
+        ViewConfig::new(self).node_ref(r)
     }
 
     fn w(self, width: Dimension) -> ViewConfig<Self>

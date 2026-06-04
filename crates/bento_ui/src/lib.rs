@@ -16,6 +16,7 @@ pub mod layout;
 pub use input::keyboard::Key;
 pub use spawn::{drain_callbacks, set_spawner, set_waker, spawn, timer};
 pub use types::*;
+pub use node::node_ref;
 
 pub use reactive::{derived, effect, owner::Owner, state, signal::Signal};
 pub use ui::Ui;
