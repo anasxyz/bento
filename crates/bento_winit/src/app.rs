@@ -253,12 +253,21 @@ impl ApplicationHandler<BentoEvent> for App {
             WindowEvent::MouseWheel { delta, .. } => {
                 match delta {
                     winit::event::MouseScrollDelta::LineDelta(x, y) => {
-                        win.ui.input.mouse.scroll_x = x;
-                        win.ui.input.mouse.scroll_y = y;
+                        win.ui.input.mouse.scroll_x = x * 20.0;
+                        win.ui.input.mouse.scroll_y = y * 20.0;
                     }
                     winit::event::MouseScrollDelta::PixelDelta(pos) => {
-                        win.ui.input.mouse.scroll_x = pos.x as f32;
-                        win.ui.input.mouse.scroll_y = pos.y as f32;
+                        let scale = win.surface.scale;
+                        #[cfg(target_arch = "wasm32")]
+                        {
+                            win.ui.input.mouse.scroll_x = (pos.x as f32 / scale) / 6.0;
+                            win.ui.input.mouse.scroll_y = (pos.y as f32 / scale) / 6.0;
+                        }
+                        #[cfg(not(target_arch = "wasm32"))]
+                        {
+                            win.ui.input.mouse.scroll_x = pos.x as f32 / scale;
+                            win.ui.input.mouse.scroll_y = pos.y as f32 / scale;
+                        }
                     }
                 }
 

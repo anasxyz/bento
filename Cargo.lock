@@ -267,6 +267,7 @@ dependencies = [
  "resvg",
  "slab",
  "swash",
+ "web-sys",
  "web-time",
  "wgpu",
  "winit",

@@ -236,8 +236,8 @@ impl View for Group {
                 tree::set_scroll(id, scroll_x.get(), scroll_y.get());
             });
             tree::add_handler(id, move |e: &MouseScroll| {
-                scroll_x.update(|v| (v - e.x * 20.0).max(0.0));
-                scroll_y.update(|v| (v - e.y * 20.0).max(0.0));
+                scroll_x.update(|v| (v - e.x).max(0.0));
+                scroll_y.update(|v| (v - e.y).max(0.0));
             });
         }
         if self.clip && !self.scroll {
