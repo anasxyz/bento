@@ -169,7 +169,7 @@ impl ApplicationHandler<BentoEvent> for App {
 
                 win.ui.input.keyboard.clear();
                 win.ui.input.mouse.clear();
-                // println!("[winit] total frame time {:?}", t.elapsed());
+                println!("[winit] total frame time {:?}", t.elapsed());
             }
 
             WindowEvent::KeyboardInput {

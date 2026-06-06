@@ -1,4 +1,4 @@
-use bento_wgpu::{DrawList, TextMeasurer};
+use bento_wgpu::{DrawCommand, DrawList, TextMeasurer};
 use slab::Slab;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use taffy::{AvailableSpace, LengthPercentageAuto, Rect, TaffyTree};
@@ -73,7 +73,24 @@ pub fn remove_node(id: ViewId) {
                 .retain(|c| c.0 != id.0);
         });
     }
+    ui::request_layout();
+}
+
+pub fn set_scroll(id: ViewId, sx: f32, sy: f32) {
+    TREE.with(|t| {
+        let mut t = t.borrow_mut();
+        let node = &mut t.nodes[id.0];
+        node.scroll_x = sx;
+        node.scroll_y = sy;
+        node.paint_dirty = true;
+    });
     ui::request_redraw();
+}
+
+pub fn set_scrollable(id: ViewId) {
+    TREE.with(|t| {
+        t.borrow_mut().nodes[id.0].scrollable = true;
+    });
 }
 
 fn remove_node_inner(id: ViewId) {
@@ -109,7 +126,7 @@ pub fn append_child(parent: ViewId, child: ViewId) {
         t.nodes[child.0].parent = Some(parent);
         t.taffy.add_child(parent_taffy, child_taffy).unwrap();
     });
-    ui::request_redraw();
+    ui::request_layout();
 }
 
 pub fn reorder_children(parent: ViewId, order: Vec<ViewId>) {
@@ -123,6 +140,7 @@ pub fn reorder_children(parent: ViewId, order: Vec<ViewId>) {
         t.nodes[parent.0].children = order;
         t.taffy.set_children(parent_taffy, &taffy_children).unwrap();
     });
+    ui::request_layout();
 }
 
 pub fn store_owner(id: ViewId, owner: Owner) {
@@ -131,8 +149,8 @@ pub fn store_owner(id: ViewId, owner: Owner) {
     });
 }
 
-pub fn render(id: ViewId, draw_list: &mut DrawList) {
-    let (paint_dirty, x, y, w, h, children) = TREE.with(|t| {
+pub fn render(id: ViewId, draw_list: &mut DrawList, ox: f32, oy: f32, clip: Option<[f32; 4]>) {
+    let (paint_dirty, x, y, w, h, scroll_x, scroll_y, scrollable, children) = TREE.with(|t| {
         let t = t.borrow();
         let node = &t.nodes[id.0];
         (
@@ -141,42 +159,90 @@ pub fn render(id: ViewId, draw_list: &mut DrawList) {
             node.y,
             node.w,
             node.h,
+            node.scroll_x,
+            node.scroll_y,
+            node.scrollable,
             node.children.clone(),
         )
     });
 
-    if paint_dirty {
+    let rx = x + ox;
+    let ry = y + oy;
+
+    if paint_dirty || ox != 0.0 || oy != 0.0 {
         let sub_id = TREE.with(|t| t.borrow().nodes[id.0].paint_subscriber);
 
-        let commands = if let Some(sub_id) = sub_id {
+        let mut commands = if let Some(sub_id) = sub_id {
             runtime::push_observer(sub_id);
-            let cmds = TREE.with(|t| t.borrow().nodes[id.0].view.render(x, y, w, h));
+            let cmds = TREE.with(|t| t.borrow().nodes[id.0].view.render(rx, ry, w, h));
             runtime::pop_observer();
             cmds
         } else {
-            TREE.with(|t| t.borrow().nodes[id.0].view.render(x, y, w, h))
+            TREE.with(|t| t.borrow().nodes[id.0].view.render(rx, ry, w, h))
         };
+
+        apply_clip(&mut commands, clip);
 
         for cmd in &commands {
             draw_list.push_command(cmd.clone());
         }
 
-        TREE.with(|t| {
-            let mut t = t.borrow_mut();
-            let node = &mut t.nodes[id.0];
-            node.cache = commands;
-            node.paint_dirty = false;
-        });
+        if paint_dirty {
+            TREE.with(|t| {
+                let mut t = t.borrow_mut();
+                let node = &mut t.nodes[id.0];
+                node.cache = commands;
+                node.paint_dirty = false;
+            });
+        }
     } else {
-        let cache = TREE.with(|t| t.borrow().nodes[id.0].cache.clone());
+        let mut cache = TREE.with(|t| t.borrow().nodes[id.0].cache.clone());
+        apply_clip(&mut cache, clip);
         for cmd in cache {
             draw_list.push_command(cmd);
         }
     }
 
+    let (child_ox, child_oy, child_clip) = if scrollable {
+        let c = merge_clip(clip, Some([rx, ry, w, h]));
+        (ox - scroll_x, oy - scroll_y, c)
+    } else {
+        (ox, oy, clip)
+    };
+
     for child_id in children {
-        render(child_id, draw_list);
+        render(child_id, draw_list, child_ox, child_oy, child_clip);
     }
+}
+
+fn apply_clip(commands: &mut Vec<DrawCommand>, clip: Option<[f32; 4]>) {
+    if clip.is_none() {
+        return;
+    }
+    for cmd in commands {
+        match cmd {
+            DrawCommand::Rect(r) => r.clip = merge_clip(r.clip, clip),
+            DrawCommand::Text(t) => t.clip = merge_clip(t.clip, clip),
+            DrawCommand::Image(i) => i.clip = merge_clip(i.clip, clip),
+        }
+    }
+}
+
+fn merge_clip(a: Option<[f32; 4]>, b: Option<[f32; 4]>) -> Option<[f32; 4]> {
+    match (a, b) {
+        (Some(a), Some(b)) => Some(intersect_clip(a, b)),
+        (Some(a), None) => Some(a),
+        (None, Some(b)) => Some(b),
+        (None, None) => None,
+    }
+}
+
+fn intersect_clip(a: [f32; 4], b: [f32; 4]) -> [f32; 4] {
+    let x = a[0].max(b[0]);
+    let y = a[1].max(b[1]);
+    let x2 = (a[0] + a[2]).min(b[0] + b[2]);
+    let y2 = (a[1] + a[3]).min(b[1] + b[3]);
+    [x, y, (x2 - x).max(0.0), (y2 - y).max(0.0)]
 }
 
 thread_local! {
@@ -270,6 +336,7 @@ pub fn set_layout(id: ViewId, layout: LayoutProps) {
             .set_style(taffy_id, layout.to_taffy_style())
             .unwrap();
     });
+    ui::request_layout();
 }
 
 pub fn update_inset(
@@ -298,7 +365,7 @@ pub fn update_inset(
         }
         t.taffy.set_style(taffy_id, style).unwrap();
     });
-    ui::request_redraw();
+    ui::request_layout();
 }
 
 pub(crate) fn add_handler<E: 'static>(id: ViewId, f: impl Fn(&E) + 'static) {
@@ -344,20 +411,36 @@ pub(crate) fn dispatch<E: 'static>(id: ViewId, event: &E) {
     }
 }
 
-pub(crate) fn hit_test(id: ViewId, x: f32, y: f32) -> Option<ViewId> {
-    let (node_x, node_y, node_w, node_h, children) = TREE.with(|t| {
-        let t = t.borrow();
-        let node = &t.nodes[id.0];
-        (node.x, node.y, node.w, node.h, node.children.clone())
-    });
+pub(crate) fn hit_test(id: ViewId, x: f32, y: f32, ox: f32, oy: f32) -> Option<ViewId> {
+    let (node_x, node_y, node_w, node_h, scroll_x, scroll_y, scrollable, children) =
+        TREE.with(|t| {
+            let t = t.borrow();
+            let node = &t.nodes[id.0];
+            (
+                node.x,
+                node.y,
+                node.w,
+                node.h,
+                node.scroll_x,
+                node.scroll_y,
+                node.scrollable,
+                node.children.clone(),
+            )
+        });
+
+    let rx = node_x + ox;
+    let ry = node_y + oy;
+
+    let child_ox = if scrollable { ox - scroll_x } else { ox };
+    let child_oy = if scrollable { oy - scroll_y } else { oy };
 
     for child_id in children.iter().rev() {
-        if let Some(hit) = hit_test(*child_id, x, y) {
+        if let Some(hit) = hit_test(*child_id, x, y, child_ox, child_oy) {
             return Some(hit);
         }
     }
 
-    if x >= node_x && x <= node_x + node_w && y >= node_y && y <= node_y + node_h {
+    if x >= rx && x <= rx + node_w && y >= ry && y <= ry + node_h {
         return Some(id);
     }
 
@@ -378,13 +461,7 @@ pub(crate) fn print_tree(id: ViewId, depth: usize) {
         let indent = "  ".repeat(depth);
         println!(
             "{}{} (id: {}) x: {} y: {} w: {} h: {}",
-            indent,
-            display_name,
-            id.0,
-            node.x,
-            node.y,
-            node.w,
-            node.h
+            indent, display_name, id.0, node.x, node.y, node.w, node.h
         );
         let children = node.children.clone();
         drop(t);

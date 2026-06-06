@@ -30,6 +30,9 @@ impl View for Text {
             paint_dirty: true,
             cache: Vec::new(),
             paint_subscriber: None,
+            scroll_x: 0.0,
+            scroll_y: 0.0,
+            scrollable: false,
         })
     }
 

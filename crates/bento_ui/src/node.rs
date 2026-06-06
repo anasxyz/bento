@@ -52,4 +52,8 @@ pub(crate) struct Node {
     pub(crate) paint_dirty: bool,
     pub(crate) cache: Vec<DrawCommand>,
     pub(crate) paint_subscriber: Option<SubscriberId>,
+
+    pub(crate) scroll_x: f32,
+    pub(crate) scroll_y: f32,
+    pub(crate) scrollable: bool,
 }

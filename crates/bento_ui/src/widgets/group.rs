@@ -5,6 +5,7 @@ use std::{cell::RefCell, hash::Hash};
 use bento_wgpu::{DrawCommand, RectDraw};
 use taffy::prelude::*;
 
+use crate::events::MouseScroll;
 use crate::layout::{LayoutProps, Val};
 use crate::node::{self, Node};
 use crate::reactive::signal::Signal;
@@ -17,11 +18,21 @@ pub struct Group {
     layout: LayoutProps,
     each: Option<Box<dyn FnOnce(ViewId, Vec<ViewId>)>>,
     when: Vec<(Signal<bool>, Rc<dyn Fn() -> Box<dyn View>>)>,
+    scroll: bool,
 }
 
 impl Group {
     pub fn child(mut self, child: impl View + 'static) -> Self {
         self.children.push(Box::new(child));
+        self
+    }
+
+    pub fn scroll(mut self) -> Self {
+        self.scroll = true;
+        self.layout.overflow = taffy::Point {
+            x: taffy::Overflow::Visible,
+            y: taffy::Overflow::Scroll,
+        };
         self
     }
 
@@ -32,18 +43,31 @@ impl Group {
 
     pub fn gap(mut self, v: Val) -> Self {
         let lp = v.to_length_percentage();
-        self.layout.gap = Size { width: lp, height: lp };
+        self.layout.gap = Size {
+            width: lp,
+            height: lp,
+        };
         self
     }
 
     pub fn p(mut self, v: Val) -> Self {
         let lp = v.to_length_percentage();
-        self.layout.padding = Rect { left: lp, right: lp, top: lp, bottom: lp };
+        self.layout.padding = Rect {
+            left: lp,
+            right: lp,
+            top: lp,
+            bottom: lp,
+        };
         self
-    }   
+    }
     pub fn m(mut self, v: Val) -> Self {
         let lpa = v.to_length_percentage_auto();
-        self.layout.margin = Rect { left: lpa, right: lpa, top: lpa, bottom: lpa };
+        self.layout.margin = Rect {
+            left: lpa,
+            right: lpa,
+            top: lpa,
+            bottom: lpa,
+        };
         self
     }
 
@@ -175,6 +199,7 @@ impl View for Group {
                 layout: layout.clone(),
                 each: None,
                 when: Vec::new(),
+                scroll: false,
             }),
             taffy_id: node::placeholder_taffy_id(),
             parent: None,
@@ -189,7 +214,21 @@ impl View for Group {
             paint_dirty: true,
             cache: Vec::new(),
             paint_subscriber: None,
+            scroll_x: 0.0,
+            scroll_y: 0.0,
+            scrollable: false,
         });
+
+        if self.scroll {
+            tree::set_scrollable(id);
+            let scroll_y = crate::state(0.0f32);
+            effect(move || {
+                tree::set_scroll(id, 0.0, scroll_y.get());
+            });
+            tree::add_handler(id, move |e: &MouseScroll| {
+                scroll_y.update(|v| (v - e.y * 20.0).max(0.0));
+            });
+        }
 
         for child_id in &child_ids {
             tree::append_child(id, *child_id);
@@ -233,5 +272,6 @@ pub fn group() -> Group {
         layout: LayoutProps::default(),
         each: None,
         when: Vec::new(),
+        scroll: false,
     }
 }
