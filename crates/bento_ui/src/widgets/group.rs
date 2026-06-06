@@ -19,6 +19,7 @@ pub struct Group {
     each: Option<Box<dyn FnOnce(ViewId, Vec<ViewId>)>>,
     when: Vec<(Signal<bool>, Rc<dyn Fn() -> Box<dyn View>>)>,
     scroll: bool,
+    clip: bool,
 }
 
 impl Group {
@@ -30,9 +31,14 @@ impl Group {
     pub fn scroll(mut self) -> Self {
         self.scroll = true;
         self.layout.overflow = taffy::Point {
-            x: taffy::Overflow::Visible,
+            x: taffy::Overflow::Scroll,
             y: taffy::Overflow::Scroll,
         };
+        self
+    }
+
+    pub fn clip(mut self) -> Self {
+        self.clip = true;
         self
     }
 
@@ -200,6 +206,7 @@ impl View for Group {
                 each: None,
                 when: Vec::new(),
                 scroll: false,
+                clip: false,
             }),
             taffy_id: node::placeholder_taffy_id(),
             parent: None,
@@ -217,17 +224,24 @@ impl View for Group {
             scroll_x: 0.0,
             scroll_y: 0.0,
             scrollable: false,
+            clip: false,
         });
 
         if self.scroll {
             tree::set_scrollable(id);
+            tree::set_clip(id);
+            let scroll_x = crate::state(0.0f32);
             let scroll_y = crate::state(0.0f32);
             effect(move || {
-                tree::set_scroll(id, 0.0, scroll_y.get());
+                tree::set_scroll(id, scroll_x.get(), scroll_y.get());
             });
             tree::add_handler(id, move |e: &MouseScroll| {
+                scroll_x.update(|v| (v - e.x * 20.0).max(0.0));
                 scroll_y.update(|v| (v - e.y * 20.0).max(0.0));
             });
+        }
+        if self.clip && !self.scroll {
+            tree::set_clip(id);
         }
 
         for child_id in &child_ids {
@@ -273,5 +287,6 @@ pub fn group() -> Group {
         each: None,
         when: Vec::new(),
         scroll: false,
+        clip: false,
     }
 }

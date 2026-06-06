@@ -259,7 +259,7 @@ fn extract_result(buffer: &Buffer, text: &str) -> TextMeasureResult {
         });
         total_width = total_width.max(line_w.ceil());
     }
-    let total_height = lines.iter().map(|l| l.height).sum();
+    let total_height = lines.iter().map(|l| l.height).sum::<f32>().ceil();
 
     let mut glyph_positions = vec![0.0f32];
     let mut line_glyph_positions: Vec<Vec<f32>> = Vec::new();

@@ -53,6 +53,7 @@ impl View for Rect {
             scroll_x: 0.0,
             scroll_y: 0.0,
             scrollable: false,
+            clip: false,
         })
     }
 }

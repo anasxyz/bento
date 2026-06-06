@@ -56,4 +56,5 @@ pub(crate) struct Node {
     pub(crate) scroll_x: f32,
     pub(crate) scroll_y: f32,
     pub(crate) scrollable: bool,
+    pub(crate) clip: bool,
 }

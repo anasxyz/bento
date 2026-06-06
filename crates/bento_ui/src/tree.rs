@@ -203,9 +203,14 @@ pub fn render(id: ViewId, draw_list: &mut DrawList, ox: f32, oy: f32, clip: Opti
         }
     }
 
+    let clip_self = TREE.with(|t| t.borrow().nodes[id.0].clip);
+
     let (child_ox, child_oy, child_clip) = if scrollable {
         let c = merge_clip(clip, Some([rx, ry, w, h]));
         (ox - scroll_x, oy - scroll_y, c)
+    } else if clip_self {
+        let c = merge_clip(clip, Some([rx, ry, w, h]));
+        (ox, oy, c)
     } else {
         (ox, oy, clip)
     };
@@ -213,6 +218,12 @@ pub fn render(id: ViewId, draw_list: &mut DrawList, ox: f32, oy: f32, clip: Opti
     for child_id in children {
         render(child_id, draw_list, child_ox, child_oy, child_clip);
     }
+}
+
+pub fn set_clip(id: ViewId) {
+    TREE.with(|t| {
+        t.borrow_mut().nodes[id.0].clip = true;
+    });
 }
 
 fn apply_clip(commands: &mut Vec<DrawCommand>, clip: Option<[f32; 4]>) {
