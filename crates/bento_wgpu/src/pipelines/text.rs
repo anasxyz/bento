@@ -1061,19 +1061,18 @@ impl TextPipeline {
 
             let t_origin = web_time::Instant::now();
             // write origin regardless of whether glyphs need rebuilding
-            if origin_update {
-                let origin_x = (spec.x * self.scale).floor();
-                let origin_y = (spec.y * self.scale).floor();
-                let offset = i as u64 * self.origin_stride;
-                // write only 8 bytes at the right slot
-                // amend: write 16 bytes bc webgl requires buffers to be 16 byte aligned
-                let origin_floats = [origin_x, origin_y, 0.0f32, 0.0f32];
-                queue.write_buffer(
-                    &self.origin_buffer,
-                    offset,
-                    bytemuck::cast_slice(&origin_floats),
-                );
-            }
+            // removed if origin_update { } guard because it was causing scrolling problems
+            let origin_x = (spec.x * self.scale).floor();
+            let origin_y = (spec.y * self.scale).floor();
+            let offset = i as u64 * self.origin_stride;
+            // write only 8 bytes at the right slot
+            // amend: write 16 bytes bc webgl requires buffers to be 16 byte aligned
+            let origin_floats = [origin_x, origin_y, 0.0f32, 0.0f32];
+            queue.write_buffer(
+                &self.origin_buffer,
+                offset,
+                bytemuck::cast_slice(&origin_floats),
+            );
             // println!("[text {}] origin write: {:?}", i, t_origin.elapsed());
 
             if redraw {

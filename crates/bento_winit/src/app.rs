@@ -253,8 +253,8 @@ impl ApplicationHandler<BentoEvent> for App {
             WindowEvent::MouseWheel { delta, .. } => {
                 match delta {
                     winit::event::MouseScrollDelta::LineDelta(x, y) => {
-                        win.ui.input.mouse.scroll_x = x * 20.0;
-                        win.ui.input.mouse.scroll_y = y * 20.0;
+                        win.ui.input.mouse.scroll_x += x * 20.0;
+                        win.ui.input.mouse.scroll_y += y * 20.0;
                     }
                     winit::event::MouseScrollDelta::PixelDelta(pos) => {
                         let scale = win.surface.scale;
