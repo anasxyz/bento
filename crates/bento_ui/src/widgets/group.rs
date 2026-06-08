@@ -10,12 +10,12 @@ use crate::layout::{LayoutProps, Val};
 use crate::node::{self, Node};
 use crate::reactive::signal::Signal;
 use crate::tree;
-use crate::view::{View, ViewId};
+use crate::views::ViewConfig;
+use crate::views::{View, ViewId};
 use crate::{Owner, effect};
 
 pub struct Group {
     children: Vec<Box<dyn View>>,
-    layout: LayoutProps,
     each: Option<Box<dyn FnOnce(ViewId, Vec<ViewId>)>>,
     when: Vec<(Signal<bool>, Rc<dyn Fn() -> Box<dyn View>>)>,
     scroll: bool,
@@ -30,85 +30,11 @@ impl Group {
 
     pub fn scroll(mut self) -> Self {
         self.scroll = true;
-        self.layout.overflow = taffy::Point {
-            x: taffy::Overflow::Scroll,
-            y: taffy::Overflow::Scroll,
-        };
         self
     }
 
     pub fn clip(mut self) -> Self {
         self.clip = true;
-        self
-    }
-
-    pub fn direction(mut self, d: FlexDirection) -> Self {
-        self.layout.flex_direction = d;
-        self
-    }
-
-    pub fn gap(mut self, v: Val) -> Self {
-        let lp = v.to_length_percentage();
-        self.layout.gap = Size {
-            width: lp,
-            height: lp,
-        };
-        self
-    }
-
-    pub fn p(mut self, v: Val) -> Self {
-        let lp = v.to_length_percentage();
-        self.layout.padding = Rect {
-            left: lp,
-            right: lp,
-            top: lp,
-            bottom: lp,
-        };
-        self
-    }
-    pub fn m(mut self, v: Val) -> Self {
-        let lpa = v.to_length_percentage_auto();
-        self.layout.margin = Rect {
-            left: lpa,
-            right: lpa,
-            top: lpa,
-            bottom: lpa,
-        };
-        self
-    }
-
-    pub fn w(mut self, v: Val) -> Self {
-        self.layout.width = v.to_dimension();
-        self
-    }
-
-    pub fn h(mut self, v: Val) -> Self {
-        self.layout.height = v.to_dimension();
-        self
-    }
-
-    pub fn align_items(mut self, v: AlignItems) -> Self {
-        self.layout.align_items = Some(v);
-        self
-    }
-
-    pub fn justify_content(mut self, v: JustifyContent) -> Self {
-        self.layout.justify_content = Some(v);
-        self
-    }
-
-    pub fn align_content(mut self, v: AlignContent) -> Self {
-        self.layout.align_content = Some(v);
-        self
-    }
-
-    pub fn flex_wrap(mut self, v: FlexWrap) -> Self {
-        self.layout.flex_wrap = v;
-        self
-    }
-
-    pub fn display(mut self, v: Display) -> Self {
-        self.layout.display = v;
         self
     }
 
@@ -193,16 +119,16 @@ impl View for Group {
     }
 
     fn build(self: Box<Self>) -> ViewId {
-        let layout = self.layout.clone();
         let each = self.each;
         let when = self.when;
+        let scroll = self.scroll;
+        let clip = self.clip;
         let child_ids: Vec<ViewId> = self.children.into_iter().map(|c| c.build()).collect();
 
         let id = tree::add_node(Node {
             name: Some("Group (Primitive)"),
             view: Box::new(Group {
                 children: Vec::new(),
-                layout: layout.clone(),
                 each: None,
                 when: Vec::new(),
                 scroll: false,
@@ -215,7 +141,7 @@ impl View for Group {
             y: 0.0,
             w: 0.0,
             h: 0.0,
-            layout,
+            layout: LayoutProps::default(),
             handlers: Vec::new(),
             owners: Vec::new(),
             paint_dirty: true,
@@ -227,7 +153,7 @@ impl View for Group {
             clip: false,
         });
 
-        if self.scroll {
+        if scroll {
             tree::set_scrollable(id);
             tree::set_clip(id);
             let scroll_x = crate::state(0.0f32);
@@ -240,7 +166,7 @@ impl View for Group {
                 scroll_y.update(|v| (v - e.y).max(0.0));
             });
         }
-        if self.clip && !self.scroll {
+        if clip && !scroll {
             tree::set_clip(id);
         }
 
@@ -280,10 +206,53 @@ impl View for Group {
     }
 }
 
+impl ViewConfig<Group> {
+    pub fn child(mut self, child: impl View + 'static) -> Self {
+        self.inner.children.push(Box::new(child));
+        self
+    }
+
+    pub fn scroll(mut self) -> Self {
+        self.inner.scroll = true;
+        self
+    }
+
+    pub fn clip(mut self) -> Self {
+        self.inner.clip = true;
+        self
+    }
+
+    pub fn when<V: View + 'static>(
+        mut self,
+        condition: Signal<bool>,
+        view_fn: impl Fn() -> V + 'static,
+    ) -> Self {
+        self.inner
+            .when
+            .push((condition, Rc::new(move || Box::new(view_fn()))));
+        self
+    }
+
+    pub fn each<T, K, V, VF>(
+        mut self,
+        items: Signal<Vec<T>>,
+        key_fn: impl Fn(&T) -> K + 'static,
+        view_fn: VF,
+    ) -> Self
+    where
+        T: Clone + 'static,
+        K: Eq + Hash + Clone + 'static,
+        VF: Fn(T) -> V + 'static,
+        V: View + 'static,
+    {
+        self.inner = self.inner.each(items, key_fn, view_fn);
+        self
+    }
+}
+
 pub fn group() -> Group {
     Group {
         children: Vec::new(),
-        layout: LayoutProps::default(),
         each: None,
         when: Vec::new(),
         scroll: false,

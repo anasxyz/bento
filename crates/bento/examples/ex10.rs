@@ -1,16 +1,19 @@
+#![allow(unused)]
+#![allow(dead_code)]
+
 use bento::*;
 
 #[component]
 fn app() -> impl View {
     group()
-        .direction(col())
-        .w(px(300.0))
-        .h(px(400.0))
+        .direction(|| col())
+        .w(|| px(300.0))
+        .h(|| px(400.0))
         .child(
             group()
-                .direction(col())
-                .w(px(300.0))
-                .h(px(200.0))
+                .direction(|| col())
+                .w(|| px(300.0))
+                .h(|| px(200.0))
                 .scroll()
                 .child(text(|| "item 1".into()))
                 .child(text(|| "item 2".into()))
@@ -32,12 +35,11 @@ fn app() -> impl View {
                 .child(text(|| "item 18".into()))
                 .child(text(|| "item 19".into()))
                 .child(text(|| "item 20".into()))
-
         )
         .child(
             rect(|| [1.0, 0.0, 0.0, 1.0])
-                .w(px(300.0))
-                .h(px(200.0))
+                .w(|| px(300.0))
+                .h(|| px(200.0))
         )
 }
 

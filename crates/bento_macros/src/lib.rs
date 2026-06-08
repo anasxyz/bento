@@ -78,7 +78,7 @@ pub fn component(attr: TokenStream, item: TokenStream) -> TokenStream {
             let __owner = bento_ui::Owner::new();
             let __view = (move || #body)();
             let __owner = __owner.collect();
-            bento_ui::view::OwnedView::new(__owner, __view).named(#component_name)
+            bento_ui::views::OwnedView::new(__owner, __view).named(#component_name)
         }
     })
 }

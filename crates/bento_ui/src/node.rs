@@ -5,7 +5,7 @@ use taffy::NodeId as TaffyNodeId;
 
 use crate::layout::LayoutProps;
 use crate::reactive::{owner::Owner, runtime::SubscriberId};
-use crate::view::{View, ViewId};
+use crate::views::{View, ViewId};
 use crate::{Signal, state};
 
 pub(crate) struct EventHandler {

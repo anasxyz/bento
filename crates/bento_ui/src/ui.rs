@@ -11,7 +11,7 @@ use crate::{
     input::InputState,
     input::mouse,
     tree,
-    view::{View, ViewId},
+    views::{View, ViewId},
 };
 
 pub struct Ui {
@@ -64,7 +64,7 @@ impl Ui {
                 self.viewport_h,
                 &mut self.measurer,
             );
-            println!("layout: {:?}", t.elapsed());
+            // println!("layout: {:?}", t.elapsed());
             self.layout_dirty = false;
         }
 

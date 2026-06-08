@@ -57,7 +57,7 @@ pub(crate) fn create_signal<T: 'static>(value: T) -> Signal<T> {
         rt.signals.insert(new_sig_entry)
     });
 
-    eprintln!("[create_signal] created signal {:?}", new_sig_id);
+    // eprintln!("[create_signal] created signal {:?}", new_sig_id);
 
     let new_sig = Signal {
         id: SignalId(new_sig_id),
@@ -72,7 +72,7 @@ pub(crate) fn create_signal<T: 'static>(value: T) -> Signal<T> {
 }
 
 pub(crate) fn destroy_signal(id: SignalId) {
-    eprintln!("[destroy_signal] destroying signal {:?}", id);
+    // eprintln!("[destroy_signal] destroying signal {:?}", id);
     RUNTIME.with(|rt| {
         rt.borrow_mut().signals.remove(id.0);
     });

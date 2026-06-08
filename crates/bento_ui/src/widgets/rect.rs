@@ -1,7 +1,7 @@
 use crate::layout::LayoutProps;
 use crate::node::{self, Node};
 use crate::tree;
-use crate::view::{View, ViewId};
+use crate::views::{View, ViewId};
 use bento_wgpu::{DrawCommand, RectDraw};
 
 pub struct Rect {

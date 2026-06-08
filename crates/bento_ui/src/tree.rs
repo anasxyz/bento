@@ -8,7 +8,7 @@ use crate::{
     node::{EventHandler, Node},
     reactive::{owner::Owner, runtime},
     ui,
-    view::ViewId,
+    views::ViewId,
 };
 
 struct Tree {
@@ -335,10 +335,6 @@ fn apply_layout(id: ViewId, parent_x: f32, parent_y: f32) {
 }
 
 pub fn set_layout(id: ViewId, layout: LayoutProps) {
-    println!(
-        "[set_layout] id={:?} w={:?} h={:?}",
-        id, layout.width, layout.height
-    );
     let taffy_id = TREE.with(|t| t.borrow().nodes[id.0].taffy_id);
     TREE.with(|t| {
         let mut t = t.borrow_mut();
