@@ -5,7 +5,6 @@ use taffy::prelude::*;
 pub fn slider(value: Signal<f32>, min: f32, max: f32) -> impl View {
     let dragging = state(false);
     let track_ref = node_ref();
-
     let thumb_pos = derived(move || ((value.get() - min) / (max - min)).clamp(0.0, 1.0));
 
     let track = rect(|| [0.3, 0.3, 0.3, 1.0])
@@ -24,7 +23,7 @@ pub fn slider(value: Signal<f32>, min: f32, max: f32) -> impl View {
         .w(px(16.0))
         .h(px(16.0))
         .position(Position::Absolute)
-        .inset_top(|| px(8.0))
+        .inset_top(px(8.0))
         .inset_left(move || pct(thumb_pos.get()))
         .m_left(px(-8.0))
         .on(move |_: &MouseDown| dragging.set(true))

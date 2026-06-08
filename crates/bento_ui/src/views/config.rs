@@ -5,50 +5,51 @@ use crate::layout::{LayoutProps, Val};
 use crate::node::NodeRef;
 use crate::{effect, tree};
 use crate::views::{View, ViewId};
+use crate::reactive::value::Reactive;
 
 pub struct ViewConfig<V: View> {
     pub(crate) inner: V,
-    width: Option<Box<dyn Fn() -> Val>>,
-    height: Option<Box<dyn Fn() -> Val>>,
-    min_width: Option<Box<dyn Fn() -> Val>>,
-    min_height: Option<Box<dyn Fn() -> Val>>,
-    max_width: Option<Box<dyn Fn() -> Val>>,
-    max_height: Option<Box<dyn Fn() -> Val>>,
-    flex_grow: Option<Box<dyn Fn() -> f32>>,
-    flex_shrink: Option<Box<dyn Fn() -> f32>>,
-    flex_basis: Option<Box<dyn Fn() -> Val>>,
-    align_self: Option<Box<dyn Fn() -> AlignSelf>>,
-    justify_self: Option<Box<dyn Fn() -> AlignSelf>>,
-    padding: Option<Box<dyn Fn() -> Val>>,
-    padding_left: Option<Box<dyn Fn() -> Val>>,
-    padding_right: Option<Box<dyn Fn() -> Val>>,
-    padding_top: Option<Box<dyn Fn() -> Val>>,
-    padding_bottom: Option<Box<dyn Fn() -> Val>>,
-    margin: Option<Box<dyn Fn() -> Val>>,
-    margin_left: Option<Box<dyn Fn() -> Val>>,
-    margin_right: Option<Box<dyn Fn() -> Val>>,
-    margin_top: Option<Box<dyn Fn() -> Val>>,
-    margin_bottom: Option<Box<dyn Fn() -> Val>>,
-    border: Option<Box<dyn Fn() -> Val>>,
-    border_left: Option<Box<dyn Fn() -> Val>>,
-    border_right: Option<Box<dyn Fn() -> Val>>,
-    border_top: Option<Box<dyn Fn() -> Val>>,
-    border_bottom: Option<Box<dyn Fn() -> Val>>,
-    aspect_ratio: Option<Box<dyn Fn() -> f32>>,
-    direction: Option<Box<dyn Fn() -> FlexDirection>>,
-    gap: Option<Box<dyn Fn() -> Val>>,
-    align_items: Option<Box<dyn Fn() -> AlignItems>>,
-    justify_content: Option<Box<dyn Fn() -> JustifyContent>>,
-    align_content: Option<Box<dyn Fn() -> AlignContent>>,
-    flex_wrap: Option<Box<dyn Fn() -> FlexWrap>>,
-    display: Option<Box<dyn Fn() -> Display>>,
-    grid_row: Option<Box<dyn Fn() -> Line<GridPlacement>>>,
-    grid_column: Option<Box<dyn Fn() -> Line<GridPlacement>>>,
-    position: Option<Box<dyn Fn() -> Position>>,
-    inset_left: Option<Box<dyn Fn() -> Val>>,
-    inset_right: Option<Box<dyn Fn() -> Val>>,
-    inset_top: Option<Box<dyn Fn() -> Val>>,
-    inset_bottom: Option<Box<dyn Fn() -> Val>>,
+    width: Option<Reactive<Val>>,
+    height: Option<Reactive<Val>>,
+    min_width: Option<Reactive<Val>>,
+    min_height: Option<Reactive<Val>>,
+    max_width: Option<Reactive<Val>>,
+    max_height: Option<Reactive<Val>>,
+    flex_grow: Option<Reactive<f32>>,
+    flex_shrink: Option<Reactive<f32>>,
+    flex_basis: Option<Reactive<Val>>,
+    align_self: Option<Reactive<AlignSelf>>,
+    justify_self: Option<Reactive<AlignSelf>>,
+    padding: Option<Reactive<Val>>,
+    padding_left: Option<Reactive<Val>>,
+    padding_right: Option<Reactive<Val>>,
+    padding_top: Option<Reactive<Val>>,
+    padding_bottom: Option<Reactive<Val>>,
+    margin: Option<Reactive<Val>>,
+    margin_left: Option<Reactive<Val>>,
+    margin_right: Option<Reactive<Val>>,
+    margin_top: Option<Reactive<Val>>,
+    margin_bottom: Option<Reactive<Val>>,
+    border: Option<Reactive<Val>>,
+    border_left: Option<Reactive<Val>>,
+    border_right: Option<Reactive<Val>>,
+    border_top: Option<Reactive<Val>>,
+    border_bottom: Option<Reactive<Val>>,
+    aspect_ratio: Option<Reactive<f32>>,
+    direction: Option<Reactive<FlexDirection>>,
+    gap: Option<Reactive<Val>>,
+    align_items: Option<Reactive<AlignItems>>,
+    justify_content: Option<Reactive<JustifyContent>>,
+    align_content: Option<Reactive<AlignContent>>,
+    flex_wrap: Option<Reactive<FlexWrap>>,
+    display: Option<Reactive<Display>>,
+    grid_row: Option<Reactive<Line<GridPlacement>>>,
+    grid_column: Option<Reactive<Line<GridPlacement>>>,
+    position: Option<Reactive<Position>>,
+    inset_left: Option<Reactive<Val>>,
+    inset_right: Option<Reactive<Val>>,
+    inset_top: Option<Reactive<Val>>,
+    inset_bottom: Option<Reactive<Val>>,
     handlers: Vec<Box<dyn FnOnce(ViewId)>>,
     node_ref: Option<NodeRef>,
 }
@@ -85,47 +86,47 @@ impl<V: View> ViewConfig<V> {
         self
     }
 
-    pub fn w(mut self, v: impl Fn() -> Val + 'static) -> Self { self.width = Some(Box::new(v)); self }
-    pub fn h(mut self, v: impl Fn() -> Val + 'static) -> Self { self.height = Some(Box::new(v)); self }
-    pub fn min_w(mut self, v: impl Fn() -> Val + 'static) -> Self { self.min_width = Some(Box::new(v)); self }
-    pub fn min_h(mut self, v: impl Fn() -> Val + 'static) -> Self { self.min_height = Some(Box::new(v)); self }
-    pub fn max_w(mut self, v: impl Fn() -> Val + 'static) -> Self { self.max_width = Some(Box::new(v)); self }
-    pub fn max_h(mut self, v: impl Fn() -> Val + 'static) -> Self { self.max_height = Some(Box::new(v)); self }
-    pub fn flex_grow(mut self, v: impl Fn() -> f32 + 'static) -> Self { self.flex_grow = Some(Box::new(v)); self }
-    pub fn flex_shrink(mut self, v: impl Fn() -> f32 + 'static) -> Self { self.flex_shrink = Some(Box::new(v)); self }
-    pub fn flex_basis(mut self, v: impl Fn() -> Val + 'static) -> Self { self.flex_basis = Some(Box::new(v)); self }
-    pub fn align_self(mut self, v: impl Fn() -> AlignSelf + 'static) -> Self { self.align_self = Some(Box::new(v)); self }
-    pub fn justify_self(mut self, v: impl Fn() -> AlignSelf + 'static) -> Self { self.justify_self = Some(Box::new(v)); self }
-    pub fn p(mut self, v: impl Fn() -> Val + 'static) -> Self { self.padding = Some(Box::new(v)); self }
-    pub fn p_left(mut self, v: impl Fn() -> Val + 'static) -> Self { self.padding_left = Some(Box::new(v)); self }
-    pub fn p_right(mut self, v: impl Fn() -> Val + 'static) -> Self { self.padding_right = Some(Box::new(v)); self }
-    pub fn p_top(mut self, v: impl Fn() -> Val + 'static) -> Self { self.padding_top = Some(Box::new(v)); self }
-    pub fn p_bottom(mut self, v: impl Fn() -> Val + 'static) -> Self { self.padding_bottom = Some(Box::new(v)); self }
-    pub fn m(mut self, v: impl Fn() -> Val + 'static) -> Self { self.margin = Some(Box::new(v)); self }
-    pub fn m_left(mut self, v: impl Fn() -> Val + 'static) -> Self { self.margin_left = Some(Box::new(v)); self }
-    pub fn m_right(mut self, v: impl Fn() -> Val + 'static) -> Self { self.margin_right = Some(Box::new(v)); self }
-    pub fn m_top(mut self, v: impl Fn() -> Val + 'static) -> Self { self.margin_top = Some(Box::new(v)); self }
-    pub fn m_bottom(mut self, v: impl Fn() -> Val + 'static) -> Self { self.margin_bottom = Some(Box::new(v)); self }
-    pub fn border(mut self, v: impl Fn() -> Val + 'static) -> Self { self.border = Some(Box::new(v)); self }
-    pub fn border_left(mut self, v: impl Fn() -> Val + 'static) -> Self { self.border_left = Some(Box::new(v)); self }
-    pub fn border_right(mut self, v: impl Fn() -> Val + 'static) -> Self { self.border_right = Some(Box::new(v)); self }
-    pub fn border_top(mut self, v: impl Fn() -> Val + 'static) -> Self { self.border_top = Some(Box::new(v)); self }
-    pub fn border_bottom(mut self, v: impl Fn() -> Val + 'static) -> Self { self.border_bottom = Some(Box::new(v)); self }
-    pub fn aspect_ratio(mut self, v: impl Fn() -> f32 + 'static) -> Self { self.aspect_ratio = Some(Box::new(v)); self }
-    pub fn direction(mut self, v: impl Fn() -> FlexDirection + 'static) -> Self { self.direction = Some(Box::new(v)); self }
-    pub fn gap(mut self, v: impl Fn() -> Val + 'static) -> Self { self.gap = Some(Box::new(v)); self }
-    pub fn align_items(mut self, v: impl Fn() -> AlignItems + 'static) -> Self { self.align_items = Some(Box::new(v)); self }
-    pub fn justify_content(mut self, v: impl Fn() -> JustifyContent + 'static) -> Self { self.justify_content = Some(Box::new(v)); self }
-    pub fn align_content(mut self, v: impl Fn() -> AlignContent + 'static) -> Self { self.align_content = Some(Box::new(v)); self }
-    pub fn flex_wrap(mut self, v: impl Fn() -> FlexWrap + 'static) -> Self { self.flex_wrap = Some(Box::new(v)); self }
-    pub fn display(mut self, v: impl Fn() -> Display + 'static) -> Self { self.display = Some(Box::new(v)); self }
-    pub fn grid_row(mut self, v: impl Fn() -> Line<GridPlacement> + 'static) -> Self { self.grid_row = Some(Box::new(v)); self }
-    pub fn grid_column(mut self, v: impl Fn() -> Line<GridPlacement> + 'static) -> Self { self.grid_column = Some(Box::new(v)); self }
-    pub fn position(mut self, v: impl Fn() -> Position + 'static) -> Self { self.position = Some(Box::new(v)); self }
-    pub fn inset_left(mut self, v: impl Fn() -> Val + 'static) -> Self { self.inset_left = Some(Box::new(v)); self }
-    pub fn inset_right(mut self, v: impl Fn() -> Val + 'static) -> Self { self.inset_right = Some(Box::new(v)); self }
-    pub fn inset_top(mut self, v: impl Fn() -> Val + 'static) -> Self { self.inset_top = Some(Box::new(v)); self }
-    pub fn inset_bottom(mut self, v: impl Fn() -> Val + 'static) -> Self { self.inset_bottom = Some(Box::new(v)); self }
+    pub fn w(mut self, v: impl Into<Reactive<Val>>) -> Self { self.width = Some(v.into()); self }
+    pub fn h(mut self, v: impl Into<Reactive<Val>>) -> Self { self.height = Some(v.into()); self }
+    pub fn min_w(mut self, v: impl Into<Reactive<Val>>) -> Self { self.min_width = Some(v.into()); self }
+    pub fn min_h(mut self, v: impl Into<Reactive<Val>>) -> Self { self.min_height = Some(v.into()); self }
+    pub fn max_w(mut self, v: impl Into<Reactive<Val>>) -> Self { self.max_width = Some(v.into()); self }
+    pub fn max_h(mut self, v: impl Into<Reactive<Val>>) -> Self { self.max_height = Some(v.into()); self }
+    pub fn flex_grow(mut self, v: impl Into<Reactive<f32>>) -> Self { self.flex_grow = Some(v.into()); self }
+    pub fn flex_shrink(mut self, v: impl Into<Reactive<f32>>) -> Self { self.flex_shrink = Some(v.into()); self }
+    pub fn flex_basis(mut self, v: impl Into<Reactive<Val>>) -> Self { self.flex_basis = Some(v.into()); self }
+    pub fn align_self(mut self, v: impl Into<Reactive<AlignSelf>>) -> Self { self.align_self = Some(v.into()); self }
+    pub fn justify_self(mut self, v: impl Into<Reactive<AlignSelf>>) -> Self { self.justify_self = Some(v.into()); self }
+    pub fn p(mut self, v: impl Into<Reactive<Val>>) -> Self { self.padding = Some(v.into()); self }
+    pub fn p_left(mut self, v: impl Into<Reactive<Val>>) -> Self { self.padding_left = Some(v.into()); self }
+    pub fn p_right(mut self, v: impl Into<Reactive<Val>>) -> Self { self.padding_right = Some(v.into()); self }
+    pub fn p_top(mut self, v: impl Into<Reactive<Val>>) -> Self { self.padding_top = Some(v.into()); self }
+    pub fn p_bottom(mut self, v: impl Into<Reactive<Val>>) -> Self { self.padding_bottom = Some(v.into()); self }
+    pub fn m(mut self, v: impl Into<Reactive<Val>>) -> Self { self.margin = Some(v.into()); self }
+    pub fn m_left(mut self, v: impl Into<Reactive<Val>>) -> Self { self.margin_left = Some(v.into()); self }
+    pub fn m_right(mut self, v: impl Into<Reactive<Val>>) -> Self { self.margin_right = Some(v.into()); self }
+    pub fn m_top(mut self, v: impl Into<Reactive<Val>>) -> Self { self.margin_top = Some(v.into()); self }
+    pub fn m_bottom(mut self, v: impl Into<Reactive<Val>>) -> Self { self.margin_bottom = Some(v.into()); self }
+    pub fn border(mut self, v: impl Into<Reactive<Val>>) -> Self { self.border = Some(v.into()); self }
+    pub fn border_left(mut self, v: impl Into<Reactive<Val>>) -> Self { self.border_left = Some(v.into()); self }
+    pub fn border_right(mut self, v: impl Into<Reactive<Val>>) -> Self { self.border_right = Some(v.into()); self }
+    pub fn border_top(mut self, v: impl Into<Reactive<Val>>) -> Self { self.border_top = Some(v.into()); self }
+    pub fn border_bottom(mut self, v: impl Into<Reactive<Val>>) -> Self { self.border_bottom = Some(v.into()); self }
+    pub fn aspect_ratio(mut self, v: impl Into<Reactive<f32>>) -> Self { self.aspect_ratio = Some(v.into()); self }
+    pub fn direction(mut self, v: impl Into<Reactive<FlexDirection>>) -> Self { self.direction = Some(v.into()); self }
+    pub fn gap(mut self, v: impl Into<Reactive<Val>>) -> Self { self.gap = Some(v.into()); self }
+    pub fn align_items(mut self, v: impl Into<Reactive<AlignItems>>) -> Self { self.align_items = Some(v.into()); self }
+    pub fn justify_content(mut self, v: impl Into<Reactive<JustifyContent>>) -> Self { self.justify_content = Some(v.into()); self }
+    pub fn align_content(mut self, v: impl Into<Reactive<AlignContent>>) -> Self { self.align_content = Some(v.into()); self }
+    pub fn flex_wrap(mut self, v: impl Into<Reactive<FlexWrap>>) -> Self { self.flex_wrap = Some(v.into()); self }
+    pub fn display(mut self, v: impl Into<Reactive<Display>>) -> Self { self.display = Some(v.into()); self }
+    pub fn grid_row(mut self, v: impl Into<Reactive<Line<GridPlacement>>>) -> Self { self.grid_row = Some(v.into()); self }
+    pub fn grid_column(mut self, v: impl Into<Reactive<Line<GridPlacement>>>) -> Self { self.grid_column = Some(v.into()); self }
+    pub fn position(mut self, v: impl Into<Reactive<Position>>) -> Self { self.position = Some(v.into()); self }
+    pub fn inset_left(mut self, v: impl Into<Reactive<Val>>) -> Self { self.inset_left = Some(v.into()); self }
+    pub fn inset_right(mut self, v: impl Into<Reactive<Val>>) -> Self { self.inset_right = Some(v.into()); self }
+    pub fn inset_top(mut self, v: impl Into<Reactive<Val>>) -> Self { self.inset_top = Some(v.into()); self }
+    pub fn inset_bottom(mut self, v: impl Into<Reactive<Val>>) -> Self { self.inset_bottom = Some(v.into()); self }
 }
 
 impl<V: View> View for ViewConfig<V> {
@@ -164,47 +165,47 @@ impl<V: View> View for ViewConfig<V> {
 
         effect(move || {
             let mut l = LayoutProps::default();
-            if let Some(f) = &width { l.width = f().to_dimension(); }
-            if let Some(f) = &height { l.height = f().to_dimension(); }
-            if let Some(f) = &min_width { l.min_width = f().to_dimension(); }
-            if let Some(f) = &min_height { l.min_height = f().to_dimension(); }
-            if let Some(f) = &max_width { l.max_width = f().to_dimension(); }
-            if let Some(f) = &max_height { l.max_height = f().to_dimension(); }
-            if let Some(f) = &flex_grow { l.flex_grow = f(); }
-            if let Some(f) = &flex_shrink { l.flex_shrink = f(); }
-            if let Some(f) = &flex_basis { l.flex_basis = f().to_dimension(); }
-            if let Some(f) = &align_self { l.align_self = Some(f()); }
-            if let Some(f) = &justify_self { l.justify_self = Some(f()); }
-            if let Some(f) = &padding { let lp = f().to_length_percentage(); l.padding = Rect { left: lp, right: lp, top: lp, bottom: lp }; }
-            if let Some(f) = &padding_left { l.padding.left = f().to_length_percentage(); }
-            if let Some(f) = &padding_right { l.padding.right = f().to_length_percentage(); }
-            if let Some(f) = &padding_top { l.padding.top = f().to_length_percentage(); }
-            if let Some(f) = &padding_bottom { l.padding.bottom = f().to_length_percentage(); }
-            if let Some(f) = &margin { let lpa = f().to_length_percentage_auto(); l.margin = Rect { left: lpa, right: lpa, top: lpa, bottom: lpa }; }
-            if let Some(f) = &margin_left { l.margin.left = f().to_length_percentage_auto(); }
-            if let Some(f) = &margin_right { l.margin.right = f().to_length_percentage_auto(); }
-            if let Some(f) = &margin_top { l.margin.top = f().to_length_percentage_auto(); }
-            if let Some(f) = &margin_bottom { l.margin.bottom = f().to_length_percentage_auto(); }
-            if let Some(f) = &border { let lp = f().to_length_percentage(); l.border = Rect { left: lp, right: lp, top: lp, bottom: lp }; }
-            if let Some(f) = &border_left { l.border.left = f().to_length_percentage(); }
-            if let Some(f) = &border_right { l.border.right = f().to_length_percentage(); }
-            if let Some(f) = &border_top { l.border.top = f().to_length_percentage(); }
-            if let Some(f) = &border_bottom { l.border.bottom = f().to_length_percentage(); }
-            if let Some(f) = &aspect_ratio { l.aspect_ratio = Some(f()); }
-            if let Some(f) = &direction { l.flex_direction = f(); }
-            if let Some(f) = &gap { let lp = f().to_length_percentage(); l.gap = Size { width: lp, height: lp }; }
-            if let Some(f) = &align_items { l.align_items = Some(f()); }
-            if let Some(f) = &justify_content { l.justify_content = Some(f()); }
-            if let Some(f) = &align_content { l.align_content = Some(f()); }
-            if let Some(f) = &flex_wrap { l.flex_wrap = f(); }
-            if let Some(f) = &display { l.display = f(); }
-            if let Some(f) = &grid_row { l.grid_row = f(); }
-            if let Some(f) = &grid_column { l.grid_column = f(); }
-            if let Some(f) = &position { l.position = f(); }
-            if let Some(f) = &inset_left { l.inset.left = f().to_length_percentage_auto(); }
-            if let Some(f) = &inset_right { l.inset.right = f().to_length_percentage_auto(); }
-            if let Some(f) = &inset_top { l.inset.top = f().to_length_percentage_auto(); }
-            if let Some(f) = &inset_bottom { l.inset.bottom = f().to_length_percentage_auto(); }
+            if let Some(f) = &width { l.width = f.get().to_dimension(); }
+            if let Some(f) = &height { l.height = f.get().to_dimension(); }
+            if let Some(f) = &min_width { l.min_width = f.get().to_dimension(); }
+            if let Some(f) = &min_height { l.min_height = f.get().to_dimension(); }
+            if let Some(f) = &max_width { l.max_width = f.get().to_dimension(); }
+            if let Some(f) = &max_height { l.max_height = f.get().to_dimension(); }
+            if let Some(f) = &flex_grow { l.flex_grow = f.get(); }
+            if let Some(f) = &flex_shrink { l.flex_shrink = f.get(); }
+            if let Some(f) = &flex_basis { l.flex_basis = f.get().to_dimension(); }
+            if let Some(f) = &align_self { l.align_self = Some(f.get()); }
+            if let Some(f) = &justify_self { l.justify_self = Some(f.get()); }
+            if let Some(f) = &padding { let lp = f.get().to_length_percentage(); l.padding = Rect { left: lp, right: lp, top: lp, bottom: lp }; }
+            if let Some(f) = &padding_left { l.padding.left = f.get().to_length_percentage(); }
+            if let Some(f) = &padding_right { l.padding.right = f.get().to_length_percentage(); }
+            if let Some(f) = &padding_top { l.padding.top = f.get().to_length_percentage(); }
+            if let Some(f) = &padding_bottom { l.padding.bottom = f.get().to_length_percentage(); }
+            if let Some(f) = &margin { let lpa = f.get().to_length_percentage_auto(); l.margin = Rect { left: lpa, right: lpa, top: lpa, bottom: lpa }; }
+            if let Some(f) = &margin_left { l.margin.left = f.get().to_length_percentage_auto(); }
+            if let Some(f) = &margin_right { l.margin.right = f.get().to_length_percentage_auto(); }
+            if let Some(f) = &margin_top { l.margin.top = f.get().to_length_percentage_auto(); }
+            if let Some(f) = &margin_bottom { l.margin.bottom = f.get().to_length_percentage_auto(); }
+            if let Some(f) = &border { let lp = f.get().to_length_percentage(); l.border = Rect { left: lp, right: lp, top: lp, bottom: lp }; }
+            if let Some(f) = &border_left { l.border.left = f.get().to_length_percentage(); }
+            if let Some(f) = &border_right { l.border.right = f.get().to_length_percentage(); }
+            if let Some(f) = &border_top { l.border.top = f.get().to_length_percentage(); }
+            if let Some(f) = &border_bottom { l.border.bottom = f.get().to_length_percentage(); }
+            if let Some(f) = &aspect_ratio { l.aspect_ratio = Some(f.get()); }
+            if let Some(f) = &direction { l.flex_direction = f.get(); }
+            if let Some(f) = &gap { let lp = f.get().to_length_percentage(); l.gap = Size { width: lp, height: lp }; }
+            if let Some(f) = &align_items { l.align_items = Some(f.get()); }
+            if let Some(f) = &justify_content { l.justify_content = Some(f.get()); }
+            if let Some(f) = &align_content { l.align_content = Some(f.get()); }
+            if let Some(f) = &flex_wrap { l.flex_wrap = f.get(); }
+            if let Some(f) = &display { l.display = f.get(); }
+            if let Some(f) = &grid_row { l.grid_row = f.get_clone(); }
+            if let Some(f) = &grid_column { l.grid_column = f.get_clone(); }
+            if let Some(f) = &position { l.position = f.get(); }
+            if let Some(f) = &inset_left { l.inset.left = f.get().to_length_percentage_auto(); }
+            if let Some(f) = &inset_right { l.inset.right = f.get().to_length_percentage_auto(); }
+            if let Some(f) = &inset_top { l.inset.top = f.get().to_length_percentage_auto(); }
+            if let Some(f) = &inset_bottom { l.inset.bottom = f.get().to_length_percentage_auto(); }
             tree::set_layout(id, l);
         });
 

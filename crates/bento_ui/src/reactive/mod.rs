@@ -3,6 +3,7 @@ pub(crate) mod effect;
 pub(crate) mod owner;
 pub(crate) mod runtime;
 pub(crate) mod signal;
+pub(crate) mod value;
 
 use derived::Derived;
 use signal::Signal;

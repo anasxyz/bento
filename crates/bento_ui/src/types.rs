@@ -12,4 +12,3 @@ pub enum CursorIcon {
     Grab,
     Grabbing,
 }
-

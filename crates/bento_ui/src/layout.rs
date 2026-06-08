@@ -1,6 +1,8 @@
 use taffy::prelude::*;
 use taffy::{Overflow, Point};
 
+use crate::reactive::value::Reactive;
+
 #[derive(Clone, Debug)]
 pub struct LayoutProps {
     pub display: Display,
@@ -153,4 +155,69 @@ impl Val {
             _ => LengthPercentageAuto::length(self.0),
         }
     }
+}
+
+impl From<Val> for Reactive<Val> {
+    fn from(v: Val) -> Self { Reactive::Static(v) }
+}
+impl<F: Fn() -> Val + 'static> From<F> for Reactive<Val> {
+    fn from(f: F) -> Self { Reactive::Dynamic(Box::new(f)) }
+}
+
+impl From<f32> for Reactive<f32> {
+    fn from(v: f32) -> Self { Reactive::Static(v) }
+}
+impl<F: Fn() -> f32 + 'static> From<F> for Reactive<f32> {
+    fn from(f: F) -> Self { Reactive::Dynamic(Box::new(f)) }
+}
+
+impl From<FlexDirection> for Reactive<FlexDirection> {
+    fn from(v: FlexDirection) -> Self { Reactive::Static(v) }
+}
+impl<F: Fn() -> FlexDirection + 'static> From<F> for Reactive<FlexDirection> {
+    fn from(f: F) -> Self { Reactive::Dynamic(Box::new(f)) }
+}
+
+/// AlignItems, AlignSelf, AlignContent, and JustifyContent are the same type in this 
+/// version of taffy, so this accounts for all of them to avoid duplication errors
+impl From<AlignItems> for Reactive<AlignItems> {
+    fn from(v: AlignItems) -> Self { Reactive::Static(v) }
+}
+impl<F: Fn() -> AlignItems + 'static> From<F> for Reactive<AlignItems> {
+    fn from(f: F) -> Self { Reactive::Dynamic(Box::new(f)) }
+}
+
+impl From<JustifyContent> for Reactive<JustifyContent> {
+    fn from(v: JustifyContent) -> Self { Reactive::Static(v) }
+}
+impl<F: Fn() -> JustifyContent + 'static> From<F> for Reactive<JustifyContent> {
+    fn from(f: F) -> Self { Reactive::Dynamic(Box::new(f)) }
+}
+
+impl From<FlexWrap> for Reactive<FlexWrap> {
+    fn from(v: FlexWrap) -> Self { Reactive::Static(v) }
+}
+impl<F: Fn() -> FlexWrap + 'static> From<F> for Reactive<FlexWrap> {
+    fn from(f: F) -> Self { Reactive::Dynamic(Box::new(f)) }
+}
+
+impl From<Display> for Reactive<Display> {
+    fn from(v: Display) -> Self { Reactive::Static(v) }
+}
+impl<F: Fn() -> Display + 'static> From<F> for Reactive<Display> {
+    fn from(f: F) -> Self { Reactive::Dynamic(Box::new(f)) }
+}
+
+impl From<Position> for Reactive<Position> {
+    fn from(v: Position) -> Self { Reactive::Static(v) }
+}
+impl<F: Fn() -> Position + 'static> From<F> for Reactive<Position> {
+    fn from(f: F) -> Self { Reactive::Dynamic(Box::new(f)) }
+}
+
+impl From<Line<GridPlacement>> for Reactive<Line<GridPlacement>> {
+    fn from(v: Line<GridPlacement>) -> Self { Reactive::Static(v) }
+}
+impl<F: Fn() -> Line<GridPlacement> + 'static> From<F> for Reactive<Line<GridPlacement>> {
+    fn from(f: F) -> Self { Reactive::Dynamic(Box::new(f)) }
 }
