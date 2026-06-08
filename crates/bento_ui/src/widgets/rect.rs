@@ -11,6 +11,17 @@ pub struct Rect {
     pub radius: Reactive<f32>,
 }
 
+impl Rect {
+    pub fn color(mut self, v: impl Into<Reactive<[f32; 4]>>) -> Self {
+        self.color = v.into();
+        self
+    }
+    pub fn radius(mut self, v: impl Into<Reactive<f32>>) -> Self {
+        self.radius = v.into();
+        self
+    }
+}
+
 impl View for Rect {
     fn name(&self) -> &'static str {
         "Rect"
