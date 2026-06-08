@@ -115,7 +115,22 @@ impl View for Group {
     }
 
     fn render(&self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand> {
-        vec![]
+        vec![DrawCommand::Rect(RectDraw {
+            x,
+            y,
+            w,
+            h,
+            color: [1.0, 0.0, 0.0, 0.3],
+            radii: [0.0; 4],
+            border_color: [0.0; 4],
+            border_widths: [0.0; 4],
+            rotate: 0.0,
+            scale_x: 1.0,
+            scale_y: 1.0,
+            opacity: 1.0,
+            clip: None,
+            z: 0,
+        })]
     }
 
     fn build(self: Box<Self>) -> ViewId {
