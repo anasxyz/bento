@@ -1,11 +1,12 @@
 use crate::layout::LayoutProps;
 use crate::node::{self, Node};
+use crate::reactive::value::Reactive;
 use crate::tree;
 use crate::views::{View, ViewId};
 use bento_wgpu::{DrawCommand, TextAlign, TextDraw, TextMeasureRequest, TextMeasurer};
 
 pub struct Text {
-    content: Box<dyn Fn() -> String>,
+    content: Reactive<String>,
 }
 
 impl View for Text {
@@ -39,7 +40,7 @@ impl View for Text {
 
     fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32) {
         // println!("[measure] text");
-        let text = (self.content)();
+        let text = (self.content.get_clone());
         let r = measurer.measure(TextMeasureRequest {
             text: &text,
             font_family: "",
@@ -58,7 +59,7 @@ impl View for Text {
     }
 
     fn render(&self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand> {
-        let text = (self.content)();
+        let text = (self.content.get_clone());
         vec![DrawCommand::Text(TextDraw {
             x,
             y,
@@ -92,8 +93,6 @@ impl View for Text {
     }
 }
 
-pub fn text(f: impl Fn() -> String + 'static) -> Text {
-    Text {
-        content: Box::new(f),
-    }
+pub fn text(f: impl Into<Reactive<String>>) -> Text {
+    Text { content: f.into() }
 }

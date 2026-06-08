@@ -2,24 +2,21 @@ use bento::*;
 
 #[component]
 fn app() -> impl View {
-    let width = state(300.0f32);
+    let count = state(0);
 
     group()
         .direction(col())
-        .w(px(400.0))
-        .h(px(400.0))
+        .w(fill())
+        .h(fill())
+        .p(px(24.0))
+        .gap(px(8.0))
+        .child(text("this is static"))
+        .child(text(move || format!("count: {}", count.get())))
         .child(
-            rect(|| [0.0, 0.5, 1.0, 1.0])
-                .w(move || px(width.get()))
-                .h(px(100.0))
-        )
-        .child(
-            rect(|| [1.0, 0.0, 0.0, 1.0])
-                .w(px(100.0))
-                .h(px(100.0))
-                .on(move |_: &Click| {
-                    width.set(width.get() + 50.0);
-                })
+            rect()
+                .w(px(120.0))
+                .h(px(40.0))
+                .on(move |_: &Click| count.set(count.get() + 1))
         )
 }
 

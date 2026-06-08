@@ -1,12 +1,24 @@
 use crate::layout::LayoutProps;
 use crate::node::{self, Node};
+use crate::reactive::value::Reactive;
 use crate::tree;
 use crate::views::{View, ViewId};
 use bento_wgpu::{DrawCommand, RectDraw};
 
 pub struct Rect {
-    pub color: Box<dyn Fn() -> [f32; 4]>,
-    pub radius: f32,
+    pub color: Reactive<[f32; 4]>,
+    pub radius: Reactive<f32>,
+}
+
+impl Rect {
+    pub fn color(mut self, v: impl Into<Reactive<[f32; 4]>>) -> Self {
+        self.color = v.into();
+        self
+    }
+    pub fn radius(mut self, v: impl Into<Reactive<f32>>) -> Self {
+        self.radius = v.into();
+        self
+    }
 }
 
 impl View for Rect {
@@ -20,8 +32,8 @@ impl View for Rect {
             y,
             w,
             h,
-            color: (self.color)(),
-            radii: [self.radius; 4],
+            color: (self.color.get()),
+            radii: [self.radius.get(); 4],
             border_color: [0.0, 0.0, 0.0, 1.0],
             border_widths: [1.0; 4],
             rotate: 0.0,
@@ -58,9 +70,9 @@ impl View for Rect {
     }
 }
 
-pub fn rect(color: impl Fn() -> [f32; 4] + 'static) -> Rect {
+pub fn rect() -> Rect {
     Rect {
-        color: Box::new(color),
-        radius: 0.0,
+        color: [0.0, 0.0, 0.0, 0.0].into(),
+        radius: 0.0_f32.into(),
     }
 }
