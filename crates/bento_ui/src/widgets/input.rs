@@ -123,7 +123,7 @@ impl View for TextInput {
         }));
 
         // cursor
-        let cursor_h = self.font_size;
+        let cursor_h = self.font_size * 1.4;
         let cursor_y = y + (h - cursor_h) / 2.0;
         cmds.push(DrawCommand::Rect(RectDraw {
             x: x + padding + self.cursor_x,
@@ -226,6 +226,8 @@ impl View for TextInput {
                     }
                 }
             });
+
+            ui::request_layout();
         });
 
         id

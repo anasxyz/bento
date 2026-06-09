@@ -4,6 +4,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use taffy::{AvailableSpace, LengthPercentageAuto, Rect, TaffyTree};
 
 use crate::{
+    Key::A,
     View,
     layout::LayoutProps,
     node::{EventHandler, Node},
@@ -162,6 +163,14 @@ pub fn store_owner(id: ViewId, owner: Owner) {
     });
 }
 
+pub fn mark_dirty(id: ViewId) {
+    TREE.with(|t| {
+        if let Some(node) = t.borrow_mut().nodes.get_mut(id.0) {
+            node.paint_dirty = true;
+        }
+    });
+}
+
 pub fn render(id: ViewId, draw_list: &mut DrawList, ox: f32, oy: f32, clip: Option<[f32; 4]>) {
     let (paint_dirty, x, y, w, h, scroll_x, scroll_y, scrollable, children) = TREE.with(|t| {
         let t = t.borrow();
@@ -183,6 +192,14 @@ pub fn render(id: ViewId, draw_list: &mut DrawList, ox: f32, oy: f32, clip: Opti
     let ry = y + oy;
 
     if paint_dirty || ox != 0.0 || oy != 0.0 {
+        println!(
+            "[render] repainting node {:?} name={:?} paint_dirty={} ox={} oy={}",
+            id.0,
+            TREE.with(|t| t.borrow().nodes[id.0].name),
+            paint_dirty,
+            ox,
+            oy
+        );
         let sub_id = TREE.with(|t| t.borrow().nodes[id.0].paint_subscriber);
 
         let mut view = TREE.with(|t| t.borrow_mut().views.remove(id.0));
@@ -245,6 +262,8 @@ pub fn mutate_view<V: View + 'static, F: FnOnce(&mut V)>(id: ViewId, f: F) {
         f(v);
     }
     TREE.with(|t| t.borrow_mut().views.insert(view));
+
+    mark_dirty(id);
 }
 
 pub fn set_clip(id: ViewId) {
@@ -300,6 +319,11 @@ pub fn layout(root: ViewId, available_w: f32, available_h: f32, measurer: &mut T
     let mut lookup: HashMap<taffy::NodeId, (f32, f32)> = HashMap::new();
     for (i, taffy_id, paint_dirty) in ids_and_taffy {
         let size = if paint_dirty {
+            println!(
+                "[layout] measuring node {:?} name={:?}",
+                i,
+                TREE.with(|t| t.borrow().nodes[i].name)
+            );
             let mut view = TREE.with(|t| t.borrow_mut().views.remove(i));
             let size = view.measure(measurer);
             TREE.with(|t| t.borrow_mut().views.insert(view));
@@ -355,11 +379,14 @@ fn apply_layout(id: ViewId, parent_x: f32, parent_y: f32) {
     TREE.with(|t| {
         let mut t = t.borrow_mut();
         let node = &mut t.nodes[id.0];
+        let changed = node.x != x || node.y != y || node.w != w || node.h != h;
         node.x = x;
         node.y = y;
         node.w = w;
         node.h = h;
-        node.paint_dirty = true;
+        if changed {
+            node.paint_dirty = true;
+        }
     });
 
     for child_id in children {
