@@ -56,7 +56,7 @@ impl View for Rect {
     }
 
     fn build(self: Box<Self>) -> ViewId {
-        let view = Box::new(Self::new());
+        let view = self;
 
         let node = Node::with_name("Rect (Primitive)");
 

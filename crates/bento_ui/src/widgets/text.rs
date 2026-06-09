@@ -29,7 +29,7 @@ impl View for Text {
     }
 
     fn build(self: Box<Self>) -> ViewId {
-        let view = Box::new(Self::new());
+        let view = self;
 
         let node = Node::with_name("Text (Primitive)");
 

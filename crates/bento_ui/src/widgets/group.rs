@@ -149,19 +149,14 @@ impl View for Group {
     }
 
     fn build(self: Box<Self>) -> ViewId {
-        let each = self.each;
-        let when = self.when;
-        let scroll = self.scroll;
-        let clip = self.clip;
-        let child_ids: Vec<ViewId> = self.children.into_iter().map(|c| c.build()).collect();
+        let Self { children, each, when, scroll, clip } = *self;
 
-        // create view
-        let view = Box::new(Self::new());
+        let child_ids: Vec<ViewId> = children.into_iter().map(|c| c.build()).collect();
 
-        // create node
         let node = Node::with_name("Group (Primitive)");
 
-        // pass node and view to tree
+        let view = Box::new(Group::new());
+
         let id = tree::add_node(node, view);
 
         if scroll {
