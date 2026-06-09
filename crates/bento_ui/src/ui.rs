@@ -4,6 +4,7 @@ use std::rc::Rc;
 use bento_wgpu::{DrawList, TextMeasurer};
 
 use crate::Key;
+use crate::events::KeyPress;
 use crate::reactive::runtime;
 
 use crate::{
@@ -21,6 +22,7 @@ pub struct Ui {
     pub viewport_w: f32,
     pub viewport_h: f32,
     pub pointer_capture: Option<ViewId>,
+    pub focused: Option<ViewId>,
     pub layout_dirty: bool,
 }
 
@@ -40,6 +42,7 @@ impl Ui {
             viewport_w: 800.0,
             viewport_h: 600.0,
             pointer_capture: None,
+            focused: None,
             layout_dirty: true,
         }
     }
@@ -79,14 +82,14 @@ impl Ui {
     }
 
     pub fn keyboard_stuff(&mut self) {
-        if self
-            .input
-            .keyboard
-            .just_pressed()
-            .iter()
-            .any(|(k, _)| *k == Key::D)
-        {
+        if self.input.keyboard.just_pressed().iter().any(|(k, _)| *k == Key::Equals) {
             tree::print_tree(self.root, 0);
+        }
+
+        for (key, ch) in self.input.keyboard.just_pressed().iter().cloned() {
+            if let Some(id) = self.focused {
+                tree::dispatch(id, &KeyPress { key, ch });
+            }
         }
     }
 
@@ -98,38 +101,42 @@ impl Ui {
 
     pub fn mouse_click_events(&mut self) {
         if self.input.mouse.left.just_pressed {
-            if let Some(id) =
-                tree::hit_test(self.root, self.input.mouse.x, self.input.mouse.y, 0.0, 0.0)
-            {
-                tree::dispatch(
-                    id,
-                    &events::MouseDown {
-                        x: self.input.mouse.x,
-                        y: self.input.mouse.y,
-                        button: mouse::MouseButton::Left,
-                    },
-                );
+            let new_focus = tree::hit_test(self.root, self.input.mouse.x, self.input.mouse.y, 0.0, 0.0);
+
+            if self.focused != new_focus {
+                if let Some(old_id) = self.focused {
+                    tree::dispatch(old_id, &events::FocusLost);
+                }
+                if let Some(new_id) = new_focus {
+                    tree::dispatch(new_id, &events::FocusGained);
+                }
+                self.focused = new_focus;
+            }
+
+            if let Some(id) = new_focus {
+                tree::dispatch(id, &events::MouseDown {
+                    x: self.input.mouse.x,
+                    y: self.input.mouse.y,
+                    button: mouse::MouseButton::Left,
+                });
                 self.pointer_capture = Some(id);
+            } else {
+                self.focused = None;
             }
         }
+
         if self.input.mouse.left.just_released {
             if let Some(id) = self.pointer_capture {
-                tree::dispatch(
-                    id,
-                    &events::MouseUp {
-                        x: self.input.mouse.x,
-                        y: self.input.mouse.y,
-                        button: mouse::MouseButton::Left,
-                    },
-                );
-                tree::dispatch(
-                    id,
-                    &events::Click {
-                        x: self.input.mouse.x,
-                        y: self.input.mouse.y,
-                        button: mouse::MouseButton::Left,
-                    },
-                );
+                tree::dispatch(id, &events::MouseUp {
+                    x: self.input.mouse.x,
+                    y: self.input.mouse.y,
+                    button: mouse::MouseButton::Left,
+                });
+                tree::dispatch(id, &events::Click {
+                    x: self.input.mouse.x,
+                    y: self.input.mouse.y,
+                    button: mouse::MouseButton::Left,
+                });
             }
             self.pointer_capture = None;
         }

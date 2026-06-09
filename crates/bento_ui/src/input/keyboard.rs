@@ -108,6 +108,18 @@ pub enum Key {
     Unknown,
 }
 
+impl Key {
+    pub fn is_modifier(&self) -> bool {
+        match self {
+            Key::LShift | Key::RShift |
+            Key::LCtrl | Key::RCtrl |
+            Key::LAlt | Key::RAlt |
+            Key::LSuper | Key::RSuper => true,
+            _ => false
+        }
+    }
+}
+
 impl fmt::Display for Key {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "{:?}", self)

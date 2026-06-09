@@ -2,7 +2,11 @@ use bento::*;
 
 #[component]
 fn app() -> impl View {
-    let count = state(0);
+    let value = state(String::new());
+
+    timer(2.0, move || {
+        value.set(format!("hello world"));
+    });
 
     group()
         .direction(col())
@@ -10,14 +14,15 @@ fn app() -> impl View {
         .h(fill())
         .p(px(24.0))
         .gap(px(8.0))
-        .child(text("this is static"))
-        .child(text(move || format!("count: {}", count.get())))
         .child(
-            rect()
-                .w(px(120.0))
-                .h(px(40.0))
-                .on(move |_: &Click| count.set(count.get() + 1))
+            text_input(value)
+                .w(fill())
+                .h(px(36.0))
+                .on(move |e: &FocusGained| {
+                    println!("focus gained");
+                }),
         )
+        .child(text(move || format!("value: {}", value.get())))
 }
 
 #[main]
