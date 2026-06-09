@@ -1,4 +1,4 @@
-use crate::events::KeyPress;
+use crate::events::{Click, KeyPress};
 use crate::input::keyboard::Key;
 use crate::layout::LayoutProps;
 use crate::node::{self, Node};
@@ -13,7 +13,11 @@ pub struct TextInput {
     pub value: Signal<String>,
     pub cursor: usize,
     pub cursor_x: f32,
+    pub scroll_x: f32,
     pub font_size: f32,
+    pub glyph_positions: Vec<f32>,
+    pub last_w: f32,
+    pub text_width: f32,
 }
 
 impl TextInput {
@@ -59,17 +63,28 @@ impl View for TextInput {
             font_family_ranges: &[],
         });
 
+        self.glyph_positions = result.glyph_positions.clone();
+        self.text_width = result.width;
+
         let cur = self
             .cursor
-            .min(result.glyph_positions.len().saturating_sub(1));
-        self.cursor_x = result.glyph_positions[cur];
+            .min(self.glyph_positions.len().saturating_sub(1));
+        self.cursor_x = self.glyph_positions[cur];
 
         (result.width.max(100.0), line_height.ceil())
     }
 
     fn render(&mut self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand> {
         let padding = 8.0;
+        let available = w - padding * 2.0;
         let text_y = y + (h - self.font_size * 1.4) / 2.0;
+        self.last_w = w;
+
+        // clamp scroll to valid range
+        let max_scroll = (self.text_width - available).max(0.0);
+        self.scroll_x = self.scroll_x.clamp(0.0, max_scroll);
+
+        let text_x = x + padding - self.scroll_x;
         let mut cmds = vec![];
 
         // background
@@ -92,7 +107,7 @@ impl View for TextInput {
 
         // text
         cmds.push(DrawCommand::Text(TextDraw {
-            x: x + padding,
+            x: text_x,
             y: text_y,
             w: w - padding * 2.0,
             h,
@@ -126,7 +141,7 @@ impl View for TextInput {
         let cursor_h = self.font_size * 1.4;
         let cursor_y = y + (h - cursor_h) / 2.0;
         cmds.push(DrawCommand::Rect(RectDraw {
-            x: x + padding + self.cursor_x,
+            x: text_x + self.cursor_x,
             y: cursor_y,
             w: 1.0,
             h: cursor_h,
@@ -138,7 +153,7 @@ impl View for TextInput {
             scale_x: 1.0,
             scale_y: 1.0,
             opacity: 1.0,
-            clip: None,
+            clip: Some([x, y, w, h]),
             z: 0,
         }));
 
@@ -147,7 +162,6 @@ impl View for TextInput {
 
     fn build(self: Box<Self>) -> ViewId {
         let value = self.value;
-        let font_size = self.font_size;
 
         let node = Node {
             name: Some("TextInput (Primitive)"),
@@ -225,9 +239,56 @@ impl View for TextInput {
                         }
                     }
                 }
+
+                // update cursor_x from stored glyph positions
+                let new_cur = view
+                    .cursor
+                    .min(view.glyph_positions.len().saturating_sub(1));
+                view.cursor_x = if view.glyph_positions.is_empty() {
+                    0.0
+                } else {
+                    view.glyph_positions[new_cur]
+                };
+
+                // snap scroll to keep cursor visible
+                let available = view.last_w - 16.0;
+                if view.cursor_x - view.scroll_x > available {
+                    view.scroll_x = view.cursor_x - available;
+                }
+                if view.cursor_x < view.scroll_x {
+                    view.scroll_x = view.cursor_x;
+                }
             });
 
             ui::request_layout();
+        });
+
+        tree::add_handler(id, move |e: &crate::events::MouseScroll| {
+            tree::mutate_view(id, |view: &mut TextInput| {
+                view.scroll_x = (view.scroll_x - e.x).max(0.0);
+            });
+            ui::request_redraw();
+        });
+
+        tree::add_handler(id, move |e: &Click| {
+            let (node_x, _, _, _) = tree::get_rect(id);
+            tree::mutate_view(id, |view: &mut TextInput| {
+                let padding = 8.0;
+                let relative_x = e.x - node_x - padding + view.scroll_x;
+
+                let mut best = 0;
+                let mut best_dist = f32::MAX;
+                for (i, &gx) in view.glyph_positions.iter().enumerate() {
+                    let dist = (gx - relative_x).abs();
+                    if dist < best_dist {
+                        best_dist = dist;
+                        best = i;
+                    }
+                }
+                view.cursor = best;
+                view.cursor_x = view.glyph_positions.get(best).copied().unwrap_or(0.0);
+            });
+            ui::request_redraw();
         });
 
         id
@@ -239,6 +300,10 @@ pub fn text_input(value: Signal<String>) -> TextInput {
         value,
         cursor: 0,
         cursor_x: 0.0,
+        scroll_x: 0.0,
         font_size: 14.0,
+        glyph_positions: Vec::new(),
+        last_w: 0.0,
+        text_width: 0.0,
     }
 }
