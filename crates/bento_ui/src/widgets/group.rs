@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::{cell::RefCell, hash::Hash};
@@ -23,6 +24,16 @@ pub struct Group {
 }
 
 impl Group {
+    pub fn new() -> Self {
+        Self {
+            children: Vec::new(),
+            each: None,
+            when: Vec::new(),
+            scroll: false,
+            clip: false,
+        }
+    }
+
     pub fn child(mut self, child: impl View + 'static) -> Self {
         self.children.push(Box::new(child));
         self
@@ -114,7 +125,11 @@ impl View for Group {
         "Group"
     }
 
-    fn render(&self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand> {
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
+    fn render(&mut self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand> {
         vec![DrawCommand::Rect(RectDraw {
             x,
             y,
@@ -140,33 +155,14 @@ impl View for Group {
         let clip = self.clip;
         let child_ids: Vec<ViewId> = self.children.into_iter().map(|c| c.build()).collect();
 
-        let id = tree::add_node(Node {
-            name: Some("Group (Primitive)"),
-            view: Box::new(Group {
-                children: Vec::new(),
-                each: None,
-                when: Vec::new(),
-                scroll: false,
-                clip: false,
-            }),
-            taffy_id: node::placeholder_taffy_id(),
-            parent: None,
-            children: Vec::new(),
-            x: 0.0,
-            y: 0.0,
-            w: 0.0,
-            h: 0.0,
-            layout: LayoutProps::default(),
-            handlers: Vec::new(),
-            owners: Vec::new(),
-            paint_dirty: true,
-            cache: Vec::new(),
-            paint_subscriber: None,
-            scroll_x: 0.0,
-            scroll_y: 0.0,
-            scrollable: false,
-            clip: false,
-        });
+        // create view
+        let view = Box::new(Self::new());
+
+        // create node
+        let node = Node::with_name("Group (Primitive)");
+
+        // pass node and view to tree
+        let id = tree::add_node(node, view);
 
         if scroll {
             tree::set_scrollable(id);

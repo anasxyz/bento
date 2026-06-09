@@ -36,7 +36,6 @@ pub fn node_ref() -> NodeRef {
 
 pub(crate) struct Node {
     pub(crate) name: Option<&'static str>,
-    pub(crate) view: Box<dyn View>,
     pub(crate) taffy_id: TaffyNodeId,
     pub(crate) parent: Option<ViewId>,
     pub(crate) children: Vec<ViewId>,
@@ -57,4 +56,38 @@ pub(crate) struct Node {
     pub(crate) scroll_y: f32,
     pub(crate) scrollable: bool,
     pub(crate) clip: bool,
+}
+
+impl Node {
+    pub fn with_name(name: &'static str) -> Self {
+        Self {
+            name: Some(name),
+            ..Default::default()
+        }
+    }
+}
+
+impl Default for Node {
+    fn default() -> Self {
+        Self {
+            name: None,
+            taffy_id: placeholder_taffy_id(),
+            parent: None,
+            children: Vec::new(),
+            x: 0.0,
+            y: 0.0,
+            w: 0.0,
+            h: 0.0,
+            layout: LayoutProps::default(),
+            handlers: Vec::new(),
+            owners: Vec::new(),
+            paint_dirty: true,
+            cache: Vec::new(),
+            paint_subscriber: None,
+            scroll_x: 0.0,
+            scroll_y: 0.0,
+            scrollable: false,
+            clip: false,
+        }
+    }
 }

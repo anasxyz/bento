@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use bento_wgpu::{DrawCommand, RectDraw};
 
 use crate::layout::LayoutProps;
@@ -12,6 +14,13 @@ pub struct Rect {
 }
 
 impl Rect {
+    pub fn new() -> Self {
+        Self {
+            color: [0.0, 0.0, 0.0, 0.0].into(),
+            radius: 0.0_f32.into(),
+        }
+    }
+
     pub fn color(mut self, v: impl Into<Reactive<[f32; 4]>>) -> Self {
         self.color = v.into();
         self
@@ -27,7 +36,7 @@ impl View for Rect {
         "Rect"
     }
 
-    fn render(&self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand> {
+    fn render(&mut self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand> {
         vec![DrawCommand::Rect(RectDraw {
             x,
             y,
@@ -47,27 +56,17 @@ impl View for Rect {
     }
 
     fn build(self: Box<Self>) -> ViewId {
-        tree::add_node(Node {
-            name: Some("Rect (Primitive)"),
-            view: self,
-            taffy_id: node::placeholder_taffy_id(),
-            parent: None,
-            children: Vec::new(),
-            x: 0.0,
-            y: 0.0,
-            w: 0.0,
-            h: 0.0,
-            layout: LayoutProps::default(),
-            handlers: Vec::new(),
-            owners: Vec::new(),
-            paint_dirty: true,
-            cache: Vec::new(),
-            paint_subscriber: None,
-            scroll_x: 0.0,
-            scroll_y: 0.0,
-            scrollable: false,
-            clip: false,
-        })
+        let view = Box::new(Self::new());
+
+        let node = Node::with_name("Rect (Primitive)");
+
+        let id = tree::add_node(node, view);
+
+        id
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }
 

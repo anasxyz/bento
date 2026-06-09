@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use bento_wgpu::{DrawCommand, TextMeasurer};
 
 use crate::{
@@ -34,12 +36,16 @@ impl View for OwnedView {
         id
     }
 
-    fn render(&self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand> {
+    fn render(&mut self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand> {
         self.inner.render(x, y, w, h)
     }
 
-    fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32) {
+    fn measure(&mut self, measurer: &mut TextMeasurer) -> (f32, f32) {
         self.inner.measure(measurer)
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }
 

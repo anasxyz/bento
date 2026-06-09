@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use bento_wgpu::{DrawCommand, TextMeasurer};
 use taffy::prelude::*;
 
@@ -15,8 +17,9 @@ pub trait View {
     // must implement
     fn name(&self) -> &'static str { "unnamed" }
     fn build(self: Box<Self>) -> ViewId;
-    fn render(&self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand>;
-    fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32) { (0.0, 0.0) }
+    fn render(&mut self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand>;
+    fn measure(&mut self, measurer: &mut TextMeasurer) -> (f32, f32) { (0.0, 0.0) }
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 
     // auto implemented
     fn named(self, name: &'static str) -> NamedView<Self> where Self: Sized { NamedView { inner: self, name } }

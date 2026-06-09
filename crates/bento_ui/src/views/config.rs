@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use taffy::prelude::*;
 use bento_wgpu::{DrawCommand, TextMeasurer};
 
@@ -129,7 +131,7 @@ impl<V: View> ViewConfig<V> {
     pub fn inset_bottom(mut self, v: impl Into<Reactive<Val>>) -> Self { self.inset_bottom = Some(v.into()); self }
 }
 
-impl<V: View> View for ViewConfig<V> {
+impl<V: View + 'static> View for ViewConfig<V> {
     fn name(&self) -> &'static str { self.inner.name() }
 
     fn build(self: Box<Self>) -> ViewId {
@@ -212,11 +214,15 @@ impl<V: View> View for ViewConfig<V> {
         id
     }
 
-    fn render(&self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand> {
+    fn render(&mut self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand> {
         self.inner.render(x, y, w, h)
     }
 
-    fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32) {
+    fn measure(&mut self, measurer: &mut TextMeasurer) -> (f32, f32) {
         self.inner.measure(measurer)
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }

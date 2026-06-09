@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use crate::layout::LayoutProps;
 use crate::node::{self, Node};
 use crate::reactive::value::Reactive;
@@ -9,36 +11,34 @@ pub struct Text {
     content: Reactive<String>,
 }
 
+impl Text {
+    pub fn new() -> Self {
+        Self {
+            content: "".into(),
+        }
+    }
+}
+
 impl View for Text {
     fn name(&self) -> &'static str {
         "Text"
     }
 
-    fn build(self: Box<Self>) -> ViewId {
-        tree::add_node(Node {
-            name: Some("Text (Primitive)"),
-            view: self,
-            taffy_id: node::placeholder_taffy_id(),
-            parent: None,
-            children: Vec::new(),
-            x: 0.0,
-            y: 0.0,
-            w: 0.0,
-            h: 0.0,
-            layout: LayoutProps::default(),
-            handlers: Vec::new(),
-            owners: Vec::new(),
-            paint_dirty: true,
-            cache: Vec::new(),
-            paint_subscriber: None,
-            scroll_x: 0.0,
-            scroll_y: 0.0,
-            scrollable: false,
-            clip: false,
-        })
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 
-    fn measure(&self, measurer: &mut TextMeasurer) -> (f32, f32) {
+    fn build(self: Box<Self>) -> ViewId {
+        let view = Box::new(Self::new());
+
+        let node = Node::with_name("Text (Primitive)");
+
+        let id = tree::add_node(node, view);
+
+        id
+    }
+
+    fn measure(&mut self, measurer: &mut TextMeasurer) -> (f32, f32) {
         // println!("[measure] text");
         let text = (self.content.get_clone());
         let r = measurer.measure(TextMeasureRequest {
@@ -58,7 +58,7 @@ impl View for Text {
         (r.width, r.height)
     }
 
-    fn render(&self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand> {
+    fn render(&mut self, x: f32, y: f32, w: f32, h: f32) -> Vec<DrawCommand> {
         let text = (self.content.get_clone());
         vec![DrawCommand::Text(TextDraw {
             x,

@@ -4,6 +4,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use taffy::{AvailableSpace, LengthPercentageAuto, Rect, TaffyTree};
 
 use crate::{
+    View,
     layout::LayoutProps,
     node::{EventHandler, Node},
     reactive::{owner::Owner, runtime},
@@ -13,6 +14,7 @@ use crate::{
 
 struct Tree {
     nodes: Slab<Node>,
+    views: Slab<Box<dyn View>>,
     taffy: TaffyTree<()>,
 }
 
@@ -20,6 +22,7 @@ impl Tree {
     fn new() -> Self {
         Self {
             nodes: Slab::new(),
+            views: Slab::new(),
             taffy: TaffyTree::new(),
         }
     }
@@ -29,7 +32,7 @@ thread_local! {
     static TREE: RefCell<Tree> = RefCell::new(Tree::new());
 }
 
-pub(crate) fn add_node(node: Node) -> ViewId {
+pub(crate) fn add_node(node: Node, view: Box<dyn View>) -> ViewId {
     let taffy_id = TREE.with(|t| {
         let mut t = t.borrow_mut();
         let style = node.layout.to_taffy_style();
@@ -39,7 +42,13 @@ pub(crate) fn add_node(node: Node) -> ViewId {
     let mut node = node;
     node.taffy_id = taffy_id;
 
-    let id = TREE.with(|t| ViewId(t.borrow_mut().nodes.insert(node)));
+    let id = TREE.with(|t| {
+        let mut t = t.borrow_mut();
+        let node_idx = t.nodes.insert(node);
+        let view_idx = t.views.insert(view);
+        assert_eq!(node_idx, view_idx);
+        ViewId(node_idx)
+    });
 
     let sub_id = runtime::create_subscriber(Rc::new(move || {
         TREE.with(|t| {
@@ -57,7 +66,10 @@ pub(crate) fn add_node(node: Node) -> ViewId {
     });
 
     runtime::push_observer(sub_id);
-    TREE.with(|t| t.borrow().nodes[id.0].view.render(0.0, 0.0, 0.0, 0.0));
+    TREE.with(|t| {
+        let mut t = t.borrow_mut();
+        t.views[id.0].render(0.0, 0.0, 0.0, 0.0);
+    });
     runtime::pop_observer();
 
     id
@@ -112,6 +124,7 @@ fn remove_node_inner(id: ViewId) {
         let mut t = t.borrow_mut();
         let _ = t.taffy.remove(taffy_id);
         t.nodes.remove(id.0);
+        t.views.remove(id.0);
     });
 }
 
@@ -172,14 +185,16 @@ pub fn render(id: ViewId, draw_list: &mut DrawList, ox: f32, oy: f32, clip: Opti
     if paint_dirty || ox != 0.0 || oy != 0.0 {
         let sub_id = TREE.with(|t| t.borrow().nodes[id.0].paint_subscriber);
 
+        let mut view = TREE.with(|t| t.borrow_mut().views.remove(id.0));
         let mut commands = if let Some(sub_id) = sub_id {
             runtime::push_observer(sub_id);
-            let cmds = TREE.with(|t| t.borrow().nodes[id.0].view.render(rx, ry, w, h));
+            let cmds = view.render(rx, ry, w, h);
             runtime::pop_observer();
             cmds
         } else {
-            TREE.with(|t| t.borrow().nodes[id.0].view.render(rx, ry, w, h))
+            view.render(rx, ry, w, h)
         };
+        TREE.with(|t| t.borrow_mut().views.insert(view));
 
         apply_clip(&mut commands, clip);
 
@@ -206,7 +221,11 @@ pub fn render(id: ViewId, draw_list: &mut DrawList, ox: f32, oy: f32, clip: Opti
     let clip_self = TREE.with(|t| t.borrow().nodes[id.0].clip);
 
     let (child_ox, child_oy, child_clip) = if scrollable {
-        let c = if clip_self { merge_clip(clip, Some([rx, ry, w, h])) } else { clip };
+        let c = if clip_self {
+            merge_clip(clip, Some([rx, ry, w, h]))
+        } else {
+            clip
+        };
         (ox - scroll_x, oy - scroll_y, c)
     } else if clip_self {
         let c = merge_clip(clip, Some([rx, ry, w, h]));
@@ -218,6 +237,14 @@ pub fn render(id: ViewId, draw_list: &mut DrawList, ox: f32, oy: f32, clip: Opti
     for child_id in children {
         render(child_id, draw_list, child_ox, child_oy, child_clip);
     }
+}
+
+pub fn mutate_view<V: View + 'static, F: FnOnce(&mut V)>(id: ViewId, f: F) {
+    let mut view = TREE.with(|t| t.borrow_mut().views.remove(id.0));
+    if let Some(v) = view.as_any_mut().downcast_mut::<V>() {
+        f(v);
+    }
+    TREE.with(|t| t.borrow_mut().views.insert(view));
 }
 
 pub fn set_clip(id: ViewId) {
@@ -263,22 +290,28 @@ thread_local! {
 pub fn layout(root: ViewId, available_w: f32, available_h: f32, measurer: &mut TextMeasurer) {
     let root_taffy = TREE.with(|t| t.borrow().nodes[root.0].taffy_id);
 
-    // precollect everything needed
-    // no TREE access inside closure
-    let lookup: HashMap<taffy::NodeId, (f32, f32)> = TREE.with(|t| {
+    let ids_and_taffy: Vec<(usize, taffy::NodeId, bool)> = TREE.with(|t| {
         let t = t.borrow();
         t.nodes
             .iter()
-            .map(|(_, n)| {
-                let size = if n.paint_dirty {
-                    n.view.measure(measurer)
-                } else {
-                    (n.w, n.h) // use cached size
-                };
-                (n.taffy_id, size)
-            })
+            .map(|(i, n)| (i, n.taffy_id, n.paint_dirty))
             .collect()
     });
+    let mut lookup: HashMap<taffy::NodeId, (f32, f32)> = HashMap::new();
+    for (i, taffy_id, paint_dirty) in ids_and_taffy {
+        let size = if paint_dirty {
+            let mut view = TREE.with(|t| t.borrow_mut().views.remove(i));
+            let size = view.measure(measurer);
+            TREE.with(|t| t.borrow_mut().views.insert(view));
+            size
+        } else {
+            TREE.with(|t| {
+                let t = t.borrow();
+                (t.nodes[i].w, t.nodes[i].h)
+            })
+        };
+        lookup.insert(taffy_id, size);
+    }
 
     let mut taffy = TREE.with(|t| std::mem::replace(&mut t.borrow_mut().taffy, TaffyTree::new()));
 
@@ -464,7 +497,7 @@ pub(crate) fn print_tree(id: ViewId, depth: usize) {
     TREE.with(|t| {
         let t = t.borrow();
         let node = &t.nodes[id.0];
-        let display_name = node.name.unwrap_or_else(|| node.view.name());
+        let display_name = node.name.unwrap_or("unnamed");
         let indent = "  ".repeat(depth);
         println!(
             "{}{} (id: {}) x: {} y: {} w: {} h: {}",
