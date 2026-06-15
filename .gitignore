@@ -2,3 +2,4 @@
 *.txt
 crates/bento_wgpu/fonts/
 crates/bento/dist/
+!changelog.txt

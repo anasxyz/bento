@@ -1,0 +1,9 @@
+v0.7.1
+
+- Add group x/y scrolling: [`80ad986`](https://github.com/oganas/bento/commit/80ad9866e8ef40855e55750452f37e692a3ff550)
+- Add reactivity to all layout properties: [`4aaa7a9`](https://github.com/oganas/bento/commit/4aaa7a9681318fe83dfac8356d2a7fb0eaa2c5ab)
+- Add internal `Reactive<T>` for opt-in value reactivity: [`b49f68d`](https://github.com/oganas/bento/commit/b49f68db839763940cbfc195be493fbb1ee3dca2)
+- Add focus system: [``]()
+- Add basic text input widget: [``]()
+- Fix text scroll stacking: [`2a5256d`](https://github.com/oganas/bento/commit/2a5256d5e9c0b0719fbd722d8ddd8eacb9d7a123)
+- Remove automatic clipping when marking group as scrollable: [`e7a52a5`](https://github.com/oganas/bento/commit/e7a52a587d4d1ad3e43c7e83e276f92de203ab83)

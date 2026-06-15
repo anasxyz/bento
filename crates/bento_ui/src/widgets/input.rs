@@ -49,7 +49,7 @@ impl View for TextInput {
         let line_height = font_size * 1.4;
 
         let result = measurer.measure(TextMeasureRequest {
-            text: if text.is_empty() { " " } else { &text },
+            text: if text.is_empty() { "" } else { &text },
             font_family: "",
             size: font_size,
             weight: 400,
@@ -123,7 +123,7 @@ impl View for TextInput {
             letter_spacing: 0.0,
             align: TextAlign::Left,
             opacity: 1.0,
-            clip: Some([x, y, w, h]),
+            clip: Some([x + 5.0, y, w - 10.0, h]),
             rotate: 0.0,
             scale_x: 1.0,
             scale_y: 1.0,
@@ -141,7 +141,7 @@ impl View for TextInput {
         let cursor_h = self.font_size * 1.4;
         let cursor_y = y + (h - cursor_h) / 2.0;
         cmds.push(DrawCommand::Rect(RectDraw {
-            x: text_x + self.cursor_x,
+            x: (text_x + self.cursor_x).floor(),
             y: cursor_y,
             w: 1.0,
             h: cursor_h,

@@ -4,10 +4,6 @@ use bento::*;
 fn app() -> impl View {
     let value = state(String::new());
 
-    timer(2.0, move || {
-        value.set(format!("hello world"));
-    });
-
     group()
         .direction(col())
         .w(fill())
